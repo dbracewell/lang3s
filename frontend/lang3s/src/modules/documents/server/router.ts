@@ -1,0 +1,175 @@
+import { db } from "@/db";
+import { DocumentsTable, TextAnnotationTable, TextTable } from "@/db/schema";
+import { logAndRethrow } from "@/lib/try-catch";
+import {
+  TextAnnotationDB,
+  TextAnnotationProps,
+} from "@/modules/common/classes";
+import { PAGE_LIMIT } from "@/modules/common/constants";
+import {
+  getAnnotationsInSentence,
+  notOverlaps,
+  overlaps,
+  selectTextAnnotations,
+} from "@/modules/documents/server/subqueries";
+import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { and, asc, count, desc, eq, lt, ne, not, sql } from "drizzle-orm";
+import z from "zod";
+
+export const DocumentsRouter = createTRPCRouter({
+  getMany: protectedProcedure
+    .input(
+      z.object({
+        cursor: z.number().optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { cursor } = input;
+      let offset = Math.max(cursor ?? 0, 0);
+
+      const totalDocs = await logAndRethrow(
+        db.select({ count: count(DocumentsTable.id) }).from(DocumentsTable),
+      );
+
+      const entities = db
+        .select({
+          textId: TextAnnotationTable.textId,
+          entity: sql<string>`lower(${TextAnnotationTable.text})`.as(
+            "entity_text",
+          ),
+          count: count(TextAnnotationTable.id).as("count"),
+        })
+        .from(TextAnnotationTable)
+        .where(eq(TextAnnotationTable.type, "entity"))
+        .groupBy((t) => [t.textId, t.entity])
+        .orderBy((t) => [desc(t.count), asc(t.entity)])
+        .as("entities");
+
+      const sub = db
+        .select({
+          textId: entities.textId,
+          entities: sql<string[]>`ARRAY_AGG(${entities.entity} || 
+                     ' (<b>' || ${entities.count} || '</b>)' )`.as(
+            "entity_array",
+          ),
+        })
+        .from(entities)
+        .groupBy(entities.textId)
+        .as("sub");
+
+      const docs = await logAndRethrow(
+        db
+          .select({
+            id: DocumentsTable.id,
+            title: DocumentsTable.title,
+            metadata: DocumentsTable.metadata,
+            text: sql<string>`SUBSTRING(${TextTable.text},0,512) || '...'`.as(
+              "text",
+            ),
+            entities: sub.entities,
+          })
+          .from(DocumentsTable)
+          .leftJoin(TextTable, eq(DocumentsTable.id, TextTable.documentId))
+          .innerJoin(sub, eq(TextTable.id, sub.textId))
+          .offset(offset * PAGE_LIMIT)
+          .limit(PAGE_LIMIT + 1)
+          .orderBy((t) => asc(t.id)),
+      );
+
+      const hasNext = docs.length > PAGE_LIMIT;
+      const finalDocs = hasNext ? docs.slice(0, docs.length - 1) : docs;
+      return {
+        nextCursor: hasNext ? offset + 1 : undefined,
+        totalDocs: totalDocs,
+        posts: finalDocs,
+      };
+    }),
+  getOne: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const document = await db.query.DocumentsTable.findFirst({
+        with: {
+          text: true,
+        },
+        where: eq(DocumentsTable.id, input.id),
+      });
+
+      if (!document) {
+        throw Error("Not Found");
+      }
+
+      const sub = db
+        .select()
+        .from(TextAnnotationTable)
+        .where(eq(TextAnnotationTable.documentId, document.id))
+        .orderBy(asc(TextAnnotationTable.start), desc(TextAnnotationTable.end))
+        .as("annotations");
+
+      const r: TextAnnotationDB[] = await db
+        .select({
+          type: sub.type,
+          annotations: sql<TextAnnotationProps[]>`json_agg(json_build_object(
+												 'id', ${sub.id},
+								 'start', ${sub.start}, 
+								 'end', ${sub.end},
+								 'text', ${sub.text},
+								 'type', ${sub.type}, 
+								 'value', ${sub.value}))`.as("annotations"),
+        })
+        .from(sub)
+        .groupBy(sub.type);
+
+      return {
+        id: document.id,
+        metadata: document.metadata as Record<string, string>,
+        text:
+          document.text.length > 0
+            ? {
+                id: document.text[0].id,
+                text: document.text[0].text,
+                annotations: r,
+              }
+            : undefined,
+      };
+    }),
+
+  test: protectedProcedure
+    .input(
+      z.object({
+        type1: z.string(),
+        type2: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const q1 = getAnnotationsInSentence({
+        annotationType: input.type1,
+        textConversion: "upper",
+      }).as("q1");
+      const q2 = getAnnotationsInSentence({
+        annotationType: input.type2,
+        textConversion: "upper",
+      }).as("q2");
+      return await db
+        .select({
+          e1: q1.text,
+          e1Type: q1.value,
+          e2: q2.text,
+          e2Type: q2.value,
+          count: count(),
+        })
+        .from(q1)
+        .innerJoin(
+          q2,
+          and(
+            eq(q2.sentenceId, q1.sentenceId),
+            ne(q1.annotationId, q2.annotationId),
+            ne(q1.text, q2.text),
+            input.type1 !== input.type2 ? notOverlaps(q1, q2) : undefined,
+            input.type1 === input.type2 ? lt(q1.text, q2.text) : undefined,
+          ),
+        )
+        .groupBy((t) => [t.e1, t.e2, t.e1Type, t.e2Type])
+        .orderBy((t) => [desc(t.count)])
+        .limit(100);
+    }),
+});

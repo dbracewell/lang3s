@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: lang3s-job-service
+Version: 2025.10.3
+Requires-Python: >=3.13
+Requires-Dist: requests

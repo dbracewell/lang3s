@@ -1,0 +1,1 @@
+python -m pwiz -e postgresql -H localhost -p 5432 -u admin -P lang3s >db.py 

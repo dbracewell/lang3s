@@ -1,0 +1,7 @@
+.venv
+.pyc
+.env*
+/trainer_output/
+/models/
+/data/
+__pycache__

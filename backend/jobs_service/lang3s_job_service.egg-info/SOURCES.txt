@@ -1,0 +1,8 @@
+pyproject.toml
+lang3s/__init__.py
+lang3s/job_service.py
+lang3s_job_service.egg-info/PKG-INFO
+lang3s_job_service.egg-info/SOURCES.txt
+lang3s_job_service.egg-info/dependency_links.txt
+lang3s_job_service.egg-info/requires.txt
+lang3s_job_service.egg-info/top_level.txt
