@@ -25,7 +25,6 @@ if __name__ == "__main__":
                 },
             )
             files.append(file)
-            break
     except Exception:
         pass
     job_service.annotate_documents(files=files)
