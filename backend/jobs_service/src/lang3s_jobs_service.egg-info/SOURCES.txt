@@ -1,0 +1,8 @@
+.gitignore
+pyproject.toml
+src/lang3s_job_service/__init__.py
+src/lang3s_jobs_service.egg-info/PKG-INFO
+src/lang3s_jobs_service.egg-info/SOURCES.txt
+src/lang3s_jobs_service.egg-info/dependency_links.txt
+src/lang3s_jobs_service.egg-info/requires.txt
+src/lang3s_jobs_service.egg-info/top_level.txt

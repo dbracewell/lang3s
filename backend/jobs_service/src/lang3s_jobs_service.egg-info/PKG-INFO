@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: lang3s-jobs_service
+Version: 2025.10.3
+Summary: Jobs Service client
+Requires-Python: >=3.13
+Requires-Dist: requests

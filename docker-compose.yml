@@ -1,0 +1,101 @@
+version: "3.9"
+
+services:
+  inngest:
+    image: inngest/inngest
+    command: "inngest dev -u http://host.docker.internal:3001/api/inngest"
+    ports:
+      - "8288:8288"
+      - "8289:8289"
+    env_file:
+      - .env
+    environment:
+      - INGEST_DEV=1
+      - INNGEST_POSTGRES_URI:=postgres://inngest:${POSTGRES_PASSWORD}@database:5432/inngest
+      - INNGEST_REDIS_URI=redis://redis:6379
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - lang3s-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8288/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+  database:
+    build:
+      context: .
+      dockerfile: postgres/Dockerfile
+      args:
+        POSTGRESQL_VERSION: 17
+        PGROONGA_VERSION: 4.0.4-1
+        POSTGRES_DB: ${POSTGRES_DB}
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_HOST: ${POSTGRES_HOST}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    container_name: lang3s_database
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/postgres-init-scripts:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - lang3s-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inngest -d inngest"]
+      interval: 5s
+      timeout: 5s
+      retries: 5         
+
+  nlp:
+    build:
+      context: ./backend
+      args:
+        JOBS_API_KEY: ${JOBS_API_KEY}
+        JOB_SERVICE_URL: ${JOB_SERVICE_URL}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        POSTGRES_DB: ${POSTGRES_DB}
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_HOST: ${POSTGRES_HOST}
+        REDIS_HOST: ${REDIS_HOST}
+        DEVICE: ${DEVICE}
+    container_name: lang3s_nlp
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - nlp_data:/app
+    networks:
+      - lang3s-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - lang3s-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    
+      
+volumes:
+  postgres_data:
+  redis_data:
+  nlp_data:
+
+networks:
+  lang3s-network:
+    driver: bridge
