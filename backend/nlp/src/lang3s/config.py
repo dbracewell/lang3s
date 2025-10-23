@@ -17,10 +17,10 @@ def __get_environment_var(name: str, default: Any) -> Any:
 
 JOBS_API_KEY = __get_environment_var("JOBS_API_KEY", "456789")
 
-DB_PASSWORD = __get_environment_var("DB_PASSWORD", "abba")
-DB_USER = __get_environment_var("DB_USER", "admin")
-DB_HOST = __get_environment_var("DB_HOST", "localhost")
-DB_PORT = int(__get_environment_var("DB_PORT", 5432))
+DB_PASSWORD = __get_environment_var("POSTGRES_PASSWORD", "abba")
+DB_USER = __get_environment_var("POSTGRES_USER", "admin")
+DB_HOST = __get_environment_var("POSTGRES_HOST", "localhost")
+DB_PORT = int(__get_environment_var("POSTGRES_PORT", 5432))
 
 REDIS_HOST = __get_environment_var("REDIS_HOST", "localhost")
 REDIS_PORT = int(__get_environment_var("REDIS_PORT", 6379))

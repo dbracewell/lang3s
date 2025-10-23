@@ -3,15 +3,13 @@ import { JobsTable, jobStatuses } from "@/db/schema";
 import { ANNOTATION_QUEUE, performRedisCommand } from "@/lib/redis";
 import { logAndRethrow } from "@/lib/try-catch";
 import { Lang3sFile } from "@/modules/common/classes";
-import { isValidApiKey } from "@/modules/jobs/server/api";
 import {
   ApiEndpointSchema,
   apiMiddleWare,
-  baseProcedure,
   createTRPCRouter,
 } from "@/trpc/init";
 import { TRPCError } from "@trpc/server";
-import { AnyColumn, eq, sql } from "drizzle-orm";
+import { AnyColumn, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 
 const increment = (
@@ -93,6 +91,8 @@ export const jobsRouter = createTRPCRouter({
         db.select().from(JobsTable).where(eq(JobsTable.id, job_id)),
       );
 
+      console.log(job);
+
       if (!job) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
@@ -121,6 +121,8 @@ export const jobsRouter = createTRPCRouter({
           .where(eq(JobsTable.id, job_id))
           .returning(),
       );
+
+      console.log(updatedJob);
 
       return updatedJob;
     }),
@@ -175,11 +177,20 @@ export const jobsRouter = createTRPCRouter({
       const [updatedJob] = await logAndRethrow(
         db
           .update(JobsTable)
-          .set({ total: increment(JobsTable.total, 1) })
+          .set({ total: increment(JobsTable.total, 1), status: "processing" })
           .where(eq(JobsTable.id, job_id))
           .returning(),
       );
 
       return updatedJob;
     }),
+
+  getAll: apiMiddleWare.query(async () => {
+    return logAndRethrow(
+      db
+        .select()
+        .from(JobsTable)
+        .orderBy((t) => [desc(t.createdAt)]),
+    );
+  }),
 });

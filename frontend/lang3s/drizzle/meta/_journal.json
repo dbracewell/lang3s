@@ -22,6 +22,20 @@
       "when": 1760808422255,
       "tag": "0002_cloudy_edwin_jarvis",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1761238923670,
+      "tag": "0003_magical_quentin_quire",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1761245654688,
+      "tag": "0004_amused_umar",
+      "breakpoints": true
     }
   ]
 }

@@ -3,28 +3,31 @@ name = "lang3s-nlp"
 version = "2025.10.3"
 requires-python = ">= 3.13"
 dependencies = [
-    "transformers==4.51.3",
-    "torch==2.8.0",
-    "datasets",
-    "scikit-learn",
-    "adapters==1.2.0",
-    "evaluate",
-    "seqeval",
-    "accelerate",
-    "shortuuid==1.0.13",
-    "spacy==3.8.7",
-    "lingua_language_detector==2.1.1",
-    "pgvector==0.4.1",
-    "psycopg[binary]",
-    "inngest==0.5.9",
-    "fastapi",
-    "spacy_download==1.1.0",
-    "uvicorn",
-		"sentence_transformers==5.1.1"
+	"transformers==4.51.3",
+	"torch==2.8.0",
+	"datasets",
+	"scikit-learn",
+	"adapters==1.2.0",
+	"evaluate",
+	"seqeval",
+	"accelerate",
+	"shortuuid==1.0.13",
+	"spacy==3.8.7",
+	"lingua_language_detector==2.1.1",
+	"pgvector==0.4.1",
+	"psycopg[binary]",
+	"inngest==0.5.9",
+	"fastapi",
+	"spacy_download==1.1.0",
+	"uvicorn",
+	"sentence_transformers==5.1.1",
+	"redis==7.0.0",
+	"lang3s-jobs_service",
 ]
 
-[options]
-package_dir="lan3gs"
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
-[options.packages.find]
-where="lan3gs"
+[tool.setuptools.packages.find]
+where = ["src"]

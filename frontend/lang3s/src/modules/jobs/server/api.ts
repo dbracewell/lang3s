@@ -1,7 +1,7 @@
 import "server-only";
 
 export const isValidApiKey = async (apiKey: string) => {
-  if (apiKey === process.env.JOBS_SYSTEM_API_KEY!) {
+  if (apiKey === process.env.JOBS_API_KEY!) {
     return true;
   }
 

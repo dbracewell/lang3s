@@ -10,6 +10,7 @@ import {
   and,
   asc,
   count,
+  countDistinct,
   desc,
   eq,
   gt,
@@ -69,6 +70,13 @@ export const AnalyticsRouter = createTRPCRouter({
             text: sql<string>`upper(${TextAnnotationTable.text})`.as("text"),
             value: TextAnnotationTable.value,
             count: count().as("count"),
+            docCount: countDistinct(TextAnnotationTable.documentId).as(
+              "doc_count",
+            ),
+            mentionsPerDocument:
+              sql<number>`count(0)::float/count(distinct ${TextAnnotationTable.documentId})`.as(
+                "mentions_per_doc",
+              ),
           })
           .from(TextAnnotationTable)
           .where(

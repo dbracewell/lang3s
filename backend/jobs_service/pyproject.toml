@@ -1,13 +1,15 @@
 [project]
-name = "lang3s-job-service"
+name = "lang3s-jobs_service"
 version = "2025.10.3"
+description = "Jobs Service client"
 requires-python = ">= 3.13"
 dependencies = [
 		"requests"
 ]
 
 [build-system]
-	requires = ["setuptools>=61.0"]
-	build-backend = "setuptools.build_meta"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
-
+[tool.setuptools.packages.find]
+where = ["src"]

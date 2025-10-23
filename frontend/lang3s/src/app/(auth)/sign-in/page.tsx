@@ -9,7 +9,7 @@ const getUserCount = async () => {
 
 const SigninPage = async () => {
   const userCount = await getUserCount();
-  if (userCount > 0) {
+  if (userCount <= 0) {
     redirect("/install");
   }
   return <SignInPageView />;

@@ -5,3 +5,6 @@
 /models/
 /data/
 __pycache__
+build
+lang3s_job_service.egg-info
+lang3s_job_service-2025.10.3-py3-none-any.whl

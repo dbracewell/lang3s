@@ -1,8 +1,8 @@
-from pgvector.peewee import VectorField
 from peewee import *
+from pgvector.peewee import VectorField
 from playhouse.postgres_ext import JSONField
 
-from lang3s import config
+import lang3s.config as config
 
 database = PostgresqlDatabase(
     "lang3s",

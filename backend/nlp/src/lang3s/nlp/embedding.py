@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
 
-from lang3s import config
+import lang3s.config as config
 
 if TYPE_CHECKING:
     from lang3s.core import Document

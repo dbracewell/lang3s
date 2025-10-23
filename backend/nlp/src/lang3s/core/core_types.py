@@ -118,7 +118,7 @@ class Text:
         end: int,
         type: str,
         value: str,
-        embedding: List[float] | None,
+        embedding: List[float] | None = None,
         metadata: Dict[str, Any] | None = None,
     ):
         annotation = TextAnnotation(

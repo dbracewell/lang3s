@@ -3,7 +3,7 @@ from typing import List, Set
 
 import numpy as np
 
-from lang3s import config
+import lang3s.config as config
 from lang3s.core.core_types import Document, Text, TextAnnotation
 from lang3s.models.adapter import AdapterModel
 from lang3s.utils import partition
@@ -33,9 +33,6 @@ class AdapterModelTagger:
             end=end + offset,
             value=label,
             text=" ".join([tokens[i].text for i in range(start, end)]),
-            embedding=__average_embedding(
-                [tokens[i].embedding for i in range(start, end)]
-            ),
             type=annotation_type,
         )
 

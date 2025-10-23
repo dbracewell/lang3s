@@ -22,7 +22,13 @@ export const createTRPCContext = cache(async () => {
   return {
     user: {
       id: session.user.id,
-      role: session.user.role,
+      role: session.user.role as
+        | "user"
+        | "admin"
+        | "dataLoader"
+        | "analyst"
+        | "modeller"
+        | undefined,
       username: session.user.username,
     },
   };
@@ -48,23 +54,38 @@ const authenticated = t.middleware(async ({ next, ctx }) => {
   });
 });
 
-// Base router and procedure helpers
-export const createTRPCRouter = t.router;
-export const createCallerFactory = t.createCallerFactory;
-export const baseProcedure = t.procedure;
-export const protectedProcedure = t.procedure.use(authenticated);
-
 export const ApiEndpointSchema = z.object({
-  api_key: z.string(),
+  api_key: z.string().optional(),
 });
 
 export const apiMiddleWare = t.procedure
   .input(ApiEndpointSchema)
   .use(async (opts) => {
-    opts.input.api_key;
-    console.log(opts.input);
-    if (!(await isValidApiKey(opts.input.api_key))) {
+    const user = opts.ctx.user;
+
+    if (user?.role) {
+      if (
+        await auth.api.userHasPermission({
+          body: {
+            permission: {
+              data: ["load", "update"],
+            },
+            role: user.role,
+          },
+        })
+      ) {
+        return opts.next();
+      }
+    }
+
+    if (!opts.input.api_key || !(await isValidApiKey(opts.input.api_key))) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
     return opts.next();
   });
+
+// Base router and procedure helpers
+export const createTRPCRouter = t.router;
+export const createCallerFactory = t.createCallerFactory;
+export const baseProcedure = t.procedure;
+export const protectedProcedure = t.procedure.use(authenticated);

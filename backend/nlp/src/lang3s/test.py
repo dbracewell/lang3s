@@ -1,7 +1,7 @@
 import csv
 from typing import List
 
-from lang3s.job_service import File, JobService
+from lang3s_job_service import File, JobService
 
 if __name__ == "__main__":
     job_service = JobService(api_key="456789")

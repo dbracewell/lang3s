@@ -8,7 +8,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTagSearchParams } from "@/modules/analytics/hooks";
 import { useDebounce } from "@/modules/common/hooks";
 import { useTRPCQuery } from "@/trpc/use-queries";
-import { ChartNetworkIcon, LoaderCircleIcon, SearchIcon } from "lucide-react";
+import {
+  ChartNetworkIcon,
+  CircleQuestionMarkIcon,
+  LoaderCircleIcon,
+  SearchIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import React, { useMemo, useState } from "react";
@@ -55,19 +60,38 @@ export const TopEntitiesList = ({ values }: { values: string[] }) => {
         onChange={(e) => setFilter(e.target.value)}
       />
       <div className="flex flex-1 flex-col overflow-hidden rounded-lg border bg-white shadow">
-        <div className="bg-dodger-blue-500 grid grid-cols-3 p-2 font-semibold text-white">
+        <div className="bg-dodger-blue-500 grid grid-cols-5 p-2 font-semibold text-white">
           <div className="text-center">Entity</div>
           <div className="text-center">Entity Type</div>
-          <div className="text-center"># Occurrences</div>
+          <div className="flex items-center justify-center gap-1">
+            Mention Count
+            <Hint
+              hint={`Number of times this entity is mentioned\n(Includes multiple mentions per document.)`}
+            >
+              <CircleQuestionMarkIcon className="size-4" />
+            </Hint>
+          </div>
+          <div className="flex items-center justify-center gap-1">
+            Document Count
+            <Hint hint="Number of documents in which this entity appears">
+              <CircleQuestionMarkIcon className="size-4" />
+            </Hint>
+          </div>
+          <div className="flex items-center justify-center gap-1">
+            Mentions Per Document
+            <Hint hint="Average number of times the entity is mentioned in documents in which it appears.">
+              <CircleQuestionMarkIcon className="size-4" />
+            </Hint>
+          </div>
         </div>
         <ScrollArea className="min-h-0 flex-1 pr-2">
           {filteredData?.map((r, index) => {
             return (
               <div
                 key={index}
-                className="hover:bg-dodger-blue-200 grid h-10 grid-cols-3 text-sm odd:bg-slate-200 hover:font-bold"
+                className="hover:bg-dodger-blue-200 grid h-10 grid-cols-5 divide-x text-sm odd:bg-slate-200 hover:font-bold"
               >
-                <div className="group flex items-center justify-between border-r px-4 py-1">
+                <div className="group flex items-center justify-between border-r px-4">
                   <div className="mr-4">{r.text}</div>
                   <div className="hidden items-center gap-2 group-hover:flex">
                     <Hint asChild hint={`Search for ${r.text} in documents.`}>
@@ -97,8 +121,12 @@ export const TopEntitiesList = ({ values }: { values: string[] }) => {
                     </Hint>
                   </div>
                 </div>
-                <div className="my-auto border-r px-4 py-1">{r.value}</div>
-                <div className="my-auto px-4 py-1">{r.count}</div>
+                <div className="flex items-center px-4">{r.value}</div>
+                <div className="flex items-center px-4">{r.count}</div>
+                <div className="flex items-center px-4">{r.docCount}</div>
+                <div className="flex items-center px-4">
+                  {r.mentionsPerDocument}
+                </div>
               </div>
             );
           })}

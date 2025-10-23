@@ -1,5 +1,5 @@
 {
-   "python.analysis.extraPaths": ["./backend/nlp/lan3gs"],
+   "python.analysis.extraPaths": ["./backend/nlp/src/lang3s/"],
    "python.analysis.diagnosticSeverityOverrides": {
       "reportPrivateImportUsage": "none"
    }
