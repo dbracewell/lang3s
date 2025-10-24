@@ -1,25 +1,25 @@
 import argparse
 import os
-from typing import List, Dict
-from datasets import Dataset, DatasetDict
+from typing import Dict, List
+
 import numpy as np
-from adapters import AdapterConfig, AdapterTrainer
-from adapters import AutoAdapterModel
-from datasets import DatasetDict
+from adapters import AdapterConfig, AdapterTrainer, AutoAdapterModel
+from datasets import Dataset, DatasetDict
 from transformers import (
-    AutoTokenizer,
     AutoConfig,
+    AutoTokenizer,
     DataCollatorWithPadding,
-    TrainingArguments,
     PreTrainedTokenizerFast,
+    TrainingArguments,
 )
 
 from lang3s.config import (
     ADAPTERS_DIR,
     BASE_ADAPTER_MODEL,
     BIO_TRAIN_BATCH_SIZE,
-    BIO_TRAIN_NUM_EPOCHS,
     BIO_TRAIN_LR,
+    BIO_TRAIN_NUM_EPOCHS,
+    DEVICE,
 )
 
 from .common import update_adapter_config
@@ -87,7 +87,7 @@ def add_new_task_adapter(task_name: str, task_files: Dict[str, str]):
     )
     config = AutoConfig.from_pretrained(BASE_ADAPTER_MODEL)
     model = AutoAdapterModel.from_pretrained(BASE_ADAPTER_MODEL, config=config)
-
+    model.to(DEVICE)
     raw_datasets = load_text_dataset(task_files)
     label_list, label2id, id2label = build_label_maps(raw_datasets)
     num_labels = len(label_list)
@@ -126,7 +126,9 @@ def add_new_task_adapter(task_name: str, task_files: Dict[str, str]):
     # Add adapter + head
     model.add_adapter(task_name, config=adapter_config)
     print(num_labels, id2label)
-    model.add_classification_head(task_name, num_labels=num_labels, id2label=id2label)
+    model.add_classification_head(
+        task_name, num_labels=num_labels, id2label=id2label
+    )
 
     # Freeze everything except new adapter
     model.train_adapter(task_name)
@@ -193,5 +195,8 @@ if __name__ == "__main__":
         },
     )
     update_adapter_config(
-        name=args.task_name, task="clf", language=args.lang, annotation_type=args.type
+        name=args.task_name,
+        task="clf",
+        language=args.lang,
+        annotation_type=args.type,
     )

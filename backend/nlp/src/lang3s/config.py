@@ -1,6 +1,18 @@
 import os
 from typing import Any
 
+import torch
+
+
+def get_best_device():
+    if torch.cuda.is_available():
+        return torch.device("cuda").type
+    elif torch.backends.mps.is_available():
+        return torch.device("mps").type
+    else:
+        return torch.device("cpu").type
+
+
 XLM_ROBERTA = "xlm-roberta-base"
 GTE_MODEL = "Alibaba-NLP/gte-multilingual-base"
 
@@ -26,7 +38,8 @@ REDIS_HOST = __get_environment_var("REDIS_HOST", "localhost")
 REDIS_PORT = int(__get_environment_var("REDIS_PORT", 6379))
 REDIS_DB = int(__get_environment_var("REDIS_DB", 0))
 
-DEVICE: str = __get_environment_var("DEVICE", "cpu")
+
+DEVICE: str = __get_environment_var("DEVICE", get_best_device())
 
 BASE_ADAPTER_MODEL: str = __get_environment_var(
     "BASE_ADAPTER_MODEL", __DEFAULT_ADAPTER_MODEL

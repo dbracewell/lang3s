@@ -27,4 +27,4 @@ if __name__ == "__main__":
             files.append(file)
     except Exception:
         pass
-    job_service.annotate_documents(files=files)
+    job_service.annotate_documents(files=files, metadata={"tasks": []})

@@ -55,7 +55,11 @@ def extract_relation_phrase(path):
             ]
             full_verb = " ".join(compounds + [tok.lemma_])
             candidates.append(full_verb)
-        elif tok.pos_ in ("NOUN", "ADJ") and tok.dep_ in ("attr", "prep", "pobj"):
+        elif tok.pos_ in ("NOUN", "ADJ") and tok.dep_ in (
+            "attr",
+            "prep",
+            "pobj",
+        ):
             candidates.append(tok.lemma_)
     return " ".join(candidates).strip()
 
@@ -116,7 +120,9 @@ def normalize_relations(triples, sim_threshold=0.75):
             canonical[r] = rep
 
     # Replace in triples
-    normalized_triples = [(e1, canonical.get(rel, rel), e2) for e1, rel, e2 in triples]
+    normalized_triples = [
+        (e1, canonical.get(rel, rel), e2) for e1, rel, e2 in triples
+    ]
 
     return normalized_triples, clusters
 

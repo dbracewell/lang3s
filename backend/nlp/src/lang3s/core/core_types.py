@@ -49,7 +49,9 @@ class TextAnnotation:
 
     def annotations(self, type: str) -> List["TextAnnotation"]:
         return [
-            a for a in self.owner.annotations if a.type == type and self.overlaps(a)
+            a
+            for a in self.owner.annotations
+            if a.type == type and self.overlaps(a)
         ]
 
     def sentence(self) -> "TextAnnotation":
@@ -83,7 +85,9 @@ class Text:
 
     def tag_data(
         self,
-    ) -> Tuple[List[TextAnnotation], List[List[TextAnnotation]], List[List[str]]]:
+    ) -> Tuple[
+        List[TextAnnotation], List[List[TextAnnotation]], List[List[str]]
+    ]:
         tokens = []
         sentences = []
         token_strs = []
@@ -107,7 +111,8 @@ class Text:
         return [
             chunk
             for chunk in filter(
-                lambda a: a.type == AnnotationTypes.PHRASE_CHUNK, self.annotations
+                lambda a: a.type == AnnotationTypes.PHRASE_CHUNK,
+                self.annotations,
             )
         ]
 

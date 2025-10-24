@@ -1,34 +1,19 @@
 import datetime
 import enum
 import json
-import os
 import time
-from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
 
 import requests
-
-JOB_SERVICE_URL = (
-    os.environ["JOB_SERVICE_URL"]
-    if "JOB_SERVICE_URL" in os.environ
-    else "http://localhost:3001"
-)
+from pydantic import BaseModel, Field
 
 
-class File:
-    def __init__(
-        self,
-        path: str,
-        mime_type: str,
-        content: str,
-        encoding: Optional[str] = None,
-        metadata: Dict[str, str] = {},
-    ):
-        self.path = path
-        self.mime_type = mime_type
-        self.content = content
-        self.encoding = encoding
-        self.metadata = metadata
+class File(BaseModel):
+    path: str
+    mime_type: str
+    encoding: Optional[str] = Field(default=None)
+    content: str
+    metadata: Dict[str, str] = Field(default_factory=dict)
 
 
 class JobStatus(str, enum.Enum):
@@ -38,28 +23,16 @@ class JobStatus(str, enum.Enum):
     PROCESSING = "processing"
 
 
-class Job:
-    def __init__(
-        self,
-        id: int,
-        name: str,
-        total: int,
-        completed: int,
-        failed: int,
-        status: str,
-        metadata: Dict[str, Any],
-        createdAt: date,
-        updatedAt: date,
-    ) -> None:
-        self.id = id
-        self.name = name
-        self.total = total
-        self.completed = completed
-        self.failed = failed
-        self.status = JobStatus(status)
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-        self.metadata = metadata
+class Job(BaseModel):
+    id: int
+    name: str
+    total: int = Field(default=0)
+    completed: int = Field(default=0)
+    failed: int = Field(default=0)
+    status: JobStatus = Field(default=JobStatus.WAITING)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    createdAt: datetime.datetime = Field(default_factory=datetime.datetime.now)
+    updatedAt: datetime.datetime = Field(default_factory=datetime.datetime.now)
 
     @property
     def progress(self):
@@ -69,42 +42,75 @@ class Job:
         return f"Job({self.id}, status={self.status.value}, total={self.total}, completed={self.completed}, failed={self.failed}, progress={self.progress:.2f})"
 
 
+T = TypeVar("T", bound=BaseModel)
+
 class JobService:
-    def __init__(self, api_key: str, api_host: str = JOB_SERVICE_URL) -> None:
+    def __init__(self, api_key: str, api_host: str = "http://localhost:3001") -> None:
         self.api_key = api_key
         self._api_root = f"{api_host}/api/trpc"
 
-    def _call_api(self, endpoint: str, data: Dict[str, Any], method: str = "GET"):
+    def _call_api_obj(self, 
+                     endpoint: str, 
+                     data: Dict[str, Any],
+                     return_type:Type[T], 
+                     method: str = "GET") -> T:
+        return cast(T, self._call_api(endpoint=endpoint,
+                                      data=data,
+                                      return_type=return_type,
+                                      method=method))
+
+    def _call_api_list(self, 
+                     endpoint: str, 
+                     data: Dict[str, Any],
+                     return_type:Type[T], 
+                     method: str = "GET") -> List[T]:
+        return cast(List[T], self._call_api(endpoint=endpoint,
+                                      data=data,
+                                      return_type=return_type,
+                                      method=method))
+      
+    def _call_api(self, 
+                     endpoint: str, 
+                     data: Dict[str, Any],
+                     return_type:Type[T], 
+                     method: str = "GET") -> Union[T, List[T]]:
+        
         url = f"{self._api_root}/{endpoint}"
+
         if method == "GET":
             params = {"batch": 1, "input": json.dumps({"0": {"json": data}})}
             r = requests.get(url, params)
             r.raise_for_status()
-            return r.json()[0]["result"]["data"]["json"]
+            body =  r.json()[0]["result"]["data"]["json"]
+            if isinstance(body,list):
+                return [return_type.model_validate(i) for i in body]
+            return return_type.model_validate(body)
 
         if method == "POST":
             params = {"json": data}
             headers = {"Content-Type": "application/json"}
             r = requests.post(url, headers=headers, json=params)
             r.raise_for_status()
-            return r.json()["result"]["data"]["json"]
+            body =  r.json()["result"]["data"]["json"]
+            if isinstance(body,list):
+                return [return_type.model_validate(i) for i in body]
+            return return_type.model_validate(body)
 
         raise Exception(f"Invalid method {method}")
 
     def create_job(self, name: str, metadata: Optional[Dict[str, Any]] = None) -> Job:
-        resp = self._call_api(
+        job = self._call_api_obj(
             "jobs.create",
             {"api_key": self.api_key, "name": name, "metadata": metadata or {}},
             method="POST",
+            return_type=Job
         )
-        job = Job(**resp)
         print(f"✅ Created job: {job.id}")
         return job
 
     def get_job(self, job_id: int) -> Job:
-        return Job(
-            **self._call_api("jobs.get", {"api_key": self.api_key, "job_id": job_id})
-        )
+        return self._call_api_obj("jobs.get", 
+                                  {"api_key": self.api_key, "job_id": job_id}, return_type=Job)
 
     def update_job(
         self,
@@ -114,8 +120,7 @@ class JobService:
         failed_inc: Optional[int] = None,
         status: Optional[JobStatus] = None,
     ) -> Job:
-        return Job(
-            **self._call_api(
+        return self._call_api_obj(
                 "jobs.update",
                 {
                     "api_key": self.api_key,
@@ -125,30 +130,32 @@ class JobService:
                     "failed_increment": failed_inc,
                     "status": status.value if status else None,
                 },
+                return_type=Job,
                 method="POST",
             )
-        )
 
-    def annotate_documents(self, files: List[File], wait_for_completion=True) -> Job:
+    def annotate_documents(self, 
+                           files: List[File], 
+                           metadata:Optional[Dict[str,Any]] = None, wait_for_completion=True) -> Job:
         job = self.create_job(
-            f"annotation-{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            f"annotation-{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            metadata=metadata
         )
         num_docs = len(files)
         print(f"⬆️  Uploading {num_docs} documents...")
 
         for i in range(num_docs):
             try:
-                job = Job(
-                    **self._call_api(
+                job = self._call_api_obj(
                         "jobs.annotate",
                         {
                             "api_key": self.api_key,
                             "job_id": job.id,
                             "file": files[i].__dict__,
                         },
+                        return_type=Job,
                         method="POST",
                     )
-                )
             except Exception as e:
                 print(f"Failed to upload {files[i].path}", e)
                 continue
@@ -165,11 +172,7 @@ class JobService:
         print("⏳ Waiting for job to complete...")
         while True:
             try:
-                job = Job(
-                    **self._call_api(
-                        "jobs.get", {"api_key": self.api_key, "job_id": job_id}
-                    )
-                )
+                job = self.get_job(job_id)
                 print(
                     f"  Progress: {job.progress:.1f}% ({job.completed}/{job.total}) | Status: {job.status.value}"
                 )
@@ -181,10 +184,9 @@ class JobService:
             time.sleep(interval)
 
     def delete_job(self, job_id: int) -> Job:
-        return Job(
-            **self._call_api(
+        return self._call_api_obj(
                 "jobs.delete",
                 {"api_key": self.api_key, "job_id": job_id},
                 method="POST",
+                return_type=Job
             )
-        )

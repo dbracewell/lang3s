@@ -3,6 +3,8 @@ import subprocess
 import time
 from typing import List, Optional, cast
 
+import lang3s.config as config
+
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 
 scripts = ["lang3s.workers.nlp_worker", "lang3s.services.embedding_server"]
@@ -14,9 +16,9 @@ def start_process(i: int):
 
 
 try:
+    print(config.DEVICE)
     for i in range(len(scripts)):
         processes[i] = start_process(i)
-        print(scripts[i], cast(subprocess.Popen[str], processes[i]).pid)
 
     while True:
         time.sleep(1)

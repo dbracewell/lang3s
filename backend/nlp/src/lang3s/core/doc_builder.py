@@ -3,8 +3,7 @@ import os
 from typing import Callable, Dict, Optional, cast
 
 import shortuuid
-
-from lang3s.io import File
+from lang3s_job_service import File
 
 from .core_types import Document, Metadata, Text
 
@@ -30,7 +29,9 @@ def __text_to_document(file: File) -> Document:
             cast(
                 str,
                 __decode(
-                    file.content, encoding=file.encoding, mime_type=file.mime_type
+                    file.content,
+                    encoding=file.encoding,
+                    mime_type=file.mime_type,
                 ),
             )
         ),

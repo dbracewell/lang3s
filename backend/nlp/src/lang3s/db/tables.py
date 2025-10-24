@@ -103,7 +103,9 @@ class TextAnnotations(BaseModel):
     doc = ForeignKeyField(column_name="doc_id", field="id", model=Documents)
     embedding = VectorField(index=True)  # USER-DEFINED
     end = IntegerField()
-    id = UUIDField(constraints=[SQL("DEFAULT gen_random_uuid()")], primary_key=True)
+    id = UUIDField(
+        constraints=[SQL("DEFAULT gen_random_uuid()")], primary_key=True
+    )
     metadata = JSONField(constraints=[SQL("DEFAULT '{}'::json")])
     start = IntegerField(index=True)
     text = TextField()

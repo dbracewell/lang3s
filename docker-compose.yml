@@ -55,7 +55,7 @@ services:
       timeout: 5s
       retries: 5         
 
-  nlp:
+  nlp_arm:
     build:
       context: ./backend
       args:
@@ -68,6 +68,7 @@ services:
         REDIS_HOST: ${REDIS_HOST}
         DEVICE: ${DEVICE}
     container_name: lang3s_nlp
+    platform: linux/arm64/v8   
     restart: always
     env_file:
       - .env
@@ -75,6 +76,35 @@ services:
       - nlp_data:/app
     networks:
       - lang3s-network
+    profiles:
+      - production
+
+      
+  nlp_nvidia:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.nvidia
+      args:
+        JOBS_API_KEY: ${JOBS_API_KEY}
+        JOB_SERVICE_URL: ${JOB_SERVICE_URL}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        POSTGRES_DB: ${POSTGRES_DB}
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_HOST: ${POSTGRES_HOST}
+        REDIS_HOST: ${REDIS_HOST}
+        DEVICE: ${DEVICE}
+    container_name: lang3s_nlp
+    platform: linux/amd64   
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - nlp_data:/app
+    networks:
+      - lang3s-network
+    profiles:
+      - production
+
 
   redis:
     image: redis:7-alpine

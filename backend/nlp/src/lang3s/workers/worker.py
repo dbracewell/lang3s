@@ -8,13 +8,17 @@ from lang3s.io import File
 from lang3s.nlp import nlp
 
 
-def process_file(files: List[File], tasks: Set[str] | None = None) -> List[Document]:
+def process_file(
+    files: List[File], tasks: Set[str] | None = None
+) -> List[Document]:
     docs = [create_document(file) for file in files]
     nlp(docs, tasks=tasks)
     return docs
 
 
-reader = csv.DictReader(open("/Users/ik/Downloads/archive/data.csv"), dialect="excel")
+reader = csv.DictReader(
+    open("/Users/ik/Downloads/archive/data.csv"), dialect="excel"
+)
 files: List[File] = []
 try:
     for row in reader:

@@ -28,5 +28,7 @@ def update_adapter_config(
 
 def save_adapter_config(adapter_config: Dict[str, Dict[str, str]]) -> None:
     json.dump(
-        adapter_config, open(os.path.join(ADAPTERS_DIR, "adapters.json"), "w"), indent=2
+        adapter_config,
+        open(os.path.join(ADAPTERS_DIR, "adapters.json"), "w"),
+        indent=2,
     )

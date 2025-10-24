@@ -4,17 +4,16 @@ import time
 from typing import Dict, List, cast
 
 import redis
-from lang3s_job_service import Job, JobService, JobStatus
+from lang3s_job_service import File, Job, JobService, JobStatus
 
 import lang3s.config as config
 from lang3s.core.doc_builder import create_document
 from lang3s.db.helpers import add_documents_to_db
-from lang3s.io.file import File
 from lang3s.nlp.process import nlp
 from lang3s.utils import get_value
 
 QUEUE_NAME = "doc_queue"
-BATCH_SIZE = 50
+BATCH_SIZE = 20
 BATCH_TIMEOUT = 0.2
 
 job_service = JobService(api_key=config.JOBS_API_KEY)
@@ -57,6 +56,7 @@ async def process_batch(batch):
             tasks = set(tasks)
         try:
             docs = [create_document(file) for file in files]
+            print(f"✍️ Starting annotation on {len(docs)} documents.")
             nlp(docs, tasks=tasks)
             add_documents_to_db(docs)
             completed += len(docs)
@@ -73,8 +73,13 @@ async def worker_loop():
     while True:
         batch = []
         start_time = time.time()
-        while len(batch) < BATCH_SIZE and (time.time() - start_time) < BATCH_TIMEOUT:
-            item = cast(str, await get_value(redis_client.rpop(QUEUE_NAME), None))
+        while (
+            len(batch) < BATCH_SIZE
+            and (time.time() - start_time) < BATCH_TIMEOUT
+        ):
+            item = cast(
+                str, await get_value(redis_client.rpop(QUEUE_NAME), None)
+            )
             if item:
                 data = json.loads(item)
                 batch.append(data)
@@ -91,7 +96,9 @@ async def worker_loop():
                     )
                     if job.completed + job.failed >= job.total:
                         status = (
-                            JobStatus.FAILED if job.failed > 0 else JobStatus.COMPLETE
+                            JobStatus.FAILED
+                            if job.failed > 0
+                            else JobStatus.COMPLETE
                         )
                         job_service.update_job(job_id, status=status)
                 except Exception as e:

@@ -3,9 +3,7 @@ name = "lang3s-jobs_service"
 version = "2025.10.3"
 description = "Jobs Service client"
 requires-python = ">= 3.13"
-dependencies = [
-		"requests"
-]
+dependencies = ["requests", "pydantic==2.11.4", "pydantic_core==2.33.2"]
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -13,3 +11,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 50

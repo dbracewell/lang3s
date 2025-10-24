@@ -34,7 +34,8 @@ def __annotations(doc: Document):
 
 def __insert_docs(docs: List[Document]):
     doc_inserts = [
-        {"id": doc.id, "title": doc.title, "metadata": doc.metadata} for doc in docs
+        {"id": doc.id, "title": doc.title, "metadata": doc.metadata}
+        for doc in docs
     ]
     for batch in partition(doc_inserts, 500):
         Documents.insert_many(batch).execute()

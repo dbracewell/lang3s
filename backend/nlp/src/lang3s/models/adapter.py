@@ -7,15 +7,22 @@ import numpy as np
 import torch
 from adapters import AdapterFusionConfig, AutoAdapterModel
 from transformers import (
-    AutoConfig, # pyright: ignore[reportPrivateImportUsage]
-    AutoTokenizer, # pyright: ignore[reportPrivateImportUsage]
+    AutoConfig,  # pyright: ignore[reportPrivateImportUsage]
+    AutoTokenizer,  # pyright: ignore[reportPrivateImportUsage]
 )
 
-from lang3s.config import ADAPTER_CONFIG_FILE, ADAPTERS_DIR, BASE_ADAPTER_MODEL
+from lang3s.config import (
+    ADAPTER_CONFIG_FILE,
+    ADAPTERS_DIR,
+    BASE_ADAPTER_MODEL,
+    DEVICE,
+)
 
 from .decoders import decode_labels
 
-Adapter = namedtuple("Adapter", ["name", "head", "dir", "type", "task", "language"])
+Adapter = namedtuple(
+    "Adapter", ["name", "head", "dir", "type", "task", "language"]
+)
 
 
 def load_adapter_config() -> List[Adapter]:
@@ -67,8 +74,11 @@ class AdapterModel:
             self.adapters = load_adapter_config()
             self.id2label: Dict[str, Dict[int, str]] = {}
             self.tokenizer = AutoTokenizer.from_pretrained(
-                BASE_ADAPTER_MODEL, use_fast=True, add_prefix_space=True
+                BASE_ADAPTER_MODEL,
+                use_fast=True,
+                add_prefix_space=True,
             )
+            self.model.adapter_to("default", device=DEVICE)
             for adapter in self.adapters:
                 self.model.load_adapter(
                     os.path.join(ADAPTERS_DIR, adapter.dir), with_head=True
@@ -96,6 +106,7 @@ class AdapterModel:
                 overwrite_ok=True,
                 set_active=True,
             )
+            self.model.to(DEVICE)
             self.initialized = True
 
     def tag(
@@ -114,7 +125,10 @@ class AdapterModel:
         head_outputs: List[AdapterOutput] = []
         self.model.eval()
         with torch.no_grad():
-            outputs = self.model(**tok, output_hidden_states=True)
+            encoding = {k: v.to(DEVICE) for k, v in tok.items()}
+            outputs = self.model(
+                **encoding, output_hidden_states=True, device=DEVICE
+            )
             hidden_states = outputs.hidden_states  # tuple of layer outputs
             last_hidden = hidden_states[-1]
             for adapter in self.adapters:
@@ -134,7 +148,9 @@ class AdapterModel:
                         type=adapter.type,
                         task=adapter.task,
                         label=(
-                            decode_labels(preds, tok, self.id2label[adapter.name])
+                            decode_labels(
+                                preds, tok, self.id2label[adapter.name]
+                            )
                             if adapter.task == "bio"
                             else [self.id2label[adapter.name][a] for a in preds]
                         ),

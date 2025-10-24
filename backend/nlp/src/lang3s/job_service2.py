@@ -78,7 +78,9 @@ class JobService:
 
     async def update_progress(self, job_id: str, count: int):
         job_key = f"job:{job_id}"
-        total = int(await get_value(self.redis_client.hget(job_key, "total"), "0"))
+        total = int(
+            await get_value(self.redis_client.hget(job_key, "total"), "0")
+        )
 
         completed = await get_value(
             self.redis_client.hincrby(job_key, "completed", count), count
@@ -92,10 +94,14 @@ class JobService:
         )
 
         if completed >= total:
-            print(f"✅ Job {job_id}: {completed}/{total} ({progress}%) complete.")
+            print(
+                f"✅ Job {job_id}: {completed}/{total} ({progress}%) complete."
+            )
 
     async def get_queue_data(self, queue_name: str):
-        return cast(str, await get_value(self.redis_client.rpop(queue_name), None))
+        return cast(
+            str, await get_value(self.redis_client.rpop(queue_name), None)
+        )
 
     def clear_jobs(self, all: bool):
         deleted = 0
@@ -105,7 +111,9 @@ class JobService:
 
             status = self.redis_client.hget(key, "status")
             if status == Status.DONE.value or (
-                all and status not in [Status.WAITING.value, Status.PROCESSING.value]
+                all
+                and status
+                not in [Status.WAITING.value, Status.PROCESSING.value]
             ):
                 self.redis_client.delete(key)
                 deleted += 1

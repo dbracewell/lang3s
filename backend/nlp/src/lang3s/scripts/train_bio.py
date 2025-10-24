@@ -26,7 +26,9 @@ from .common import update_adapter_config
 from lang3s.io.conll import load_conll_dataset
 
 
-def build_bio_label_maps(dataset_dict: DatasetDict, labels_name: str = "labels"):
+def build_bio_label_maps(
+    dataset_dict: DatasetDict, labels_name: str = "labels"
+):
     labels = set()
     for split_name, split in dataset_dict.items():
         for example_labels in split[labels_name]:
@@ -141,7 +143,9 @@ def add_new_task_adapter(task_name: str, task_files: Dict[str, str]):
                 cur_labels.append(label_list_by_id[l_i])
             true_predictions.append(cur_preds)
             true_labels.append(cur_labels)
-        results = seqeval.compute(predictions=true_predictions, references=true_labels)
+        results = seqeval.compute(
+            predictions=true_predictions, references=true_labels
+        )
         return {
             "precision": results["overall_precision"],
             "recall": results["overall_recall"],
@@ -195,5 +199,8 @@ if __name__ == "__main__":
         },
     )
     update_adapter_config(
-        name=args.task_name, task="bio", language=args.lang, annotation_type=args.type
+        name=args.task_name,
+        task="bio",
+        language=args.lang,
+        annotation_type=args.type,
     )

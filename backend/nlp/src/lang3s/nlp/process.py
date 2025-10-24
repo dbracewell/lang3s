@@ -28,7 +28,9 @@ def nlp(docs: List[Document], tasks: Optional[Set[str]] = None):
             if Metadata.LANGUAGE.value not in doc.metadata:
                 language = detect_language(doc.text.text)
                 doc.metadata[Metadata.LANGUAGE.value] = language
-            docs_by_language[doc.metadata[Metadata.LANGUAGE.value]].append(doc.text)
+            docs_by_language[doc.metadata[Metadata.LANGUAGE.value]].append(
+                doc.text
+            )
 
     start = time.perf_counter()
     for language, language_docs in docs_by_language.items():

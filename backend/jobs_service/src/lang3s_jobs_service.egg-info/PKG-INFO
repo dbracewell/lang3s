@@ -4,3 +4,5 @@ Version: 2025.10.3
 Summary: Jobs Service client
 Requires-Python: >=3.13
 Requires-Dist: requests
+Requires-Dist: pydantic==2.11.4
+Requires-Dist: pydantic_core==2.33.2

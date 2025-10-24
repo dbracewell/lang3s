@@ -38,7 +38,9 @@ class Embedder:
         if not hasattr(self, "initialized"):
             self.initialized = True
             self.model = SentenceTransformer(
-                config.EMBEDDING_MODEL, trust_remote_code=True
+                config.EMBEDDING_MODEL,
+                trust_remote_code=True,
+                device=config.DEVICE,
             )
             self._tokenizer = self.model.tokenizer
             self._max_tokens = self._tokenizer.model_max_length - 12
@@ -66,7 +68,9 @@ class Embedder:
 
     def _batch_embed(self, texts: List[str]) -> np.ndarray:
         docs = [t.split() for t in texts]
-        chunked = _chunk_documents(docs, chunk_size=self._max_tokens, overlap=10)
+        chunked = _chunk_documents(
+            docs, chunk_size=self._max_tokens, overlap=10
+        )
 
         all_embeddings: List[torch.Tensor] = [
             torch.zeros(self._dimension).to(config.DEVICE)  # pyright: ignore[reportArgumentType] # type: ignore

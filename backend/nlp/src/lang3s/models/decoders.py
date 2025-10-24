@@ -52,7 +52,12 @@ def __decode_tokens_bert(
         token = tokens[i]
         next_token = tokens[i + 1] if i + 1 < len(tokens) else ""
 
-        if token == "[CLS]" or token == "[SEP]" or token == "[PAD]" or token == "[UNK]":
+        if (
+            token == "[CLS]"
+            or token == "[SEP]"
+            or token == "[PAD]"
+            or token == "[UNK]"
+        ):
             continue
 
         if token.startswith("##"):
