@@ -38,7 +38,7 @@ export const TextAnnotation = ({
           <Link
             href={`/search/?aid=${
               annotation.id
-            }&atype=${targetType}&minSimilarity=0.3&type=annotation&semantic=true&q=${encodeURIComponent(
+            }&atype=${targetType}&minSimilarity=0.7&type=annotation&semantic=true&q=${encodeURIComponent(
               annotation.text,
             )}&lang=${lang}`}
           >

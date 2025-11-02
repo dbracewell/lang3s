@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field
 
 
 class File(BaseModel):
-    path: str
-    mime_type: str
+    path: Optional[str] = Field(default=None)
+    mime_type: str = Field(default="text/plain")
     encoding: Optional[str] = Field(default=None)
     content: str
     metadata: Dict[str, str] = Field(default_factory=dict)
@@ -44,73 +44,99 @@ class Job(BaseModel):
 
 T = TypeVar("T", bound=BaseModel)
 
+
 class JobService:
-    def __init__(self, api_key: str, api_host: str = "http://localhost:3001") -> None:
+    def __init__(
+        self, api_key: str, api_host: str = "http://localhost:3001"
+    ) -> None:
         self.api_key = api_key
         self._api_root = f"{api_host}/api/trpc"
 
-    def _call_api_obj(self, 
-                     endpoint: str, 
-                     data: Dict[str, Any],
-                     return_type:Type[T], 
-                     method: str = "GET") -> T:
-        return cast(T, self._call_api(endpoint=endpoint,
-                                      data=data,
-                                      return_type=return_type,
-                                      method=method))
+    def _call_api_obj(
+        self,
+        endpoint: str,
+        data: Dict[str, Any],
+        return_type: Type[T],
+        method: str = "GET",
+    ) -> T:
+        return cast(
+            T,
+            self._call_api(
+                endpoint=endpoint,
+                data=data,
+                return_type=return_type,
+                method=method,
+            ),
+        )
 
-    def _call_api_list(self, 
-                     endpoint: str, 
-                     data: Dict[str, Any],
-                     return_type:Type[T], 
-                     method: str = "GET") -> List[T]:
-        return cast(List[T], self._call_api(endpoint=endpoint,
-                                      data=data,
-                                      return_type=return_type,
-                                      method=method))
-      
-    def _call_api(self, 
-                     endpoint: str, 
-                     data: Dict[str, Any],
-                     return_type:Type[T], 
-                     method: str = "GET") -> Union[T, List[T]]:
-        
+    def _call_api_list(
+        self,
+        endpoint: str,
+        data: Dict[str, Any],
+        return_type: Type[T],
+        method: str = "GET",
+    ) -> List[T]:
+        return cast(
+            List[T],
+            self._call_api(
+                endpoint=endpoint,
+                data=data,
+                return_type=return_type,
+                method=method,
+            ),
+        )
+
+    def _call_api(
+        self,
+        endpoint: str,
+        data: Dict[str, Any],
+        return_type: Type[T],
+        method: str = "GET",
+    ) -> Union[T, List[T]]:
         url = f"{self._api_root}/{endpoint}"
 
         if method == "GET":
             params = {"batch": 1, "input": json.dumps({"0": {"json": data}})}
-            r = requests.get(url, params)
+            r = requests.get(
+                url, params, headers={"lang3s-api-key": self.api_key.strip()}
+            )
             r.raise_for_status()
-            body =  r.json()[0]["result"]["data"]["json"]
-            if isinstance(body,list):
+            body = r.json()[0]["result"]["data"]["json"]
+            if isinstance(body, list):
                 return [return_type.model_validate(i) for i in body]
             return return_type.model_validate(body)
 
         if method == "POST":
             params = {"json": data}
-            headers = {"Content-Type": "application/json"}
+            headers = {
+                "Content-Type": "application/json",
+                "lang3s-api-key": self.api_key,
+            }
             r = requests.post(url, headers=headers, json=params)
             r.raise_for_status()
-            body =  r.json()["result"]["data"]["json"]
-            if isinstance(body,list):
+            body = r.json()["result"]["data"]["json"]
+            if isinstance(body, list):
                 return [return_type.model_validate(i) for i in body]
             return return_type.model_validate(body)
 
         raise Exception(f"Invalid method {method}")
 
-    def create_job(self, name: str, metadata: Optional[Dict[str, Any]] = None) -> Job:
+    def create_job(
+        self, name: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> Job:
         job = self._call_api_obj(
             "jobs.create",
-            {"api_key": self.api_key, "name": name, "metadata": metadata or {}},
+            {"name": name, "metadata": metadata or {}},
             method="POST",
-            return_type=Job
+            return_type=Job,
         )
         print(f"✅ Created job: {job.id}")
         return job
 
     def get_job(self, job_id: int) -> Job:
-        return self._call_api_obj("jobs.get", 
-                                  {"api_key": self.api_key, "job_id": job_id}, return_type=Job)
+        return self._call_api_obj(
+            "jobs.get", {"job_id": job_id}, return_type=Job
+        )
 
     def update_job(
         self,
@@ -121,25 +147,27 @@ class JobService:
         status: Optional[JobStatus] = None,
     ) -> Job:
         return self._call_api_obj(
-                "jobs.update",
-                {
-                    "api_key": self.api_key,
-                    "job_id": job_id,
-                    "total_increment": total_inc,
-                    "completed_increment": completed_inc,
-                    "failed_increment": failed_inc,
-                    "status": status.value if status else None,
-                },
-                return_type=Job,
-                method="POST",
-            )
+            "jobs.update",
+            {
+                "job_id": job_id,
+                "total_increment": total_inc,
+                "completed_increment": completed_inc,
+                "failed_increment": failed_inc,
+                "status": status.value if status else None,
+            },
+            return_type=Job,
+            method="POST",
+        )
 
-    def annotate_documents(self, 
-                           files: List[File], 
-                           metadata:Optional[Dict[str,Any]] = None, wait_for_completion=True) -> Job:
+    def annotate_documents(
+        self,
+        files: List[File],
+        metadata: Optional[Dict[str, Any]] = None,
+        wait_for_completion=True,
+    ) -> Job:
         job = self.create_job(
             f"annotation-{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            metadata=metadata
+            metadata=metadata,
         )
         num_docs = len(files)
         print(f"⬆️  Uploading {num_docs} documents...")
@@ -147,15 +175,14 @@ class JobService:
         for i in range(num_docs):
             try:
                 job = self._call_api_obj(
-                        "jobs.annotate",
-                        {
-                            "api_key": self.api_key,
-                            "job_id": job.id,
-                            "file": files[i].__dict__,
-                        },
-                        return_type=Job,
-                        method="POST",
-                    )
+                    "jobs.annotate",
+                    {
+                        "job_id": job.id,
+                        "file": files[i].__dict__,
+                    },
+                    return_type=Job,
+                    method="POST",
+                )
             except Exception as e:
                 print(f"Failed to upload {files[i].path}", e)
                 continue
@@ -185,8 +212,5 @@ class JobService:
 
     def delete_job(self, job_id: int) -> Job:
         return self._call_api_obj(
-                "jobs.delete",
-                {"api_key": self.api_key, "job_id": job_id},
-                method="POST",
-                return_type=Job
-            )
+            "jobs.delete", {"job_id": job_id}, method="POST", return_type=Job
+        )

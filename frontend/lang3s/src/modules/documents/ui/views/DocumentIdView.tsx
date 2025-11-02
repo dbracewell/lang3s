@@ -9,7 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { GetDocumentResult } from "@/modules/documents/types";
-import { NotebookTextIcon } from "lucide-react";
+import { NotebookTextIcon, XIcon } from "lucide-react";
+import Link from "next/link";
 import React from "react";
 
 export const DocumentIdView = ({
@@ -35,10 +36,16 @@ export const DocumentIdView = ({
                 </div>
               ))}
           </CardDescription>
-          <CardAction>
+          <CardAction className="flex items-center gap-10">
             <Button variant="note">
               <NotebookTextIcon />
             </Button>
+            <Link
+              href="/documents"
+              className="hover:bg-accent/50 flex size-8 items-center justify-center rounded-md hover:border"
+            >
+              <XIcon />
+            </Link>
           </CardAction>
         </CardHeader>
         <CardContent className="flex h-full min-h-0 flex-1">

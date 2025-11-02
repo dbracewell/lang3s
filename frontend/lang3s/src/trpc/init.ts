@@ -1,36 +1,45 @@
+import { env } from "@/env/env";
 import { auth } from "@/lib/auth";
-import { isValidApiKey } from "@/modules/jobs/server/api";
+import {
+  Permission,
+  roleHasPermissions,
+  UserRole,
+} from "@/modules/auth/permissions";
+import { apiKeyHasPermission } from "@/modules/jobs/server/api";
+import { BasicUserInfo } from "@/modules/common/types";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { headers } from "next/headers";
 import { cache } from "react";
 import superjson from "superjson";
-import z from "zod";
+
+const API_KEY_HEADER = "lang3s-api-key";
 
 export const createTRPCContext = cache(async () => {
   const headerList = await headers();
   const session = await auth.api.getSession({ headers: headerList });
+  const apiKey = headerList.get(API_KEY_HEADER) ?? undefined;
+
   if (session == null) {
     return {
       user: undefined,
+      apiKey,
     };
   }
+
   if (session.user.banned) {
     return {
       user: undefined,
+      apiKey,
     };
   }
+
   return {
     user: {
       id: session.user.id,
-      role: session.user.role as
-        | "user"
-        | "admin"
-        | "dataLoader"
-        | "analyst"
-        | "modeller"
-        | undefined,
-      username: session.user.username,
-    },
+      role: session.user.role as UserRole,
+      username: session.user.username as string,
+    } as BasicUserInfo,
+    apiKey,
   };
 });
 
@@ -40,7 +49,7 @@ const t = initTRPC.context<Context>().create({
   transformer: superjson,
 });
 
-const authenticated = t.middleware(async ({ next, ctx }) => {
+const protectedMiddleware = t.middleware(async ({ next, ctx }) => {
   const { user } = ctx;
 
   if (!user?.id) {
@@ -54,38 +63,67 @@ const authenticated = t.middleware(async ({ next, ctx }) => {
   });
 });
 
-export const ApiEndpointSchema = z.object({
-  api_key: z.string().optional(),
+const adminMiddleware = t.middleware(async ({ next, ctx }) => {
+  const { user } = ctx;
+
+  if (!user?.id || user.role !== "admin") {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
+
+  return next({
+    ctx: {
+      user: user,
+    },
+  });
 });
 
-export const apiMiddleWare = t.procedure
-  .input(ApiEndpointSchema)
-  .use(async (opts) => {
-    const user = opts.ctx.user;
+export const apiMiddleWare = t.middleware(async ({ next, ctx }) => {
+  const { user, apiKey } = ctx;
 
-    if (user?.role) {
-      if (
-        await auth.api.userHasPermission({
-          body: {
-            permission: {
-              data: ["load", "update"],
-            },
-            role: user.role,
-          },
-        })
-      ) {
-        return opts.next();
-      }
-    }
+  if (user == null && apiKey == null) {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
+  return next({
+    ctx: {
+      ...ctx,
+    },
+  });
+});
 
-    if (!opts.input.api_key || !(await isValidApiKey(opts.input.api_key))) {
+export const requirePermissions = async (
+  user: BasicUserInfo | undefined,
+  apiKey: string | undefined,
+  permissions: Permission[],
+  requireAll: boolean = false,
+) => {
+  const hasApiPermission = await apiKeyHasPermission(
+    apiKey,
+    permissions,
+    requireAll,
+  );
+  if (!hasApiPermission) {
+    if (!user) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
-    return opts.next();
-  });
+    const hasUserPermissions = roleHasPermissions(
+      user.role,
+      permissions,
+      requireAll,
+    );
+    if (!hasUserPermissions) {
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+  }
+};
+
+export const isSystemApiKey = (apiKey: string | undefined) => {
+  return !!apiKey && apiKey === env.SYSTEM_KEY;
+};
 
 // Base router and procedure helpers
 export const createTRPCRouter = t.router;
 export const createCallerFactory = t.createCallerFactory;
 export const baseProcedure = t.procedure;
-export const protectedProcedure = t.procedure.use(authenticated);
+export const protectedProcedure = t.procedure.use(protectedMiddleware);
+export const adminProcedure = t.procedure.use(adminMiddleware);
+export const apiProcedure = t.procedure.use(apiMiddleWare);

@@ -1,0 +1,45 @@
+import { cn } from "@/lib/utils";
+import { RouterOutputs } from "@/trpc/types";
+import {
+  CircleCheckIcon,
+  CircleXIcon,
+  ClockIcon,
+  LoaderCircleIcon,
+} from "lucide-react";
+import React from "react";
+
+const getIcon = (status: string) => {
+  if (status === "processing") {
+    return <LoaderCircleIcon className="animate-spin" />;
+  }
+  if (status === "complete") {
+    return <CircleCheckIcon />;
+  }
+  if (status === "failed") {
+    return <CircleXIcon />;
+  }
+
+  return <ClockIcon />;
+};
+
+export const StatusCell = ({
+  row,
+}: {
+  row: RouterOutputs["jobs"]["getAll"][number];
+}) => {
+  return (
+    <div
+      className={cn(
+        "flex w-full items-center justify-center gap-2 text-center font-medium text-zinc-700 uppercase [&_>svg]:h-4",
+        row.status === "processing" &&
+          "bg-dodger-blue-300 text-dodger-blue-800",
+        row.status === "complete" && "bg-green-300 text-green-800",
+        row.status === "failed" && "bg-red-300 text-red-800",
+        row.status === "waiting" && "bg-gray-500 text-white",
+      )}
+    >
+      {getIcon(row.status)}
+      {row.status}
+    </div>
+  );
+};

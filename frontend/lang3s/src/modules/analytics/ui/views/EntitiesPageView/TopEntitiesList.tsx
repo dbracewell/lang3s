@@ -4,19 +4,17 @@ import { Hint } from "@/components/hint";
 import { Spinner } from "@/components/Spinner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useTagSearchParams } from "@/modules/analytics/hooks";
-import { useDebounce } from "@/modules/common/hooks";
 import { useTRPCQuery } from "@/trpc/use-queries";
 import {
   ChartNetworkIcon,
   CircleQuestionMarkIcon,
-  LoaderCircleIcon,
   SearchIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 export const TopEntitiesList = ({ values }: { values: string[] }) => {
   const [filter, setFilter] = useState("");
@@ -52,7 +50,7 @@ export const TopEntitiesList = ({ values }: { values: string[] }) => {
   }
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-2">
+    <div className="mx-auto flex min-h-0 w-full flex-1 flex-col gap-2">
       <Input
         placeholder="Filter by Entity..."
         className="max-w-md"
@@ -84,7 +82,7 @@ export const TopEntitiesList = ({ values }: { values: string[] }) => {
             </Hint>
           </div>
         </div>
-        <ScrollArea className="min-h-0 flex-1 pr-2">
+        <div className="scrollable flex-1">
           {filteredData?.map((r, index) => {
             return (
               <div
@@ -130,7 +128,7 @@ export const TopEntitiesList = ({ values }: { values: string[] }) => {
               </div>
             );
           })}
-        </ScrollArea>
+        </div>
       </div>
     </div>
   );

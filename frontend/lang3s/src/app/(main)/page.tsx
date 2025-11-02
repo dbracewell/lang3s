@@ -1,7 +1,15 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import React from "react";
-import { DocumentView } from "@/components/text/DocumentView";
+import { Logo } from "@/components/logo";
 
 export default async function Home() {
-   return <div className="h-screen w-screen p-20 overflow-hidden "></div>;
+  return (
+    <div className="flex h-full flex-1 flex-col items-center justify-center gap-2">
+      <div className="flex flex-col items-center justify-center rounded-full border-2 bg-slate-200 p-40 shadow-2xl">
+        <Logo
+          height={340}
+          className="fill-dodger-blue-500 stroke-dodger-blue-600 stroke-[10px]"
+        />
+        <span className="text-9xl font-bold">Lang3s</span>
+      </div>
+    </div>
+  );
 }

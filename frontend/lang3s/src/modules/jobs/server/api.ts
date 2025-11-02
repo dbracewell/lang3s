@@ -1,9 +1,25 @@
+import { env } from "@/env/env";
+import { Permission, roleHasPermissions } from "@/modules/auth/permissions";
+import { getUserByApiKey } from "@/modules/auth/server/actions";
+import { cache } from "react";
 import "server-only";
 
-export const isValidApiKey = async (apiKey: string) => {
-  if (apiKey === process.env.JOBS_API_KEY!) {
-    return true;
-  }
-
-  return false;
-};
+export const apiKeyHasPermission = cache(
+  async (
+    apiKey: string | undefined | null,
+    permissions: Permission[],
+    requireAll: boolean = false,
+  ) => {
+    if (apiKey == null) {
+      return false;
+    }
+    if (apiKey === env.SYSTEM_KEY) {
+      return true;
+    }
+    const userRole = await getUserByApiKey(apiKey);
+    if (userRole == null) {
+      return false;
+    }
+    return roleHasPermissions(userRole, permissions, requireAll);
+  },
+);

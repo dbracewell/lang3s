@@ -1,7 +1,10 @@
 [project]
-name = "lang3s-nlp"
+name = "lang3s"
 version = "2025.10.3"
-requires-python = ">= 3.13"
+description = "Lang3s"
+authors = [{ name = "David Bracewell", email = "david@davidbracewell.com" }]
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
 dependencies = [
 	"transformers==4.51.3",
 	"torch==2.8.0",
@@ -15,22 +18,24 @@ dependencies = [
 	"spacy==3.8.7",
 	"lingua_language_detector==2.1.1",
 	"pgvector==0.4.1",
-	"psycopg[binary]",
 	"inngest==0.5.9",
 	"fastapi",
 	"spacy_download==1.1.0",
 	"uvicorn",
 	"sentence_transformers==5.1.1",
 	"redis==7.0.0",
-	"lang3s-jobs_service",
+	"bertopic (>=0.17.3,<0.18.0)",
+	"lang3s-job-service @ file:///Users/ik/prj/Lang3s/backend/jobs_service",
+	"jsonlines (>=4.0.0,<5.0.0)",
+	"hnswlib (>=0.8.0,<0.9.0)",
+	"psycopg[binary,pgvector] (>=3.2.12,<4.0.0)",
+	"psycopg-pool (>=3.2.7,<4.0.0)",
 ]
 
+
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.ruff]
-line-length = 80
+[tool.poetry.dependencies]
+lang3s-job-service = { develop = true }

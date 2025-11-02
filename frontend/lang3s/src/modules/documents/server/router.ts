@@ -9,11 +9,10 @@ import { PAGE_LIMIT } from "@/modules/common/constants";
 import {
   getAnnotationsInSentence,
   notOverlaps,
-  overlaps,
-  selectTextAnnotations,
 } from "@/modules/documents/server/subqueries";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
-import { and, asc, count, desc, eq, lt, ne, not, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { and, asc, count, desc, eq, lt, ne, sql } from "drizzle-orm";
 import z from "zod";
 
 export const DocumentsRouter = createTRPCRouter({
@@ -122,14 +121,13 @@ export const DocumentsRouter = createTRPCRouter({
       return {
         id: document.id,
         metadata: document.metadata as Record<string, string>,
-        text:
-          document.text.length > 0
-            ? {
-                id: document.text[0].id,
-                text: document.text[0].text,
-                annotations: r,
-              }
-            : undefined,
+        text: document.text
+          ? {
+              id: document.text.id,
+              text: document.text.text,
+              annotations: r,
+            }
+          : undefined,
       };
     }),
 

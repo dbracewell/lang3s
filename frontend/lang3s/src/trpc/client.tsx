@@ -7,6 +7,7 @@ import { createTRPCContext } from "@trpc/tanstack-react-query";
 import React, { useState } from "react";
 import superjson from "superjson";
 import { makeQueryClient } from "./query-client";
+import { env } from "@/env/env";
 
 export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
 
@@ -22,7 +23,7 @@ function getQueryClient() {
 function getUrl() {
   const base = (() => {
     if (typeof window !== "undefined") return "";
-    return process.env.NEXT_PUBLIC_APP_URL!;
+    return env.NEXT_PUBLIC_APP_URL;
   })();
   return `${base}/api/trpc`;
 }

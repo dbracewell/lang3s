@@ -1,7 +1,6 @@
 import spacy
 from itertools import combinations
 from sentence_transformers import SentenceTransformer, util
-import numpy as np
 
 nlp = spacy.load("en_core_web_lg")
 embedder = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")

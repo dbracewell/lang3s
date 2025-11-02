@@ -9,5 +9,17 @@
       {
          "path": "backend/jobs_service"
       }
-   ]
+   ],
+   "settings": {
+      "cSpell.words": [
+         "bertopic",
+         "lemmatize",
+         "ndarray",
+         "stopword",
+         "stopwords",
+         "tfidf",
+         "umap",
+         "vectorizer"
+      ]
+   }
 }

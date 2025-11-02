@@ -1,12 +1,6 @@
-import { db } from "@/db";
-import { user } from "@/db/schema";
+import { getUserCount } from "@/modules/auth/server/actions";
 import { InstallPageView } from "@/modules/auth/ui/views/InstallPageView";
 import { redirect } from "next/navigation";
-import React from "react";
-
-const getUserCount = async () => {
-  return await db.$count(user);
-};
 
 const InstallPage = async () => {
   const userCount = await getUserCount();

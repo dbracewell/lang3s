@@ -1,95 +1,88 @@
 import { db } from "@/db";
 import { TextAnnotationTable } from "@/db/schema";
+import { env } from "@/env/env";
+import { logAndRethrow } from "@/lib/try-catch";
+import { SearchParamSchema } from "@/modules/search/params";
 import {
+  fullTextAnnotationSearch,
   fullTextDocumentSearch,
   semanticAnnotationSearch,
-  fullTextAnnotationSearch,
   semanticDocumentSearch,
 } from "@/modules/search/server/searchStrategies";
-import { QueryTypes } from "@/modules/search/types";
-import { SearchParamSchema } from "@/modules/search/utils/parse-params";
-import { baseProcedure, createTRPCRouter } from "@/trpc/init";
+import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { eq } from "drizzle-orm";
-import z from "zod";
 
 export const SearchRouter = createTRPCRouter({
-  search: baseProcedure.input(SearchParamSchema).query(async ({ input }) => {
-    const {
-      query,
-      annotationId,
-      annotationType,
-      page,
-      queryType,
-      minSimilarity,
-      semanticSearch,
-      lang,
-    } = input;
+  search: protectedProcedure
+    .input(SearchParamSchema)
+    .query(async ({ input }) => {
+      const { q, aid, atype, page, stype, minSimilarity, semantic } = input;
 
-    let embedding: number[] = [];
-    let finalQuery: string = "";
-    let finalPage: number = Math.max(0, page);
-    let isSemantic = !!semanticSearch;
-    let finalAnnotationType =
-      queryType === "sentence" ? "sentence" : annotationType;
+      let embedding: number[] = [];
+      let finalQuery: string = "";
+      let finalPage: number = Math.max(1, page ?? 1);
+      let isSemantic = !!semantic;
+      let finalAnnotationType = stype === "sentence" ? "sentence" : atype;
 
-    if (!!annotationId?.trim()) {
-      const [annotation] = await db
-        .select()
-        .from(TextAnnotationTable)
-        .where(eq(TextAnnotationTable.id, annotationId));
-      if (!annotation) {
-        return [];
-      }
-      isSemantic = true;
-      embedding = annotation.embedding;
-      finalQuery = annotation.text;
-    } else if (!!query?.trim()) {
-      finalQuery = query.trim();
-      if (isSemantic) {
-        const res = await fetch("http://localhost:8003/embed", {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: finalQuery,
-            language: lang ?? "",
-          }),
-        });
-        if (!res.ok) {
+      if (!!aid?.trim()) {
+        const [annotation] = await logAndRethrow(
+          db
+            .select()
+            .from(TextAnnotationTable)
+            .where(eq(TextAnnotationTable.id, aid)),
+        );
+        if (!annotation) {
           return [];
         }
-        embedding = await res.json();
-      }
-    } else {
-      return [];
-    }
-
-    if (isSemantic) {
-      if (queryType === "document") {
-        return await semanticDocumentSearch(
-          embedding,
-          finalPage,
-          minSimilarity,
-        );
+        isSemantic = true;
+        embedding = annotation.embedding as number[];
+        finalQuery = annotation.text;
+      } else if (!!q?.trim()) {
+        finalQuery = q.trim();
+        if (isSemantic) {
+          const res = await fetch(`${env.EMBEDDING_SERVER}/embed`, {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              text: finalQuery,
+            }),
+          });
+          if (!res.ok) {
+            return [];
+          }
+          embedding = await res.json();
+        }
       } else {
-        return semanticAnnotationSearch(
-          embedding,
+        return [];
+      }
+
+      if (isSemantic) {
+        if (stype === "document") {
+          return await semanticDocumentSearch(
+            embedding,
+            finalPage,
+            minSimilarity ?? 0.6,
+          );
+        } else {
+          return semanticAnnotationSearch(
+            embedding,
+            finalAnnotationType ?? "entity",
+            finalPage,
+            minSimilarity ?? 0.6,
+          );
+        }
+      } else {
+        if (stype === "document") {
+          return await fullTextDocumentSearch(finalQuery, finalPage);
+        }
+        return await fullTextAnnotationSearch(
+          finalQuery,
           finalAnnotationType ?? "entity",
           finalPage,
-          minSimilarity,
         );
       }
-    } else {
-      if (queryType === "document") {
-        return await fullTextDocumentSearch(finalQuery, finalPage);
-      }
-      return await fullTextAnnotationSearch(
-        finalQuery,
-        finalAnnotationType ?? "entity",
-        page,
-      );
-    }
-  }),
+    }),
 });

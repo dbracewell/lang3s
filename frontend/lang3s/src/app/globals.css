@@ -188,3 +188,30 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide scrollbar for a specific element with a class 'hide-scrollbar' */
+.hide-scrollbar::-webkit-scrollbar {
+  width: 0; /* Or 0px */
+  height: 0; /* For horizontal scrollbars */
+  display: none;
+}
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
+.scrollable {
+  @apply min-h-0 overflow-y-auto;
+}
+
+.scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollable::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollable {
+  scrollbar-width: thin;
+  scrollbar-color: #6c757d transparent;
+}

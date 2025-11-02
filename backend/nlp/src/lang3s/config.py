@@ -27,7 +27,11 @@ def __get_environment_var(name: str, default: Any) -> Any:
     return default
 
 
-JOBS_API_KEY = __get_environment_var("JOBS_API_KEY", "456789")
+PYTHON_BACKEND = __get_environment_var(
+    "PYTHON_BACKEND", "http://localhost:8003"
+)
+SYSTEM_API_KEY = __get_environment_var("SYSTEM_API_KEY", "456789")
+BACKEND_HOST = __get_environment_var("BACKEND_HOST", "http://localhost:3001")
 
 DB_PASSWORD = __get_environment_var("POSTGRES_PASSWORD", "abba")
 DB_USER = __get_environment_var("POSTGRES_USER", "admin")
@@ -48,10 +52,14 @@ EMBEDDING_MODEL: str = __get_environment_var(
     "EMBEDDING_MODEL", __DEFAULT_EMBEDDING_MODEL
 )
 
+EMBEDDING_DIMENSIONS = 768
+
 MODELS_DIR: str = __get_environment_var("MODELS_DIR", __DEFAULT_MODELS_DIR)
 ADAPTERS_DIR: str = os.path.join(MODELS_DIR, "adapters")
 ADAPTER_CONFIG_FILE: str = os.path.join(ADAPTERS_DIR, "adapters.json")
-INFERENCE_BATCH_SIZE: int = int(__get_environment_var("INFERENCE_BATCH_SIZE", 32))
+INFERENCE_BATCH_SIZE: int = int(
+    __get_environment_var("INFERENCE_BATCH_SIZE", 100)
+)
 
 BIO_TRAIN_BATCH_SIZE = 32
 BIO_TRAIN_NUM_EPOCHS = 20

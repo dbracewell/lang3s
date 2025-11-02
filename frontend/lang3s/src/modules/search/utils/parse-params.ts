@@ -1,19 +1,8 @@
-import { QueryType, QueryTypes } from "@/modules/search/types";
 import { ReadonlyURLSearchParams } from "next/navigation";
-import z from "zod";
 
-export const SearchParamSchema = z.object({
-  query: z.string().optional(),
-  annotationId: z.string().optional(),
-  annotationType: z.string().optional(),
-  page: z.int(),
-  queryType: z.enum(QueryTypes),
-  minSimilarity: z.number(),
-  semanticSearch: z.boolean().optional(),
-  lang: z.string().optional(),
-});
 
-export type ParsedSearchParams = z.infer<typeof SearchParamSchema>;
+
+
 
 export const toSearchParams = (searchParams: ParsedSearchParams) => {
   const params = new URLSearchParams();

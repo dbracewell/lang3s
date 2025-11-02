@@ -1,0 +1,9 @@
+{
+   "title_column": "title",
+   "text_column": "full_content",
+   "metadata": {
+      "source": "source_name",
+      "author": "author",
+      "published_date": "published_at"
+   }
+}

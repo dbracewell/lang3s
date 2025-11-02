@@ -1,1 +1,4 @@
-from .helpers import add_documents_to_db
+from .database import Database
+from .text_database import TextDatabase
+
+__all__ = ["Database", "TextDatabase"]

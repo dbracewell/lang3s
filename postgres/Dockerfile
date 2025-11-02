@@ -7,7 +7,8 @@ ARG POSTGRES_USER
 
 RUN set -eux; \
     apt-get update && \
-    apt-get install -y -V lsb-release wget ca-certificates gnupg && \
+    apt-get install -y -V lsb-release wget ca-certificates gnupg \
+		&& \
     \
     # --- Add Apache Arrow repo ---
     wget https://apache.jfrog.io/artifactory/arrow/debian/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb && \
@@ -35,8 +36,7 @@ RUN set -eux; \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-
-# Environment variables are set at runtime (via docker-compose)
+		# Environment variables are set at runtime (via docker-compose)
 ENV POSTGRES_DB=${POSTGRES_DB}
 ENV POSTGRES_USER=${POSTGRES_USER}
 ENV PGDATA=/var/lib/postgresql/data

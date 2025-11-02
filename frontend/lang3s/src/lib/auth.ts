@@ -1,6 +1,4 @@
-import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { admin as adminPlugin, username } from "better-auth/plugins";
+import { db } from "@/db";
 import {
   ac,
   admin,
@@ -8,8 +6,10 @@ import {
   dataLoader,
   modeller,
   user,
-} from "@/lib/permissions";
-import { db } from "@/db";
+} from "@/modules/auth/permissions";
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { admin as adminPlugin, apiKey, username } from "better-auth/plugins";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -22,17 +22,21 @@ export const auth = betterAuth({
     maxPasswordLength: 16,
   },
   plugins: [
-    adminPlugin({
-      ac,
-      roles: {
-        admin,
-        user,
-        dataLoader,
-        analyst,
-        modeller,
-      },
-      defaultRole: "user",
+    apiKey({
+      disableKeyHashing: true,
     }),
-    username(),
+    adminPlugin({
+      ac: ac,
+      roles: { admin, user, analyst, modeller, dataLoader },
+      defaultRole: "user",
+      adminRoles: ["admin"],
+    }),
+    username({
+      minUsernameLength: 4,
+      maxUsernameLength: 15,
+      usernameValidator: (username) => {
+        return /^[a-zA-Z0-9_-]+$/.test(username);
+      },
+    }),
   ],
 });

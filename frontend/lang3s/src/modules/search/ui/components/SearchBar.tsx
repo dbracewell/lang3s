@@ -1,6 +1,5 @@
 "use client";
 import { CheckboxFormField } from "@/components/form-controls/checkbox-form-field";
-import { InputFormField } from "@/components/form-controls/input-form-field";
 import { NumberInputFormField } from "@/components/form-controls/number-input-form-field";
 import {
   SelectFormField,
@@ -20,20 +19,22 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { capitalize } from "@/lib/formatters";
+import { formatURL } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { QueryTypes } from "@/modules/search/types";
 import {
+  Lang3sSearchParams,
   ParsedSearchParams,
-  parseUrlSearchParams,
+  QueryTypes,
   SearchParamSchema,
-  toSearchParams,
-} from "@/modules/search/utils/parse-params";
+} from "@/modules/search/params";
 import { useTRPCQuery } from "@/trpc/use-queries";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SearchIcon, XIcon } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryStates } from "nuqs";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useClickOutside } from "@/hooks/useClickOutside";
 
 const QueryTypeSelectData = [
   ...QueryTypes.keys().map(
@@ -47,50 +48,58 @@ const QueryTypeSelectData = [
 ];
 
 export const SearchBar = () => {
-  const searchParams = useSearchParams();
-  const [isOptionsOpen, setOptionsOpen] = useState(false);
   const router = useRouter();
+  const [searchParams] = useQueryStates(Lang3sSearchParams);
+  const [isOptionsOpen, setOptionsOpen] = useState(false);
+
+  const searchBarRef = useRef<HTMLFormElement>(null);
+
+  const closeSearchOptions = (doingSearch: boolean) => {
+    setOptionsOpen(false);
+    if (!doingSearch) {
+      setFormValues();
+    }
+  };
+
+  useClickOutside(searchBarRef, () => closeSearchOptions(false));
+
   const { data: annotationTypes } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationTypes.queryOptions(),
   );
+
   const form = useForm<ParsedSearchParams>({
     resolver: zodResolver(SearchParamSchema),
     defaultValues: {
-      ...parseUrlSearchParams(searchParams),
+      ...searchParams,
     },
   });
 
-  const queryType = form.watch("queryType");
-  const isSemantic = form.watch("semanticSearch");
-  const aid = form.watch("annotationId");
+  const queryType = form.watch("stype");
+  const isSemantic = form.watch("semantic");
 
   const onSubmit = (values: ParsedSearchParams) => {
-    router.push(`/search?${toSearchParams(values)}`);
-    setOptionsOpen(false);
+    router.push(formatURL("/search", values));
+    closeSearchOptions(true);
   };
 
+  const setFormValues = useCallback(() => {
+    form.setValue("q", searchParams.q ?? undefined);
+    form.setValue("atype", searchParams.atype);
+    form.setValue("stype", searchParams.stype);
+    form.setValue("aid", searchParams.aid);
+    form.setValue("minSimilarity", searchParams.minSimilarity);
+    form.setValue("page", searchParams.page);
+    form.setValue("semantic", searchParams.semantic);
+  }, [form, searchParams]);
+
   useEffect(() => {
-    const v = parseUrlSearchParams(searchParams);
-    form.reset();
-    Object.entries(v).forEach(([k, v]) =>
-      form.setValue(
-        k as
-          | "query"
-          | "annotationId"
-          | "annotationType"
-          | "minSimilarity"
-          | "page"
-          | "semanticSearch"
-          | "lang",
-        v,
-      ),
-    );
-    form.setValue("query", v.query ?? undefined);
-  }, [searchParams, form]);
+    setFormValues();
+  }, [setFormValues]);
 
   return (
     <Form {...form}>
       <form
+        ref={searchBarRef}
         onSubmit={form.handleSubmit(onSubmit)}
         id="searchBarForm"
         className="group relative z-100"
@@ -105,7 +114,7 @@ export const SearchBar = () => {
         >
           <FormField
             control={form.control}
-            name="query"
+            name="q"
             render={({ field }) => {
               return (
                 <FormItem className="flex-1">
@@ -115,7 +124,7 @@ export const SearchBar = () => {
                       value={field.value ?? ""}
                       onChange={(e) => {
                         field.onChange(e);
-                        form.setValue("annotationId", undefined);
+                        form.setValue("aid", null);
                       }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
@@ -154,7 +163,7 @@ export const SearchBar = () => {
         >
           <CheckboxFormField
             reactHookForm={form}
-            name="semanticSearch"
+            name="semantic"
             label="Semantic Search"
             formDescriptionClassName="text-xs"
             description="Searches for related concepts instead of keyword matches"
@@ -162,20 +171,20 @@ export const SearchBar = () => {
               if (!e) {
                 form.setValue("minSimilarity", 0);
               } else {
-                form.setValue("minSimilarity", 0.4);
+                form.setValue("minSimilarity", 0.6);
               }
             }}
           />
           <SelectFormField
             reactHookForm={form}
-            name="queryType"
+            name="stype"
             label="Search Result Type"
             options={QueryTypeSelectData}
           />
           {queryType === "annotation" && (
             <SelectFormField
               reactHookForm={form}
-              name="annotationType"
+              name="atype"
               label="Annotation Type"
               options={(annotationTypes ?? []).map((type) => ({
                 type: "item",
@@ -195,24 +204,6 @@ export const SearchBar = () => {
               className="bg-white"
               formDescriptionClassName="text-xs"
               description="A higher similarity will more strictly match, but will return fewer results."
-            />
-          )}
-          {isSemantic && aid == null && (
-            <SelectFormField
-              reactHookForm={form}
-              name="lang"
-              label="Language"
-              defaultValue="en"
-              options={[
-                ["en", "English"],
-                ["es", "Spanish"],
-                ["ja", "Japanese"],
-                ["zh", "Chinese"],
-              ].map(([code, name]) => ({
-                type: "item",
-                value: code,
-                node: capitalize(name, true),
-              }))}
             />
           )}
           <Button type="submit" form="searchBarForm">

@@ -1,17 +1,15 @@
 "use client";
 import { InfiniteScroll } from "@/components/InfiniteScroll";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  useTRPCInfiniteQuery,
-  useTRPCSuspenseInfiniteQuery,
-  useTRPCSuspenseQuery,
-} from "@/trpc/use-queries";
+import { cn } from "@/lib/utils";
+import { useTRPCSuspenseInfiniteQuery } from "@/trpc/use-queries";
 import { ArrowUpIcon } from "lucide-react";
 import Link from "next/link";
-import React from "react";
+import { useRef, useState } from "react";
 
 export const DocumentsViewPage = () => {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [isScrolled, setIsScrolled] = useState(false);
   const {
     data: docs,
     isFetchingNextPage,
@@ -28,11 +26,32 @@ export const DocumentsViewPage = () => {
     <div className="flex h-full flex-1 flex-col gap-3 overflow-hidden">
       <h1 className="mr-4 flex items-center justify-between rounded-lg border bg-zinc-100 p-2 text-lg">
         {docs.pages[0].totalDocs[0].count} Total Documents{" "}
-        <Button>
+        <Button
+          className={cn(isScrolled ? "visible" : "hidden")}
+          variant="secondary"
+          onClick={() => {
+            scrollRef.current?.scrollTo({
+              top: 0,
+            });
+          }}
+        >
           <ArrowUpIcon />
         </Button>
       </h1>
-      <ScrollArea className="min-h-0 flex-1 pr-4">
+      <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          if (scrollRef.current) {
+            const container = scrollRef.current;
+            const scrollPosition = container.scrollTop + container.clientHeight;
+            const scrollPercentage =
+              (container.scrollHeight - scrollPosition) /
+              container.scrollHeight;
+            setIsScrolled(scrollPercentage < 0.8);
+          }
+        }}
+        className="scrollable flex-1 pr-4"
+      >
         {docs.pages
           .flatMap((page) => page.posts)
           .map((doc) => (
@@ -65,7 +84,7 @@ export const DocumentsViewPage = () => {
           isFetchingNextPage={isFetchingNextPage}
           hasNextPage={hasNextPage}
         />
-      </ScrollArea>
+      </div>
     </div>
   );
 };

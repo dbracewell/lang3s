@@ -16,6 +16,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/sign-in", request.url));
   } else if (session && authRoutes.includes(page)) {
     return NextResponse.redirect(new URL("/", request.url));
+  } else if (session?.user.role !== "admin" && request.url.includes("/admin")) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return NextResponse.next();

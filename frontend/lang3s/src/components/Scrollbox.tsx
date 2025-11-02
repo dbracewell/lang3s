@@ -1,64 +1,60 @@
 import { cn } from "@/lib/utils";
 import React from "react";
-import {
-   ScrollBar,
-   ScrollArea as ShadCNScrollArea,
-} from "@/components/ui/scroll-area";
 
 const Container = ({
-   children,
-   className,
+  children,
+  className,
 }: {
-   children: React.ReactNode;
-   className?: string;
+  children: React.ReactNode;
+  className?: string;
 }) => {
-   return (
-      <div
-         className={cn(
-            "flex-1 min-h-0 border rounded-md pb-5 flex flex-col overflow-clip",
-            className
-         )}
-      >
-         {children}
-      </div>
-   );
+  return (
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col overflow-clip rounded-md border pb-5",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
 };
 
 const Header = ({
-   children,
-   className,
+  children,
+  className,
 }: {
-   children: React.ReactNode;
-   className?: string;
+  children: React.ReactNode;
+  className?: string;
 }) => {
-   return (
-      <h1
-         className={cn(
-            "border-b-2 py-3 w-full text-center bg-gradient-to-b from-zinc-50 to-zinc-100 mb-4",
-            className
-         )}
-      >
-         {children}
-      </h1>
-   );
+  return (
+    <h1
+      className={cn(
+        "mb-4 w-full border-b-2 bg-gradient-to-b from-zinc-50 to-zinc-100 py-3 text-center",
+        className,
+      )}
+    >
+      {children}
+    </h1>
+  );
 };
 
 const ScrollArea = ({
-   children,
-   className,
+  children,
+  className,
 }: {
-   children: React.ReactNode;
-   className?: string;
+  children: React.ReactNode;
+  className?: string;
 }) => {
-   return (
-      <ShadCNScrollArea className="flex-1 min-h-0" type="always">
-         <div className={cn("flex flex-col", className)}>{children}</div>
-      </ShadCNScrollArea>
-   );
+  return (
+    <div className="scrollable flex-1">
+      <div className={cn("flex flex-col", className)}>{children}</div>
+    </div>
+  );
 };
 
 export const ScrollableBox = {
-   Container,
-   Header,
-   ScrollArea,
+  Container,
+  Header,
+  ScrollArea,
 };
