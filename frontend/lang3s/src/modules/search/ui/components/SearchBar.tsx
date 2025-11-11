@@ -53,6 +53,8 @@ export const SearchBar = () => {
   const [isOptionsOpen, setOptionsOpen] = useState(false);
 
   const searchBarRef = useRef<HTMLFormElement>(null);
+  const sTypeRef = useRef<HTMLDivElement | null>(null);
+  const aTypeRef = useRef<HTMLDivElement | null>(null);
 
   const closeSearchOptions = (doingSearch: boolean) => {
     setOptionsOpen(false);
@@ -61,7 +63,9 @@ export const SearchBar = () => {
     }
   };
 
-  useClickOutside(searchBarRef, () => closeSearchOptions(false));
+  useClickOutside([searchBarRef, sTypeRef, aTypeRef], () =>
+    closeSearchOptions(false),
+  );
 
   const { data: annotationTypes } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationTypes.queryOptions(),
@@ -107,7 +111,7 @@ export const SearchBar = () => {
       >
         <InputGroup
           className={cn(
-            "w-full rounded-full bg-slate-200",
+            "w-full rounded-full bg-slate-200 hover:shadow-md",
             isOptionsOpen &&
               "rounded-none rounded-t-lg border border-b-0 border-slate-900 bg-slate-50",
           )}
@@ -179,12 +183,14 @@ export const SearchBar = () => {
             reactHookForm={form}
             name="stype"
             label="Search Result Type"
+            ref={sTypeRef}
             options={QueryTypeSelectData}
           />
           {queryType === "annotation" && (
             <SelectFormField
               reactHookForm={form}
               name="atype"
+              ref={aTypeRef}
               label="Annotation Type"
               options={(annotationTypes ?? []).map((type) => ({
                 type: "item",

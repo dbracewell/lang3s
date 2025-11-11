@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import List, NamedTuple
+from typing import Iterable, List, NamedTuple
 
 import requests
 
@@ -17,16 +17,18 @@ class Status(NamedTuple):
 
 
 class TopicModelClient:
-    def partial_fit(self, doc: Document) -> Status:
-        embeddings = [
-            s.embedding.tolist()
-            for s in doc.text.sentences
-            if not s.is_stopword and s.embedding is not None
-        ]
-        response = requests.post(
-            PYTHON_BACKEND + "/topics", json={"embeddings": embeddings}
-        )
-        response.raise_for_status()
+    def partial_fit(self, docs: Iterable[Document]) -> Status:
+        for doc in docs:
+            embeddings = [
+                s.embedding.tolist()
+                for s in doc.text.sentences
+                if not s.is_stopword and s.embedding is not None
+            ]
+            response = requests.post(
+                PYTHON_BACKEND + "/topics", json={"embeddings": embeddings}
+            )
+            response.raise_for_status()
+        response = requests.get(PYTHON_BACKEND + "/topics/status")
         return Status(**response.json())
 
     def get_topics(self) -> List[TopicData]:

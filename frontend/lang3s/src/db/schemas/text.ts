@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
+  bit,
+  halfvec,
   index,
   integer,
   jsonb,
@@ -46,7 +48,10 @@ export const TextTable = pgTable(
   {
     id: text("id").primaryKey(),
     text: text("text").notNull(),
-    embedding: vector("embedding", {
+    fullEmbedding: halfvec("full_embedding", {
+      dimensions: EMBEDDING_DIMENSIONS,
+    }).notNull(),
+    embedding: bit("embedding", {
       dimensions: EMBEDDING_DIMENSIONS,
     }).notNull(),
     documentId: text("doc_id")
@@ -63,9 +68,9 @@ export const TextTable = pgTable(
   },
   (table) => [
     index("ml_text_search_index").using("pgroonga", table.text),
-    index("text_embeddingIndex").using(
+    index("text_embedding_index").using(
       "hnsw",
-      table.embedding.op("vector_cosine_ops"),
+      table.embedding.op("bit_hamming_ops"),
     ),
     index("text_metadata_gin_idx").using(
       "gin",
@@ -82,8 +87,9 @@ export const TextTable = pgTable(
 export const TextAnnotationTable = pgTable(
   "text_annotations",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: text("id").primaryKey(),
     text: text("text").notNull(),
+    cleaned: text("clean_text").notNull(),
     textId: text("text_id")
       .notNull()
       .references(() => TextTable.id, { onDelete: "cascade" }),
@@ -95,12 +101,13 @@ export const TextAnnotationTable = pgTable(
     sentenceId: integer("sentence_id").notNull(),
     type: text("type").notNull(),
     value: text("value").notNull(),
-    mapping: text("mapping")
-      .generatedAlwaysAs(sql`type || ':' || value`)
-      .notNull(),
-    embedding: vector("embedding", {
+    mapping: text("mapping"),
+    fullEmbedding: halfvec("full_embedding", {
       dimensions: EMBEDDING_DIMENSIONS,
-    }),
+    }).notNull(),
+    embedding: bit("embedding", {
+      dimensions: EMBEDDING_DIMENSIONS,
+    }).notNull(),
     metadata: jsonb("metadata")
       .$type<Record<string, unknown>>()
       .notNull()
@@ -116,9 +123,9 @@ export const TextAnnotationTable = pgTable(
     index("text_annotation_sentence_id_idx").on(table.sentenceId),
     index("text_annotation_mapping_index").on(table.mapping),
     index("ml_text_annotation_search_index").using("pgroonga", table.text),
-    index("embeddingIndex").using(
+    index("text_annotation_embedding_index").using(
       "hnsw",
-      table.embedding.op("vector_cosine_ops"),
+      table.embedding.op("bit_hamming_ops"),
     ),
     index("text_annotation_metadata_gin_idx").using(
       "gin",

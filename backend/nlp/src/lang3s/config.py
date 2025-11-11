@@ -3,6 +3,10 @@ from typing import Any
 
 import torch
 
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["PYTHONUNBUFFERED"] = "1"
+
 
 def get_best_device():
     if torch.cuda.is_available():
@@ -19,6 +23,7 @@ GTE_MODEL = "Alibaba-NLP/gte-multilingual-base"
 __DEFAULT_EMBEDDING_MODEL = GTE_MODEL
 __DEFAULT_ADAPTER_MODEL = XLM_ROBERTA
 __DEFAULT_MODELS_DIR = "/app"
+__DEFAULT_DOCUMENTS_DIR = "/Users/ik/prj/Lang3s/documents"
 
 
 def __get_environment_var(name: str, default: Any) -> Any:
@@ -52,13 +57,16 @@ EMBEDDING_MODEL: str = __get_environment_var(
     "EMBEDDING_MODEL", __DEFAULT_EMBEDDING_MODEL
 )
 
-EMBEDDING_DIMENSIONS = 768
+
+DOCUMENTS_DIR: str = __get_environment_var(
+    "DOCUMENTS_DIR", __DEFAULT_DOCUMENTS_DIR
+)
 
 MODELS_DIR: str = __get_environment_var("MODELS_DIR", __DEFAULT_MODELS_DIR)
 ADAPTERS_DIR: str = os.path.join(MODELS_DIR, "adapters")
 ADAPTER_CONFIG_FILE: str = os.path.join(ADAPTERS_DIR, "adapters.json")
 INFERENCE_BATCH_SIZE: int = int(
-    __get_environment_var("INFERENCE_BATCH_SIZE", 100)
+    __get_environment_var("INFERENCE_BATCH_SIZE", 32)
 )
 
 BIO_TRAIN_BATCH_SIZE = 32

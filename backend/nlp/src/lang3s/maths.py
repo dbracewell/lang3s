@@ -1,7 +1,14 @@
+import logging
 from typing import Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+
+logger = logging.Logger(__name__)
+
+
+def binarize(v: NDArray[np.floating]) -> str:
+    return "".join((str(i) for i in (v > 0).astype(int).tolist()))
 
 
 def normalize(
@@ -17,6 +24,9 @@ def cosine(
     n1: NDArray[np.floating],
     n2: NDArray[np.floating],
 ):
+    if n1.shape[0] == 1 and n2.shape[0] == 1:
+        n1 = n1.squeeze()
+        n2 = n2.squeeze()
     return np.dot(n1, n2) / (np.linalg.norm(n1) * np.linalg.norm(n2) + 1e-12)
 
 

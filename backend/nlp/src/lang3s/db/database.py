@@ -9,7 +9,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 import lang3s.config as config
-from lang3s.utils import partition
+from lang3s.utils import decorators, partition
 
 
 def alias_identifier(ident, alias=None):
@@ -23,22 +23,15 @@ def alias_identifier(ident, alias=None):
         )
 
 
+@decorators.singleton
 class Database:
     MAX_INSERT_SIZE = 60000
-    _instance = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
 
     def __init__(self) -> None:
-        if not hasattr(self, "initialized"):
-            self.initialized = True
-            self.pool = ConnectionPool(
-                f"host={config.DB_HOST} dbname=lang3s user={config.DB_USER} password={config.DB_PASSWORD} port={config.DB_PORT}",
-                kwargs={"autocommit": True, "row_factory": dict_row},
-            )
+        self.pool = ConnectionPool(
+            f"host={config.DB_HOST} dbname=lang3s user={config.DB_USER} password={config.DB_PASSWORD} port={config.DB_PORT}",
+            kwargs={"autocommit": True, "row_factory": dict_row},
+        )
 
     @contextmanager
     def cursor(self):

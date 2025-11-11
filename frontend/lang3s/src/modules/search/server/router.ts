@@ -18,7 +18,7 @@ export const SearchRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const { q, aid, atype, page, stype, minSimilarity, semantic } = input;
 
-      let embedding: number[] = [];
+      let embedding: string = "";
       let finalQuery: string = "";
       let finalPage: number = Math.max(1, page ?? 1);
       let isSemantic = !!semantic;
@@ -27,7 +27,10 @@ export const SearchRouter = createTRPCRouter({
       if (!!aid?.trim()) {
         const [annotation] = await logAndRethrow(
           db
-            .select()
+            .select({
+              embedding: TextAnnotationTable.embedding,
+              text: TextAnnotationTable.text,
+            })
             .from(TextAnnotationTable)
             .where(eq(TextAnnotationTable.id, aid)),
         );
@@ -35,7 +38,9 @@ export const SearchRouter = createTRPCRouter({
           return [];
         }
         isSemantic = true;
-        embedding = annotation.embedding as number[];
+        if (annotation.embedding) {
+          embedding = annotation.embedding;
+        }
         finalQuery = annotation.text;
       } else if (!!q?.trim()) {
         finalQuery = q.trim();

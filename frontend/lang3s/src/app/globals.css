@@ -172,6 +172,7 @@
 
 .entity {
 }
+
 .entity::after {
   content: attr(data-annotation-type);
 }

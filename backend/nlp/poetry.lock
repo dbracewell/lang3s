@@ -34,32 +34,6 @@ test-trackers = ["comet-ml", "dvclive", "matplotlib", "swanlab[dashboard]", "ten
 testing = ["bitsandbytes", "datasets", "diffusers", "evaluate", "parameterized", "pytest (>=7.2.0)", "pytest-order", "pytest-subtests", "pytest-xdist", "scikit-learn", "scipy", "timm", "torchdata (>=0.8.0)", "torchpippy (>=0.2.0)", "tqdm", "transformers"]
 
 [[package]]
-name = "adapters"
-version = "1.2.0"
-description = "A Unified Library for Parameter-Efficient and Modular Transfer Learning"
-optional = false
-python-versions = ">=3.9.0"
-groups = ["main"]
-files = [
-    {file = "adapters-1.2.0-py3-none-any.whl", hash = "sha256:fa55ddd9a99577ad0bacb16bebd0a26b6c5db2eae8730b5bfe4403eb917f2e22"},
-    {file = "adapters-1.2.0.tar.gz", hash = "sha256:40db5c5e0789603859980229f7acbae51168abf1999efdb65e5a7778e81a104e"},
-]
-
-[package.dependencies]
-packaging = "*"
-transformers = ">=4.51.3,<4.52.0"
-
-[package.extras]
-dev = ["GitPython (<3.1.19)", "Jinja2 (>=3.1.0)", "accelerate (>=0.26.0)", "beautifulsoup4", "black (>=24.4.0,<24.5.0)", "datasets (!=2.5.0)", "dill (<0.3.5)", "docutils (==0.16.0)", "evaluate (>=0.2.0)", "flake8 (>=3.8.3)", "isort (>=5.5.4)", "markupsafe (==2.0.1)", "myst-parser", "nltk", "parameterized", "pillow", "protobuf", "psutil", "pytest (>=7.2.0,<8.0.0)", "pytest-rich", "pytest-timeout", "pytest-xdist", "rjieba", "rouge-score (!=0.0.7,!=0.0.8,!=0.1,!=0.1.1)", "sacrebleu (>=1.4.12,<2.0.0)", "sacremoses", "scikit-learn", "sentencepiece (>=0.1.91,!=0.1.92)", "sphinx (==5.0.2)", "sphinx-copybutton (==0.5.2)", "sphinx-intl (==2.1.0)", "sphinx-markdown-tables (==0.0.17)", "sphinx-multiversion (==0.2.4)", "sphinx-rtd-theme (==2.0.0)", "sphinxext-opengraph (==0.4.1)", "timeout-decorator", "torch", "torchvision"]
-docs = ["Jinja2 (>=3.1.0)", "docutils (==0.16.0)", "markupsafe (==2.0.1)", "myst-parser", "sphinx (==5.0.2)", "sphinx-copybutton (==0.5.2)", "sphinx-intl (==2.1.0)", "sphinx-markdown-tables (==0.0.17)", "sphinx-multiversion (==0.2.4)", "sphinx-rtd-theme (==2.0.0)", "sphinxext-opengraph (==0.4.1)"]
-quality = ["GitPython (<3.1.19)", "black (>=24.4.0,<24.5.0)", "datasets (!=2.5.0)", "flake8 (>=3.8.3)", "isort (>=5.5.4)"]
-sentencepiece = ["protobuf", "sentencepiece (>=0.1.91,!=0.1.92)"]
-sklearn = ["scikit-learn"]
-testing = ["GitPython (<3.1.19)", "accelerate (>=0.26.0)", "beautifulsoup4", "black (>=24.4.0,<24.5.0)", "datasets (!=2.5.0)", "dill (<0.3.5)", "evaluate (>=0.2.0)", "nltk", "parameterized", "pillow", "psutil", "pytest (>=7.2.0,<8.0.0)", "pytest-rich", "pytest-timeout", "pytest-xdist", "rjieba", "rouge-score (!=0.0.7,!=0.0.8,!=0.1,!=0.1.1)", "sacrebleu (>=1.4.12,<2.0.0)", "sacremoses", "timeout-decorator", "torchvision"]
-torch = ["accelerate (>=0.26.0)", "torch"]
-torchvision = ["torchvision"]
-
-[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
 description = "Happy Eyeballs for asyncio"
@@ -779,6 +753,29 @@ typing-extensions = ">=4.8.0"
 all = ["email-validator (>=2.0.0)", "fastapi-cli[standard] (>=0.0.8)", "httpx (>=0.23.0,<1.0.0)", "itsdangerous (>=1.1.0)", "jinja2 (>=3.1.5)", "orjson (>=3.2.1)", "pydantic-extra-types (>=2.0.0)", "pydantic-settings (>=2.0.0)", "python-multipart (>=0.0.18)", "pyyaml (>=5.3.1)", "ujson (>=4.0.1,!=4.0.2,!=4.1.0,!=4.2.0,!=4.3.0,!=5.0.0,!=5.1.0)", "uvicorn[standard] (>=0.12.0)"]
 standard = ["email-validator (>=2.0.0)", "fastapi-cli[standard] (>=0.0.8)", "httpx (>=0.23.0,<1.0.0)", "jinja2 (>=3.1.5)", "python-multipart (>=0.0.18)", "uvicorn[standard] (>=0.12.0)"]
 standard-no-fastapi-cloud-cli = ["email-validator (>=2.0.0)", "fastapi-cli[standard-no-fastapi-cloud-cli] (>=0.0.8)", "httpx (>=0.23.0,<1.0.0)", "jinja2 (>=3.1.5)", "python-multipart (>=0.0.18)", "uvicorn[standard] (>=0.12.0)"]
+
+[[package]]
+name = "fastcoref"
+version = "2.1.6"
+description = ""
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "fastcoref-2.1.6.tar.gz", hash = "sha256:cf3bc2764cca1db06df8ff40e513d7f79d26f0c340d0e442bd66a85673610b9e"},
+]
+
+[package.dependencies]
+datasets = ">=2.5.2"
+numpy = ">=1.21.6"
+scipy = ">=1.7.3"
+spacy = ">=3.0.6"
+torch = ">=1.10.0"
+tqdm = ">=4.64.0"
+transformers = ">=4.11.3"
+
+[package.extras]
+train = ["wandb (>=0.13.4)"]
 
 [[package]]
 name = "filelock"
@@ -3147,6 +3144,18 @@ files = [
 six = ">=1.5"
 
 [[package]]
+name = "pytorch-crf"
+version = "0.7.2"
+description = "Conditional random field in PyTorch"
+optional = false
+python-versions = ">=3.6, <4"
+groups = ["main"]
+files = [
+    {file = "pytorch-crf-0.7.2.tar.gz", hash = "sha256:e6456e22ccfc99a3d4fe1e03e996103b1b39e9830bf3c7e12e7a9077d3be866d"},
+    {file = "pytorch_crf-0.7.2-py3-none-any.whl", hash = "sha256:1b2d7d5eea3255f6e0cac09ab8b645472e76ff70d9333bc88762cf7317a4992d"},
+]
+
+[[package]]
 name = "pytz"
 version = "2025.2"
 description = "World timezone definitions, modern and historical"
@@ -3670,14 +3679,14 @@ test = ["Cython", "array-api-strict (>=2.3.1)", "asv", "gmpy2", "hypothesis (>=6
 
 [[package]]
 name = "sentence-transformers"
-version = "5.1.1"
+version = "5.1.2"
 description = "Embeddings, Retrieval, and Reranking"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "sentence_transformers-5.1.1-py3-none-any.whl", hash = "sha256:5ed544629eafe89ca668a8910ebff96cf0a9c5254ec14b05c66c086226c892fd"},
-    {file = "sentence_transformers-5.1.1.tar.gz", hash = "sha256:8af3f844b2ecf9a6c2dfeafc2c02938a87f61202b54329d70dfd7dfd7d17a84e"},
+    {file = "sentence_transformers-5.1.2-py3-none-any.whl", hash = "sha256:724ce0ea62200f413f1a5059712aff66495bc4e815a1493f7f9bca242414c333"},
+    {file = "sentence_transformers-5.1.2.tar.gz", hash = "sha256:0f6c8bd916a78dc65b366feb8d22fd885efdb37432e7630020d113233af2b856"},
 ]
 
 [package.dependencies]
@@ -4920,4 +4929,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.13"
-content-hash = "c24dc5821278dffed35542372e01e00278ab99b9a65fd7ac4aab10d02e197544"
+content-hash = "21c1cee532808b2d2d12d4a45a668704f313294022e32d5b37d8897ad580b9ce"

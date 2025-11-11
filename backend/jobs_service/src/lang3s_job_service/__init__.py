@@ -172,21 +172,23 @@ class JobService:
         num_docs = len(files)
         print(f"⬆️  Uploading {num_docs} documents...")
 
-        for i in range(num_docs):
+        total_processed = 0
+        for i in range(0, num_docs, 20):
             try:
                 job = self._call_api_obj(
                     "jobs.annotate",
                     {
                         "job_id": job.id,
-                        "file": files[i].__dict__,
+                        "files": [files[i].__dict__ for i in range(i, i + 20)],
                     },
                     return_type=Job,
                     method="POST",
                 )
+                total_processed += 20
             except Exception as e:
                 print(f"Failed to upload {files[i].path}", e)
                 continue
-            if (i + 1) % 10 == 0 or i == num_docs - 1:
+            if total_processed % 100 == 0 or i == num_docs - 1:
                 print(f"  Uploaded {i + 1}/{num_docs}")
         print("✅ All documents uploaded.")
 

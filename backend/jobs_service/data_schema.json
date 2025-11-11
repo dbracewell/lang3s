@@ -1,9 +1,11 @@
 {
+   "header": true,
    "title_column": "title",
-   "text_column": "full_content",
+   "text_column": "excerpt",
    "metadata": {
-      "source": "source_name",
-      "author": "author",
-      "published_date": "published_at"
+      "distortion": "distortion",
+      "subreddit": "subreddit",
+      "url": "url",
+      "search": "search"
    }
 }

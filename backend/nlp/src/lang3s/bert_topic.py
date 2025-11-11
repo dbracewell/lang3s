@@ -1,10 +1,7 @@
-import itertools
 import logging
-from typing import List
 
-from datasets import load_dataset
+import jsonlines
 from lang3s_job_service import File
-from pydantic import BaseModel
 
 from lang3s.clients.topic_model_client import TopicModelClient
 from lang3s.db import TextDatabase
@@ -15,28 +12,26 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-text_db = TextDatabase()
 
-if False:
-    dataset = load_dataset("SurAyush/News_Summary_Dataset")
-    files = [
-        File(
-            content=data["article"],
+if True:
+    with jsonlines.open("news.jsonl", mode="r") as reader:
+        files = (File.model_validate(doc) for doc in reader)
+        docs = pipeline(
+            files,
+            write_to_db=True,
+            tasks=set(),
         )
-        for data in itertools.chain.from_iterable([dataset["train"]])
-    ]
-    docs = pipeline(files[:2000], write_to_db=True, tasks=set())
+    exit()
 
 
-class AddRequest(BaseModel):
-    embeddings: List[List[float]]
-
-
+text_db = TextDatabase()
 client = TopicModelClient()
+total_docs = text_db.doc_count
+limit = 50
+for i in range(0, total_docs, limit):
+    client.partial_fit(text_db.get_documents(offset=i, limit=limit))
+    break
 
-
-for doc in text_db.get_documents(offset=501, limit=500):
-    client.partial_fit(doc)
 client.finalize()
 client.wait(timeout=10)
 

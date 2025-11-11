@@ -1,16 +1,16 @@
+import logging
 import queue
 import threading
-from concurrent.futures import ThreadPoolExecutor
+import time
 from typing import Any, List, NamedTuple, Optional
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from lang3s.nlp.topic_model import Lang3sTopicModel
+from lang3s.models.topic_model import Lang3sTopicModel
 
-executor = ThreadPoolExecutor(max_workers=1)
-future = None
+logger = logging.Logger(__name__)
 
 router = APIRouter(
     prefix="/topics",
@@ -22,9 +22,7 @@ router = APIRouter(
 class TopicData(BaseModel):
     id: str
     name: str
-    doc_count: int
     support: int
-    sentence_count: int
 
 
 class Task(NamedTuple):
@@ -43,6 +41,7 @@ def worker():
     global is_updating_task
     while True:
         if is_updating_task:
+            time.sleep(5)
             continue
 
         task = work_queue.get()  # waits until available
@@ -60,7 +59,7 @@ def worker():
                 topic_model.label_topics()
                 topic_model.save_topics()
         except Exception as e:
-            print(f"Error in worker: {e}")
+            logger.error(f"Error in worker: {e}")
         finally:
             work_queue.task_done()
             global total_tasks
@@ -104,9 +103,7 @@ async def get_all_topics():
         TopicData(
             id=t.id,
             name=t.name,
-            doc_count=t.doc_count,
             support=t.support,
-            sentence_count=t.sentence_count,
         )
         for t in topic_model.topics
     ]
@@ -156,9 +153,7 @@ async def update_name(topic_id: str, request: TopicUpdateRequest):
         return TopicData(
             id=topic.id,
             name=topic.name,
-            doc_count=topic.doc_count,
             support=topic.support,
-            sentence_count=topic.sentence_count,
         )
     except Exception:
         return JSONResponse(content="Not Found", status_code=404)
@@ -182,9 +177,7 @@ async def get_topic(topic_id: str):
         return TopicData(
             id=topic.id,
             name=topic.name,
-            doc_count=topic.doc_count,
             support=topic.support,
-            sentence_count=topic.sentence_count,
         )
     except Exception:
         return JSONResponse(status_code=404, content="Not Found")

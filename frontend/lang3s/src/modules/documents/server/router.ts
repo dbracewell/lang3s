@@ -12,8 +12,22 @@ import {
 } from "@/modules/documents/server/subqueries";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, desc, eq, lt, ne, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  lt,
+  ne,
+  sql,
+} from "drizzle-orm";
 import z from "zod";
+import { promises as fs } from "fs";
+import path from "path"; // For path manipulation
+import { DocumentSchema } from "@/modules/common/schemas";
+import { env } from "@/env/env";
 
 export const DocumentsRouter = createTRPCRouter({
   getMany: protectedProcedure
@@ -83,52 +97,28 @@ export const DocumentsRouter = createTRPCRouter({
         posts: finalDocs,
       };
     }),
+
   getOne: protectedProcedure
     .input(z.object({ id: z.string().min(1) }))
     .query(async ({ input }) => {
-      const document = await db.query.DocumentsTable.findFirst({
-        with: {
-          text: true,
-        },
-        where: eq(DocumentsTable.id, input.id),
-      });
-
-      if (!document) {
-        throw Error("Not Found");
+      const filePath = path.join(env.DOCUMENTS_DIR, `${input.id}.json`);
+      try {
+        const jsonData = await fs.readFile(filePath, "utf8");
+        const document = DocumentSchema.parse(JSON.parse(jsonData));
+        return {
+          ...document,
+          text: {
+            ...document.text,
+            embedding: undefined,
+            annotations: document.text.annotations.map((a) => ({
+              ...a,
+              embedding: undefined,
+            })),
+          },
+        };
+      } catch {
+        throw new TRPCError({ code: "NOT_FOUND" });
       }
-
-      const sub = db
-        .select()
-        .from(TextAnnotationTable)
-        .where(eq(TextAnnotationTable.documentId, document.id))
-        .orderBy(asc(TextAnnotationTable.start), desc(TextAnnotationTable.end))
-        .as("annotations");
-
-      const r: TextAnnotationDB[] = await db
-        .select({
-          type: sub.type,
-          annotations: sql<TextAnnotationProps[]>`json_agg(json_build_object(
-												 'id', ${sub.id},
-								 'start', ${sub.start}, 
-								 'end', ${sub.end},
-								 'text', ${sub.text},
-								 'type', ${sub.type}, 
-								 'value', ${sub.value}))`.as("annotations"),
-        })
-        .from(sub)
-        .groupBy(sub.type);
-
-      return {
-        id: document.id,
-        metadata: document.metadata as Record<string, string>,
-        text: document.text
-          ? {
-              id: document.text.id,
-              text: document.text.text,
-              annotations: r,
-            }
-          : undefined,
-      };
     }),
 
   test: protectedProcedure

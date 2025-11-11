@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import time
+from collections import defaultdict
 from typing import Dict, List, cast
 
 import redis
@@ -20,8 +21,8 @@ logging.basicConfig(
 
 
 QUEUE_NAME = "doc_queue"
-BATCH_SIZE = 20
-BATCH_TIMEOUT = 0.2
+BATCH_SIZE = 100
+BATCH_TIMEOUT = 2
 
 job_service = JobService(
     api_key=config.SYSTEM_API_KEY, api_host=config.BACKEND_HOST
@@ -35,31 +36,30 @@ redis_client = redis.Redis(
 text_db = TextDatabase()
 topic_model = TopicModelClient()
 
-logger = logging.Logger("NLP_WORKER")
+logger = logging.Logger("NLP_WORKER", level=logging.INFO)
 
 
 async def process_batch(batch):
     jobs: Dict[int, Job] = dict()
-    docs_by_id: Dict[int, List[File]] = dict()
-    completed = 0
-    failed = 0
+    docs_by_id: Dict[int, List[File]] = defaultdict(list)
+    completed = defaultdict(int)
+    failed = defaultdict(int)
 
     for task in batch:
         job_id = int(task["job_id"])
+
         if job_id not in jobs:
             try:
                 jobs[job_id] = job_service.get_job(job_id)
             except Exception as e:
-                failed += 1
-                print(e)
+                failed[job_id] += 1
+                logger.error(e)
                 continue
-        if job_id not in docs_by_id:
-            docs_by_id[job_id] = list()
         try:
             docs_by_id[job_id].append(File.model_validate_json(task["content"]))
         except Exception as e:
-            print(e)
-            failed += 1
+            logger.error(f"Error getting File: {e}")
+            failed[job_id] += 1
             continue
 
     for job_id, files in docs_by_id.items():
@@ -67,17 +67,19 @@ async def process_batch(batch):
         tasks = metadata.get("tasks", None)
         if tasks:
             tasks = set(tasks)
+
         try:
-            logger.info(f"✍️ Starting annotation on {len(files)} documents.")
             docs = pipeline(
                 files, write_to_db=True, tasks=tasks, batch_size=len(files)
             )
-            completed += len(docs)
-            for doc in docs:
-                topic_model.partial_fit(doc)
+            completed[job_id] += len(docs)
+            try:
+                topic_model.partial_fit(docs)
+            except Exception as e:
+                logger.error(f"Error processing topics: {e}")
         except Exception as e:
-            print(e)
-            failed += len(files)
+            logger.error(f"Error: {e}")
+            failed[job_id] += len(files)
             continue
 
     return completed, failed
@@ -85,9 +87,11 @@ async def process_batch(batch):
 
 async def worker_loop():
     logger.info("👷 Batched worker started...")
+
     while True:
         batch = []
         start_time = time.time()
+
         while (
             len(batch) < BATCH_SIZE
             and (time.time() - start_time) < BATCH_TIMEOUT
@@ -107,7 +111,9 @@ async def worker_loop():
             for job_id in job_ids:
                 try:
                     job = job_service.update_job(
-                        job_id, completed_inc=completed, failed_inc=failed
+                        job_id,
+                        completed_inc=completed[job_id],
+                        failed_inc=failed[job_id],
                     )
                     if job.completed + job.failed >= job.total:
                         status = (
@@ -116,9 +122,16 @@ async def worker_loop():
                             else JobStatus.COMPLETE
                         )
                         job_service.update_job(job_id, status=status)
-                        topic_model.finalize()
+                        logger.info(
+                            f"🏁 Job {job.id} finished with status; {status}"
+                        )
+                        try:
+                            topic_model.finalize()
+                        except Exception as e:
+                            logger.error(f"Error finalizing topics: {e}")
                 except Exception as e:
-                    print(e)
+                    logger.error(f"Error updating job: {e}")
+
         else:
             time.sleep(BATCH_TIMEOUT)
 

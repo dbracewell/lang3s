@@ -2,7 +2,6 @@ export const capitalize = (text: string, allWords: boolean = false): string => {
   if (!text?.trim()) {
     return "";
   }
-  console.log(text);
   return text
     .split(/[\s_]+/g)
     .filter((s) => s != null && s !== undefined && s !== "")

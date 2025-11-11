@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { FieldValues, Path, UseFormReturn } from "react-hook-form";
 import { RequiredField } from "@/components/form-controls/required-field";
+import { RefObject } from "react";
 
 type SelectOption = {
   label?: string;
@@ -57,6 +58,7 @@ type Props<T extends FieldValues> = {
   onFocus?: () => void;
   onBlur?: () => void;
   defaultValue?: string;
+  ref?: RefObject<HTMLDivElement | null>;
 };
 
 export const SelectFormField = <T extends FieldValues>({
@@ -76,6 +78,7 @@ export const SelectFormField = <T extends FieldValues>({
   disabled = false,
   required = false,
   onFocus,
+  ref,
   onBlur,
   defaultValue,
 }: Props<T>) => {
@@ -113,7 +116,7 @@ export const SelectFormField = <T extends FieldValues>({
                 <SelectValue placeholder={placeholder ?? ""} />
               </SelectTrigger>
             </FormControl>
-            <SelectContent className={selectContentClassName}>
+            <SelectContent className={selectContentClassName} ref={ref}>
               {nullOption && (
                 <SelectItem
                   value={nullOption.value}

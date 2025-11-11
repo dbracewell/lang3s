@@ -1,30 +1,36 @@
 "use client";
-import { type RouterOutputs } from "@/trpc/types";
+import { cn } from "@/lib/utils";
+import { SearchResults } from "@/modules/search/types";
 import Link from "next/link";
 
-export const SearchViewPage = ({
-  results,
-}: {
-  results: RouterOutputs["search"]["search"];
-}) => {
+export const SearchViewPage = ({ results }: { results: SearchResults }) => {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-2 p-5">
       <div className="flex flex-1 flex-col gap-2">
-        {results.map((r) => (
+        {results.results.map((r) => (
           <div className="flex items-start gap-2" key={r.documentId}>
-            <div>{Number(r.rank).toFixed(2)}</div>
             <div className="flex flex-col gap-1">
               <Link href={`/documents/${r.documentId}`} className="link">
-                {r.title}
+                {r.documentTitle}
               </Link>
-              <div
-                className="whitespace-pre-line"
-                dangerouslySetInnerHTML={{
-                  __html: r.highlight
-                    .replaceAll('<span class="keyword">', "<b>")
-                    .replaceAll("</span>", "</b>"),
-                }}
-              />
+              <ul className="list-disc pl-5">
+                {r.highlights.map((highlight, index) => (
+                  <li key={index}>
+                    {results.type === "vector" && (
+                      <span className="mr-2 font-semibold">
+                        {highlight.similarity.toFixed(2)}
+                      </span>
+                    )}
+                    <span
+                      dangerouslySetInnerHTML={{
+                        __html: highlight.text
+                          .replaceAll('<span class="keyword">', "<b>")
+                          .replaceAll("</span>", "</b>"),
+                      }}
+                    />
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         ))}

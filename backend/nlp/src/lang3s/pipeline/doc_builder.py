@@ -41,11 +41,16 @@ def __text_to_document(file: File) -> Document:
         Metadata.MIME_TYPE.value: file.mime_type,
     }
     metadata.update(file.metadata)
+    
     title = file.metadata.get("title", None)
-    if not title and file.path is not None:
+
+    if title is None and file.path is not None:
         title = os.path.basename(file.path)
-    else:
+    elif title is None:
         title = doc_id
+
+    if "title" in metadata:
+        del metadata["title"]
 
     return Document(
         doc_id=doc_id,

@@ -1,29 +1,40 @@
 import itertools
-import time
+import json
+import os
 from collections.abc import Generator
+from threading import Thread
 from typing import Iterable
 
 from psycopg import sql
 
-from lang3s.db.database import Database, alias_identifier
+from lang3s import config
+from lang3s.db.database import Database
 from lang3s.types import Document, Text, TextAnnotation
+from lang3s.utils import decorators
 
 
+def _write_docs_to_disk(documents: Iterable[Document]):
+    documents_dir = config.DOCUMENTS_DIR
+    os.makedirs(documents_dir, exist_ok=True)
+
+    for doc in documents:
+        doc_path = os.path.join(documents_dir, f"{doc.id}.json")
+        with open(doc_path, "w") as fp:
+            json.dump(doc.to_json(), fp)
+
+
+@decorators.singleton
 class TextDatabase:
-    _instance = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
     def __init__(self) -> None:
-        if not hasattr(self, "initialized"):
-            self.initialized = True
-            self.__database = Database()
+        self.__database = Database()
 
     def add_documents(self, documents: Iterable[Document]):
-        start = time.perf_counter()
+        Thread(
+            target=_write_docs_to_disk,
+            kwargs={"documents": documents},
+            daemon=False,
+        ).start()
+
         with self.__database.transaction() as cursor:
             self.__database.copy_from(
                 cursor,
@@ -46,6 +57,7 @@ class TextDatabase:
                         if doc.text is not None
                     ]
                 )
+                if a.type != "token"
             )
             self.__database.copy_from(
                 cursor,
@@ -53,8 +65,6 @@ class TextDatabase:
                 columns=TextAnnotation.DB_COLUMNS,
                 data=all_annotations,
             )
-        end = time.perf_counter()
-        print(f"Inserting Documents: {(end - start):.6f}")
 
     @property
     def doc_count(self):
@@ -71,40 +81,12 @@ class TextDatabase:
         with self.__database.cursor() as cursor:
             query = sql.SQL(
                 """
-                        SELECT {}, annotations.a as annotations 
-                        FROM  (
-                            SELECT *
-                            FROM documents
-                            ORDER BY id
-                            OFFSET %s
-                            LIMIT %s
-                        ) as docs
-                        INNER JOIN text as texts on texts.doc_id = docs.id
-                        INNER JOIN (
-                            SELECT text_id, json_arrayagg(json_build_object({}) order by start ASC, "end" ASC) as a
-                            FROM text_annotations
-                            group by text_id
-                        ) as annotations on  annotations.text_id = texts.id
+                        SELECT docs.id as doc_id
+                        FROM documents as docs
+                        ORDER BY docs.id
+                        OFFSET %s
+                        LIMIT %s
                     """
-            ).format(
-                sql.SQL(", ").join(
-                    itertools.chain(
-                        [
-                            alias_identifier(["docs", c], f"doc_{c}")
-                            for c in Document.DB_COLUMNS
-                        ],
-                        [
-                            alias_identifier(["texts", c], f"text_{c}")
-                            for c in Text.DB_COLUMNS
-                        ],
-                    )
-                ),
-                sql.SQL(", ").join(
-                    [
-                        sql.SQL(", ").join([sql.Literal(c), sql.Identifier(c)])
-                        for c in TextAnnotation.DB_COLUMNS
-                    ]
-                ),
             )
 
             cursor.execute(
@@ -113,106 +95,11 @@ class TextDatabase:
             )
 
             for record in cursor:
-                doc = {
-                    "id": record["doc_id"],
-                    "title": record["doc_title"],
-                    "metadata": record["doc_metadata"],
-                    "text": {
-                        "id": record["text_id"],
-                        "doc_id": record["text_doc_id"],
-                        "text": record["text_text"],
-                        "metadata": record["text_metadata"],
-                        "embedding": record["text_embedding"],
-                        "annotations": record["annotations"],
-                    },
-                }
-                yield Document.from_json(doc)
-
-
-# def get_documents_from_db():
-#     db = Database()
-#     with db.cursor() as cursor:
-#         cursor.execute(
-#             sql.SQL(
-#                 """
-#                     SELECT {}, annotations.a as annotations
-#                     FROM documents as docs
-#                     INNER JOIN text as texts on texts.doc_id = docs.id
-#                     INNER JOIN (
-#                         SELECT text_id, json_arrayagg(json_build_object({}) order by start ASC, "end" ASC) as a
-#                         FROM text_annotations
-#                         group by text_id
-#                     ) as annotations on  annotations.text_id = texts.id
-#                 """
-#             ).format(
-#                 sql.SQL(", ").join(
-#                     itertools.chain(
-#                         [
-#                             alias_identifier(["docs", c], f"doc_{c}")
-#                             for c in Document.DB_COLUMNS
-#                         ],
-#                         [
-#                             alias_identifier(["texts", c], f"text_{c}")
-#                             for c in Text.DB_COLUMNS
-#                         ],
-#                     )
-#                 ),
-#                 sql.SQL(", ").join(
-#                     [
-#                         sql.SQL(", ").join([sql.Literal(c), sql.Identifier(c)])
-#                         for c in TextAnnotation.DB_COLUMNS
-#                     ]
-#                 ),
-#             )
-#         )
-#         for record in cursor:
-#             doc = {
-#                 "id": record["doc_id"],
-#                 "title": record["doc_title"],
-#                 "metadata": record["doc_metadata"],
-#                 "text": {
-#                     "id": record["text_id"],
-#                     "doc_id": record["text_doc_id"],
-#                     "text": record["text_text"],
-#                     "metadata": record["text_metadata"],
-#                     "embedding": record["text_embedding"],
-#                     "annotations": record["annotations"],
-#                 },
-#             }
-#             yield Document.from_json(doc)
-
-
-# def add_documents_to_db(docs: List[Document]):
-#     db = Database()
-#     start = time.perf_counter()
-#     with db.transaction() as cursor:
-#         db.copy_from(
-#             cursor,
-#             "documents",
-#             columns=Document.DB_COLUMNS,
-#             data=[d.insert_values() for d in docs],
-#         )
-#         db.copy_from(
-#             cursor,
-#             "text",
-#             columns=Text.DB_COLUMNS,
-#             data=[d.text.insert_values() for d in docs],
-#         )
-#         all_annotations = list(
-#             a.insert_values()
-#             for a in itertools.chain(
-#                 *[
-#                     doc.text.all_annotations
-#                     for doc in docs
-#                     if doc.text is not None
-#                 ]
-#             )
-#         )
-#         db.copy_from(
-#             cursor,
-#             "text_annotations",
-#             columns=TextAnnotation.DB_COLUMNS,
-#             data=all_annotations,
-#         )
-#     end = time.perf_counter()
-#     print(f"Inserting Documents: {(end - start):.6f}")
+                doc_id = record["doc_id"]
+                json_file = os.path.join(config.DOCUMENTS_DIR, f"{doc_id}.json")
+                if os.path.exists(json_file):
+                    try:
+                        with open(json_file) as fp:
+                            yield Document.from_json(json.load(fp))
+                    except Exception:
+                        continue

@@ -10,7 +10,6 @@ dependencies = [
 	"torch==2.8.0",
 	"datasets",
 	"scikit-learn",
-	"adapters==1.2.0",
 	"evaluate",
 	"seqeval",
 	"accelerate",
@@ -22,7 +21,6 @@ dependencies = [
 	"fastapi",
 	"spacy_download==1.1.0",
 	"uvicorn",
-	"sentence_transformers==5.1.1",
 	"redis==7.0.0",
 	"bertopic (>=0.17.3,<0.18.0)",
 	"lang3s-job-service @ file:///Users/ik/prj/Lang3s/backend/jobs_service",
@@ -30,6 +28,8 @@ dependencies = [
 	"hnswlib (>=0.8.0,<0.9.0)",
 	"psycopg[binary,pgvector] (>=3.2.12,<4.0.0)",
 	"psycopg-pool (>=3.2.7,<4.0.0)",
+	"pytorch-crf (>=0.7.2,<0.8.0)",
+	"fastcoref (>=2.1.6,<3.0.0)",
 ]
 
 
@@ -39,3 +39,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
 lang3s-job-service = { develop = true }
+

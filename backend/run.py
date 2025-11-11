@@ -3,20 +3,27 @@ import subprocess
 import time
 from typing import List, Optional, cast
 
-import lang3s.config as config
-
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["PYTHONUNBUFFERED"] = "1"
 
-scripts = ["lang3s.workers.nlp_worker", "lang3s.services.embedding_server"]
+WORKER_COUNT = int(os.environ.get("WORKER_COUNT", 1))
+
+subprocess_env = os.environ.copy()
+
+scripts = ["lang3s.services.nlp_worker"] * WORKER_COUNT
+scripts.append("lang3s.services.app")
+
 processes: List[Optional[subprocess.Popen[str]]] = [None] * len(scripts)
 
 
 def start_process(i: int):
-    return subprocess.Popen(["python", "-m", scripts[i]], text=True)
+    return subprocess.Popen(
+        ["python", "-m", scripts[i]], text=True, bufsize=1, env=subprocess_env
+    )
 
 
 try:
-    print(config.DEVICE)
     for i in range(len(scripts)):
         processes[i] = start_process(i)
 
@@ -27,6 +34,7 @@ try:
                 print(f"{scripts[i]} terminated unexpectedly. Restarting...")
                 processes[i] = start_process(i)
                 print(scripts[i], cast(subprocess.Popen[str], processes[i]).pid)
+
 except KeyboardInterrupt:
     print("Ctrl+C detected. Terminating all subprocesses...")
     for p in processes:

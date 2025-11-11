@@ -11,6 +11,7 @@ class Metadata(str, enum.Enum):
     END_CHAR = "end_char"
     HEAD = "head"
     RELATION = "relation"
+    WEIGHT = "weight"
 
 
 class AnnotationTypes(str, enum.Enum):
@@ -19,3 +20,4 @@ class AnnotationTypes(str, enum.Enum):
     ENTITY = "entity"
     PHRASE_CHUNK = "phrase_chunk"
     NOUN_CHUNK = "noun_chunk"
+    EVENT = "event"

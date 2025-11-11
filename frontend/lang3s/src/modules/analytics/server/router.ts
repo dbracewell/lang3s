@@ -1,5 +1,9 @@
 import { db } from "@/db";
-import { TextAnnotationTable } from "@/db/schema";
+import {
+  EMBEDDING_DIMENSIONS,
+  TextAnnotationTable,
+  TopicsTable,
+} from "@/db/schema";
 import { logAndRethrow } from "@/lib/try-catch";
 import {
   getAnnotationsInSentence,
@@ -9,12 +13,14 @@ import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import {
   and,
   asc,
+  cosineDistance,
   count,
   countDistinct,
   desc,
   eq,
   gt,
   gte,
+  hammingDistance,
   inArray,
   ne,
   sql,
@@ -144,4 +150,43 @@ export const AnalyticsRouter = createTRPCRouter({
           .limit(100),
       );
     }),
+
+  getTopics: protectedProcedure.query(async () => {
+    const s1 = db
+      .select({ id: TopicsTable.id, embedding: TopicsTable.embedding })
+      .from(TopicsTable)
+      .as("t1");
+    const s2 = db
+      .select({ id: TopicsTable.id, embedding: TopicsTable.embedding })
+      .from(TopicsTable)
+      .as("t2");
+
+    const similarity = sql<number>`1 - (${hammingDistance(
+      s1.embedding,
+      s2.embedding as any,
+    )}) / ${EMBEDDING_DIMENSIONS}`;
+
+    const [points, sims] = await Promise.all([
+      db
+        .select({
+          id: TopicsTable.id,
+          name: TopicsTable.name,
+          support: TopicsTable.support,
+        })
+        .from(TopicsTable),
+      db
+        .select({
+          id1: s1.id,
+          id2: s2.id,
+          similarity: similarity,
+        })
+        .from(s1)
+        .innerJoin(s2, gt(s1.id, s2.id))
+        .where((t) => gte(t.similarity, 0.75)),
+    ]);
+    return {
+      points,
+      similarities: sims,
+    };
+  }),
 });

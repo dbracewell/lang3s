@@ -1,9 +1,9 @@
 import itertools
 import math
 from typing import (
-    Any,
     Awaitable,
     Generator,
+    Iterable,
     List,
     Optional,
     TypeVar,
@@ -13,16 +13,19 @@ from typing import (
 T = TypeVar("T")
 
 
+def filter_none(array: Iterable[T | None]) -> List[T]:
+    return [x for x in array if x is not None]
+
+
 def flatten(a: List[List[T]]) -> List[T]:
     return list(a for a in itertools.chain(*a))
 
 
 def partition_generator(
-    generator: Generator[T, Any, Any], size: int
+    generator: Iterable[T], size: int
 ) -> Generator[List[T], None, None]:
-    it = iter(generator)
     while True:
-        chunk = list(itertools.islice(it, size))
+        chunk = list(itertools.islice(generator, size))
         if not chunk:
             break
         yield chunk

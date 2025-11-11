@@ -40,3 +40,36 @@ export const AdminAccountSchema = UserAccountSchema.extend({
 });
 
 export type AdminAccountSchemaType = z.infer<typeof AdminAccountSchema>;
+
+export const TextAnnotationSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  metadata: z.record(z.string(), z.any()),
+  embedding: z.array(z.number()),
+  start: z.int(),
+  end: z.int(),
+  type: z.string(),
+  value: z.string(),
+  sentence_id: z.int(),
+});
+
+export type TextAnnotationSchemaType = z.infer<typeof TextAnnotationSchema>;
+
+export const TextSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  metadata: z.record(z.string(), z.any()),
+  embedding: z.array(z.number()),
+  annotations: z.array(TextAnnotationSchema),
+});
+
+export type TextSchemaType = z.infer<typeof TextSchema>;
+
+export const DocumentSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  metadata: z.record(z.string(), z.any()),
+  text: TextSchema,
+});
+
+export type DocumentSchemaType = z.infer<typeof DocumentSchema>;

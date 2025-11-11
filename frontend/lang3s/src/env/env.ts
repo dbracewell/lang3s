@@ -13,6 +13,7 @@ export const env = createEnv({
     BETTER_AUTH_SECRET: z.string(),
     BETTER_AUTH_URL: z.url(),
     NODE_ENV: z.string().optional(),
+		DOCUMENTS_DIR: z.string(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.url(),

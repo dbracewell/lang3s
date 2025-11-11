@@ -3,6 +3,7 @@ import logging
 import uvicorn
 from fastapi import FastAPI
 
+from .documents import router as documents_router
 from .embeddings import router as embedding_router
 from .topics import router as topic_router
 
@@ -17,6 +18,7 @@ app = FastAPI()
 
 app.include_router(topic_router)
 app.include_router(embedding_router)
+app.include_router(documents_router)
 
 
 if __name__ == "__main__":

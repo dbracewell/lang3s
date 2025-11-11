@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from lang3s.nlp.embedder import Embedder
+from lang3s.models.embedder import Embedder
 
 
 class EmbeddingRequest(BaseModel):
@@ -20,5 +20,4 @@ embedder = Embedder()
 
 @router.post("/")
 async def embed(request: EmbeddingRequest):
-    print(request.text)
-    return embedder([request.text])[0]
+    return embedder([request.text]).sentence_embeddings[0]

@@ -11,8 +11,10 @@ from sklearn.decomposition import IncrementalPCA
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from lang3s.db import Database
-from lang3s.maths import cosine, normalize, weighted_average
+from lang3s.maths import binarize, cosine, normalize, weighted_average
+from lang3s.models.embedder import Embedder
 from lang3s.types import Document
+from lang3s.utils import decorators, flatten
 
 logger = logging.getLogger("TopicModel")
 
@@ -69,17 +71,20 @@ class Topic:
     @property
     def doc_count(self) -> int:
         db = Database()
+
         with db.cursor() as cursor:
+            binary_embedding = binarize(self.embedding)
+            dimensions = Embedder().dimensions
             query = sql.SQL(
                 """
                 SELECT count(distinct text_id) as count
                 FROM text_annotations
                 WHERE type='sentence' 
-                    and (1 - (embedding <=> %s::vector)) >= %s::float 
+                    and (1 - (embedding <~> %s) / {}) >= %s::float 
                     and (metadata->>'is_stopword')::boolean = FALSE
                 """
-            )
-            cursor.execute(query, [self.embedding, FULL_EMBEDDING_THRESHOLD])
+            ).format(dimensions)
+            cursor.execute(query, [binary_embedding, FULL_EMBEDDING_THRESHOLD])
             r = cursor.fetchone()
             if r is None:
                 return 0
@@ -89,16 +94,18 @@ class Topic:
     def sentence_count(self) -> int:
         db = Database()
         with db.cursor() as cursor:
+            binary_embedding = binarize(self.embedding)
+            dimensions = Embedder().dimensions
             query = sql.SQL(
                 """
                 SELECT count(0) as count
                 FROM text_annotations
                 WHERE type='sentence' 
-                    and (1 - (embedding <=> %s::vector)) >= %s::float 
+                    and (1 - (embedding <~> %s) / {}) >= %s::float 
                     and (metadata->>'is_stopword')::boolean = FALSE
                 """
-            )
-            cursor.execute(query, [self.embedding, FULL_EMBEDDING_THRESHOLD])
+            ).format(dimensions)
+            cursor.execute(query, [binary_embedding, FULL_EMBEDDING_THRESHOLD])
             r = cursor.fetchone()
             if r is None:
                 return 0
@@ -131,43 +138,35 @@ class Topic:
 
     def get_sentences(self, limit: int = 1000):
         db = Database()
+        bit_embedding = binarize(self.embedding)
+        dimensions = Embedder().dimensions
         with db.cursor() as cursor:
             query = sql.SQL(
                 """
-                SELECT sentence.doc_id,
-                       sentence.sentence_id,
-                       sentence.text_id,
-                       sentence.text as text, 
-                       embedding,
-                       tokens.clean_text as clean_text,
-                        1 - (embedding <=> %s::vector) AS cosine_similarity  
-                FROM text_annotations as sentence
-                INNER JOIN (
-                    SELECT 
-                        text_id,
-                        sentence_id,
-                        STRING_AGG(lower((metadata->>'lemma')::text), ' ' ORDER BY start) as clean_text
-                    FROM text_annotations
-                    WHERE type = 'token' 
-                          and (metadata->>'is_stopword')::boolean = FALSE
-                    GROUP BY text_id, sentence_id
-                ) as tokens on 
-                        tokens.text_id = sentence.text_id 
-                        and tokens.sentence_id = sentence.sentence_id
+                SELECT doc_id,
+                       sentence_id,
+                       text_id,
+                       text, 
+                       full_embedding::vector,
+                       clean_text,
+                        1 - (embedding <~> %s) / {} AS cosine_similarity  
+                FROM text_annotations
                 WHERE type='sentence' 
-                    and (1 - (embedding <=> %s::vector)) >= %s::float 
+                    and (1 - (embedding <~> %s) / {} ) >= %s::float 
                     and (metadata->>'is_stopword')::boolean = FALSE
                 ORDER BY cosine_similarity DESC
                 LIMIT %s
                 """
-            )
+            ).format(dimensions, dimensions)
             cursor.execute(
                 query,
-                [self.embedding, self.embedding, self.min_sim_threshold, limit],
+                [bit_embedding, bit_embedding, self.min_sim_threshold, limit],
             )
             results = cursor.fetchall()
             reduced = normalize(
-                self.reducer.transform([row["embedding"] for row in results])
+                self.reducer.transform(
+                    [row["full_embedding"] for row in results]
+                )
             )
             similarities = [
                 cosine(self.centroid, embedding) for embedding in reduced
@@ -186,60 +185,59 @@ class Topic:
             ]
 
 
+DB_COLUMNS = [
+    "id",
+    "support",
+    "full_embedding",
+    "embedding",
+    "is_fixed",
+    "name",
+]
+
+
+@decorators.singleton
 class Lang3sTopicModel:
-    DB_COLUMNS = ["id", "support", "embedding", "is_fixed", "name"]
-    _instance = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
     def __init__(
         self,
     ):
-        if not hasattr(self, "initialized"):
-            self.initialized = True
-            db = Database()
-            self.sim_threshold: float = db.get_config_value(
-                "topics_similarity_threshold", 0.45
-            )
-            self.fixed_sim_threshold: float = db.get_config_value(
-                "topics_fixed_similarity_threshold", 0.6
-            )
-            self.merge_threshold: float = db.get_config_value(
-                "topics_merge_threshold", 0.65
-            )
-            self.fixed_merge_threshold: float = db.get_config_value(
-                "topics_fixed_merge_threshold", 0.75
-            )
-            self.min_support: int = db.get_config_value(
-                "topics_min_support", 10
-            )
-            self.min_document_count: int = db.get_config_value(
-                "topics_min_document_count", 4
-            )
-            self.batch_size: int = db.get_config_value("topics_batch_size", 100)
-            self.merge_frequency: int = db.get_config_value(
-                "topics_merge_frequency", 400
-            )
-            self.docs_added: int = 0
-            self.sentences_added: int = 0
-            self.total_time = 0
-            self.buffer: List[NDArray[np.floating]] = []
-            self.reducer = OnlineReducer()
-            self._topics: List[Topic] = []
-            self._load_topics()
+        db = Database()
+        self.sim_threshold: float = db.get_config_value(
+            "topics_similarity_threshold", 0.45
+        )
+        self.fixed_sim_threshold: float = db.get_config_value(
+            "topics_fixed_similarity_threshold", 0.6
+        )
+        self.merge_threshold: float = db.get_config_value(
+            "topics_merge_threshold", 0.65
+        )
+        self.fixed_merge_threshold: float = db.get_config_value(
+            "topics_fixed_merge_threshold", 0.75
+        )
+        self.min_support: int = db.get_config_value("topics_min_support", 10)
+        self.min_document_count: int = db.get_config_value(
+            "topics_min_document_count", 4
+        )
+        self.batch_size: int = db.get_config_value("topics_batch_size", 100)
+        self.merge_frequency: int = db.get_config_value(
+            "topics_merge_frequency", 400
+        )
+        self.docs_added: int = 0
+        self.sentences_added: int = 0
+        self.total_time = 0
+        self.buffer: List[NDArray[np.floating]] = []
+        self.reducer = OnlineReducer()
+        self._topics: List[Topic] = []
+        self._load_topics()
 
     def _load_topics(self):
         self._topics = []
         db = Database()
-        for topic in db.select("topics", Lang3sTopicModel.DB_COLUMNS):
+        for topic in db.select("topics", DB_COLUMNS):
             self._topics.append(
                 Topic(
                     id=topic["id"],
                     support=topic["support"],
-                    embedding=topic["embedding"],
+                    embedding=topic["full_embedding"].to_numpy(),
                     pca_centroid=np.zeros(REDUCED_DIMENSIONS),
                     is_fixed=topic["is_fixed"],
                     name=topic["name"],
@@ -253,7 +251,7 @@ class Lang3sTopicModel:
         with db.cursor() as cursor:
             query = sql.SQL(
                 """
-                    SELECT embedding
+                    SELECT full_embedding
                     FROM text_annotations
                     WHERE type = 'sentence' 
                           and (metadata->>'is_stopword')::boolean = FALSE
@@ -262,7 +260,9 @@ class Lang3sTopicModel:
                     """
             )
             cursor.execute(query)
-            embeddings = [row["embedding"] for row in cursor.fetchall()]
+            embeddings = [
+                row["full_embedding"].to_numpy() for row in cursor.fetchall()
+            ]
         if len(embeddings) > REDUCED_DIMENSIONS:
             self.reducer.fit_batch(embeddings)
             self.__update_centroids()
@@ -319,8 +319,9 @@ class Lang3sTopicModel:
 
         if len(embeddings) > REDUCED_DIMENSIONS:
             self.reducer.fit_batch(embeddings)
-            reduced = normalize(self.reducer.transform(embeddings))
             self.__update_centroids()
+
+        reduced = normalize(self.reducer.transform(embeddings))
 
         for remb, emb in zip(reduced, embeddings):
             if len(self._topics) == 0:
@@ -431,22 +432,21 @@ class Lang3sTopicModel:
         db = Database()
         with db.cursor() as cursor:
             for topic in self._topics:
+                binary_embedding = binarize(topic.embedding)
                 query = sql.SQL("""
                                 INSERT INTO topics ({}) VALUES {} 
                                 ON CONFLICT (id) DO UPDATE
                                     SET support = %s,
+                                        full_embedding = %s,
                                         embedding = %s,
                                         is_fixed = %s,
                                         name = %s,
                                         updated_at = %s
                                 """).format(
-                    sql.SQL(", ").join(
-                        sql.Identifier(c) for c in Lang3sTopicModel.DB_COLUMNS
-                    ),
+                    sql.SQL(", ").join(sql.Identifier(c) for c in DB_COLUMNS),
                     sql.SQL("({})").format(
                         sql.SQL(", ").join(
-                            sql.Placeholder()
-                            for _ in Lang3sTopicModel.DB_COLUMNS
+                            sql.Placeholder() for _ in DB_COLUMNS
                         )
                     ),
                 )
@@ -456,10 +456,12 @@ class Lang3sTopicModel:
                         topic.id,
                         topic.support,
                         topic.embedding,
+                        binary_embedding,
                         topic.is_fixed,
                         topic.name,
                         topic.support,
                         topic.embedding,
+                        binary_embedding,
                         topic.is_fixed,
                         topic.name,
                         datetime.datetime.now(datetime.timezone.utc),
@@ -477,14 +479,16 @@ class Lang3sTopicModel:
 
     def label_topics(self):
         logger.info("Labelling Topics...")
-        for topic in self._topics:
+        vectorizer = TfidfVectorizer()
+        text = [
+            [s.clean for s in topic.get_sentences()] for topic in self.topics
+        ]
+        vectorizer.fit(flatten(text))
+        for sentences, topic in zip(text, self._topics):
             if topic.is_fixed:
                 logger.info("SKIPPING: ", topic.id)
                 continue
-            vectorizer = TfidfVectorizer(stop_words="english", max_features=50)
-            X = vectorizer.fit_transform(
-                [s.clean for s in topic.get_sentences()]
-            )
+            X = vectorizer.transform(sentences)
             tfidf_scores = np.asarray(X.mean(axis=0)).flatten()  # type: ignore
             words = np.array(vectorizer.get_feature_names_out())
             topic.name = ", ".join(words[np.argsort(tfidf_scores)[-5:]][::-1])

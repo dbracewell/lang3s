@@ -13,13 +13,29 @@
    "settings": {
       "cSpell.words": [
          "bertopic",
+         "binarize",
+         "coref",
          "lemmatize",
+         "levelname",
          "ndarray",
          "stopword",
          "stopwords",
          "tfidf",
+         "torchcrf",
          "umap",
          "vectorizer"
+      ],
+      "sqltools.connections": [
+         {
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "lang3s",
+            "database": "lang3s",
+            "username": "admin"
+         }
       ]
    }
 }

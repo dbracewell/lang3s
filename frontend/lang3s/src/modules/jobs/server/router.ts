@@ -204,12 +204,12 @@ export const jobsRouter = createTRPCRouter({
     .input(
       z.object({
         job_id: z.int(),
-        file: Lang3sFile,
+        files: z.array(Lang3sFile),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const { user, apiKey } = ctx;
-      const { job_id, file } = input;
+      const { job_id, files } = input;
 
       await requirePermissions(
         user,
@@ -236,8 +236,10 @@ export const jobsRouter = createTRPCRouter({
 
       try {
         const redis = await getRedisClient();
-        const task = { job_id: job_id, content: JSON.stringify(file) };
-        await redis.rPush(ANNOTATION_QUEUE, JSON.stringify(task));
+        for (const file of files) {
+          const task = { job_id: job_id, content: JSON.stringify(file) };
+          await redis.rPush(ANNOTATION_QUEUE, JSON.stringify(task));
+        }
       } catch (err) {
         console.error(err);
         return job;
@@ -247,9 +249,9 @@ export const jobsRouter = createTRPCRouter({
         db
           .update(JobsTable)
           .set({
-            total: increment(JobsTable.total, 1),
+            total: increment(JobsTable.total, files.length),
             status: "processing",
-            startedAt: new Date(),
+            startedAt: job.status === "waiting" ? new Date() : undefined,
           })
           .where(and(...where))
           .returning(),

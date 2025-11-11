@@ -1,12 +1,13 @@
 import { EMBEDDING_DIMENSIONS } from "@/db/schema";
 import {
+  bit,
   boolean,
+  halfvec,
   index,
   integer,
   pgTable,
   text,
   timestamp,
-  vector,
 } from "drizzle-orm/pg-core";
 
 export const TopicsTable = pgTable(
@@ -15,7 +16,10 @@ export const TopicsTable = pgTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     fixed: boolean("is_fixed").notNull().default(false),
-    embedding: vector("embedding", {
+    fullEmbedding: halfvec("full_embedding", {
+      dimensions: EMBEDDING_DIMENSIONS,
+    }).notNull(),
+    embedding: bit("embedding", {
       dimensions: EMBEDDING_DIMENSIONS,
     }).notNull(),
     support: integer("support").notNull().default(0),
@@ -27,7 +31,7 @@ export const TopicsTable = pgTable(
   (table) => [
     index("topics_embeddingIndex").using(
       "hnsw",
-      table.embedding.op("vector_cosine_ops"),
+      table.embedding.op("bit_hamming_ops"),
     ),
   ],
 );

@@ -1,12 +1,24 @@
+import argparse
 import csv
+import enum
+import json
+import os
 import sys
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, Generator, List, Optional, cast
 
+import jsonlines
 from pydantic import BaseModel, Field
 
 from lang3s_job_service import File, JobService
+
+
+class InputType(str, enum.Enum):
+    csv = "csv"
+    jsonl = "jsonl"
+    json = "json"
+    file = "file"
 
 
 class StructuredSchema(BaseModel):
@@ -24,22 +36,35 @@ class StructuredSchema(BaseModel):
         return StructuredSchema.model_validate(file)
 
 
+class CSVSchema(StructuredSchema):
+    header: bool = Field(default=True)
+
+    @staticmethod
+    def from_file(file: str | Path) -> "CSVSchema":
+        with open(file) as fp:
+            return CSVSchema.model_validate_json(fp.read())
+
+    @staticmethod
+    def from_dict(file: Dict[Any, Any]) -> "CSVSchema":
+        return CSVSchema.model_validate(file)
+
+
+rows_read = 0
+
+
 def to_file(
     index: int,
-    row: Dict[str, str],
+    row: Dict[str, Any],
     schema: StructuredSchema,
 ) -> Optional[File]:
     path = f"file-{index}"
     content = cast(str, row[schema.text_column])
-
     if content.strip() == "":
         return
-
     metadata = {
         "title": row[schema.title_column] if schema.title_column else path,
     }
     metadata.update({k: row[cast(str, v)] for k, v in schema.metadata.items()})
-
     return File(
         path=path,
         content=content,
@@ -48,42 +73,156 @@ def to_file(
     )
 
 
-def read_csv(file: str, schema: StructuredSchema) -> List[File]:
-    files = []
+def read_structured_files(
+    file: str, schema_file: str | Path, input_type: InputType
+) -> List[File]:
+    generator = None
+    schema = None
 
-    with open(file) as fp:
-        reader = csv.DictReader(fp, dialect="excel")
-        row_counter = 1
-        file_counter = 1
+    if input_type == InputType.csv:
+        schema = CSVSchema.from_file(schema_file)
+        generator = csv_row_generator(file, schema)
+    elif input_type == InputType.json:
+        schema = StructuredSchema.from_file(args.schema)
+        generator = json_row_generator(file)
+    elif input_type == InputType.jsonl:
+        schema = StructuredSchema.from_file(args.schema)
+        generator = jsonl_row_generator(file)
+    else:
+        raise Exception(f"{input_type} is not supported")
+
+    files = []
+    for doc in generator:
+        new_file = to_file(len(files), doc, schema)
+        if new_file:
+            files.append(new_file)
+    return files
+
+
+def csv_row_generator(
+    csv_file: str, schema: CSVSchema
+) -> Generator[Dict[str, Any], None, None]:
+    global rows_read
+    with open(csv_file) as fp:
+        reader = (
+            csv.DictReader(fp, dialect="excel")
+            if schema.header
+            else csv.reader(fp, dialect="excel")
+        )
         try:
             for row in reader:
-                file = to_file(file_counter, row, schema)
-                if file:
-                    file_counter += 1
-                    files.append(file)
-                row_counter += 1
+                if isinstance(row, list):
+                    row = {f"{i}": v for i, v in enumerate(row)}
+                yield row
         except Exception:
             print(
-                f"Error occurred at row {row_counter}: ",
+                f"Error occurred at row {rows_read}: ",
                 end=" ",
                 file=sys.stderr,
             )
             traceback.print_exc(0, file=sys.stderr)
-            pass
+        finally:
+            rows_read += 1
 
-    print(
-        f"Created {len(files)} Files, Skipped {row_counter - file_counter} Empty rows"
-    )
+
+def jsonl_row_generator(
+    json_file: str,
+) -> Generator[Dict[str, Any], None, None]:
+    global rows_read
+    with jsonlines.open(json_file) as reader:
+        try:
+            for row in reader:
+                doc = cast(Dict[str, Any], row)
+                yield doc
+        except Exception:
+            print(
+                f"Error occurred at row {rows_read}: ",
+                end=" ",
+                file=sys.stderr,
+            )
+            traceback.print_exc(0, file=sys.stderr)
+        finally:
+            rows_read += 1
+
+
+def json_row_generator(json_file: str) -> Generator[Dict[str, Any], None, None]:
+    global rows_read
+    with open(json_file) as fp:
+        doc = json.load(fp)
+        try:
+            for row in doc:
+                doc = cast(Dict[str, Any], row)
+                yield doc
+        except Exception:
+            print(
+                f"Error occurred at row {rows_read}: ",
+                end=" ",
+                file=sys.stderr,
+            )
+            traceback.print_exc(0, file=sys.stderr)
+        finally:
+            rows_read += 1
+
+
+def read_directory(file: str, ext: str | None) -> List[File]:
+    files: List[File] = []
+    if ext is None:
+        ext = ""
+    ext = ext.lower()
+    if os.path.isdir(file):
+        for child in os.listdir(file):
+            full_path = os.path.join(file, child)
+            if os.path.isfile(full_path) and os.path.basename(
+                full_path
+            ).lower().endswith(ext):
+                files.append(File(path=full_path, content=""))
     return files
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--source", help="The source of your documents", required=True
+    )
+    parser.add_argument(
+        "--ext", help="The file extension to limit sources to", required=False
+    )
+    parser.add_argument(
+        "--schema", help="The schema to read in json or csv", required=False
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="Limits the number of documents annotated",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--type",
+        type=InputType,
+        help="The input type",
+        choices=list(InputType),
+        required=True,
+    )
+    args = parser.parse_args()
+
     job_service = JobService(
         api_key="lang3skUMvPskpvXQvKVIbsbrQEJFTGvNLjkjGpfIOZmpsMeKVfjWUobFwwmCCUcFeOzxX",
         api_host="http://localhost:3001",
     )
 
-    schema = StructuredSchema.from_file(
-        "/Users/ik/prj/Lang3s/backend/jobs_service/data_schema.json"
-    )
-    files: List[File] = read_csv("/Users/ik/Downloads/archive/data.csv", schema)
+    files: List[File] = []
+
+    if args.type in [InputType.csv, InputType.json, InputType.jsonl]:
+        files = read_structured_files(args.source, args.schema, args.type)
+        print(f"Generated {len(files)} and read in {rows_read} rows")
+
+    if args.type == InputType.file:
+        files = read_directory(args.source, args.ext)
+
+    if len(files) > 0:
+        if args.limit is not None:
+            files = files[: args.limit]
+        job_service.annotate_documents(files, wait_for_completion=True)
+
+    print(f"Processing {len(files)} files")

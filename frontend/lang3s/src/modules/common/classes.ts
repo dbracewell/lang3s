@@ -7,6 +7,7 @@ export type TextAnnotationProps = {
   end: number;
   type: string;
   value: string;
+  metadata: Record<string, unknown>;
 };
 
 export const Lang3sFile = z.object({
@@ -30,19 +31,62 @@ export class Lang3sTextAnnotation {
   end: number;
   type: string;
   value: string;
+  metadata: Record<string, unknown> = {};
   textObject: Lang3sText | undefined = undefined;
 
-  constructor({ id, text, start, end, type, value }: TextAnnotationProps) {
+  constructor({
+    id,
+    text,
+    start,
+    end,
+    type,
+    value,
+    metadata,
+  }: TextAnnotationProps) {
     this.id = id;
     this.text = text;
     this.start = start;
     this.end = end;
     this.type = type;
     this.value = value;
+    this.metadata = metadata;
   }
 
   protected setTextObject = (textObject: Lang3sText) => {
     this.textObject = textObject;
+  };
+
+  A0 = () => {
+    return ((this.metadata["A0"] as string[]) ?? []).map(
+      (a) => this.textObject!.id2Annotation[a],
+    );
+  };
+
+  A1 = () => {
+    return ((this.metadata["A1"] as string[]) ?? []).map(
+      (a) => this.textObject!.id2Annotation[a],
+    );
+  };
+
+  TIME = () => {
+    if (this.metadata["TIME"] != null) {
+      return this.textObject!.id2Annotation[this.metadata["TIME"] as string];
+    }
+    return null;
+  };
+
+  LOC = () => {
+    if (this.metadata["LOC"] != null) {
+      return this.textObject!.id2Annotation[this.metadata["LOC"] as string];
+    }
+    return null;
+  };
+
+  COREF = () => {
+    if (this.metadata["coref"] != null) {
+      return this.textObject!.id2Annotation[this.metadata["coref"] as string];
+    }
+    return this;
   };
 
   overlaps = (other: Lang3sTextAnnotation) => {
@@ -65,25 +109,45 @@ export class Lang3sTextAnnotation {
 
   interleave(types: string[]): Lang3sTextAnnotation[] {
     const toReturn: Lang3sTextAnnotation[] = [];
+
+    const tokens = this.tokens()
+      .map((token) => token)
+      .sort((a, b) => a.start - b.start);
+
     const annotations = types
       .flatMap((type) => this.annotations(type))
-      .concat(this.tokens())
       .sort((a, b) =>
         a.start === b.start ? b.end - a.end : a.start - b.start,
       );
 
-    let i = this.start;
+    let ti = 0;
     let ai = 0;
-    while (ai < annotations.length) {
-      const maxAnnotation = annotations[ai];
-      toReturn.push(maxAnnotation);
-      i = maxAnnotation.end;
-      ai++;
-      while (
-        ai < annotations.length &&
-        annotations[ai].overlaps(maxAnnotation)
-      ) {
+    const na = annotations.length;
+    const nt = tokens.length;
+    let lastEnd = -1;
+
+    while (ti < nt || ai < na) {
+      if (ai >= na) {
+        tokens.slice(ti, nt).forEach((t) => toReturn.push(t));
+        break;
+      }
+      const token = tokens[ti];
+      const annotation = annotations[ai];
+      if (annotation.start < lastEnd) {
         ai++;
+        continue;
+      }
+      if (annotation.start <= token.start) {
+        toReturn.push(annotation);
+        ai += 1;
+        while (ti < nt && tokens[ti].start < annotation.end) {
+          ti += 1;
+        }
+        lastEnd = annotation.end;
+      } else {
+        toReturn.push(token);
+        ti += 1;
+        lastEnd = token.end;
       }
     }
     return toReturn;
@@ -100,6 +164,7 @@ export class Lang3sTextAnnotation {
       type: this.type,
       value: this.value,
       text: this.text,
+      metadata: this.metadata,
     };
   };
 
@@ -110,6 +175,7 @@ export class Lang3sTextAnnotation {
     end,
     type,
     value,
+    metadata,
     textObject,
   }: TextAnnotationProps & {
     textObject: Lang3sText;
@@ -121,6 +187,7 @@ export class Lang3sTextAnnotation {
       end,
       type,
       value,
+      metadata,
     });
     annotation.setTextObject(textObject);
     return annotation;
@@ -132,6 +199,7 @@ export class Lang3sText {
   tokens: Lang3sTextAnnotation[];
   sentences: Lang3sTextAnnotation[];
   annotations: Lang3sTextAnnotation[];
+  id2Annotation: Record<string, Lang3sTextAnnotation>;
   text: string;
 
   constructor({
@@ -141,27 +209,39 @@ export class Lang3sText {
   }: {
     id: string;
     text: string;
-    annotations: TextAnnotationDB[];
+    annotations: TextAnnotationProps[];
   }) {
     this.id = id;
     this.text = text;
-    const annotationsGrouped: Record<string, TextAnnotationProps[]> = {};
+    this.tokens = [];
+    this.sentences = [];
+    this.annotations = [];
+    this.id2Annotation = {};
+
     for (const a of annotations) {
-      annotationsGrouped[a.type] = a.annotations;
+      const lang3sAnnotation = Lang3sTextAnnotation.create({
+        ...a,
+        textObject: this,
+      });
+      this.id2Annotation[lang3sAnnotation.id] = lang3sAnnotation;
+      switch (a.type) {
+        case "token":
+          this.tokens.push(lang3sAnnotation);
+          break;
+
+        case "sentence":
+          this.sentences.push(lang3sAnnotation);
+          break;
+
+        default:
+          this.annotations.push(lang3sAnnotation);
+      }
     }
-    this.tokens = annotationsGrouped["token"]
-      .map((a) => Lang3sTextAnnotation.create({ ...a, textObject: this }))
-      .sort((a, b) => a.start - b.start);
-    this.sentences = annotationsGrouped["sentence"]
-      .map((a) => Lang3sTextAnnotation.create({ ...a, textObject: this }))
-      .sort((a, b) => a.start - b.start);
-    this.annotations = Object.entries(annotationsGrouped)
-      .filter(([type, _]) => type !== "token" && type !== "sentence")
-      .flatMap(([_, annotations]) => annotations)
-      .map((a) => Lang3sTextAnnotation.create({ ...a, textObject: this }))
-      .sort((a, b) =>
-        a.start === b.start ? -(a.end - b.end) : a.start - b.start,
-      );
+    this.tokens = this.tokens.sort((a, b) => a.start - b.start);
+    this.sentences = this.sentences.sort((a, b) => a.start - b.start);
+    this.annotations = this.annotations.sort((a, b) =>
+      a.start === b.start ? -(a.end - b.end) : a.start - b.start,
+    );
   }
 
   annotationsByType(type: string) {
@@ -185,21 +265,19 @@ export class Lan3gsDocument {
   }: {
     id: string;
     metadata: Record<string, string>;
-    text?: {
+    text: {
       id: string;
       text: string;
-      annotations: TextAnnotationDB[];
+      annotations: TextAnnotationProps[];
     };
   }) {
     this.id = id;
     this.metadata = metadata;
-    this.text = text
-      ? new Lang3sText({
-          id: text.id,
-          text: text.text,
-          annotations: text.annotations,
-        })
-      : undefined;
+    this.text = new Lang3sText({
+      id: text.id,
+      text: text.text,
+      annotations: text.annotations,
+    });
   }
 
   public toString = (): string => {

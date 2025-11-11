@@ -22,10 +22,7 @@ export const DocumentIdView = ({
     <div className="flex h-full flex-1 overflow-hidden">
       <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
-          <CardTitle>
-            {documentData.metadata["title"] ??
-              `Document Id: ${documentData.id}`}
-          </CardTitle>
+          <CardTitle>{documentData.title}</CardTitle>
           <CardDescription className="text-muted-foreground flex flex-wrap gap-2 text-xs">
             {Object.entries(documentData.metadata)
               .filter(([k, _]) => k !== "mime-type")
