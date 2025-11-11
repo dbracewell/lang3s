@@ -13,11 +13,10 @@ def binarize(v: NDArray[np.floating]) -> str:
 
 def normalize(
     v: NDArray[np.floating],
-):
+) -> NDArray[np.floating]:
     if v.ndim == 1:
-        return v / np.linalg.norm(v)
-    else:
-        return v / np.linalg.norm(v, axis=1, keepdims=True)
+        return (v / np.linalg.norm(v)).astype(np.float16)
+    return (v / np.linalg.norm(v, axis=1, keepdims=True)).astype(np.float16)
 
 
 def cosine(

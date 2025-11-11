@@ -1,4 +1,4 @@
-import { UserInfo, UserRole } from "@/modules/auth/types";
+import { UserInfo } from "@/modules/auth/shared_types";
 import React from "react";
 
 export const AdminPageView = ({ user }: { user: UserInfo }) => {

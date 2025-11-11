@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Dict, List
 
 import numpy as np
 import torch
+from numpy.typing import NDArray
 
 import lang3s.config as config
 from lang3s.maths import normalize
@@ -11,11 +12,10 @@ from lang3s.maths import normalize
 if TYPE_CHECKING:
     pass
 
-
 from logging import Logger
 from typing import Optional, Union
 
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer  # pyright: ignore[reportPrivateImportUsage]
 
 from lang3s.utils import decorators
 
@@ -126,14 +126,14 @@ class Embedder:
     def dechunk(
         self,
         chunk_result: ChunkResult,
-        model_outputs: List[np.ndarray],
+        model_outputs: List[NDArray[np.floating]],
         agg: str = "mean",
     ) -> DechunkedResult:
         if len(model_outputs) == 0:
             return DechunkedResult([], [])
 
         # Convert batches back into documents/sentences and their tokens
-        combined: Dict[int, Dict[int, List[np.ndarray]]] = defaultdict(
+        combined: Dict[int, Dict[int, List[NDArray[np.floating]]]] = defaultdict(
             lambda: defaultdict(list)
         )
         for meta, output in zip(chunk_result.chunks, model_outputs):
@@ -141,14 +141,15 @@ class Embedder:
             start = meta.start
             for i, emb in enumerate(output):
                 pos = start + i
-                combined[b_idx][pos].append(emb)
+                combined[b_idx][pos].append(
+                    emb)  # type: ignore
 
         token_embeddings_per_doc: List[np.ndarray] = []
         orig_token_maps: List[List[int]] = []
 
         for doc_idx in range(len(chunk_result.mapping)):
             if doc_idx not in combined:
-                # For some reason we don't have tokens
+                # For some reason we don't have tokens,
                 # so create a zero array and continue
                 token_embeddings_per_doc.append(
                     np.zeros((0, model_outputs[0].shape[-1]))
@@ -224,12 +225,12 @@ class Embedder:
         agg: str = "mean",
     ) -> EmbeddingResult:
         chunks = chunk_result.chunks
-        model_outputs = []
+        model_outputs: List[NDArray[np.floating]] = []
         batch_size = batch_size or config.INFERENCE_BATCH_SIZE
 
         # forward in minibatches of chunks
         for i in range(0, len(chunks), batch_size):
-            batch = chunks[i : i + batch_size]
+            batch = chunks[i: i + batch_size]
             batch_inputs = self.tokenizer.pad(
                 {
                     "input_ids": [c.input_ids for c in batch],
@@ -264,7 +265,6 @@ class Embedder:
             sentence_embeddings.append(
                 normalize(emb.mean(axis=0)).astype(np.float16)
             )
-
         return EmbeddingResult(
             token_embeddings=dechunked.token_embeddings,
             word_embeddings=[normalize(e) for e in dechunked.word_embeddings],

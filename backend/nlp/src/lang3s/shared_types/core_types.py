@@ -432,6 +432,8 @@ class TextAnnotation(TextObject):
 
 
 class Text(TextObject, Deserializable):
+
+
     __slots__ = (
         "id",
         "text",
@@ -439,8 +441,8 @@ class Text(TextObject, Deserializable):
         "metadata",
         "_embedding",
         "annotations",
-        "tokens",
-        "sentences",
+        "_tokens",
+        "_sentences",
     )
     DB_COLUMNS = [
         "id",
@@ -467,13 +469,21 @@ class Text(TextObject, Deserializable):
         )
         self.metadata: Dict[str, Any] = metadata or {}
         self.annotations: List[TextAnnotation] = []
-        self.tokens: List[TextAnnotation] = []
-        self.sentences: List[TextAnnotation] = []
+        self._tokens: List[TextAnnotation] = []
+        self._sentences: List[TextAnnotation] = []
 
     def get_annotation(self, id: Optional[str]) -> Optional[TextAnnotation]:
         if id is None:
             return None
         return first(filter(lambda a: a.id == id, self.all_annotations), None)
+
+    @property
+    def sentences(self) -> List["TextAnnotation"]:
+      return self._sentences
+
+    @property
+    def tokens(self) -> List["TextAnnotation"]:
+      return self._tokens
 
     @property
     @override
@@ -611,8 +621,8 @@ class Text(TextObject, Deserializable):
                 embedding=embedding,
                 metadata=annotation.get("metadata", {}),
             )
-        text.tokens = sorted(text.tokens, key=lambda token: token.start)
-        text.sentences = sorted(
+        text._tokens = sorted(text.tokens, key=lambda token: token.start)
+        text._sentences = sorted(
             text.sentences, key=lambda sentences: sentences.start
         )
         return text
@@ -642,9 +652,9 @@ class Text(TextObject, Deserializable):
             metadata=metadata,
         )
         if annotation.type == AnnotationTypes.TOKEN.value:
-            self.tokens.append(annotation)
+            self._tokens.append(annotation)
         elif annotation.type == AnnotationTypes.SENTENCE.value:
-            self.sentences.append(annotation)
+            self._sentences.append(annotation)
         else:
             self.annotations.append(annotation)
         return annotation

@@ -7,7 +7,7 @@ readme = "README.md"
 requires-python = ">=3.10,<3.13"
 dependencies = [
 	"transformers==4.51.3",
-	"torch==2.8.0",
+	"torch (==2.8.0)",
 	"datasets",
 	"scikit-learn",
 	"evaluate",
@@ -30,6 +30,8 @@ dependencies = [
 	"psycopg-pool (>=3.2.7,<4.0.0)",
 	"pytorch-crf (>=0.7.2,<0.8.0)",
 	"fastcoref (>=2.1.6,<3.0.0)",
+	"openai (>=2.7.2,<3.0.0)",
+	"more-itertools (>=10.8.0,<11.0.0)",
 ]
 
 

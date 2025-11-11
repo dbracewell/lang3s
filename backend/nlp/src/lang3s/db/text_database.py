@@ -3,13 +3,16 @@ import json
 import os
 from collections.abc import Generator
 from threading import Thread
-from typing import Iterable
+from typing import Iterable, List
 
+import numpy as np
+from numpy.typing import NDArray
 from psycopg import sql
 
 from lang3s import config
 from lang3s.db.database import Database
-from lang3s.types import Document, Text, TextAnnotation
+from lang3s.maths import binarize
+from lang3s.shared_types import Document, Text, TextAnnotation
 from lang3s.utils import decorators
 
 
@@ -81,12 +84,11 @@ class TextDatabase:
         with self.__database.cursor() as cursor:
             query = sql.SQL(
                 """
-                        SELECT docs.id as doc_id
-                        FROM documents as docs
-                        ORDER BY docs.id
-                        OFFSET %s
-                        LIMIT %s
-                    """
+                SELECT docs.id as doc_id
+                FROM documents as docs
+                ORDER BY docs.id
+                OFFSET %s LIMIT %s
+                """
             )
 
             cursor.execute(
@@ -103,3 +105,17 @@ class TextDatabase:
                             yield Document.from_json(json.load(fp))
                     except Exception:
                         continue
+
+    def sentence_search(self, embedding: NDArray[np.floating], max_difference: int, limit: int = 3) -> List[str]:
+        query = sql.SQL("""
+                        SELECT text
+                        FROM text_annotations
+                        WHERE type = 'sentence'
+                          and (embedding <~> %s) <= %s
+                        ORDER BY (embedding <~> %s)
+                        LIMIT %s
+                        """)
+        with self.__database.cursor() as cursor:
+            cursor.execute(query, (binarize(embedding), max_difference, binarize(embedding), limit))
+            sentences = cursor.fetchall()
+            return [sentences["text"] for sentences in sentences]
