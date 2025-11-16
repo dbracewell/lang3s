@@ -1,4 +1,4 @@
-import { TopicsPageView } from "@/modules/analytics/ui/views/TopicsPageView";
+import { TopicsPageView } from "@/features/analytics/ui/views/TopicsPageView";
 import { caller } from "@/trpc/server";
 import React from "react";
 

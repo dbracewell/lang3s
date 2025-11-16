@@ -12,6 +12,22 @@ class Metadata(str, enum.Enum):
     HEAD = "head"
     RELATION = "relation"
     WEIGHT = "weight"
+    COREF = "coref"
+    A0 = "A0"
+    A0_TEXT = "A0_TEXT"
+    A1 = "A1"
+    A1_TEXT = "A1_TEXT"
+    TIME = "TIME"
+    TIME_TEXT = "TIME_TEXT"
+    LOC = "LOC"
+    LOC_TEXT = "LOC_TEXT"
+    SOURCE = "source"
+
+    def __str__(self) -> str:
+        return self.value
+
+    def __repr__(self) -> str:
+        return self.value
 
 
 class AnnotationTypes(str, enum.Enum):
@@ -21,3 +37,9 @@ class AnnotationTypes(str, enum.Enum):
     PHRASE_CHUNK = "phrase_chunk"
     NOUN_CHUNK = "noun_chunk"
     EVENT = "event"
+
+    def __str__(self) -> str:
+        return self.value
+
+    def __repr__(self) -> str:
+        return self.value

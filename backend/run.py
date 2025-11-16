@@ -7,7 +7,7 @@ os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTHONUNBUFFERED"] = "1"
 
-WORKER_COUNT = int(os.environ.get("WORKER_COUNT", 1))
+WORKER_COUNT = int(os.environ.get("WORKER_COUNT", 3))
 
 subprocess_env = os.environ.copy()
 

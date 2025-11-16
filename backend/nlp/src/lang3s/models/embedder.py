@@ -65,9 +65,12 @@ class Embedder:
             return_attention_mask=True,
             is_split_into_words=is_split_into_words,
         )
-
         all_chunks: List[Chunk] = []
         token_word_mapping: List[SentenceTokenMapping] = []
+
+        if isinstance(encodings["input_ids"][0], int):
+            encodings["input_ids"] = [encodings["input_ids"]]
+            encodings["attention_mask"] = [encodings["attention_mask"]]
 
         for sentence_index in range(len(encodings["input_ids"])):
             input_ids = encodings["input_ids"][sentence_index]
@@ -252,7 +255,7 @@ class Embedder:
 
             lengths = [len(c.input_ids) for c in batch]
             for j, length in enumerate(lengths):
-                model_outputs.append(last_hidden[j, :length, :])
+                model_outputs.append(np.nan_to_num(last_hidden[j, :length, :]).astype(np.float16))
 
         dechunked = self.dechunk(
             chunk_result,

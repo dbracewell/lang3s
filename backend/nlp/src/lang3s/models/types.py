@@ -11,7 +11,14 @@ if TYPE_CHECKING:
 
 class TaskType(str, enum.Enum):
     SENTENCE = "sentence"
+    SENTENCE_MULTILABEL = "sentence_multilabel"
     TOKEN = "token"
+
+    def is_sentence_level(self) -> bool:
+        return self.value == TaskType.SENTENCE_MULTILABEL or self.value == TaskType.SENTENCE
+
+    def is_token(self) -> bool:
+        return self.value == TaskType.TOKEN
 
 
 class Chunk(NamedTuple):
@@ -48,7 +55,7 @@ class DechunkedResult(NamedTuple):
 class TransformerOutput(NamedTuple):
     annotation_type: str
     task_type: TaskType
-    labels: Union[List[str], List[List[Tuple[int, int, str]]]]
+    labels: Union[List[str], List[List[str]], List[List[Tuple[int, int, str]]]]
 
 
 class Adapter:

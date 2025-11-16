@@ -1,0 +1,69 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+from numpy.typing import NDArray
+
+from .text_object import TextObject
+from .text import Text
+
+
+class TextAnnotation(TextObject):
+    def __init__(
+        self,
+        id: str,
+        owner: Text,
+        text: str,
+        start: int,
+        end: int,
+        sentence_id: int,
+        type: str,
+        value: str,
+        source: str,
+        embedding: Optional[NDArray[np.floating]] = ...,
+        metadata: Optional[Dict[str, Any]] = ...,
+    ) -> None: ...
+
+    @property
+    def type(self) -> str: ...
+
+    @type.setter
+    def type(self, new_type: str) -> str: ...
+
+    @property
+    def sentence_id(self) -> int: ...
+
+    @property
+    def value(self) -> Any: ...
+
+    @value.setter
+    def value(self, value: Any) -> Any: ...
+
+    @property
+    def source(self) -> str: ...
+
+    @source.setter
+    def source(self, new_source: str) -> None: ...
+
+    @property
+    def parent(self) -> Optional["TextAnnotation"]: ...
+
+    @property
+    def children(self) -> List["TextAnnotation"]: ...
+
+    @property
+    def subtree(self) -> List["TextAnnotation"]: ...
+
+    @property
+    def coref(self) -> "TextAnnotation": ...
+
+    @property
+    def dep(self) -> str: ...
+
+    @property
+    def sentence(self) -> "TextAnnotation": ...
+
+    def insert_values(self) -> List[Any]: ...
+
+    def to_json(self) -> Dict[str, Any]: ...

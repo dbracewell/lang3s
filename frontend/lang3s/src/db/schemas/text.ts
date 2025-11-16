@@ -8,9 +8,8 @@ import {
   pgTable,
   text,
   timestamp,
-  uuid,
-  vector,
 } from "drizzle-orm/pg-core";
+
 export const EMBEDDING_DIMENSIONS = 768;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +100,7 @@ export const TextAnnotationTable = pgTable(
     sentenceId: integer("sentence_id").notNull(),
     type: text("type").notNull(),
     value: text("value").notNull(),
+    source: text("source").notNull(),
     mapping: text("mapping"),
     fullEmbedding: halfvec("full_embedding", {
       dimensions: EMBEDDING_DIMENSIONS,

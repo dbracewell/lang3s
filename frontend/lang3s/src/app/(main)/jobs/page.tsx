@@ -1,4 +1,4 @@
-import { JobPageView } from "@/modules/jobs/ui/views/JobsPageView";
+import { JobPageView } from "@/features/jobs/ui/views/JobsPageView";
 
 const JobsPage = async () => {
   return <JobPageView />;

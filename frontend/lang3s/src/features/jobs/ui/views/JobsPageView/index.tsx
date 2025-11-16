@@ -1,0 +1,121 @@
+"use client";
+import DataTableProvider from "@/components/data-table/DataTableContext";
+import { useDataTable } from "@/components/data-table/use-data-table";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { LoadingButton } from "@/components/ui/loading-button";
+import { FilterDialog } from "@/features/jobs/ui/views/JobsPageView/FilterDialog";
+import { useTRPCMutation } from "@/trpc/use-mutation";
+import { useTRPCQuery } from "@/trpc/use-queries";
+import { Trash2Icon, XIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { columns, type JobType } from "./columns";
+
+export const JobPageView = () => {
+  const { data, refetch } = useTRPCQuery((trpc) =>
+    trpc.jobs.getAll.queryOptions(),
+  );
+
+  useEffect(() => {
+    const intervalId = setInterval(() => refetch(), 5000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const [toDelete, setToDelete] = useState<number[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const deleteJobMutation = useTRPCMutation((trpc) => ({
+    mutation: trpc.jobs.delete.mutationOptions({}),
+  }));
+
+  const deleteSelected = async () => {
+    let failed = 0;
+    for (const id of toDelete) {
+      try {
+        await deleteJobMutation.mutateAsync({ job_id: id });
+      } catch {
+        failed += 1;
+      }
+    }
+    setToDelete([]);
+    setIsDeleting(false);
+    if (failed > 0) {
+      toast.error(`Could not delete ${failed} jobs`);
+    }
+  };
+
+  const { DataTable, setFilter, getFilter, rows } = useDataTable({
+    columns,
+    data: data ?? ([] as JobType[]),
+    initialSortColumn: "id",
+    appearance: {
+      sortButton: "text-white bg-white/30",
+      container: "shadow bg-white rounded-xl",
+      headerRow: "bg-dodger-blue-500 divide-x text-white text-center",
+      headerCell: "p-2",
+      bodyCell: "p-1 h-10",
+      bodyRow: "border-b divide-x even:bg-slate-200",
+    },
+  });
+
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-2 text-sm">
+      <div className="flex items-center justify-between px-1">
+        <div className="flex flex-col items-center gap-1">
+          {isDeleting ? (
+            <div className="flex items-center gap-2 rounded-lg border bg-white/50 p-1 shadow">
+              <Checkbox
+                id="selectAll"
+                onCheckedChange={(e) => {
+                  if (!e) {
+                    setToDelete([]);
+                  } else {
+                    setToDelete(rows.map((e) => e.id));
+                  }
+                }}
+              />{" "}
+              <Label htmlFor="selectAll">Select All</Label>
+              <Button
+                variant="ghost"
+                disabled={deleteJobMutation.isPending}
+                size="icon-sm"
+                onClick={() => {
+                  setToDelete([]);
+                  setIsDeleting(false);
+                }}
+              >
+                <XIcon />
+              </Button>
+              <LoadingButton
+                variant="destructive"
+                size="icon-sm"
+                onClick={() => deleteSelected()}
+                isLoading={deleteJobMutation.isPending}
+              >
+                <Trash2Icon />
+              </LoadingButton>
+            </div>
+          ) : (
+            <div className="p-[3px]">
+              <Button
+                variant="listButton"
+                onClick={() => setIsDeleting((p) => !p)}
+              >
+                <Trash2Icon /> Bulk Delete
+              </Button>
+            </div>
+          )}
+        </div>
+        <FilterDialog getFilter={getFilter} setFilter={setFilter} />
+      </div>
+      <DataTableProvider
+        columns={columns}
+        context={{ toDelete, setToDelete, isDeleting }}
+      >
+        <DataTable />
+      </DataTableProvider>
+    </div>
+  );
+};

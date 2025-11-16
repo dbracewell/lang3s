@@ -1,4 +1,3 @@
-import { TextAnnotationTable } from "@/db/schema";
 import {
   boolean,
   customType,
@@ -28,6 +27,7 @@ export const OntologyTable = pgTable(
     name: text("name").notNull().unique(),
     parentId: integer("parent_id"),
     description: text("description"),
+    color: text("color").default("SLATE").notNull(),
     isAttribute: boolean("is_attribute").default(false).notNull(),
     path: ltree("path").notNull(), // ltree type (custom)
     properties: jsonb("properties").$type<Record<string, any>>().default({}),

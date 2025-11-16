@@ -4,9 +4,9 @@ import {
   Permission,
   roleHasPermissions,
   UserRole,
-} from "@/modules/auth/permissions";
-import { apiKeyHasPermission } from "@/modules/jobs/server/api";
-import { BasicUserInfo } from "@/modules/common/types";
+} from "@/features/auth/permissions";
+import { apiKeyHasPermission } from "@/features/jobs/server/api";
+import { BasicUserInfo } from "@/features/common/types";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { headers } from "next/headers";
 import { cache } from "react";

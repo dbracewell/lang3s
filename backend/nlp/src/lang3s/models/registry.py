@@ -4,7 +4,6 @@ from typing import Dict, Iterable, Optional
 import torch
 
 from lang3s import config
-
 from .heads import TaskHead
 from .types import Adapter, TaskType
 
@@ -25,7 +24,7 @@ class AdapterRegistry:
     ) -> Adapter:
         adapter = Adapter(
             label2id=label2id,
-            task_type=task_type,
+            task_type=task_type if isinstance(task_type, TaskType) else TaskType(task_type),
             task_name=task_name,
             annotation_type=annotation_type,
             language=language,
@@ -41,7 +40,6 @@ class AdapterRegistry:
         if language is None and tasks is None:
             return list(self.registry.keys())
 
-        task_set = None
         if tasks is None:
             task_set = set(self.registry.keys())
         else:

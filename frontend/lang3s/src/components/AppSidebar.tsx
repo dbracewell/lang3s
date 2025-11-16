@@ -15,8 +15,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import { useUser } from "@/modules/auth/UserContext";
-import { filterLinks } from "@/modules/common/navigation";
+import { useUser } from "@/features/auth/UserContext";
+import { filterLinks } from "@/features/common/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";

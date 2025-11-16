@@ -49,3 +49,52 @@ next-env.d.ts
 /models/
 /data/
 __pycache__
+
+/trainer_output/
+/models/
+/data/
+
+ Byte-compiled / optimized / compiled files
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+
+# C extensions
+*.so
+*.cpp
+*.jsonl
+
+# Distribution / packaging
+.Python
+build/
+dist/
+eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Editors
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Environments
+.env
+venv/
+env/
+/site/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Miscellaneous
+*.log
+*.tmp
+*.bak
+*.swp
+
+documents

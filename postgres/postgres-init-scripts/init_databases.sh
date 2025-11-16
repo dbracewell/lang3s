@@ -25,7 +25,6 @@ function create_user() {
     psql -U "$POSTGRES_USER" -d postgres -c "GRANT ALL PRIVILEGES ON SCHEMA ${schema} TO ${user};"
 }
 
-# Example: Create 'app_db' and 'test_db'
 create_db_if_not_exists "inngest"
 create_db_if_not_exists "lang3s"
 create_user "inngest" "inngest"

@@ -1,0 +1,36 @@
+from __future__ import annotations
+from typing import Any, Dict
+from .text import Text
+
+
+class Document:
+    id: str
+    title: str
+    metadata: Dict[str, Any]
+    text: Text
+
+    def __init__(
+        self,
+        doc_id: str,
+        title: str,
+        text: Text,
+        metadata: Dict[str, Any] | None = ...,
+    ) -> None: ...
+
+    def __contains__(self, item): ...
+
+    def __setitem__(self, key, value): ...
+
+    def __delitem__(self, key): ...
+
+    def __getitem__(self, item): ...
+
+    def to_json(self) -> Dict[str, Any]: ...
+
+    @staticmethod
+    def from_json(obj: Dict[str, Any]) -> "Document": ...
+
+    def insert_values(self) -> list: ...
+
+    @property
+    def language(self) -> str: ...

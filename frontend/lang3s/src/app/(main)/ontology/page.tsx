@@ -1,4 +1,4 @@
-import { OntologyPageView } from "@/modules/ontology/ui/views/OntologyPageView";
+import { OntologyPageView } from "@/features/ontology/ui/views/OntologyPageView";
 import React from "react";
 
 const OntologyPage = () => {

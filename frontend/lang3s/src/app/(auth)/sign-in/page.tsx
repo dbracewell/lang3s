@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { user } from "@/db/schema";
-import { SignInPageView } from "@/modules/auth/ui/views/SignInPageView";
+import { SignInPageView } from "@/features/auth/ui/views/SignInPageView";
 import { redirect } from "next/navigation";
 
 const getUserCount = async () => {

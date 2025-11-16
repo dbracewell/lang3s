@@ -13,6 +13,12 @@ from typing import (
 T = TypeVar("T")
 
 
+def get_or_default(value: T, default: Optional[T] = None) -> Optional[T]:
+    if value is None:
+        return default
+    return value
+
+
 def filter_none(array: Iterable[T | None]) -> List[T]:
     return [x for x in array if x is not None]
 
@@ -46,7 +52,7 @@ def partition(
             else math.ceil(array_length / cast(int, max_size))
         )
     for i in range(0, array_length, size):
-        yield array[i : i + size]
+        yield array[i: i + size]
 
 
 async def get_value(v: T | Awaitable[T | None] | None, default_value: T) -> T:

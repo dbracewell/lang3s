@@ -1,27 +1,19 @@
 import { TextAnnotation } from "@/components/text/TextAnnotation";
 import { cn } from "@/lib/utils";
-import { Lang3sTextAnnotation } from "@/modules/common/classes";
-import { NotepadTextIcon } from "lucide-react";
+import { Lang3sTextAnnotation } from "@/features/common/classes";
 import { memo } from "react";
+import { useOntologyColors } from "@/features/ontology/hooks";
 
 type SentenceProps = {
   sentence: Lang3sTextAnnotation;
   targetAnnotation: string;
-  colors: Record<string, string>;
-  defaultColor: string;
   index: number;
-  lang: string;
 };
 
 export const Sentence = memo(
-  ({
-    sentence,
-    targetAnnotation,
-    colors,
-    defaultColor,
-    index,
-    lang,
-  }: SentenceProps) => {
+  ({ sentence, targetAnnotation, index }: SentenceProps) => {
+    const { getOntologyColor } = useOntologyColors();
+
     return (
       <div className="flex items-center justify-between gap-2">
         <div
@@ -31,15 +23,21 @@ export const Sentence = memo(
             index % 2 == 0 ? "bg-white" : "bg-gray-100",
           )}
         >
-          {sentence.interleave([targetAnnotation, "event"]).map((t, z) => (
-            <TextAnnotation
-              key={z}
-              lang={lang}
-              annotation={t}
-              targetType={targetAnnotation}
-              color={colors[t.value] ?? defaultColor}
-            />
-          ))}
+          {sentence
+            .interleave([
+              targetAnnotation,
+              "event",
+              "relation",
+              "process",
+              "state",
+            ])
+            .map((t, z) => (
+              <TextAnnotation
+                key={z}
+                annotation={t}
+                color={getOntologyColor(t.value)}
+              />
+            ))}
         </div>
         <div className="flex w-[20px] flex-col gap-0.5"></div>
       </div>

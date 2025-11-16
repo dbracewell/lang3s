@@ -1,5 +1,5 @@
 import { Spinner } from "@/components/Spinner";
-import { DocumentsViewPage } from "@/modules/documents/ui/views/DocumentsViewPage";
+import { DocumentsViewPage } from "@/features/documents/ui/views/DocumentsViewPage";
 import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 import React from "react";
 

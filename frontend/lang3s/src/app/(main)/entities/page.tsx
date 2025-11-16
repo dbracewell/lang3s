@@ -1,7 +1,7 @@
-import { EntitiesPageView } from "@/modules/analytics/ui/views/EntitiesPageView";
+import { EntitiesPageView } from "@/features/analytics/ui/views/EntitiesPageView";
 
 const EntitiesPage = () => {
-  return <EntitiesPageView/>
-}
+  return <EntitiesPageView />;
+};
 
 export default EntitiesPage;

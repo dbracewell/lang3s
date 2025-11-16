@@ -12,7 +12,7 @@ from psycopg import sql
 from lang3s import config
 from lang3s.db.database import Database
 from lang3s.maths import binarize
-from lang3s.shared_types import Document, Text, TextAnnotation
+from lang3s.shared_types import DOCUMENT_COLUMNS, TEXT_ANNOTATION_COLUMNS, TEXT_COLUMNS, Document
 from lang3s.utils import decorators
 
 
@@ -31,7 +31,7 @@ class TextDatabase:
     def __init__(self) -> None:
         self.__database = Database()
 
-    def add_documents(self, documents: Iterable[Document]):
+    def add_documents(self, documents: List[Document]):
         Thread(
             target=_write_docs_to_disk,
             kwargs={"documents": documents},
@@ -42,30 +42,24 @@ class TextDatabase:
             self.__database.copy_from(
                 cursor,
                 "documents",
-                columns=Document.DB_COLUMNS,
+                columns=DOCUMENT_COLUMNS,
                 data=[d.insert_values() for d in documents],
             )
             self.__database.copy_from(
                 cursor,
                 "text",
-                columns=Text.DB_COLUMNS,
+                columns=TEXT_COLUMNS,
                 data=[d.text.insert_values() for d in documents],
             )
             all_annotations = list(
                 a.insert_values()
-                for a in itertools.chain(
-                    *[
-                        doc.text.all_annotations
-                        for doc in documents
-                        if doc.text is not None
-                    ]
-                )
+                for a in itertools.chain(*[doc.text.all_annotations for doc in documents if doc.text is not None])
                 if a.type != "token"
             )
             self.__database.copy_from(
                 cursor,
                 "text_annotations",
-                columns=TextAnnotation.DB_COLUMNS,
+                columns=TEXT_ANNOTATION_COLUMNS,
                 data=all_annotations,
             )
 
@@ -107,15 +101,17 @@ class TextDatabase:
                         continue
 
     def sentence_search(self, embedding: NDArray[np.floating], max_difference: int, limit: int = 3) -> List[str]:
+        binarized_embedding = binarize(embedding)
         query = sql.SQL("""
-                        SELECT text
+                        SELECT distinct text, (embedding <~> %s) as distance
                         FROM text_annotations
                         WHERE type = 'sentence'
                           and (embedding <~> %s) <= %s
-                        ORDER BY (embedding <~> %s)
+                        ORDER BY distance
                         LIMIT %s
                         """)
         with self.__database.cursor() as cursor:
-            cursor.execute(query, (binarize(embedding), max_difference, binarize(embedding), limit))
+            cursor.execute(query,
+                           (binarized_embedding, binarized_embedding, max_difference, limit))
             sentences = cursor.fetchall()
             return [sentences["text"] for sentences in sentences]

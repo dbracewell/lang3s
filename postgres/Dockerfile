@@ -10,17 +10,14 @@ RUN set -eux; \
     apt-get install -y -V lsb-release wget ca-certificates gnupg \
 		&& \
     \
-    # --- Add Apache Arrow repo ---
     wget https://apache.jfrog.io/artifactory/arrow/debian/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb && \
     apt-get install -y -V ./apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb && \
     rm apache-arrow-apt-source-latest-*.deb && \
     \
-    # --- Add Groonga repo ---
     wget https://packages.groonga.org/debian/groonga-apt-source-latest-$(lsb_release --codename --short).deb && \
     apt-get install -y -V ./groonga-apt-source-latest-$(lsb_release --codename --short).deb && \
     rm groonga-apt-source-latest-*.deb && \
     \
-    # --- Add PostgreSQL PGDG repo (modern method) ---
     install -d /etc/apt/keyrings; \
     wget -qO /etc/apt/keyrings/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc; \
     echo "deb [signed-by=/etc/apt/keyrings/pgdg.asc] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
@@ -36,7 +33,7 @@ RUN set -eux; \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-		# Environment variables are set at runtime (via docker-compose)
+# Environment variables are set at runtime (via docker-compose)
 ENV POSTGRES_DB=${POSTGRES_DB}
 ENV POSTGRES_USER=${POSTGRES_USER}
 ENV PGDATA=/var/lib/postgresql/data

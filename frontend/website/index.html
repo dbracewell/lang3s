@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+          rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style type="text/tailwindcss">
+
+        .inter-bold {
+            font-family: "Inter", sans-serif;
+            font-optical-sizing: auto;
+            font-weight: 700;
+            font-style: normal;
+        }
+
+        .demo {
+            position: relative;
+        }
+
+        .demo::after {
+            content: "Coming Soon";
+            color: var(--color-gray-800);
+            position: absolute;
+            left: 0;
+            top: 0;
+            font-size: 8px;
+            transform: translateY(-50%) translateX(-70%);
+            background: var(--color-amber-50);
+            border: 1pt solid var(--color-amber-400);
+            border-radius: 20px;
+            text-wrap: nowrap;
+            padding: 4px 4px;
+            font-weight: bold;
+            box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        button {
+            cursor: pointer;
+            color: white;
+            box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+        }
+
+        * {
+            border-color: var(--color-border);
+            font-family: "Inter", sans-serif;
+            font-optical-sizing: auto;
+            font-weight: 400;
+            font-style: normal;
+            color: var(--color-slate-900)
+        }
+
+        .card {
+            @apply rounded-lg border shadow-lg bg-white text-slate-900 p-3 flex flex-col gap-1;
+            height: 500px;
+            border-color: var(--color-zinc-300);
+        }
+
+        .card h1 {
+            font-weight: 600;
+            font-size: 24px;
+        }
+
+
+        .card h2 {
+            font-size: 12px;
+            color: var(--color-gray-500);
+        }
+
+        .card .content {
+            @apply flex-1 flex flex-col mt-5 h-full min-h-0;
+        }
+
+        .highlight {
+            @apply underline text-dodger-blue-500;
+            font-family: "Inter", sans-serif;
+            font-optical-sizing: auto;
+            font-weight: 700;
+            font-style: normal;
+        }
+
+        /* Optional: Add custom CSS or theme variables here */
+        @theme {
+            --color-primary: #3b82f6; /* Example custom color */
+            --color-dodger-blue-50: #f1f7fe;
+            --color-dodger-blue-100: #e2eefc;
+            --color-dodger-blue-200: #bedcf9;
+            --color-dodger-blue-300: #84bff5;
+            --color-dodger-blue-400: #429eee;
+            --color-dodger-blue-500: #1e88e5;
+            --color-dodger-blue-600: #0c65bd;
+            --color-dodger-blue-700: #0b5199;
+            --color-dodger-blue-800: #0e457e;
+            --color-dodger-blue-900: #113b69;
+            --color-dodger-blue-950: #0b2546;
+            --color-border: var(--color-zinc-400);
+        }
+    </style>
+</head>
+<body class="inter-normal">
+<div class="flex min-h-0 flex-1 flex-col overflow-hidden h-screen w-screen  bg-gradient-to-b from-slate-100 to-slate-200">
+    <div class="sticky top-0 z-20 flex h-16 w-full items-center justify-between gap-3 border-b bg-zinc-50 py-10 px-5 text-white shadow">
+        <a href="#">
+            <h1 class="text-3xl font-bold flex items-center gap-3 text-slate-900 inter-bold">
+                <img src="images/img.png" alt="Lang3s" class="h-12 w-auto"/> Lang3s
+            </h1>
+        </a>
+        <div class="flex items-center gap-3">
+            <button disabled
+                    class="bg-dodger-blue-500 rounded-lg border border-dodger-blue-600! p-2 shadow demo"
+            >
+                Demo
+            </button>
+            <button class="bg-slate-800 rounded-lg border p-2 shadow  cursor-pointer  hover:bg-slate-700">
+                Contact Us
+            </button>
+        </div>
+    </div>
+    <div class="flex flex-1 min-h-0 h-full flex-col overflow-y-auto">
+        <div class="flex items-center h-fit  justify-center flex-col bg-dodger-blue-500 text-white border-b-2 p-10 lg:p-20"
+             style="
+             /*height: 500px;*/
+             background-image: url('images/banner.png');
+             background-repeat: no-repeat;
+             background-size: cover;
+             background-position: center center;">
+            <div
+                    style="backdrop-filter: blur(10px);"
+                    class="bg-white/70 leading-relaxed text-lg lg:text-3xl mx-auto max-w-4xl   text-slate-900 p-10 shadow-2xl border rounded-2xl border-white!">
+                We bridge the gap between
+                <span class="highlight">language</span>,
+                <span class="highlight">culture</span>, and
+                <span class="highlight">technology</span>
+                integrating
+                <span class="highlight">advanced cultural AI models</span>
+                capable of
+                analyzing
+                and interpreting data through
+                multiple cultural and generational perspectives, whether it be from Gen Z and Millennial viewpoints or
+                traditional and regional frameworks.
+            </div>
+        </div>
+        <div class="flex flex-1 min-h-0 h-full flex-col gap-8 w-full p-5 mt-5 lg:mt-10">
+            <div class="flex flex-col lg:flex-row gap-10 px-5 lg:px-20 ">
+                <div class="card  w-full lg:w-1/3 ">
+                    <h1>Card 1</h1>
+                    <h2>Description</h2>
+                    <div class="content">
+                        This is some content.
+                    </div>
+                </div>
+                <div class="card w-full lg:w-1/3">
+                    Card 2
+                </div>
+                <div class="card w-full lg:w-1/3">
+                    Card 3
+                </div>
+            </div>
+            <div class="flex gap-4">
+                <div class="card w-1/3">
+                    Card 1
+                </div>
+                <div class="card w-1/3">
+                    Card 2
+                </div>
+                <div class="card w-1/3">
+                    Card 3
+                </div>
+            </div>
+            <div class="min-h-8 h-full"></div>
+        </div>
+
+    </div>
+
+</div>
+</body>
+</html>

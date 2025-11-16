@@ -1,5 +1,5 @@
-import { getUserCount } from "@/modules/auth/server/actions";
-import { InstallPageView } from "@/modules/auth/ui/views/InstallPageView";
+import { getUserCount } from "@/features/auth/server/actions";
+import { InstallPageView } from "@/features/auth/ui/views/InstallPageView";
 import { redirect } from "next/navigation";
 
 const InstallPage = async () => {

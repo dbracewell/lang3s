@@ -1,4 +1,3 @@
-import "server-only";
 import { createClient, RedisClientType } from "redis";
 import { env } from "@/env/env";
 

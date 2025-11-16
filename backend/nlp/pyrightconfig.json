@@ -1,3 +1,7 @@
 {
-  "reportPrivateImportUsage": "none"
+  "reportPrivateImportUsage": "none",
+  "include": [
+    "src"
+  ],
+  "stubPath": "src"
 }
