@@ -100,7 +100,28 @@ class TextDatabase:
                     except Exception:
                         continue
 
-    def sentence_search(self, embedding: NDArray[np.floating], max_difference: int, limit: int = 3) -> List[str]:
+    def search(self,
+               query: str,
+               limit: int = 3) -> List[str]:
+
+        query = " OR ".join(query.split())
+        sql_query = sql.SQL("""
+                            SELECT distinct text, pgroonga_score(tableoid, ctid) as rank
+                            FROM text_annotations
+                            WHERE type = 'sentence'
+                              and text &@~ (%s, ARRAY [1], ARRAY ['scorer_tf_idf($index)'], 'ml_text_search_index')::pgroonga_full_text_search_condition_with_scorers
+                            ORDER BY rank desc
+                            LIMIT %s
+                            """)
+
+        with self.__database.cursor() as cursor:
+            cursor.execute(sql_query,
+                           (query, limit))
+            sentences = cursor.fetchall()
+            return [sentences["text"] for sentences in sentences]
+
+    def sentence_search(self,
+                        embedding: NDArray[np.floating], max_difference: int, limit: int = 3) -> List[str]:
         binarized_embedding = binarize(embedding)
         query = sql.SQL("""
                         SELECT distinct text, (embedding <~> %s) as distance

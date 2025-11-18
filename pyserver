@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+if [ ! "$CONDA_DEFAULT_ENV" = "nlp" ]; then
+  conda activate nlp
+fi
+
+
+export MODELS_DIR=./backend/nlp/models
+python  backend/run.py

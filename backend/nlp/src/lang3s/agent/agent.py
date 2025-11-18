@@ -1,86 +1,78 @@
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 
+from pydantic import BaseModel
+
+from lang3s.agent.steps.loops import LoopStep
 from lang3s.models.llm import LLMOrchestrator
 from lang3s.models.llm import orchestrator as DEFAULT_ORCHESTRATOR
-from .persona import Persona
-from .shared_types import StepResult
+from lang3s.utils.async_helper import run_sync
+from .helpers import clean_thinking, log_step_result
+from .memory import ModelScale
+from .shared_types import Plan, StepResult, AgentStep, AgentState, Persona
+
+
+class AgentResult(BaseModel):
+    steps: Dict[str, List[Any]]
+    output: Any
 
 
 class Agent:
-    """
-    The updated Agent class:
-    - Handles persona-aware steps
-    - Maintains message state
-    - Supports sync and async execution
-    - Passes persona to steps that want it
-    """
 
     def __init__(
         self,
         orchestrator: Optional[LLMOrchestrator] = None,
         persona: Optional[Persona] = None,
-        system_message: Optional[str] = None,
+        model_scale: Optional[ModelScale] = None,
     ):
-        self.state_cache = {}
+        model_scale = model_scale if model_scale is not None else ModelScale.SMALL
+        self.state: AgentState = AgentState(model_scale=model_scale, persona=persona)
         self.orchestrator = orchestrator or DEFAULT_ORCHESTRATOR
-        self.persona = persona
-        self.steps: List[Any] = []  # list of AgentStep instances
-        self.system_message = system_message
+        self.steps: List[AgentStep] = []
 
     def add_step(self, step: Any):
-        """Add a step to the execution pipeline."""
         self.steps.append(step)
 
-    # ----------------------------------------------------------------------
-    # SYNC RUN
-    # ----------------------------------------------------------------------
-    def run(self, user_message: str) -> Any:
-        # State is a list of message dicts
-        state: List[dict] = []
+    def run(self, system_message: Optional[str], user_message: Optional[str] = None) -> AgentResult:
+        return run_sync(self.arun(system_message=system_message, user_message=user_message))
 
-        state.append({"role": "system", "content": self.system_message or "You are an agent."})
+    async def arun(self, system_message: Optional[str], user_message: Optional[str] = None) -> Any:
+        self.state.reset_state()
 
-        # First user message
-        state.append({"role": "user", "content": user_message})
+        if system_message is not None:
+            self.state.system_message = system_message
 
-        final_output = None
+        self.state.messages.append({"role": "system",
+                                    "content": self.state.system_message or "You are an agent."})
 
-        for step in self.steps:
-            # If the step only has async_run => error
-            if hasattr(step, "async_run") and not hasattr(step, "run"):
-                raise RuntimeError(
-                    f"Step {step.__class__.__name__} only supports async_run(). "
-                    "Use agent.arun() instead."
-                )
-
-            res: StepResult = step.run(self, state, user_message)
-            state = res.messages
-            final_output = res.output
-            if getattr(res, "terminated", False):
-                break
-
-        return final_output
-
-    # ----------------------------------------------------------------------
-    # ASYNC RUN
-    # ----------------------------------------------------------------------
-    async def arun(self, user_message: str) -> Any:
-        state: List[dict] = []
-        state.append({"role": "system", "content": self.system_message or "You are an agent."})
-        state.append({"role": "user", "content": user_message})
-
-        final_output = None
+        if user_message is not None:
+            self.state.messages.append({"role": "user",
+                                        "content": user_message})
+            self.state.user_goal = user_message
 
         for step in self.steps:
-            if hasattr(step, "async_run"):
-                res: StepResult = await step.async_run(self, state, user_message)
+            self.state.prune()
+
+            res: StepResult = await step.async_run(self, self.state)
+            self.state.steps[step.name].append(res)
+
+            if not isinstance(step, LoopStep):
+                log_step_result(step.name, res)
+
+            if isinstance(res.output, Plan):
+                self.state.last_plan = res.output
+                self.state.last_output = ""
+            elif res.output is not None:
+                self.state.last_plan = None
+                self.state.last_output = clean_thinking(res.output)
             else:
-                res: StepResult = step.run(self, state, user_message)
-
-            state = res.messages
-            final_output = res.output
+                self.state.last_plan = None
+                self.state.last_output = ""
 
             if getattr(res, "terminated", False):
                 break
 
-        return final_output
+        final_steps = {}
+        for name, results in self.state.steps.items():
+            final_steps[name] = [res.output if isinstance(res, StepResult) else res for res in results]
+
+        return AgentResult(steps=final_steps, output=self.state.last_output)

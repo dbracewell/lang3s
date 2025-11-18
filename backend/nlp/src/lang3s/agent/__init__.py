@@ -1,4 +1,4 @@
 from .agent import Agent
-from .persona import Persona, PersonaMode
+from .shared_types import Persona, PersonaMode, RetrievalResult, ExampleList
 
-__all__ = ["Agent", "Persona", "PersonaMode"]
+__all__ = ["Agent", "Persona", "PersonaMode", "RetrievalResult", "ExampleList"]

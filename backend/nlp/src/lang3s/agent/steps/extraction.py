@@ -1,43 +1,59 @@
 import json
-from typing import List
+import textwrap
 
-from lang3s.agent.shared_types import AgentStep, StepResult
+from lang3s.agent.helpers import clean_thinking
+from lang3s.agent.shared_types import AgentState, AgentStep, StepResult
 
 
 class CategorizationStep(AgentStep):
 
-    def run(self, agent, state: List[dict], user_message: str) -> StepResult:
-        plan = agent.state_cache["last_plan"]
+    def __init__(self, name: str = "CategorizationStep"):
+        AgentStep.__init__(self, name)
+
+    def _execute(self, agent, state: AgentState) -> StepResult:
+        plan = state.last_plan
+        if plan is None:
+            return StepResult(success=False)
+
         category = plan.target_category
+        last_output = clean_thinking(state.last_output)
 
-        if "last_output" not in state:
-            state.append({"role": "user",
-                          "content": "No data was given to categorize. Please either generate examples or retrieve data to be categorized."})
-            resp = agent.orchestrator.chat(state)
-            return StepResult(messages=state, output=resp["content"], terminated=False)
+        if last_output is None:
+            state.update({"role": "user",
+                          "content": textwrap.dedent(f"""
+                                   {state.create_base_prompt()}
+                                   
+                                   No data was given to categorize. 
+                                   Please either generate examples or retrieve data to be categorized.
+                                   """),
+                          "status": "failed"})
+            resp = agent.orchestrator.chat(state.get_llm_messages())
+            return StepResult(output=resp["content"])
 
-        retrieved = agent.state_cache["last_output"]
-        prompt = f"""
-Categorize each sentence into:
-- "{category}"
-- "None" (if unrelated)
+        prompt = textwrap.dedent(f"""
+                        {state.create_base_prompt()}
+                        
+                        Categorize each sentence into:
+                        - "{category}"
+                        - "None" (if unrelated)
+                        
+                        Sentences:
+                        {json.dumps(last_output, indent=2)}
+                        
+                        Output format:
+                        [
+                          {{"sentence": "...", "category": "..."}},
+                          ...
+                        ]
+                    """)
 
-Sentences:
-{json.dumps(retrieved, indent=2)}
-
-Output format:
-[
-  {{"sentence": "...", "category": "..."}},
-  ...
-]
-"""
-        state.append({"role": "user", "content": prompt})
-        resp = agent.orchestrator.chat(state)
+        state.update({"role": "user", "content": prompt})
+        resp = agent.orchestrator.chat(state.get_llm_messages())
 
         try:
             categories = json.loads(resp["content"])
         except:
             categories = []
 
-        state.append({"role": "assistant", "content": resp["content"]})
-        return StepResult(messages=state, output=categories, terminated=False)
+        state.update({"role": "assistant", "content": resp["content"]})
+        return StepResult(output=categories)

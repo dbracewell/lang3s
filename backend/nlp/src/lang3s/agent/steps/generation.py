@@ -1,99 +1,126 @@
-from typing import List, Optional
-import json
-from lang3s.agent.shared_types import AgentStep, StepResult
-from lang3s.agent.persona import PersonaAwareStep, PersonaMode, Persona
+import textwrap
+from typing import Optional, Type, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from lang3s.agent import Agent
+
+from pydantic.main import BaseModel
+
+from lang3s.agent.shared_types import AgentState, AgentStep, ExampleList, StepResult, PersonaMode, PersonaAwareStep
 
 
 class GenerationStep(PersonaAwareStep):
     def __init__(self,
                  prompt: Optional[str] = None,
-                 history: int = 0,
+                 response_model: Optional[Type[BaseModel]] = None,
+                 max_retries: int = 3,
+                 name: str = "GenerationStep",
                  mode: PersonaMode = PersonaMode.PERSPECTIVE):
-        super().__init__(mode)
+        super().__init__(mode=mode, name=name)
         self.prompt = prompt or "Generate text based on the following content"
-        self.history = history
+        self.response_model = response_model
+        self.max_retries = max_retries
 
-    def run_no_persona(self, agent, state: List[dict], user_message: str) -> StepResult:
-        prompt = self.prompt
-        if self.history > 0:
-            prompt += f"\nInclude the last {self.history} messages as context.\n\n"
-        state.append({"role": "user", "content": self.prompt})
+    async def _run_prompt(self, agent: "Agent", state: AgentState) -> StepResult:
+        for _ in range(self.max_retries):
+            result = await agent.orchestrator.achat(state.get_llm_messages(), response_model=self.response_model)
+            content = result["content"]
+            if self.response_model is not None:
+                try:
+                    parsed = self.response_model.model_validate_json(content)
+                except Exception as e:
+                    state.update({
+                        "role": "user",
+                        "content": f""""
+                            {state.create_base_prompt(self.mode)}
+                            
+                            ERROR:
+                            Your output didn't match the schema. Error: {e}. Try again.
+                        """
+                    })
+                    continue
+                state.update({"role": "assistant", "content": content})
+                return StepResult(output=parsed)
 
-        result = agent.orchestrator.chat(state)
-        content = result["content"]
+            state.update({"role": "assistant", "content": content})
+            return StepResult(output=content)
 
-        state.append({"role": "assistant", "content": content})
-        return StepResult(messages=state, output=content)
+        raise RuntimeError("GenerationStep failed after retries")
 
-    def run_with_persona(
+    async def _execute(
         self,
         agent,
-        state: List[dict],
-        user_message: str,
-        persona: Persona,
-        mode: PersonaMode,
+        state: AgentState,
     ) -> StepResult:
-        if self.prompt is None:
-            state.append({"role": "user", "content": self.prompt})
-        prompt = self.build_persona_prompt(persona,
-                                           task_instructions="Generate text based on the following content",
-                                           content=user_message,
-                                           history=self.history,
-                                           mode=mode)
-        prompt += "\nOutput your result in plain text. Only output the rewritten text. Do not refer to the user. "
-        state.append({"role": "user", "content": prompt})
-        result = agent.orchestrator.chat(state)
-        content = result["content"]
+        prompt = textwrap.dedent(f"""
+                    {state.create_base_prompt(self.mode)}
+                                               
+                    {self.prompt if self.prompt else ""}
+                    """)
 
-        state.append({"role": "assistant", "content": content})
-        return StepResult(messages=state, output=content)
+        if self.response_model is None:
+            prompt += "\nYou MUST output in plain text. Only output the text. Do not refer to the user or provide any other information."
+        else:
+            prompt += f"\nOutput your result in json matching the following schema\n{self.response_model.model_json_schema()}\n\n"
+
+        state.update({"role": "user", "content": prompt.strip()})
+        return await self._run_prompt(agent, state)
 
 
 class SummarizationStep(GenerationStep):
 
-    def __init__(self, history=0):
+    def __init__(self, name: str = "SummarizationStep"):
         prompt = "Summarize the given content keeping the summary concise, accurate, and grounded with a neutral tone, without adding stylistic or worldview modifications."
-        GenerationStep.__init__(self, mode=PersonaMode.SUMMARIZATION, history=history, prompt=prompt)
+        GenerationStep.__init__(self, mode=PersonaMode.SUMMARIZATION, prompt=prompt, name=name)
 
 
 class AnalysisStep(GenerationStep):
 
-    def __init__(self, history=0):
+    def __init__(self, name: str = "AnalysisStep"):
         prompt = "Analyze the content highlighting the key topics, claims, and entities while operating with a neutral tone, without adding stylistic or worldview modifications."
-        GenerationStep.__init__(self, mode=PersonaMode.ANALYSIS, history=history, prompt=prompt)
+        GenerationStep.__init__(self, mode=PersonaMode.ANALYSIS, prompt=prompt, name=name)
 
 
 class PerspectiveStep(GenerationStep):
 
-    def __init__(self, history=0):
+    def __init__(self, name: str = "PerspectiveStep"):
         prompt = "Give your perspective or reflection on the content operating with a neutral tone, without adding stylistic or worldview modifications."
-        GenerationStep.__init__(self, mode=PersonaMode.PERSPECTIVE, history=history, prompt=prompt)
+        GenerationStep.__init__(self, mode=PersonaMode.PERSPECTIVE, prompt=prompt, name=name)
 
 
 class ExampleGenerationStep(AgentStep):
 
-    def run(self, agent, state: List[dict], user_message: str) -> StepResult:
-        plan = agent.state_cache["last_plan"]
+    def __init__(self, name: str = "ExampleGeneration"):
+        AgentStep.__init__(self, name=name)
 
-        prompt = f"""
-Generate 10 example sentences for the category:
-"{plan.target_category}"
+    async def _execute(self, agent, state: AgentState) -> StepResult:
+        plan = state.last_plan
 
-Rules:
-- Each example must be one standalone sentence.
-- Make examples as diverse as possible.
-- They should NOT be real sentences from the corpus.
-- Do not include offensive or unsafe content.
-- Output as a JSON list of strings.
-"""
-        state.append({"role": "user", "content": prompt})
-        resp = agent.orchestrator.chat(state)
+        if plan is None:
+            return StepResult(success=False, output=None)
 
+        prompt = textwrap.dedent(f"""
+                {state.create_base_prompt()}
+                Generate 10 example sentences for the category:
+                "{plan.target_category}"
+                
+                Rules:
+                - Each example must be one standalone sentence.
+                - Make examples as diverse as possible.
+                - They should NOT be real sentences from the corpus.
+                - Do not include offensive or unsafe content.
+                - Output in the following format:
+                   {ExampleList.model_json_schema()}
+                """)
+
+        state.update({"role": "user", "content": prompt})
+        resp = await agent.orchestrator.achat(state.messages, response_model=ExampleList)
+        content = resp["content"]
+        
         try:
-            examples = json.loads(resp["content"])
-        except:
-            examples = []
+            parsed = ExampleList.model_validate_json(content)
+        except Exception:
+            parsed = content
 
-        state.append({"role": "assistant", "content": resp["content"]})
-
-        return StepResult(messages=state, output=examples)
+        state.update({"role": "assistant", "content": resp["content"]})
+        return StepResult(output=parsed)

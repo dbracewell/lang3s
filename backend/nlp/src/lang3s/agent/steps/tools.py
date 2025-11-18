@@ -1,461 +1,320 @@
-from typing import List, Optional, Callable, Any
-import json
-from pydantic import BaseModel
 import asyncio
+import json
 from functools import partial
-from lang3s.agent.shared_types import StepResult, AgentStep
+from typing import Any, List, Optional, Dict, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from lang3s.agent import Agent
+
+from pydantic import BaseModel
+
+from lang3s.agent.shared_types import AgentState, StepResult, AgentStep
+from lang3s.models.llm import RegisteredTool
+
+
+def instruction_builder(
+    tool_name: str,
+    tool_schema: dict,
+    error: Optional[str] = None,
+) -> str:
+    msg = f"""
+You must generate VALID arguments for the tool "{tool_name}" using the schema below.
+
+TOOL ARGUMENT SCHEMA:
+{json.dumps(tool_schema, indent=2)}
+
+REQUIREMENTS:
+- Output MUST be ONLY a JSON object (no text before or after).
+- The JSON MUST match the "properties" and "required" fields in the schema exactly.
+- DO NOT include fields not listed in the schema.
+- Use correct data types for each field.
+- DO NOT call the tool; only return the argument object.
+- DO NOT rename fields.
+- DO NOT include comments or explanations.
+- DO NOT wrap the JSON in backticks.
+
+"""
+
+    if error:
+        msg += f"""
+ERROR DETECTED:
+{error}
+
+Your task:
+- FIX the arguments so they comply with the tool schema.
+- Return ONLY a corrected JSON object containing the arguments.
+"""
+
+    msg += """
+Return ONLY the JSON object containing corrected arguments.
+NOTHING ELSE.
+"""
+
+    return msg.strip()
+
+
+async def _tool_caller(
+    agent: "Agent",
+    tool: "RegisteredTool",
+    provided_args: Dict[str, Any],
+    max_retries: int,
+    state: AgentState,
+) -> Dict[str, Any]:
+    schema = tool.args_model.model_json_schema()
+    current_args = provided_args
+
+    for _ in range(1, max_retries + 1):
+        try:
+            arg_obj = tool.args_model.model_validate(current_args)
+        except Exception as validation_error:
+            error_text = f"Invalid tool arguments: {str(validation_error)}. Please fix the arguments."
+            instr = instruction_builder(
+                tool_name=tool.name,
+                tool_schema=schema,
+                error=error_text
+            )
+
+            state.update({"role": "user", "content": instr, "status": "failed"})
+            regen = await agent.orchestrator.achat(
+                state.messages,
+                response_model=None
+            )
+
+            try:
+                current_args = json.loads(regen["content"])
+            except Exception:
+                state.update({
+                    "role": "assistant",
+                    "content": "Invalid argument regeneration. Trying again."
+                })
+                continue
+
+            continue
+
+        try:
+            result = tool.func(**arg_obj.model_dump())
+            if isinstance(result, BaseModel):
+                result = result.model_dump()
+
+        except Exception as exec_error:
+            error_text = f"Tool execution failed: {str(exec_error)}. Try adjusting the arguments."
+            instr = instruction_builder(
+                tool_name=tool.name,
+                tool_schema=schema,
+                error=error_text
+            )
+
+            state.update({"role": "user", "content": instr, "status": "failed"})
+            regen = agent.orchestrator.chat(state.messages, response_model=None)
+
+            try:
+                current_args = json.loads(regen["content"])
+            except Exception:
+                state.update({
+                    "role": "assistant",
+                    "content": "Invalid regenerated arguments. Trying again.",
+                    "status": "failed",
+                })
+                continue
+
+            continue
+
+        return {
+            "role": "tool",
+            "name": tool.name,
+            "content": json.dumps(result),
+            "status": "success",
+        }
+
+    return {
+        "role": "assistant",
+        "content": f"Failed to call tool '{tool.name}' after {max_retries} attempts.",
+        "status": "failed",
+    }
+
+
+async def _async_tool_caller(
+    agent,
+    tool: "RegisteredTool",
+    provided_args: Dict[str, Any],
+    max_retries: int,
+    state: List[dict],
+) -> Dict[str, Any]:
+    schema = tool.args_model.model_json_schema()
+
+    # We try using planner-provided args first, then fallback to LLM-generated corrections
+    current_args = provided_args
+
+    for _ in range(1, max_retries + 1):
+        try:
+            arg_obj = tool.args_model.model_validate(current_args)
+        except Exception as validation_error:
+            error_text = f"Invalid tool arguments: {str(validation_error)}. Please fix the arguments."
+            instr = instruction_builder(
+                tool_name=tool.name,
+                tool_schema=schema,
+                error=error_text
+            )
+
+            state.append({"role": "user", "content": instr})
+            regen = agent.orchestrator.chat(
+                state,
+                response_model=None
+            )
+
+            try:
+                current_args = json.loads(regen["content"])
+            except Exception:
+                state.append({
+                    "role": "assistant",
+                    "content": "Invalid argument regeneration. Trying again."
+                })
+                continue
+
+            continue
+
+        try:
+            if tool.is_async:
+                result = await tool.func(**arg_obj.model_dump())
+            else:
+                loop = asyncio.get_running_loop()
+                bound = partial(tool.func, **arg_obj.model_dump())
+                result = await loop.run_in_executor(None, bound)  # type: ignore
+            if isinstance(result, BaseModel):
+                result = result.model_dump()
+
+        except Exception as exec_error:
+            error_text = f"Tool execution failed: {str(exec_error)}. Try adjusting the arguments."
+            instr = instruction_builder(
+                tool_name=tool.name,
+                tool_schema=schema,
+                error=error_text
+            )
+
+            state.append({"role": "user", "content": instr})
+            regen = agent.orchestrator.chat(state, response_model=None)
+
+            try:
+                current_args = json.loads(regen["content"])
+            except Exception:
+                state.append({
+                    "role": "assistant",
+                    "content": "Invalid regenerated arguments. Trying again."
+                })
+                continue
+
+            continue
+
+        return {
+            "role": "tool",
+            "name": tool.name,
+            "content": json.dumps(result),
+            "status": "success",
+        }
+
+    return {
+        "role": "assistant",
+        "content": f"Failed to call tool '{tool.name}' after {max_retries} attempts.",
+        "status": "failed",
+    }
 
 
 class ToolStep(AgentStep):
-    """
-    A production-grade tool-calling step with:
-        - Planner-based tool selection
-        - Strong tool-calling instructions
-        - Schema guidance
-        - Argument validation
-        - LLM self-correction using error messages
-        - Multiple retry attempts
-        - Sync + async tool execution
-    """
 
     def __init__(
         self,
         max_retries: int = 3,
+        name: str = "ToolStep",
         helper_instructions: Optional[str] = None
     ):
+        AgentStep.__init__(self, name=name)
         self.max_retries = max_retries
         self.helper_instructions = helper_instructions
 
-    # ---------------------------------------------------------------------
-    # Helper to build strong tool-calling prompt
-    # ---------------------------------------------------------------------
-    def _build_instruction(
-        self,
-        tool_name: str,
-        tool_schema: dict,
-        error: Optional[str] = None
-    ) -> str:
+    async def _execute(self, agent: "Agent", state: AgentState):
+        plan = state.last_plan
+        if plan is None:
+            return StepResult(success=False, output=None)
+        if plan.action != "use_tool":
+            return StepResult(success=False, output=None)
+        if plan.tool is None or plan.args is None:
+            return StepResult(success=False, output=None)
 
-        schema_text = json.dumps(tool_schema, indent=2)
+        response = await _tool_caller(agent=agent,
+                                      tool=agent.orchestrator.registry.get(plan.tool),
+                                      max_retries=self.max_retries,
+                                      state=state,
+                                      provided_args=plan.args)
 
-        base = [
-            f"You MUST call the tool `{tool_name}` next.",
-            "Do NOT answer in natural language.",
-            "Return ONLY a tool call with valid JSON arguments.",
-            "The tool schema is:",
-            schema_text,
-        ]
+        state.update(response)
+        return StepResult(output=response if response["status"] == "success" else None)
 
-        if self.helper_instructions:
-            base.append(self.helper_instructions)
 
-        if error:
-            base.append(f"The last attempt had an error: {error}")
-            base.append("Fix the arguments and try again.")
+class AutoToolStep(AgentStep):
 
-        return "\n".join(base)
+    def __init__(self, max_retries: int, name: str = "AutoToolStep"):
+        AgentStep.__init__(self, name)
+        self.max_retries = max_retries
+        self.tool_step = ToolStep(max_retries=self.max_retries)
 
-    # ---------------------------------------------------------------------
-    # SYNC VERSION
-    # ---------------------------------------------------------------------
-    def run(self, agent, state, user_message):
-        plan_raw = state[-1]["content"]
+    async def _prepare(self, agent, state: AgentState) -> Dict[str, Any] | StepResult:
+        available = list(agent.orchestrator.registry.names())
 
-        # Parse planner JSON
-        try:
-            plan = json.loads(plan_raw)
-        except:
-            return StepResult(messages=state, output=None)
+        prompt = f"""
+        {state.create_base_prompt()}
+        
+        Look at the conversation and decide whether calling any of these tools
+        would significantly improve the answer:
 
-        if plan.get("action") != "use_tool":
-            return StepResult(messages=state, output=None)
+        Available tools: {available}
 
-        tool_name = plan["tool"]
-        tool = agent.orchestrator.registry.get(tool_name)
-        schema = tool.args_model.model_json_schema()
+        Your task:
+        - If tools are needed, produce JSON:
+          {{
+            "decision": "use_tools",
+            "tools": [
+               {{ "name": "...", "args": {{...}} }},
+               ...
+            ]
+          }}
 
-        for attempt in range(self.max_retries):
-            # 1. Strong tool-call instruction
-            instr = self._build_instruction(
-                tool_name=tool_name,
-                tool_schema=schema,
-                error=None if attempt == 0 else "Retrying due to invalid args"
-            )
-            state.append({"role": "user", "content": instr})
+        - If NO tools are needed:
+          {{
+            "decision": "skip",
+            "reasoning": "..."
+          }}
+        """
 
-            # 2. Ask LLM for tool call
-            result = agent.orchestrator.chat(
-                state,
-                tool_names=[tool_name],
-                response_model=None,
-                force_tool_call=True
-            )
-
-            msg = result["assistant_message"]
-            tool_calls = msg.tool_calls
-
-            # if no tool calls → retry
-            if not tool_calls:
-                state.append({
-                    "role": "assistant",
-                    "content": "Model did not call tool. Trying again."
-                })
-                continue
-
-            call = tool_calls[0]
-
-            # 3. Validate arguments with Pydantic
-            try:
-                raw_args = json.loads(call.function.arguments or "{}")
-                args_obj = tool.args_model.model_validate(raw_args)
-            except Exception as e:
-                # Send validation error back for self-healing
-                err_text = f"Invalid arguments: {str(e)}"
-                instr = self._build_instruction(tool_name, schema, error=err_text)
-                state.append({"role": "user", "content": instr})
-                continue  # retry
-
-            # 4. Execute tool
-            try:
-                result_obj = tool.func(**args_obj.model_dump())
-                if isinstance(result_obj, BaseModel):
-                    result_obj = result_obj.model_dump()
-            except Exception as e:
-                result_obj = {"error": str(e)}
-
-            # 5. Append tool result
-            state.append({
-                "role": "tool",
-                "tool_call_id": call.id,
-                "content": json.dumps(result_obj)
-            })
-
-            return StepResult(messages=state, output=result_obj)
-
-        # Hard fail
-        state.append({"role": "assistant", "content": "Failed to call tool after retries."})
-        return StepResult(messages=state, output=None)
-
-    # ---------------------------------------------------------------------
-    # ASYNC VERSION
-    # ---------------------------------------------------------------------
-    async def async_run(self, agent, state, user_message):
-        plan_raw = state[-1]["content"]
+        state.update({"role": "user", "content": prompt})
+        response = await agent.orchestrator.achat(state.get_llm_messages())
+        plan_json = response["content"]
 
         try:
-            plan = json.loads(plan_raw)
-        except:
-            return StepResult(messages=state, output=None)
+            plan = json.loads(plan_json)
+        except json.JSONDecodeError:
+            return StepResult(success=False, output=None)
 
-        if plan.get("action") != "use_tool":
-            return StepResult(messages=state, output=None)
+        if plan["decision"] == "skip":
+            return StepResult(output=None)
 
-        tool_name = plan["tool"]
-        tool = agent.orchestrator.registry.get(tool_name)
-        schema = tool.args_model.model_json_schema()
+        return plan
 
-        for attempt in range(self.max_retries):
-            instr = self._build_instruction(
-                tool_name,
-                tool_schema=schema,
-                error=None if attempt == 0 else "Retrying with corrections"
-            )
+    async def _execute(self, agent, state) -> StepResult:
+        plan = await self._prepare(agent, state)
+        if isinstance(plan, StepResult):
+            return plan
 
-            state.append({"role": "user", "content": instr})
-
-            result = await agent.orchestrator.achat(
-                state,
-                tool_names=[tool_name],
-                response_model=None,
-                force_tool_call=True
-            )
-
-            msg = result["assistant_message"]
-            tool_calls = msg.tool_calls
-
-            if not tool_calls:
-                state.append({"role": "assistant", "content": "No tool call. Retrying."})
-                continue
-
-            call = tool_calls[0]
-
-            # Validate arguments
-            try:
-                raw_args = json.loads(call.function.arguments or "{}")
-                args_obj = tool.args_model.model_validate(raw_args)
-            except Exception as e:
-                err_txt = f"Invalid tool arguments: {e}"
-                instr = self._build_instruction(tool_name, schema, error=err_txt)
-                state.append({"role": "user", "content": instr})
-                continue
-
-            # Execute tool
-            try:
-                if tool.is_async:
-                    result_obj = await tool.func(**args_obj.model_dump())
-                else:
-                    loop = asyncio.get_running_loop()
-                    bound = partial(tool.func, **args_obj.model_dump())
-                    result_obj = await loop.run_in_executor(None, bound)  # type: ignore
-
-                if isinstance(result_obj, BaseModel):
-                    result_obj = result_obj.model_dump()
-
-            except Exception as e:
-                result_obj = {"error": str(e)}
-
-            # Append result
-            state.append({
-                "role": "tool",
-                "tool_call_id": call.id,
-                "content": json.dumps(result_obj)
-            })
-
-            return StepResult(messages=state, output=result_obj)
-
-        state.append({"role": "assistant", "content": "Tool call failed after retries."})
-        return StepResult(messages=state, output=None)
-
-
-class ToolLoopStep(AgentStep):
-    """
-    A ReAct-style multi-step loop that:
-        - Replans each iteration
-        - Forces tool calling
-        - Provides schema guidance
-        - Validates arguments with Pydantic
-        - Self-corrects tool call arguments
-        - Allows multiple global iterations
-        - Handles sync and async tools
-    """
-
-    def __init__(
-        self,
-        available_tools: List[str],
-        max_loops: int = 5,
-        max_tool_retries: int = 3,
-        helper_instructions: Optional[str] = None,
-        stop_signal: Optional[Callable[[Any], bool]] = None
-    ):
-        self.available_tools = available_tools
-        self.max_loops = max_loops
-        self.max_tool_retries = max_tool_retries
-        self.helper_instructions = helper_instructions
-        self.stop_signal = stop_signal
-
-    # ---------------------------------------------------------
-    # Helper to build strong forcing prompt
-    # ---------------------------------------------------------
-    def _tool_instruction(self, tool_name: str, schema: dict, error: Optional[str] = None) -> str:
-        parts = [
-            f"You MUST call the `{tool_name}` tool now.",
-            "Do NOT answer in natural language.",
-            "Return ONLY a tool call with valid JSON arguments.",
-            "Here is the schema:",
-            json.dumps(schema, indent=2),
-        ]
-        if self.helper_instructions:
-            parts.append(self.helper_instructions)
-        if error:
-            parts.append(f"Fix this error and try again: {error}")
-        return "\n".join(parts)
-
-    # ---------------------------------------------------------
-    # SYNC
-    # ---------------------------------------------------------
-    def run(self, agent, state, user_message):
-        for loop_idx in range(self.max_loops):
-            # 1. Replan each iteration
-            plan_prompt = {
-                "role": "user",
-                "content": (
-                    f"Re-examine the conversation. Available tools: {self.available_tools}. "
-                    f"Decide the next action. Respond in JSON: "
-                    '{"action": "...", "tool": "...", "reasoning": "..."}'
-                )
-            }
-            state.append(plan_prompt)
-
-            plan_result = agent.orchestrator.chat(
-                state,
-                response_model=None,
-                tool_names=None
-            )
-            content = plan_result["content"]
-
-            # Append planner output
-            state.append({"role": "assistant", "content": content})
-
-            # Parse JSON plan
-            try:
-                plan = json.loads(content)
-            except Exception:
-                state.append({"role": "assistant", "content": "Invalid plan JSON, stopping."})
-                return StepResult(messages=state, output=None)
-
-            action = plan.get("action")
-
-            if action != "use_tool":
-                # If stop or something else -> exit loop
-                if self.stop_signal and self.stop_signal(plan):
-                    return StepResult(messages=state, output=plan, terminated=True)
-                return StepResult(messages=state, output=plan)
-
-            tool_name = plan.get("tool")
-            if tool_name not in self.available_tools:
-                state.append({"role": "assistant", "content": f"Invalid tool: {tool_name}. Stopping."})
-                return StepResult(messages=state, output=None)
-
+        all_results = {}
+        for tool_call in plan["tools"]:
+            tool_name = tool_call["name"]
             tool = agent.orchestrator.registry.get(tool_name)
-            schema = tool.args_model.model_json_schema()
+            args = tool_call["args"]
+            response = await _tool_caller(agent=agent,
+                                          tool=tool,
+                                          max_retries=self.max_retries,
+                                          state=state,
+                                          provided_args=args)
+            all_results[tool_name] = response["content"]
+            state.update(response)
 
-            # ---------------------------------------------------------
-            # Tool call + robust retries
-            # ---------------------------------------------------------
-            for attempt in range(self.max_tool_retries):
-                instr = self._tool_instruction(tool_name, schema)
-                state.append({"role": "user", "content": instr})
-
-                # Ask model to produce tool call
-                result = agent.orchestrator.chat(
-                    state,
-                    tool_names=[tool_name],
-                    force_tool_call=True
-                )
-                msg = result["assistant_message"]
-                tool_calls = msg.tool_calls
-
-                if not tool_calls:
-                    state.append({"role": "assistant", "content": "Model did not call tool. Retrying."})
-                    continue
-
-                call = tool_calls[0]
-
-                # Validate arguments
-                try:
-                    raw_args = json.loads(call.function.arguments or "{}")
-                    args_obj = tool.args_model.model_validate(raw_args)
-                except Exception as e:
-                    err_text = f"Invalid tool arguments: {e}"
-                    state.append({"role": "assistant", "content": err_text})
-                    # Ask model to fix arguments
-                    state.append({
-                        "role": "user",
-                        "content": self._tool_instruction(tool_name, schema, error=err_text)
-                    })
-                    continue
-
-                # Execute tool
-                try:
-                    result_obj = tool.func(**args_obj.model_dump())
-                    if isinstance(result_obj, BaseModel):
-                        result_obj = result_obj.model_dump()
-                except Exception as e:
-                    result_obj = {"error": str(e)}
-
-                # Append tool result
-                state.append({
-                    "role": "tool",
-                    "tool_call_id": call.id,
-                    "content": json.dumps(result_obj)
-                })
-
-                # Break tool retry loop, continue outer loop
-                break
-
-        return StepResult(messages=state, output=None, terminated=True)
-
-    # ---------------------------------------------------------
-    # ASYNC VERSION
-    # ---------------------------------------------------------
-    async def async_run(self, agent, state, user_message):
-        for loop_idx in range(self.max_loops):
-            # Replan
-            plan_prompt = {
-                "role": "user",
-                "content": (
-                    f"Re-examine conversation. Available tools: {self.available_tools}. "
-                    'Respond in JSON: {"action": "...", "tool": "...", "reasoning": "..."}'
-                )
-            }
-            state.append(plan_prompt)
-
-            plan_result = await agent.orchestrator.achat(
-                state,
-                response_model=None,
-                tool_names=None
-            )
-            content = plan_result["content"]
-            state.append({"role": "assistant", "content": content})
-
-            try:
-                plan = json.loads(content)
-            except:
-                state.append({"role": "assistant", "content": "Invalid plan JSON"})
-                return StepResult(messages=state, output=None)
-
-            if plan.get("action") != "use_tool":
-                if self.stop_signal and self.stop_signal(plan):
-                    return StepResult(messages=state, output=plan, terminated=True)
-                return StepResult(messages=state, output=plan)
-
-            tool_name = plan["tool"]
-            tool = agent.orchestrator.registry.get(tool_name)
-            schema = tool.args_model.model_json_schema()
-
-            for attempt in range(self.max_tool_retries):
-                instr = self._tool_instruction(tool_name, schema)
-                state.append({"role": "user", "content": instr})
-
-                # Ask model for tool call
-                result = await agent.orchestrator.achat(
-                    state,
-                    tool_names=[tool_name],
-                    force_tool_call=True
-                )
-                msg = result["assistant_message"]
-                tool_calls = msg.tool_calls
-
-                if not tool_calls:
-                    state.append({"role": "assistant", "content": "No tool call, retrying"})
-                    continue
-
-                call = tool_calls[0]
-
-                # Validate args
-                try:
-                    raw_args = json.loads(call.function.arguments or "{}")
-                    args_obj = tool.args_model.model_validate(raw_args)
-                except Exception as e:
-                    err_txt = f"Invalid arguments: {e}"
-                    state.append({"role": "assistant", "content": err_txt})
-                    state.append({
-                        "role": "user",
-                        "content": self._tool_instruction(tool_name, schema, error=err_txt)
-                    })
-                    continue
-
-                # Execute tool
-                try:
-                    kwargs = args_obj.model_dump()
-                    if tool.is_async:
-                        result_obj = await tool.func(**kwargs)
-                    else:
-                        loop = asyncio.get_running_loop()
-                        bound = partial(tool.func, **kwargs)
-                        result_obj = await loop.run_in_executor(None, bound)  # type:ignore
-                    if isinstance(result_obj, BaseModel):
-                        result_obj = result_obj.model_dump()
-                except Exception as e:
-                    result_obj = {"error": str(e)}
-
-                # Add result
-                state.append({
-                    "role": "tool",
-                    "tool_call_id": call.id,
-                    "content": json.dumps(result_obj)
-                })
-
-                break
-
-        return StepResult(messages=state, output=None, terminated=True)
+        return StepResult(output=all_results)

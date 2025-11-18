@@ -1,7 +1,4 @@
-import asyncio
-from functools import partial
 import inspect
-import json
 import logging
 from dataclasses import dataclass
 from typing import (
@@ -13,7 +10,7 @@ from typing import (
     List,
     Literal,
     Optional,
-    Sequence,
+    Tuple,
     Type,
     TypedDict,
     Union,
@@ -21,28 +18,19 @@ from typing import (
 )
 
 import openai
-from openai.types.chat.chat_completion_assistant_message_param import (
-    ChatCompletionAssistantMessageParam,
-)
-from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
-from openai.types.chat.chat_completion_tool_message_param import (
-    ChatCompletionToolMessageParam,
-)
-from openai.types.chat.chat_completion_tool_union_param import (
-    ChatCompletionToolUnionParam,
-)
 from openai.types.chat.chat_completion_function_tool_param import (
     ChatCompletionFunctionToolParam,
 )
-from openai.types.chat.chat_completion_message_function_tool_call import (
-    ChatCompletionMessageFunctionToolCall,
+from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
+from openai.types.chat.chat_completion_tool_union_param import (
+    ChatCompletionToolUnionParam,
 )
 from openai.types.shared_params.function_definition import FunctionDefinition
 from openai.types.shared_params.response_format_json_schema import (
     ResponseFormatJSONSchema,
     JSONSchema,
 )
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from lang3s import config
 
@@ -101,6 +89,48 @@ class RegisteredTool:
     result_model: Optional[Type[BaseModel]] = None
 
 
+def generate_tool_schema_description(tools: Dict[str, "RegisteredTool"]) -> str:
+    """
+    Generate a natural-language description of all tools and their argument schemas.
+    This is inserted into the PlanStep prompt to teach the LLM what parameters
+    each tool requires and how to format them.
+    """
+    lines = ["Tool Argument Specifications:"]
+
+    for tool_name, tool in tools.items():
+        lines.append(f"\n- {tool_name}:")
+        lines.append(f"    Description: {tool.description}")
+
+        # Extract arg model schema if tool.args_model exists
+        if hasattr(tool, "args_model") and tool.args_model is not None:
+            schema = tool.args_model.model_json_schema()
+            props = schema.get("properties", {})
+            required = set(schema.get("required", []))
+
+            lines.append("    Arguments:")
+            for arg_name, arg_schema in props.items():
+                arg_type = arg_schema.get("type", "any")
+                arg_desc = arg_schema.get("description", "No description provided.")
+                req = "required" if arg_name in required else "optional"
+
+                lines.append(
+                    f"      - {arg_name} ({arg_type}, {req}): {arg_desc}"
+                )
+
+            # Example JSON structure
+            example_args = {
+                name: f"<{name}_value>"
+                for name in props.keys()
+            }
+            lines.append("    Example args:")
+            lines.append(f"      {example_args}")
+        else:
+            # Fallback when no args_model exists
+            lines.append("    (No argument schema available)")
+
+    return "\n".join(lines)
+
+
 class ToolRegistry:
     """
     Lightweight tool orchestration registry. Handles:
@@ -111,6 +141,13 @@ class ToolRegistry:
 
     def __init__(self) -> None:
         self._tools: Dict[str, RegisteredTool] = {}
+
+    def generate_schema(self, tools: List[str]) -> str:
+        temp = {}
+        for tool_name in tools:
+            if tool_name in self._tools:
+                temp[tool_name] = self._tools[tool_name]
+        return generate_tool_schema_description(temp)
 
     def register(self, tool: RegisteredTool) -> None:
         if tool.name in self._tools:
@@ -125,6 +162,9 @@ class ToolRegistry:
 
     def all(self) -> List[RegisteredTool]:
         return list(self._tools.values())
+
+    def names(self) -> List[str]:
+        return list(self._tools.keys())
 
     def select(self, names: Optional[Iterable[str]]) -> List[RegisteredTool]:
         if names is None:
@@ -210,17 +250,17 @@ class LLMOrchestrator:
         self.client = client
         self.async_client = async_client
         self.model = model
-        self.registry = tool_registry or ToolRegistry()
+        self.registry: ToolRegistry = tool_registry or ToolRegistry()
 
     def chat(
         self,
-        messages,
+        messages: List[dict],
         *,
         tool_names: Optional[List[str]] = None,
         response_model: Optional[Type[BaseModel]] = None,
         force_tool_call: bool = False,
-    ):
-        payload = {
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
         }
@@ -252,15 +292,16 @@ class LLMOrchestrator:
     # --------- ASYNC version ---------
     async def achat(
         self,
-        messages,
+        messages: List[Dict[str, Any]],
         *,
         tool_names: Optional[List[str]] = None,
-        response_model: Optional[Type[BaseModel]] = None,
+        response_model: Optional[Type[BaseModel] | Tuple[str, Dict[str, Any]]] = None,
         force_tool_call: bool = False,
-    ):
-        payload = {
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
+            "reasoning_effort": "low",
         }
 
         if tool_names:
@@ -269,10 +310,18 @@ class LLMOrchestrator:
             payload["tool_choice"] = "required" if force_tool_call else "auto"
 
         if response_model is not None:
-            payload["response_format"] = json_response_format(
-                response_model.__name__,
-                response_model.model_json_schema(),
-            )
+            if isinstance(response_model, Tuple):
+                print(response_model[0])
+                print(response_model[1])
+                payload["response_format"] = json_response_format(
+                    response_model[0],
+                    response_model[1],
+                )
+            else:
+                payload["response_format"] = json_response_format(
+                    response_model.__name__,
+                    response_model.model_json_schema(),
+                )
 
         response = await self.async_client.chat.completions.create(**payload)
         msg = response.choices[0].message
@@ -282,313 +331,6 @@ class LLMOrchestrator:
             "tool_calls": msg.tool_calls or [],
             "content": msg.content,
         }
-
-
-# class LLMOrchestrator:
-#     """
-#     High-level orchestrator for chat:
-#       - multi-round tool calling
-#       - Pydantic-based structured output
-#       - sync + async APIs
-#     """
-#
-#     def __init__(
-#         self,
-#         client: openai.OpenAI,
-#         model: str,
-#         tool_registry: Optional[ToolRegistry] = None,
-#         max_rounds: int = 8,
-#     ) -> None:
-#         self.client = client
-#         self.model = model
-#         self.registry = tool_registry or ToolRegistry()
-#         self.max_rounds = max_rounds
-#
-#     # ---------------- sync ----------------
-#
-#     def chat(
-#         self,
-#         messages: Sequence[Message],
-#         *,
-#         response_model: Optional[Type[BaseModel]] = None,
-#         tool_names: Optional[Iterable[str]] = None,
-#         force_tool_call: bool = False,
-#     ) -> Union[List[str], List[BaseModel]]:
-#         """
-#         Synchronous high-level chat call.
-#
-#         - messages: list of {role, content}
-#         - response_model: if provided, validate final assistant content as JSON into this Pydantic model
-#         - tool_names: subset of tools to expose for this call (None = all registered tools)
-#         - force_tool_call: if True, require the model to use tools on the first round
-#         """
-#         tools = self.registry.select(tool_names) if self.registry else []
-#         chat_messages: List[ChatCompletionMessageParam] = [
-#             make_message(m["role"], m["content"]) for m in messages
-#         ]
-#
-#         round_counter = 0
-#         results: List[Union[str, BaseModel]] = []
-#
-#         while round_counter < self.max_rounds:
-#             round_counter += 1
-#
-#             payload: Dict[str, Any] = {
-#                 "model": self.model,
-#                 "messages": chat_messages,
-#             }
-#
-#             # Tools
-#             if tools:
-#                 payload["tools"] = [tool_to_openai_definition(t) for t in tools]
-#                 payload["tool_choice"] = (
-#                     "required" if force_tool_call and round_counter == 1 else "auto"
-#                 )
-#
-#             # Structured response
-#             if response_model is not None:
-#                 payload["response_format"] = json_response_format(
-#                     response_model.__name__,
-#                     response_model.model_json_schema(),
-#                 )
-#
-#             logger.debug("LLM payload (round %s): %s", round_counter, json.dumps(payload, default=str)[:2000])
-#
-#             response = self.client.chat.completions.create(**payload)
-#             choice = response.choices[0]
-#             msg = choice.message
-#
-#             logger.debug("LLM raw response (round %s): %s", round_counter, msg)
-#
-#             # If the assistant requested tools:
-#             if msg.tool_calls:
-#                 # append the assistant message with tool_calls
-#                 chat_messages.append(
-#                     ChatCompletionAssistantMessageParam(
-#                         role="assistant",
-#                         content=msg.content or "",
-#                         tool_calls=msg.tool_calls,  # type: ignore
-#                     )
-#                 )
-#
-#                 for call in cast(List[ChatCompletionMessageFunctionToolCall], msg.tool_calls):
-#                     tool_name = call.function.name
-#                     tool = self.registry.get(tool_name)
-#                     try:
-#                         raw_args = json.loads(call.function.arguments or "{}")
-#                     except json.JSONDecodeError as e:
-#                         logger.error("Failed to decode tool args for %s: %s", tool_name, e)
-#                         tool_result = {"error": f"Invalid JSON arguments: {str(e)}"}
-#                     else:
-#                         # Validate args with Pydantic
-#                         try:
-#                             args_obj = tool.args_model.model_validate(raw_args)
-#                         except ValidationError as ve:
-#                             logger.error("Tool args validation error for %s: %s", tool_name, ve)
-#                             tool_result = {"error": f"Argument validation error: {ve.errors()}"}
-#                         else:
-#                             # Call the actual tool
-#                             if tool.is_async:
-#                                 raise RuntimeError(
-#                                     f"Tool '{tool.name}' is async. "
-#                                     "Use 'achat' instead of 'chat' for this tool."
-#                                 )
-#                             try:
-#                                 result = tool.func(**args_obj.model_dump())
-#                                 if isinstance(result, BaseModel):
-#                                     result_dict = result.model_dump()
-#                                 elif tool.result_model is not None:
-#                                     # Coerce into result_model if provided
-#                                     result_dict = tool.result_model.model_validate(result).model_dump()
-#                                 else:
-#                                     result_dict = result
-#                                 tool_result = result_dict
-#                             except Exception as e:
-#                                 logger.error("Error while executing tool %s: %s", tool_name, e, exc_info=True)
-#                                 tool_result = {"error": str(e)}
-#
-#                     chat_messages.append(
-#                         ChatCompletionToolMessageParam(
-#                             role="tool",
-#                             tool_call_id=call.id,
-#                             content=json.dumps(tool_result),
-#                         )
-#                     )
-#
-#                 # Go next round after all tools processed
-#                 continue
-#
-#             # No tool calls: final content
-#             if msg.content:
-#                 content_str = msg.content
-#                 if response_model is None:
-#                     results.append(content_str)
-#                 else:
-#                     # Try to parse content as JSON matching response_model
-#                     try:
-#                         parsed = response_model.model_validate_json(content_str)
-#                         results.append(parsed)
-#                     except ValidationError as ve:
-#                         # Give model a chance to self-correct by sending error back
-#                         logger.warning("Response validation failed: %s", ve)
-#                         chat_messages.append(
-#                             make_message(
-#                                 "user",
-#                                 content=(
-#                                     f"Your last response did not match the required JSON schema for "
-#                                     f"{response_model.__name__}. Validation error: {ve}"
-#                                 ),
-#                             )
-#                         )
-#                         # Let the next round try again
-#                         continue
-#
-#                 # If we got content successfully, break the loop
-#                 break
-#
-#             # No content, no tool calls → weird, bail out
-#             logger.warning("Assistant returned neither content nor tool_calls; stopping.")
-#             break
-#
-#         if round_counter >= self.max_rounds and not results:
-#             raise RuntimeError("Exceeded maximum number of rounds without final content")
-#
-#         return results  # type:ignore
-#
-#     # ---------------- async ----------------
-#
-#     async def achat(
-#         self,
-#         messages: Sequence[Message],
-#         *,
-#         response_model: Optional[Type[BaseModel]] = None,
-#         tool_names: Optional[Iterable[str]] = None,
-#         force_tool_call: bool = False,
-#     ) -> Union[List[str], List[BaseModel]]:
-#         """
-#         Async version of chat(). Supports async tools and better concurrency.
-#         """
-#         tools = self.registry.select(tool_names) if self.registry else []
-#         chat_messages: List[ChatCompletionMessageParam] = [
-#             make_message(m["role"], m["content"]) for m in messages
-#         ]
-#
-#         round_counter = 0
-#         results: List[Union[str, BaseModel]] = []
-#
-#         while round_counter < self.max_rounds:
-#             round_counter += 1
-#
-#             payload: Dict[str, Any] = {
-#                 "model": self.model,
-#                 "messages": chat_messages,
-#             }
-#
-#             if tools:
-#                 payload["tools"] = [tool_to_openai_definition(t) for t in tools]
-#                 payload["tool_choice"] = (
-#                     "required" if force_tool_call and round_counter == 1 else "auto"
-#                 )
-#
-#             if response_model is not None:
-#                 payload["response_format"] = json_response_format(
-#                     response_model.__name__,
-#                     response_model.model_json_schema(),
-#                 )
-#
-#             logger.debug("LLM async payload (round %s): %s", round_counter, json.dumps(payload, default=str)[:2000])
-#
-#             response = await self.client.chat.completions.create_async(**payload)  # type: ignore[attr-defined]
-#             choice = response.choices[0]
-#             msg = choice.message
-#
-#             logger.debug("LLM async raw response (round %s): %s", round_counter, msg)
-#
-#             if msg.tool_calls:
-#                 chat_messages.append(
-#                     ChatCompletionAssistantMessageParam(
-#                         role="assistant",
-#                         content=msg.content or "",
-#                         tool_calls=msg.tool_calls,
-#                     )
-#                 )
-#
-#                 for call in cast(List[ChatCompletionMessageFunctionToolCall], msg.tool_calls):
-#                     tool_name = call.function.name
-#                     tool = self.registry.get(tool_name)
-#
-#                     try:
-#                         raw_args = json.loads(call.function.arguments or "{}")
-#                     except json.JSONDecodeError as e:
-#                         logger.error("Failed to decode tool args for %s: %s", tool_name, e)
-#                         tool_result = {"error": f"Invalid JSON arguments: {str(e)}"}
-#                     else:
-#                         try:
-#                             args_obj = tool.args_model.model_validate(raw_args)
-#                         except ValidationError as ve:
-#                             logger.error("Tool args validation error for %s: %s", tool_name, ve)
-#                             tool_result = {"error": f"Argument validation error: {ve.errors()}"}
-#                         else:
-#                             try:
-#                                 if tool.is_async:
-#                                     result = await tool.func(**args_obj.model_dump())
-#                                 else:
-#                                     loop = asyncio.get_running_loop()
-#                                     bound = partial(tool.func, **args_obj.model_dump())
-#                                     result = await loop.run_in_executor(None, bound)  # type: ignore
-#
-#                                 if isinstance(result, BaseModel):
-#                                     result_dict = result.model_dump()
-#                                 elif tool.result_model is not None:
-#                                     result_dict = tool.result_model.model_validate(result).model_dump()
-#                                 else:
-#                                     result_dict = result
-#                                 tool_result = result_dict
-#                             except Exception as e:
-#                                 logger.error("Error while executing tool %s: %s", tool_name, e, exc_info=True)
-#                                 tool_result = {"error": str(e)}
-#
-#                     chat_messages.append(
-#                         ChatCompletionToolMessageParam(
-#                             role="tool",
-#                             tool_call_id=call.id,
-#                             content=json.dumps(tool_result),
-#                         )
-#                     )
-#
-#                 continue
-#
-#             if msg.content:
-#                 content_str = msg.content
-#                 if response_model is None:
-#                     results.append(content_str)
-#                 else:
-#                     try:
-#                         parsed = response_model.model_validate_json(content_str)
-#                         results.append(parsed)
-#                     except ValidationError as ve:
-#                         logger.warning("Async response validation failed: %s", ve)
-#                         chat_messages.append(
-#                             make_message(
-#                                 "user",
-#                                 content=(
-#                                     f"Your last response did not match the required JSON schema for "
-#                                     f"{response_model.__name__}. Validation error: {ve}"
-#                                 ),
-#                             )
-#                         )
-#                         continue
-#
-#                 break
-#
-#             logger.warning("Async assistant returned neither content nor tool_calls; stopping.")
-#             break
-#
-#         if round_counter >= self.max_rounds and not results:
-#             raise RuntimeError("Exceeded maximum number of rounds without final content (async)")
-#
-#         return results  # type: ignore
-#
 
 
 sync_llm_client = openai.OpenAI(
