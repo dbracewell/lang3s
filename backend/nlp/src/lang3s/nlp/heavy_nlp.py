@@ -7,8 +7,8 @@ from numpy.typing import NDArray
 
 from lang3s.maths import normalize
 from lang3s.models.embedder import Embedder
+from lang3s.models.shared_types import EmbeddingResult
 from lang3s.models.transformer import MultiTaskTransformer
-from lang3s.models.types import EmbeddingResult
 from lang3s.nlp.event_extraction import extract_events
 from lang3s.shared_types import Document, TextAnnotation, Event
 from lang3s.shared_types.metadata import Metadata
@@ -112,7 +112,7 @@ def create_core_embeddings(doc: Document, result: EmbeddingResult):
         result.word_embeddings,
         result.sentence_embeddings,
     ):
-        sentence.embedding = sentence_embedding
+        sentence.embedding = normalize(sentence_embedding)
         weight = sentence[Metadata.WEIGHT.value]
         if weight > 0:
             doc_emb += sentence_embedding * float(weight)
@@ -133,11 +133,15 @@ def perform_heavy_tagging(
     outputs = tagger.forward(result, language=doc.language, tasks=tasks)
     for source_name, output in outputs.items():
         if output.task_type.is_sentence_level():
-            for label, sentence in zip(output.labels, doc.text.sentences):
-                sentence[output.annotation_type] = label
-                sentence[f"{output.annotation_type}_source"] = (
-                    source_name
-                )
+            for l, sentence in zip(output.labels, doc.text.sentences):
+                label, prob = l  # type: ignore
+                if label is not None and len(label) > 0:
+                    sentence[output.annotation_type] = {
+                        "value": label,
+                        "source": source_name,
+                        "confidence": prob,
+                    }
+
         else:
             for label_seq, sentence in zip(
                 cast(List[List[Tuple[int, int, str]]], output.labels),

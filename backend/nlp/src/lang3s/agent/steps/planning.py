@@ -35,6 +35,8 @@ class PlanStep(PersonaAwareStep):
     - "stop"              → finish; only when task is complete
 
     {get_valid_next_actions(state.last_plan)}
+    
+    If you are DONE with your task select "stop".
 
     RULES:
     - USE the summary above; do NOT ignore previous steps.
@@ -78,7 +80,7 @@ class PlanStep(PersonaAwareStep):
     ) -> StepResult:
         state.update({"role": "user", "content": self._task_prompt(state)})
         result = await agent.orchestrator.achat(
-            state.messages,
+            state.get_llm_messages(),
             response_model=Plan,
             tool_names=None
         )
@@ -88,7 +90,7 @@ class PlanStep(PersonaAwareStep):
         except Exception:
             correction = "The previous output was invalid. Regenerate a strictly valid JSON Plan object."
             state.update({"role": "user", "content": correction})
-            plan = (await agent.orchestrator.achat(state.messages, response_model=None))["content"]
+            plan = (await agent.orchestrator.achat(state.get_llm_messages(), response_model=None))["content"]
             try:
                 parsed = Plan.model_validate_json(plan)
             except Exception:

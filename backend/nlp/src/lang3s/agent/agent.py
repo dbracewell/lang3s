@@ -2,11 +2,11 @@ from typing import List, Optional, Any, Dict
 
 from pydantic import BaseModel
 
-from lang3s.agent.steps.loops import LoopStep
+from lang3s.agent.steps.generation import GenerationStep
 from lang3s.models.llm import LLMOrchestrator
 from lang3s.models.llm import orchestrator as DEFAULT_ORCHESTRATOR
 from lang3s.utils.async_helper import run_sync
-from .helpers import clean_thinking, log_step_result
+from .helpers import clean_thinking
 from .memory import ModelScale
 from .shared_types import Plan, StepResult, AgentStep, AgentState, Persona
 
@@ -49,14 +49,14 @@ class Agent:
                                         "content": user_message})
             self.state.user_goal = user_message
 
+        if len(self.steps) == 0:
+            self.steps.append(GenerationStep())
+
         for step in self.steps:
             self.state.prune()
 
             res: StepResult = await step.async_run(self, self.state)
-            self.state.steps[step.name].append(res)
-
-            if not isinstance(step, LoopStep):
-                log_step_result(step.name, res)
+            self.state.cache["examples"] = 0
 
             if isinstance(res.output, Plan):
                 self.state.last_plan = res.output
@@ -73,6 +73,16 @@ class Agent:
 
         final_steps = {}
         for name, results in self.state.steps.items():
-            final_steps[name] = [res.output if isinstance(res, StepResult) else res for res in results]
+            final_steps[name] = _convert_result(results)
 
         return AgentResult(steps=final_steps, output=self.state.last_output)
+
+
+def _convert_result(results: List[StepResult]) -> List[Any]:
+    final_list = []
+    for res in results:
+        if isinstance(res.output, list):
+            final_list.extend(res.output)
+        else:
+            final_list.append(res.output)
+    return final_list

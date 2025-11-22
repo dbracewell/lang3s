@@ -9,16 +9,15 @@ from torch.nn.utils.rnn import pad_sequence
 from lang3s import config
 from lang3s.utils import decorators
 from .embedder import Embedder
-from .helpers import decode_predictions
-from .registry import AdapterRegistry
-from .types import EmbeddingResult, TransformerOutput
+from .shared_types import EmbeddingResult, TransformerOutput
+from .task_registry import Task, TaskRegistry
 
 
 @decorators.singleton
 class MultiTaskTransformer(nn.Module):
     def __init__(self):
         super().__init__()
-        self.registry = AdapterRegistry(hidden_size=Embedder().dimensions)
+        self.registry = TaskRegistry(hidden_size=Embedder().dimensions)
         self.device = config.DEVICE
         if os.path.exists(config.ADAPTERS_DIR):
             for adapter_dir in os.listdir(config.ADAPTERS_DIR):
@@ -29,7 +28,8 @@ class MultiTaskTransformer(nn.Module):
                     )
                     if os.path.exists(config_file):
                         with open(config_file) as fp:
-                            self.registry.register_task(**json.load(fp))
+                            task = Task(**json.load(fp))
+                            self.registry.register_task(task)
 
     def forward(
         self,
@@ -51,29 +51,10 @@ class MultiTaskTransformer(nn.Module):
                 task = self.registry.load_task(task_name)
                 if task.head is None:
                     continue
-
-                if task.task_type.is_sentence_level():
-                    pred_labels = task.head(device_embeddings, mask)
-                    if pred_labels.ndim == 1:
-                        labels = [task.id2label[int(i)] for i in pred_labels.tolist()]
-                    else:
-                        labels = [
-                            [task.id2label[i] for i, v in enumerate(row.tolist()) if v == 1]
-                            for row in pred_labels
-                        ]
-                    outputs[task_name] = TransformerOutput(
-                        annotation_type=task.annotation_type,
-                        task_type=task.task_type,
-                        labels=labels,
-                    )
-                else:
-                    pred_sequences = task.head(device_embeddings, mask=mask)
-                    decoded = decode_predictions(
-                        pred_sequences, embedding, task.id2label
-                    )
-                    outputs[task_name] = TransformerOutput(
-                        annotation_type=task.annotation_type,
-                        task_type=task.task_type,
-                        labels=decoded,
-                    )
+                outputs[task_name] = TransformerOutput(
+                    annotation_type=task.annotation_type,
+                    task_type=task.type,
+                    labels=task.to_labels(head_output=task.head(device_embeddings, mask, return_logits=True),
+                                          embedding=embedding),
+                )
         return outputs

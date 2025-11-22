@@ -9,6 +9,8 @@ os.environ["PYTHONUNBUFFERED"] = "1"
 
 
 def get_best_device():
+    if "device" in os.environ:
+        return os.environ["device"]
     if torch.cuda.is_available():
         return torch.device("cuda").type
     elif torch.backends.mps.is_available():
@@ -20,8 +22,7 @@ def get_best_device():
 XLM_ROBERTA = "xlm-roberta-base"
 GTE_MODEL = "Alibaba-NLP/gte-multilingual-base"
 
-__DEFAULT_EMBEDDING_MODEL = GTE_MODEL
-__DEFAULT_ADAPTER_MODEL = XLM_ROBERTA
+__DEFAULT_EMBEDDING_MODEL = XLM_ROBERTA
 __DEFAULT_MODELS_DIR = "/app"
 __DEFAULT_DOCUMENTS_DIR = "/Users/ik/prj/Lang3s/documents"
 
@@ -53,9 +54,6 @@ LLM_API_KEY = __get_environment_var("LLM_API_KEY", "")
 
 DEVICE: str = __get_environment_var("DEVICE", get_best_device())
 
-BASE_ADAPTER_MODEL: str = __get_environment_var(
-    "BASE_ADAPTER_MODEL", __DEFAULT_ADAPTER_MODEL
-)
 EMBEDDING_MODEL: str = __get_environment_var(
     "EMBEDDING_MODEL", __DEFAULT_EMBEDDING_MODEL
 )

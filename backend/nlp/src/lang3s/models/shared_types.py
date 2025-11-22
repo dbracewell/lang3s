@@ -1,12 +1,12 @@
 import enum
-from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, NamedTuple, Tuple
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
 if TYPE_CHECKING:
-    from .heads import TaskHead
+    pass
 
 
 class TaskType(str, enum.Enum):
@@ -55,31 +55,6 @@ class DechunkedResult(NamedTuple):
 class TransformerOutput(NamedTuple):
     annotation_type: str
     task_type: TaskType
-    labels: Union[List[str], List[List[str]], List[List[Tuple[int, int, str]]]]
-
-
-class Adapter:
-    def __init__(
-        self,
-        task_name: str,
-        label2id: Dict[str, int],
-        annotation_type: str,
-        task_type: TaskType,
-        language: Optional[str] = None,
-    ) -> None:
-        self.annotation_type = annotation_type
-        self.language = language
-        self.label2id = label2id
-        self.id2label = {v: k for k, v in label2id.items()}
-        self.task_type = task_type
-        self.task_name = task_name
-        self.head: Optional[TaskHead] = None
-
-    def to_json(self):
-        return {
-            "annotation_type": self.annotation_type,
-            "language": self.language,
-            "label2id": self.label2id,
-            "task_type": self.task_type.value,
-            "task_name": self.task_name,
-        }
+    labels: (List[Tuple[str | None, float]] |
+             List[Tuple[List[str], list[float]]] |
+             List[List[Tuple[int, int, str]]])

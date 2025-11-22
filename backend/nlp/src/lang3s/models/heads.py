@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch import Tensor
 from torchcrf import CRF
 
-from .types import TaskType
+from .shared_types import TaskType
 
 
 class LowRankAdapter(nn.Module):
@@ -53,12 +53,13 @@ class TaskHead(nn.Module):
         num_labels: int,
         task_type: TaskType,
         dropout: float = 0.1,
+        rank: int = 16,
         lstm_hidden: Optional[int] = None,
     ):
         super().__init__()
         self.task_type = task_type
         self.num_labels = num_labels
-        self.adapter = LowRankAdapter(hidden_size, dropout=dropout)
+        self.adapter = LowRankAdapter(hidden_size, rank=rank, dropout=dropout)
         self.dropout = nn.Dropout(dropout)
 
         if task_type == TaskType.TOKEN:
@@ -92,7 +93,7 @@ class TaskHead(nn.Module):
                 nn.init.xavier_uniform_(module.weight)
                 nn.init.zeros_(module.bias)
 
-    def forward(self, hidden, mask=None, labels=None):
+    def forward(self, hidden, mask=None, labels=None, return_logits=False):
         adapted = self.adapter(hidden)
 
         if self.task_type.is_sentence_level():
@@ -105,19 +106,21 @@ class TaskHead(nn.Module):
                 pooled = adapted.mean(dim=1)
 
             if self.training:
-                pooled, y_a, y_b, lam = mixup_data(pooled, labels, alpha=0.4)
+                # pooled, y_a, y_b, lam = mixup_data(pooled, labels, alpha=0.4)
                 logits = self.classifier(self.dropout(pooled))
                 if self.task_type == TaskType.SENTENCE_MULTILABEL:
                     loss_fn = nn.BCEWithLogitsLoss()
-                    loss = mixup_criterion(loss_fn, logits, y_a, y_b, lam)
-                    # labels = labels.float()
-                    # loss = loss_fn(logits, labels)
+                    loss = loss_fn(logits, labels)
+                    # loss = mixup_criterion(loss_fn, logits, y_a, y_b, lam)
                 else:
                     loss_fn = nn.CrossEntropyLoss()
-                    loss = mixup_criterion(loss_fn, logits, y_a, y_b, lam)
+                    loss = loss_fn(logits, labels)
+                    # loss = mixup_criterion(loss_fn, logits, y_a, y_b, lam)
                 return logits, loss
             else:
                 logits = self.classifier(self.dropout(pooled))
+                if return_logits:
+                    return logits
                 if self.task_type == TaskType.SENTENCE_MULTILABEL:
                     probs = torch.sigmoid(logits)
                     preds = (probs > 0.5).int()

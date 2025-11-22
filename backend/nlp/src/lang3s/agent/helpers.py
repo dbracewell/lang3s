@@ -1,12 +1,12 @@
 import json
 import logging
 import re
-import textwrap
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from pydantic.main import BaseModel
 
-from .shared_types import Plan, StepResult
+if TYPE_CHECKING:
+    from .shared_types import Plan, StepResult
 
 
 def clean_thinking(output: Any) -> Any:
@@ -15,19 +15,26 @@ def clean_thinking(output: Any) -> Any:
     return output
 
 
-def log_step_result(name: str, result: StepResult):
+def log_step_result(name: str, result: "StepResult"):
     logger = logging.getLogger(f"lang3s.agent.{name}")
     if logger.isEnabledFor(logging.DEBUG):
         output = result.output
-        if isinstance(output, Plan):
-            output = f"{{action={output.action}, reason={output.reasoning}}}"
         if isinstance(output, BaseModel):
-            output = output.model_dump_json()
+            output = output.model_dump()
+            if "action" in output and "reasoning" in output:
+                output = f"{{action={output['action']}, reason={output['reasoning']}}}"
+            else:
+                output = json.dumps(output)
         elif not isinstance(output, str):
             output = json.dumps(output)
-        output = textwrap.shorten(output, width=200)
-        logger.debug(
-            f"success={result.success}, terminated={result.terminated}, output={output}")
+        # output = textwrap.shorten(output, width=200)
+        logger.debug(f"""
+STEP: {name}:
+success: {result.success}
+terminated: {result.terminated}
+output: {output}
+
+""")
 
 
 _PLAN_TRANSITIONS = {
@@ -38,12 +45,12 @@ _PLAN_TRANSITIONS = {
     "stop": [],
     "reflect": ["use_tool", "retrieve", "generate_examples", "categorize", "summarize"],
     "analyze": ["use_tool", "retrieve", "generate_examples", "categorize", "summarize"],
-    "generate_examples": ["use_tool", "generate_examples", "retrieve", "categorize"],
+    "generate_examples": ["use_tool", "generate_examples", "retrieve", "categorize", "stop"],
     "categorize": ["stop"],
 }
 
 
-def get_valid_next_actions(last_plan: Optional[Plan]) -> str:
+def get_valid_next_actions(last_plan: Optional["Plan"]) -> str:
     if last_plan is None:
         return "Please select one of the following actions: " + ", ".join(_PLAN_TRANSITIONS[None])
     last_action = last_plan.action

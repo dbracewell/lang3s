@@ -26,7 +26,9 @@ class RetrievalStep(AgentStep):
         query_plan = state.last_output
 
         if query_plan is None or not isinstance(query_plan, QueryPlan):
-            query_plan = QueryPlan(queries=[state.messages[-1]["content"]], reasoning="", action="stop")
+            query_plan = QueryPlan(queries=[state.messages[-1]["content"]],
+                                   reasoning="",
+                                   action="stop")
 
         docs: List[RetrievalResult] = []
         for q in query_plan.queries:

@@ -1,4 +1,5 @@
 import base64
+import html
 import os
 from typing import Callable, Dict, Optional, cast
 
@@ -9,62 +10,64 @@ from lang3s_job_service import File
 
 
 def __normalize(text: str) -> str:
-  return " ".join(text.split())
+    text = html.unescape(text)
+    text = text.replace("\u200b", "")
+    return " ".join(text.split())
 
 
 def __decode(content: str, encoding: Optional[str], mime_type: str):
-  if encoding is None:
-    return content
-  decoded = base64.b64decode(content)
-  if mime_type.lower().startswith("text"):
-    return decoded.decode("utf-8")
-  return decoded
+    if encoding is None:
+        return content
+    decoded = base64.b64decode(content)
+    if mime_type.lower().startswith("text"):
+        return decoded.decode("utf-8")
+    return decoded
 
 
 def __text_to_document(file: File) -> Document:
-  doc_id = shortuuid.uuid()
-  text = Text(
-    doc_id=doc_id,
-    content=__normalize(
-      cast(
-        str,
-        __decode(
-          file.content,
-          encoding=file.encoding,
-          mime_type=file.mime_type,
+    doc_id = shortuuid.uuid()
+    text = Text(
+        doc_id=doc_id,
+        content=__normalize(
+            cast(
+                str,
+                __decode(
+                    file.content,
+                    encoding=file.encoding,
+                    mime_type=file.mime_type,
+                ),
+            )
         ),
-      )
-    ),
-  )
-  metadata = {
-    Metadata.PATH.value: file.path,
-    Metadata.MIME_TYPE.value: file.mime_type,
-  }
-  metadata.update(file.metadata)
+    )
+    metadata = {
+        Metadata.PATH.value: file.path,
+        Metadata.MIME_TYPE.value: file.mime_type,
+    }
+    metadata.update(file.metadata)
 
-  title = file.metadata.get("title", None)
+    title = file.metadata.get("title", None)
 
-  if title is None and file.path is not None:
-    title = os.path.basename(file.path)
-  elif title is None:
-    title = doc_id
+    if title is None and file.path is not None:
+        title = os.path.basename(file.path)
+    elif title is None:
+        title = doc_id
 
-  if "title" in metadata:
-    del metadata["title"]
+    if "title" in metadata:
+        del metadata["title"]
 
-  return Document(
-    doc_id=doc_id,
-    text=text,
-    title=title,
-    metadata=metadata,
-  )
+    return Document(
+        doc_id=doc_id,
+        text=text,
+        title=title,
+        metadata=metadata,
+    )
 
 
 __CONVERTERS: Dict[str, Callable[[File], Document]] = {
-  "text/plain": __text_to_document,
-  "text/html": __text_to_document,
+    "text/plain": __text_to_document,
+    "text/html": __text_to_document,
 }
 
 
 def create_document(file: File) -> Document:
-  return __CONVERTERS.get(file.mime_type, __text_to_document)(file)
+    return __CONVERTERS.get(file.mime_type, __text_to_document)(file)

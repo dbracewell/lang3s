@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Dict, List
 import numpy as np
 import torch
 from numpy.typing import NDArray
+from torch import nn
 
 import lang3s.config as config
 from lang3s.maths import normalize
@@ -19,7 +20,7 @@ from transformers import AutoModel, AutoTokenizer  # pyright: ignore[reportPriva
 
 from lang3s.utils import decorators
 
-from .types import (
+from .shared_types import (
     Chunk,
     ChunkResult,
     DechunkedResult,
@@ -28,6 +29,32 @@ from .types import (
 )
 
 logger = Logger(__name__)
+
+
+class SimpleEmbedder(nn.Module):
+
+    def __init__(self, model_name: str):
+        super().__init__()
+        self.model = AutoModel.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.dimensions = self.model.config.hidden_size
+        self.max_length = self.tokenizer.model_max_length
+
+    def forward(self,
+                texts: Union[List[str], List[List[str]]],
+                is_split_into_words: bool = False) -> Dict[str, torch.Tensor]:
+        encodings = self.tokenizer(texts,
+                                   truncation=True,
+                                   padding=True,
+                                   return_tensors="pt",
+                                   is_split_into_words=is_split_into_words)
+        outputs = self.model(**encodings, output_hidden_states=True)
+        return {
+            "token_embeddings": outputs.last_hidden_state,
+            "attention_mask": encodings["attention_mask"],
+            "sentence_embeddings": outputs.last_hidden_state[:, 0],
+            "hidden_states": outputs.hidden_states,
+        }
 
 
 @decorators.singleton
@@ -130,7 +157,7 @@ class Embedder:
         self,
         chunk_result: ChunkResult,
         model_outputs: List[NDArray[np.floating]],
-        agg: str = "mean",
+        agg: str = "weighted",
     ) -> DechunkedResult:
         if len(model_outputs) == 0:
             return DechunkedResult([], [])
@@ -139,13 +166,24 @@ class Embedder:
         combined: Dict[int, Dict[int, List[NDArray[np.floating]]]] = defaultdict(
             lambda: defaultdict(list)
         )
+        stride = self.stride
+
         for meta, output in zip(chunk_result.chunks, model_outputs):
             b_idx = meta.sentence_index
-            start = meta.start
+            chunk_len = len(meta.input_ids)
+            start_pos = meta.start
+            end_pos = meta.end
+
             for i, emb in enumerate(output):
-                pos = start + i
-                combined[b_idx][pos].append(
-                    emb)  # type: ignore
+                pos = start_pos + i
+                weight = 1.0
+                if agg == "weighted":
+                    if start_pos > 0 and i < stride:
+                        weight = 0.5 + 0.5 * (i / stride)
+                    elif end_pos < chunk_result.mapping[b_idx].token_count and i >= chunk_len - stride:
+                        dist_from_end = (chunk_len - 1) - i
+                        weight = 0.5 + 0.5 * (dist_from_end / stride)
+                combined[b_idx][pos].append((emb, weight))  # type: ignore
 
         token_embeddings_per_doc: List[np.ndarray] = []
         orig_token_maps: List[List[int]] = []
@@ -161,20 +199,40 @@ class Embedder:
                 continue
 
             positions = sorted(combined[doc_idx].keys())
-            hidden_size = combined[doc_idx][positions[0]][0].shape[-1]
+            if not model_outputs:
+                hidden_size = self.dimensions
+            else:
+                hidden_size = combined[doc_idx][positions[0]][0][0].shape[-1]
 
-            # create array of size num_tokens (based on orig_map token_count)
             num_tokens = chunk_result.mapping[doc_idx].token_count
             merged = np.zeros((num_tokens, hidden_size))
+
             for pos in positions:
-                emb_list = combined[doc_idx][pos]
+                emb_weight_list = combined[doc_idx][pos]
+
                 # Can have multiple tokens when we have stride
-                if len(emb_list) == 1:
-                    merged[pos] = emb_list[0]
+                if len(emb_weight_list) == 1:
+                    merged[pos] = emb_weight_list[0][0]
+
                 elif agg == "mean":
+                    emb_list = [e_w[0] for e_w in emb_weight_list]
                     merged[pos] = np.mean(emb_list, axis=0)
+
                 elif agg == "first":
-                    merged[pos] = emb_list[0]
+                    merged[pos] = emb_weight_list[0][0]
+
+                elif agg == "weighted":
+                    embeddings = np.stack([e_w[0] for e_w in emb_weight_list], axis=0)
+                    weights = np.array([e_w[1] for e_w in emb_weight_list])[:, np.newaxis]
+
+                    weighted_sum = np.sum(embeddings * weights, axis=0)
+                    sum_of_weights = np.sum(weights, axis=0)
+
+                    if sum_of_weights > 0:
+                        merged[pos] = weighted_sum / sum_of_weights
+                    else:
+                        merged[pos] = embeddings[0]
+
                 else:
                     raise ValueError("agg must be 'mean' or 'first'")
 
@@ -190,7 +248,7 @@ class Embedder:
                 logger.warning("No word ids found during dechunking")
                 continue
 
-            # find number of words (max word_id + 1 ignoring None)
+            # find a number of words (max word_id + 1 ignoring None)
             valid_word_ids = [w for w in word_ids if w is not None]
             if len(valid_word_ids) == 0:
                 word_embeddings_per_doc.append(np.zeros(token_emb.shape[-1]))
@@ -264,10 +322,20 @@ class Embedder:
         )
 
         sentence_embeddings = []
-        for emb in dechunked.token_embeddings:
+        is_cls_model = self.tokenizer.cls_token is not None
+        for token_emb in dechunked.token_embeddings:
+            if len(token_emb) == 0:
+                zero_emb = np.zeros(self.dimensions, dtype=np.float16)
+                sentence_embeddings.append(zero_emb)
+                continue
+            if is_cls_model and self.tokenizer.cls_token_id == chunk_result.chunks[0].input_ids[0]:
+                embedding_vector = token_emb[0]
+            else:
+                embedding_vector = token_emb.mean(axis=0)
             sentence_embeddings.append(
-                normalize(emb.mean(axis=0)).astype(np.float16)
+                normalize(embedding_vector).astype(np.float16)
             )
+
         return EmbeddingResult(
             token_embeddings=dechunked.token_embeddings,
             word_embeddings=[normalize(e) for e in dechunked.word_embeddings],
@@ -288,44 +356,3 @@ class Embedder:
         return self.encode(
             chunk_result=chunk_result, batch_size=batch_size, agg=agg
         )
-
-    # def embed_doc(self, doc: "Document"):
-    #     if doc.text is None:
-    #         return
-
-    #     sentences = [[t.text for t in s.tokens] for s in doc.text.sentences]
-    #     result = self.__call__(sentences, is_split_into_words=True)
-
-    #     doc_emb = np.zeros(
-    #         result.sentence_embeddings[0].shape[-1], dtype=np.float16
-    #     )
-
-    #     for sentence, word_embeddings, sentence_embedding in zip(
-    #         doc.text.sentences,
-    #         result.word_embeddings,
-    #         result.sentence_embeddings,
-    #     ):
-    #         sentence.embedding = sentence_embedding
-    #         weight = sentence.metadata[Metadata.WEIGHT.value]
-    #         if weight > 0:
-    #             doc_emb += sentence_embedding * float(weight)
-
-    #         # Assign the token embeddings
-    #         for token, emb in zip(sentence.tokens, word_embeddings):
-    #             token.embedding = emb
-
-    #     # Document level embedding is the weighted sum of the
-    #     # sentence embeddings
-    #     doc.text.embedding = normalize(doc_emb).astype(np.float16)
-
-    #     for annotation in doc.text.annotations:
-    #         annotation.embedding = (
-    #             np.array([t.embedding for t in annotation.tokens])
-    #             .mean(axis=0)
-    #             .astype(np.float16)
-    #         )
-    #         if np.any(np.isnan(annotation.embedding)):
-    #             logger.error(
-    #                 f"Error: NaN value in embedding for {annotation.text} {[t.text for t in annotation.tokens]} "
-    #             )
-    #             annotation.embedding = np.nan_to_num(annotation.embedding)

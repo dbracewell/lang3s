@@ -101,7 +101,10 @@ class ExampleGenerationStep(AgentStep):
 
         prompt = textwrap.dedent(f"""
                 {state.create_base_prompt()}
-                Generate 10 example sentences for the category:
+                
+                Generate 20 examples of the given target category.
+                
+                Target Category:
                 "{plan.target_category}"
                 
                 Rules:
@@ -114,11 +117,14 @@ class ExampleGenerationStep(AgentStep):
                 """)
 
         state.update({"role": "user", "content": prompt})
-        resp = await agent.orchestrator.achat(state.messages, response_model=ExampleList)
+        resp = await agent.orchestrator.achat(state.get_llm_messages(), response_model=ExampleList)
         content = resp["content"]
-        
+
         try:
-            parsed = ExampleList.model_validate_json(content)
+            parsed = ExampleList.model_validate_json(content).examples
+            state.cache["examples"] = state.cache.get("examples", 0) + len(parsed)
+            state.update({"role": "system",
+                          "content": f"Currently, {state.cache['examples']} examples of {plan.target_category} have been generated."})
         except Exception:
             parsed = content
 

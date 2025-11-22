@@ -76,7 +76,7 @@ async def _tool_caller(
 
             state.update({"role": "user", "content": instr, "status": "failed"})
             regen = await agent.orchestrator.achat(
-                state.messages,
+                state.get_llm_messages(),
                 response_model=None
             )
 
@@ -105,7 +105,7 @@ async def _tool_caller(
             )
 
             state.update({"role": "user", "content": instr, "status": "failed"})
-            regen = agent.orchestrator.chat(state.messages, response_model=None)
+            regen = agent.orchestrator.chat(state.get_llm_messages(), response_model=None)
 
             try:
                 current_args = json.loads(regen["content"])

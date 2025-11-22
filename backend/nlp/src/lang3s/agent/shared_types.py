@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from lang3s.utils.async_helper import run_sync
 from .memory import ModelScale, UnifiedMemory, MemoryConfig
+from .helpers import log_step_result
 
 
 class ExampleList(BaseModel):
@@ -225,20 +226,20 @@ class AgentStep:
 
     def run(self, agent: "Agent", state: AgentState) -> StepResult:
         result = run_sync(self._execute(agent, state))
-        if isinstance(result.output, Plan):
-            state.last_plan = result.output
-        else:
-            state.last_output = result.output
-        state.steps[self.name].append(result)
-        return result
+        return self._process_result(state, result)
 
     async def async_run(self, agent: "Agent", state: AgentState) -> StepResult:
         result = await self._execute(agent, state)
+        return self._process_result(state, result)
+
+    def _process_result(self, state: AgentState, result: StepResult) -> StepResult:
         if isinstance(result.output, Plan):
             state.last_plan = result.output
         else:
             state.last_output = result.output
-        state.steps[self.name].append(result)
+        if self.__class__.__name__ not in ["PlanRouterStep", "LoopStep"]:
+            log_step_result(self.name, result)
+            state.steps[self.name].append(result)
         return result
 
 

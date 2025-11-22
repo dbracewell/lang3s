@@ -6,11 +6,15 @@ fi
 
 if [ $# -eq 0 ]; then
   echo "Error: No argument provided."
-  exit 1 # Exit with a non-zero status to indicate an error
+  exit 1
 fi
 
 file=$1
 shift
 
+TRANSFORMERS_VERBOSITY=error
+TOKENIZERS_PARALLELISM=false
+PYTHONUNBUFFERED=1
+
 export MODELS_DIR=./backend/nlp/models
-python -m "backend.nlp.src.lang3s.$file" $@
+python -m "backend.nlp.src.lang3s.$file" "$@"

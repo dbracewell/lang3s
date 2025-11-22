@@ -11,7 +11,7 @@ import spacy.tokens
 from fastcoref import spacy_component
 from lang3s.shared_types.text import Text
 from lang3s.shared_types.text_annotation import TextAnnotation
-from more_itertools import first
+from more_itertools.more import first
 from sklearn.feature_extraction.text import TfidfVectorizer
 from spacy.language import Language
 from spacy.matcher import Matcher
@@ -71,14 +71,14 @@ class CoreLanguageProcessor:
             nlp.add_pipe("merge_mwv", last=True)
             nlp.add_pipe("fix_mwv", last=True)
 
-        if language == "en":
-            nlp.add_pipe(
-                "fastcoref",
-                config={
-                    "device": "cpu",
-                },
-                last=True,
-            )
+        # if language == "en":
+        #     nlp.add_pipe(
+        #         "fastcoref",
+        #         config={
+        #             "device": "cpu",
+        #         },
+        #         last=True,
+        #     )
 
         return self.pipelines[language]
 
@@ -164,69 +164,7 @@ def core_nlp(language: str, texts: List[Text]):
         compute_sentence_weight(sentence_annotations)
 
         coref_map: Dict[int, spacy.tokens.Span] = {}
-        if language == "en":
-            for cluster in doc._.coref_clusters:
-                spans: List[spacy.tokens.Span] = []
-
-                for span in filter_none(
-                    doc.char_span(start, end, label="UNKNOWN")
-                    for start, end in cluster
-                ):
-                    span_ents = list(span.ents)
-                    if len(span_ents) == 0:
-                        for ent in doc.ents:
-                            if ent.start <= span.end and ent.end > span.start:
-                                span_ents.append(ent)
-
-                    if len(span_ents) == 0:
-                        spans.append(span)
-                    elif len(span_ents) > 0:
-                        spans.append(span_ents[0])
-
-                if len(spans) == 0:
-                    continue
-
-                most_common: str = first(
-                    Counter(
-                        span.label_
-                        for span in spans
-                        if span.label_ != "UNKNOWN"
-                    ).most_common(1),
-                    ["MISC", 1],
-                )[0]
-
-                if most_common == "MISC":
-                    cannonical = max(
-                        spans,
-                        key=lambda s: s.end - s.start,
-                    )
-                else:
-                    cannonical = max(
-                        [span for span in spans if span.label_ == most_common],
-                        key=lambda s: s.end - s.start,
-                    )
-
-                for span in spans:
-                    start = span.start
-                    if span.label_ == "UNKNOWN":
-                        add_ent = True
-                        for ent in doc.ents:
-                            if ent.start <= span.end and ent.end > span.start:
-                                span = ent
-                                start = span.start
-                                add_ent = False
-                                break
-
-                        if add_ent:
-                            new_ent = spacy.tokens.Span(
-                                doc,
-                                start=span.start,
-                                end=span.end,
-                                label=most_common,
-                            )
-                            doc.ents = list(doc.ents) + [new_ent]
-
-                    coref_map[start] = cannonical
+        # handle_coreference(language, doc, coref_map)
 
         entity_map: Dict[int, TextAnnotation] = {}
         for entity in doc.ents:
@@ -265,6 +203,72 @@ def core_nlp(language: str, texts: List[Text]):
                 )
         except Exception:
             pass
+
+
+def handle_coreference(language, doc, coref_map):
+    if language == "en":
+        for cluster in doc._.coref_clusters:
+            spans: List[spacy.tokens.Span] = []
+
+            for span in filter_none(
+                doc.char_span(start, end, label="UNKNOWN")
+                for start, end in cluster
+            ):
+                span_ents = list(span.ents)
+                if len(span_ents) == 0:
+                    for ent in doc.ents:
+                        if ent.start <= span.end and ent.end > span.start:
+                            span_ents.append(ent)
+
+                if len(span_ents) == 0:
+                    spans.append(span)
+                elif len(span_ents) > 0:
+                    spans.append(span_ents[0])
+
+            if len(spans) == 0:
+                continue
+
+            most_common: str = first(
+                Counter(
+                    span.label_
+                    for span in spans
+                    if span.label_ != "UNKNOWN"
+                ).most_common(1),
+                ["MISC", 1],
+            )[0]
+
+            if most_common == "MISC":
+                cannonical = max(
+                    spans,
+                    key=lambda s: s.end - s.start,
+                )
+            else:
+                cannonical = max(
+                    [span for span in spans if span.label_ == most_common],
+                    key=lambda s: s.end - s.start,
+                )
+
+            for span in spans:
+                start = span.start
+                if span.label_ == "UNKNOWN":
+                    add_ent = True
+                    for ent in doc.ents:
+                        if ent.start <= span.end and ent.end > span.start:
+                            span = ent
+                            start = span.start
+                            add_ent = False
+                            break
+
+                    if add_ent:
+                        new_ent = spacy.tokens.Span(
+                            doc,
+                            start=span.start,
+                            end=span.end,
+                            label=most_common,
+                        )
+                        doc.ents = list(doc.ents) + [new_ent]
+
+                coref_map[start] = cannonical
 
 
 def is_token_stopword(token: spacy.tokens.Token) -> bool:
