@@ -1,14 +1,15 @@
 import itertools
 import logging
-from typing import Iterable, List, Optional, Tuple, cast
+from typing import Iterable, List, Optional, cast
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
 
 from lang3s.maths import normalize
-from lang3s.models.embedder import Embedder
-from lang3s.models.shared_types import EmbeddingResult
-from lang3s.models.transformer import MultiTaskTransformer
+from lang3s.models.embedder import Embedder, EmbeddingResult
+from lang3s.models.transformer.multi_task_transformer import MultiTaskTransformer
+from lang3s.models.transformer.shared_types import TokenLabelResult
 from lang3s.nlp.event_extraction import extract_events
 from lang3s.shared_types import Document, TextAnnotation, Event
 from lang3s.shared_types.metadata import Metadata
@@ -19,28 +20,30 @@ logger = logging.getLogger(__name__)
 
 def heavy_nlp(doc: Document, tasks: Optional[Iterable[str]] = None, is_reannotation: bool = False):
     embedder = Embedder()
+    embedder.model.eval()
 
     if doc.text is None:
         return
 
-    result = embedder(
-        [[t.text for t in s.tokens] for s in doc.text.sentences],
-        is_split_into_words=True,
-    )
+    with torch.amp.autocast(dtype=torch.bfloat16, device_type="cpu"):  # type:ignore
+        result = embedder(
+            [[t.text for t in s.tokens] for s in doc.text.sentences],
+            is_split_into_words=True,
+        )
 
-    if not is_reannotation:
-        create_core_embeddings(doc, result)
-    else:
-        sources = ["rb_event_extractor"]
-        if tasks is not None:
-            sources += tasks
-        doc.text.remove_annotation(sources)
+        if not is_reannotation:
+            create_core_embeddings(doc, result)
+        else:
+            sources = ["rb_event_extractor"]
+            if tasks is not None:
+                sources += tasks
+            doc.text.remove_annotation(sources)
 
-    perform_heavy_tagging(doc, result, tasks)
-    extract_events_for_doc(doc)
+        perform_heavy_tagging(doc, result, tasks)
+        extract_events_for_doc(doc)
 
-    for annotation in doc.text.annotations:
-        embed_annotation(annotation)
+        for annotation in doc.text.annotations:
+            embed_annotation(annotation)
 
 
 def _to_mean_array(
@@ -51,7 +54,6 @@ def _to_mean_array(
     return (
         np.array(list(itertools.chain.from_iterable(embeddings)))
         .mean(axis=0)
-        .astype(np.float16)
     )
 
 
@@ -60,7 +62,6 @@ def embed_event_annotation(annotation: TextAnnotation):
     trigger_embedding = (
         np.array([t.embedding for t in annotation.tokens])
         .mean(axis=0)
-        .astype(np.float16)
     )
 
     a0_embedding = _to_mean_array(
@@ -126,6 +127,25 @@ def create_core_embeddings(doc: Document, result: EmbeddingResult):
     doc.text.embedding = normalize(doc_emb).astype(np.float16)
 
 
+def _add_token_span(start: Optional[int],
+                    end: int,
+                    doc: Document,
+                    sentence: TextAnnotation,
+                    annotation_type: str,
+                    source_name: str,
+                    label: Optional[str]):
+    if start is not None and label is not None:
+        doc.text.add_annotation(
+            text=" ".join([t.text for t in sentence.tokens[start:end]]),
+            start=start + sentence.start,
+            end=end + sentence.start,
+            sentence_id=sentence.sentence_id,
+            type=annotation_type,
+            source=source_name,
+            value=label,
+        )
+
+
 def perform_heavy_tagging(
     doc: Document, result: EmbeddingResult, tasks: Optional[Iterable[str]]
 ):
@@ -143,21 +163,17 @@ def perform_heavy_tagging(
                     }
 
         else:
-            for label_seq, sentence in zip(
-                cast(List[List[Tuple[int, int, str]]], output.labels),
-                doc.text.sentences,
-            ):
-                tokens = sentence.tokens
-                for span in label_seq:
-                    span_tokens = tokens[span[0]: span[1]]
-                    doc.text.add_annotation(
-                        text=" ".join([t.text for t in span_tokens]),
-                        start=span_tokens[0].start,
-                        end=span_tokens[-1].end,
-                        sentence_id=sentence.sentence_id,
-                        type=output.annotation_type,
-                        source=source_name,
-                        value=span[2],
+            all_labels: TokenLabelResult = cast(TokenLabelResult, output.labels)
+            for sentence, sentence_labels in zip(doc.text.sentences, all_labels):
+                for label, start, end in sentence_labels:
+                    _add_token_span(
+                        start=start,
+                        end=end,
+                        sentence=sentence,
+                        annotation_type=output.annotation_type,
+                        source_name=source_name,
+                        label=label,
+                        doc=doc,
                     )
 
 

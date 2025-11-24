@@ -21,7 +21,7 @@ cdef tuple start_end_key(a):
 
 cdef class TextObject:
     def __cinit__(self):
-        self._embedding = np.zeros(0, dtype=np.float16)
+        self._embedding = np.zeros(0)
         self._meta = ListMetadata()
 
     def __str__(self):

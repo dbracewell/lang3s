@@ -3,11 +3,14 @@ from typing import Dict, Iterable, Optional, List, Tuple
 
 import torch
 import torch.nn as nn
+from pydantic import BaseModel, Field
+from pydantic.config import ConfigDict
+from pydantic.fields import computed_field
+from torch.nn.modules.activation import MultiheadAttention
 
 from lang3s import config
 from .augmentation.mixup import Mixup
 from .layers.adapter import DoRA
-from .layers.crf import BiLSTMCRFClassifierHead
 from .layers.mlp import MLPClassificationHead
 from .loss.focal import FocalLoss
 from .shared_types import TaskType, EmbeddingResult
@@ -20,6 +23,7 @@ class TaskHead(nn.Module):
                  hidden_size: int,
                  num_labels: int,
                  original_layer: nn.Linear,
+                 label_list: List[str],
                  rank: int = 8,
                  alpha: int = 8,
                  dropout=0.2,
@@ -27,12 +31,26 @@ class TaskHead(nn.Module):
                  use_mixup: bool = False,
                  weights: Optional[torch.Tensor] = None,
                  use_focal_loss: bool = False,
+                 num_attention_heads: int = 0,
+                 use_dora: bool = False,
                  ):
         super(TaskHead, self).__init__()
         self.task_type = task_type
-        self.dora_adapter = DoRA(original_layer=original_layer, rank=rank, alpha=alpha)
+        self.num_attention_heads: int = num_attention_heads
+        self.use_dora = use_dora
+        self.mixup = None
+        self.attention_layer = None
+        self.dora_adapter = None
 
         if self.task_type.is_sentence_level():
+            if self.use_dora and original_layer is not None:
+                self.dora_adapter = DoRA(original_layer=original_layer, rank=rank, alpha=alpha)
+
+            if self.num_attention_heads > 0:
+                self.attention_layer = MultiheadAttention(hidden_size,
+                                                          num_heads=num_attention_heads,
+                                                          batch_first=True)
+
             loss_type = "multiclass" if self.task_type == TaskType.SENTENCE else "multilabel"
             if use_focal_loss:
                 loss_function = FocalLoss(alpha=weights,
@@ -49,26 +67,34 @@ class TaskHead(nn.Module):
                 num_labels=num_labels,
                 loss_fn=loss_function,
             )
+
+
         else:
-            self.mixup = None
-            self.classifier = BiLSTMCRFClassifierHead(
-                hidden_size=hidden_size,
-                num_labels=num_labels,
-                dropout=dropout,
-                lstm_hidden=lstm_hidden,
-            )
+            self.use_dora = False
+            self.classifier = nn.Linear(hidden_size, num_labels)
+            self.classifier = None
 
     def forward(self, hidden, mask=None, labels=None, return_logits=False):
-        adapted = self.dora_adapter(hidden)
-
         if self.task_type.is_sentence_level():
-            if mask is not None:
-                mask = mask.unsqueeze(-1).float()
-                summed = torch.sum(adapted * mask, dim=1)
-                counts = torch.clamp(mask.sum(dim=1), min=1e-9)
-                pooled = summed / counts
+            x = hidden
+            if self.attention_layer is not None and x.dim() == 3:
+                key_padding_mask = None
+                if mask is not None:
+                    key_padding_mask = ~mask
+                attn_out, _ = self.attention_layer(
+                    x, x, x,
+                    key_padding_mask=key_padding_mask,
+                    need_weights=False,
+                )
+                pooled = attn_out.mean(dim=1)
             else:
-                pooled = adapted.mean(dim=1)
+                if x.dim() == 3:
+                    pooled = x.mean(dim=1)
+                else:
+                    pooled = x
+
+            if self.dora_adapter is not None:
+                pooled = self.dora_adapter(pooled)
 
             if labels is not None:
                 if self.mixup is not None:
@@ -76,6 +102,48 @@ class TaskHead(nn.Module):
                     logits = self.classifier(pooled)
                     loss = self.mixup(logits, y_a, y_b, lam)
                     return logits, loss
+
+                return self.classifier(pooled, labels)
+            else:
+                logits = self.classifier(pooled)
+                if return_logits:
+                    return logits
+
+                if self.task_type == TaskType.SENTENCE_MULTILABEL:
+                    probs = torch.sigmoid(logits)
+                    return (probs > 0.5).int()
+                else:
+                    return torch.argmax(logits, dim=-1)
+
+
+        else:  # TOKEN CLASSIFICATION
+            if labels is not None:
+                return self.classifier(hidden, mask=mask, labels=labels)
+            else:
+                return self.classifier(hidden, mask=mask)
+
+        if self.dora_adapter is not None:
+            adapted = self.dora_adapter(hidden)
+        else:
+            adapted = hidden
+
+        if self.attention_layer is not None:
+            if self.task_type.is_sentence_level():
+                adapted, _ = self.attention_layer(adapted, adapted, adapted)
+
+        if self.task_type.is_sentence_level():
+            if self.attention_layer is not None:
+                pooled = adapted.mean(dim=1)
+            else:
+                pooled = adapted
+
+            if labels is not None:
+                if self.mixup is not None:
+                    pooled, y_a, y_b, lam = self.mixup.augment(pooled, labels)
+                    logits = self.classifier(pooled)
+                    loss = self.mixup(logits, y_a, y_b, lam)
+                    return logits, loss
+
                 return self.classifier(pooled, labels)
             else:
                 logits = self.classifier(pooled)
@@ -88,58 +156,79 @@ class TaskHead(nn.Module):
                     return torch.argmax(logits, dim=-1)
 
         else:
-            return self.classifier(hidden, mask=mask, labels=labels)
+            if labels is not None:
+                return self.classifier(adapted, mask=mask, labels=labels)
+            else:
+                return self.classifier(adapted, mask=mask)
 
 
-class Task:
-    def __init__(
-        self,
-        name: str,
-        type: TaskType | str,
-        label2id: Dict[str, int],
-        annotation_type: str,
-        rank: int = 8,
-        alpha: int = 8,
-        language: Optional[str] = None,
-        min_confidence: float = 0,
-        default_class: Optional[str] = None,
-        ignore_classes: Optional[List[str]] = None,
-        lstm_hidden: Optional[int] = None,
-    ) -> None:
-        self.annotation_type = annotation_type
-        self.language = language
-        self.label2id = label2id
-        self.id2label = {v: k for k, v in label2id.items()}
-        self.type = type if isinstance(type, TaskType) else TaskType(type)
-        self.name = name
-        self.rank = rank
-        self.alpha = alpha
-        self.head: Optional[torch.nn.Module] = None
-        self.min_confidence = min_confidence
-        self.default_class = default_class
-        self.ignore_classes = ignore_classes or []
-        self.lstm_hidden = lstm_hidden
+class Task(BaseModel):
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True
+    )
+
+    annotation_type: str
+    name: str
+    type: TaskType
+    label2id: Dict[str, int]
+    num_attention_heads: int = 0
+    rank: int = 8
+    alpha: int = 8
+    language: Optional[str] = None
+    min_confidence: float = 0
+    default_class: Optional[str] = None
+    ignore_classes: List[str] = Field(default_factory=list)
+    lstm_hidden: Optional[int] = None
+    head: Optional[TaskHead] = None
+    use_dora: bool = True
+
+    @computed_field
+    @property
+    def id2label(self) -> Dict[int, str]:
+        return {v: k for k, v in self.label2id.items()}
 
     def to_json(self):
-        return {
-            "annotation_type": self.annotation_type,
-            "language": self.language,
-            "label2id": self.label2id,
-            "type": self.type.value,
-            "name": self.name,
-            "min_confidence": self.min_confidence,
-            "default_class": self.default_class,
-            "ignore_classes": self.ignore_classes,
-            "rank": self.rank,
-            "alpha": self.alpha,
-            "lstm_hidden": self.lstm_hidden,
-        }
+        return self.model_dump(exclude={"head", "id2label"})
+
+    @classmethod
+    def from_dict(cls, json_dict):
+        return cls.model_validate(json_dict)
+
+    def create_head(self,
+                    hidden_size: int,
+                    original_layer: nn.Linear,
+                    device: torch.device | str = "cpu",
+                    path: Optional[str] = None):
+
+        label_list = [""] * len(self.label2id)
+        for idx, label in self.id2label.items():
+            label_list[idx] = label
+
+        self.head = TaskHead(
+            hidden_size=hidden_size,
+            num_labels=len(self.label2id),
+            task_type=self.type,
+            original_layer=original_layer,
+            rank=self.rank,
+            alpha=self.alpha,
+            lstm_hidden=self.lstm_hidden,
+            num_attention_heads=self.num_attention_heads,
+            label_list=label_list,
+            use_dora=self.use_dora,
+        )
+        if path is not None:
+            self.head.load_state_dict(
+                torch.load(f"{path}/{self.name}_head.pt", map_location=device)
+            )
+        self.head.to(device)
+        self.head.eval()
+        return self.head
 
     def to_labels(self,
                   head_output: torch.Tensor | List[List[int]],
-                  embedding: "EmbeddingResult") -> List[Tuple[str | None, float]] | List[
-        Tuple[List[str], list[float]]] | List[
-                                                       List[Tuple[int, int, str]]]:
+                  embedding: "EmbeddingResult") -> (List[Tuple[str | None, float]] |
+                                                    List[Tuple[List[str], list[float]]] |
+                                                    List[List[str]]):
 
         if self.type == TaskType.SENTENCE_MULTILABEL:
             probs = torch.sigmoid(head_output)  # type: ignore
@@ -171,7 +260,10 @@ class Task:
                     labels.append((self.default_class, 0))
             return labels
 
-        return decode_predictions(head_output, embedding, id2label)  # type: ignore
+        output = []
+        for sentence in head_output:
+            output.append([self.id2label[i] for i in sentence])  # type:ignore
+        return output
 
 
 def decode_predictions(
@@ -220,7 +312,6 @@ def decode_predictions(
 class TaskRegistry:
     def __init__(self, hidden_size: int):
         self.hidden_size = hidden_size
-        self.device = config.DEVICE
         self.registry: Dict[str, Task] = {}
 
     def register_task(
@@ -275,23 +366,7 @@ class TaskRegistry:
             raise ValueError(f"{path} does not exist")
 
         dummy_layer = nn.Linear(self.hidden_size, self.hidden_size)
-
-        head = TaskHead(
-            hidden_size=self.hidden_size,
-            num_labels=len(task.label2id),
-            task_type=task.type,
-            original_layer=dummy_layer,
-            rank=task.rank,
-            alpha=task.alpha,
-            lstm_hidden=task.lstm_hidden,
-        )
-
-        head.load_state_dict(
-            torch.load(f"{path}/{task_name}_head.pt", map_location=self.device)
-        )
-        head.to(self.device)
-        head.eval()
-        task.head = head
+        task.create_head(self.hidden_size, dummy_layer)
         return task
 
     def unload_task(self, task_name):

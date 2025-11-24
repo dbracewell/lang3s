@@ -1,4 +1,3 @@
-import argparse
 from typing import Dict, List, Optional
 
 import torch
@@ -136,6 +135,7 @@ class ClassificationTrainer(Application):
                                                 description="Classes to not include during classification")
     num_epochs: int = Field(default=10, description="Number of epochs to train the model")
     rank: int = Field(default=8, description="Rank of DoRA Layer")
+    num_attention_heads: int = Field(default=0, description="Number of heads for attention layer")
 
     def run(self):
         task_type: TaskType = TaskType.SENTENCE_MULTILABEL if self.multilabel else TaskType.SENTENCE
@@ -169,68 +169,9 @@ class ClassificationTrainer(Application):
             ignore_classes=self.ignore_classes,
             use_mixup=self.mixup,
             use_focal_loss=self.focal_loss,
+            num_attention_heads=self.num_attention_heads,
         )
 
 
 if __name__ == "__main__":
-    ClassificationTrainer.from_cli().run_with_plugins()
-
-    exit()
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", help="Task name", required=True)
-    parser.add_argument("--data", help="Data directory", required=True)
-    parser.add_argument("--lang", help="Language", required=True)
-    parser.add_argument("--type", help="Annotation type", required=True)
-    parser.add_argument("--format", help="Dataset format", required=False, default="text")
-    parser.add_argument("--label", help="Label Field for json", required=False, default="label")
-    parser.add_argument("--text", help="Text Field for json", required=False, default="text")
-    parser.add_argument("--multilabel", action="store_true", help="Is multilabel", required=False, default=False)
-    parser.add_argument("--mixup", action="store_true", help="Use mixup augmentation", required=False, default=False)
-    parser.add_argument("--focal_loss", action="store_true", help="Use Focal Loss for class imbalanced datasets",
-                        required=False, default=False)
-    parser.add_argument("--min_confidence", help="Minimum confidence threshold", required=False, type=float,
-                        default=None)
-    parser.add_argument("--default_class", help="Default class label", required=False, type=str, default=None)
-    parser.add_argument(
-        "--num_epochs",
-        type=int,
-        default=10,
-        help="Number of epochs to train the model",
-        required=False,
-    )
-    parser.add_argument("--ignore_classes", nargs="*", help="Ignore classes", required=False, type=str, default=None)
-    parser.add_argument("--rank", type=int, help="Rank of DoRA Layer", required=False, default=8)
-    args = parser.parse_args()
-
-    task_type: TaskType = TaskType.SENTENCE_MULTILABEL if args.multilabel else TaskType.SENTENCE
-
-    if args.format == "hf":
-        dataset = HuggingFaceDataset(args.data, label=args.label, text=args.text)
-    else:
-        dataset = SentenceClassificationDataset(
-            path=args.data,
-            task_type=task_type,
-            data_format=args.format,
-            label=args.label,
-            text=args.text
-        )
-
-    if args.min_confidence is None:
-        args.min_confidence = 0.5 if args.multilabel else 0.0
-
-    train_task(
-        task_name=args.task_name,
-        task_type=task_type,
-        label2id=dataset.label2Id,
-        language=args.lang,
-        annotation_type=args.type,
-        dataset=dataset,
-        rank=args.rank,
-        alpha=args.rank,
-        num_epochs=args.num_epochs,
-        min_confidence=args.min_confidence,
-        default_class=args.default_class,
-        ignore_classes=args.ignore_classes,
-        use_mixup=args.mixup,
-        use_focal_loss=args.focal_loss,
-    )
+    ClassificationTrainer.from_cli().run()

@@ -1,4 +1,5 @@
 import json
+import logging
 import sys
 import types
 
@@ -247,7 +248,6 @@ class Application(BaseModel):
         parser = argparse.ArgumentParser(
             prog=cls.__name__,
             description=(cls.__doc__ or "").strip() or None,
-            epilog="Generated automatically from Pydantic + docstrings.",
         )
 
         # Subcommands
@@ -286,8 +286,20 @@ class Application(BaseModel):
     def from_cli(cls) -> "Application":
         argv = sys.argv[1:]
         parser = cls.build_parser()
-        parsed = parser.parse_args(argv)
+        parsed, leftover = parser.parse_known_args(argv)
         data = vars(parsed)
+
+        for i in range(len(leftover)):
+            if leftover[i].startswith("--logger."):
+                logger_name = leftover[i][len("--logger."):]
+                if "=" in logger_name:
+                    parts = logger_name.split("=")
+                    logger_name = parts[0].strip()
+                    logger_value = parts[1].strip()
+                else:
+                    logger_value = leftover[i + 1]
+                    i += 1
+                logging.getLogger(logger_name).setLevel(logger_value.upper().strip())
 
         # Subcommand handling
         if cls.subcommands:
@@ -298,13 +310,6 @@ class Application(BaseModel):
             sub_data = vars(sub_parsed)
 
             extra_cli = sub_data.pop("extra_args", [])
-            for arg in extra_cli:
-                print(arg)
-                if arg.startswith("logger."):
-                    pass
-                    # level = value.upper()
-                    # logging.getLogger(name).setLevel(level)
-
             config_path = sub_data.get("config_file")
 
             yaml_cfg = subcls._load_yaml(config_path)
@@ -322,7 +327,6 @@ class Application(BaseModel):
         merged = cls._merge_config(yaml_cfg, data)
 
         if hasattr(cls, "_list_fields"):
-            print(cls._list_fields)
             for field_name, parser_fn in cls._list_fields.items():
                 if field_name in data:
                     data[field_name] = parser_fn(data[field_name])

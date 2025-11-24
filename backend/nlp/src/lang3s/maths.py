@@ -11,17 +11,15 @@ def binarize(v: NDArray[np.floating]) -> str:
     return "".join((str(i) for i in (v > 0).astype(int).tolist()))
 
 
-def normalize(
-    v: NDArray[np.floating],
-) -> NDArray[np.floating]:
+def normalize(v: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     if v.ndim == 1:
-        norm = np.linalg.norm(v)
+        norm = np.linalg.norm(v) + eps
         safe_norm = np.where(norm == 0, 1, norm)
-        return (v / safe_norm).astype(np.float16)
+        return v / safe_norm
 
-    norms = np.linalg.norm(v, axis=1, keepdims=True)
-    safe_norms = np.where(norms == 0, 1, norms)
-    return (v / safe_norms).astype(np.float16)
+    norm = np.linalg.norm(v, axis=-1, keepdims=True) + eps
+    safe_norms = np.where(norm == 0, 1, norm)
+    return v / safe_norms
 
 
 def cosine(
@@ -31,7 +29,7 @@ def cosine(
     if n1.shape[0] == 1 and n2.shape[0] == 1:
         n1 = n1.squeeze()
         n2 = n2.squeeze()
-        
+
     return np.clip(np.dot(n1, n2) / (np.linalg.norm(n1) * np.linalg.norm(n2) + 1e-12), 0, 1)
 
 

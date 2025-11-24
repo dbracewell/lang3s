@@ -8,13 +8,22 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTHONUNBUFFERED"] = "1"
 
 
-def get_best_device():
-    if "device" in os.environ:
-        return os.environ["device"]
+def get_best_training_device():
+    if "training_device" in os.environ:
+        return os.environ["training_device"]
     if torch.cuda.is_available():
         return torch.device("cuda").type
     elif torch.backends.mps.is_available():
         return torch.device("mps").type
+    else:
+        return torch.device("cpu").type
+
+
+def get_best_inference_device():
+    if "inference_device" in os.environ:
+        return os.environ["inference_device"]
+    if torch.cuda.is_available():
+        return torch.device("cuda").type
     else:
         return torch.device("cpu").type
 
@@ -52,7 +61,8 @@ LLM_HOST = __get_environment_var("LLM_HOST", "http://localhost:1234")
 LLM_MODEL = __get_environment_var("LLM_MODEL", "qwen/qwen3-4b-2507")
 LLM_API_KEY = __get_environment_var("LLM_API_KEY", "")
 
-DEVICE: str = __get_environment_var("DEVICE", get_best_device())
+TRAINING_DEVICE: str = __get_environment_var("TRAINING_DEVICE", get_best_training_device())
+INFERENCE_DEVICE: str = __get_environment_var("INFERENCE_DEVICE", get_best_inference_device())
 
 EMBEDDING_MODEL: str = __get_environment_var(
     "EMBEDDING_MODEL", __DEFAULT_EMBEDDING_MODEL
@@ -66,7 +76,7 @@ MODELS_DIR: str = __get_environment_var("MODELS_DIR", __DEFAULT_MODELS_DIR)
 ADAPTERS_DIR: str = os.path.join(MODELS_DIR, "adapters")
 ADAPTER_CONFIG_FILE: str = os.path.join(ADAPTERS_DIR, "adapters.json")
 INFERENCE_BATCH_SIZE: int = int(
-    __get_environment_var("INFERENCE_BATCH_SIZE", 32)
+    __get_environment_var("INFERENCE_BATCH_SIZE", 8)
 )
 
 BIO_TRAIN_BATCH_SIZE = 32
