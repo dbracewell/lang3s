@@ -1,43 +1,27 @@
+from typing import List
+
 from jsonlines import jsonlines
 
 from lang3s.app import Application
-from lang3s.pipeline import pipeline
+from lang3s.pipeline.runner import pipeline
 from lang3s_job_service import File
 
 
 class Test(Application):
 
     def run(self):
-        # with jsonlines.open("distortion_detection.jsonl", "w") as writer:
-        #     with jsonlines.open('/Users/ik/Downloads/data/thinking_traps_clean.jsonl') as reader:
-        #         for doc in reader:
-        #             label = "Distorted"
-        #             if doc["label"] == "Not Distorted":
-        #                 label = "Not Distorted"
-        #             writer.write({"label": label, "text": doc["text"]})
-        # exit()
-        files = []
-        # with jsonlines.open(
-        #     "/Users/ik/Library/Mobile Documents/com~apple~CloudDocs/project_reddit/reddit_distortions_20251104_1319.jsonl") as reader:
-        #     for doc in reader:
-        #         files.append(File(content=doc["excerpt"]))
-        with jsonlines.open("/Users/ik/prj/Lang3s/news.jsonl") as reader:
+        files: List[File] = []
+        with jsonlines.open(
+            "/Users/ik/Library/Mobile Documents/com~apple~CloudDocs/project_reddit/reddit_distortions_20251104_1319.jsonl") as reader:
             for doc in reader:
-                files.append(File.model_validate(doc))
-        # files = [File(
-        #     content="Layer 4: Tool Stack\n\nhttps://preview.redd.it/sk2u2vhoiazf1.png?width=1024&amp;format=png&amp;auto=webp&amp;s=4cdeb746afbd8b74ca90a2d11b791c0cb61ed4bb\n\nBeyond the browser setup, here's what I use:\n\n**Social Media Management**: ")]
-        docs = pipeline(files[:20])
+                files.append(File(content=doc["excerpt"]))
+                if len(files) > 100:
+                    break
 
+        docs = pipeline(files)
         with jsonlines.open("distortions_20251104_1319.jsonl", "w") as writer:
             for doc in docs:
                 for sentence in doc.text.sentences:
-                    print(sentence.text)
-                    for chunk in sentence.interleave("phrase_chunk"):
-                        if chunk.type == "phrase_chunk":
-                            print(f"[{chunk.text}|{chunk.value}]", end=" ")
-                        else:
-                            print(chunk.text, end=" ")
-                    print("\n")
                     if sentence["distortion"] is not None:
                         writer.write({"label": sentence["distortion"],
                                       "text": sentence.text})

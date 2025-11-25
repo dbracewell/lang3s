@@ -6,26 +6,25 @@ from collections import defaultdict
 from typing import Dict, List, cast
 
 import redis
-from lang3s_job_service import File, Job, JobService, JobStatus
 
 import lang3s.config as config
 from lang3s.clients.topic_model_client import TopicModelClient
 from lang3s.db import TextDatabase
 from lang3s.pipeline import pipeline
 from lang3s.utils import get_value
+from lang3s_job_service import File, Job, JobService, JobStatus
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-
 QUEUE_NAME = "doc_queue"
 BATCH_SIZE = 100
 BATCH_TIMEOUT = 2
 
 job_service = JobService(
-    api_key=config.SYSTEM_API_KEY, api_host=config.BACKEND_HOST
+    api_key=config.SYSTEM_API_KEY, api_host=config.NODEJS_HOST
 )
 redis_client = redis.Redis(
     host=config.REDIS_HOST,
