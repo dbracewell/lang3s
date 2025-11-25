@@ -36,6 +36,7 @@ class SentenceClassificationHead(nn.Module):
         self.mixup_alpha = mixup_alpha
         self.mixup = None
         self.attention_layer = None
+        self.dora_adapter = None
 
         if self.use_dora and original_layer is not None:
             self.dora_adapter = DoRA(original_layer=original_layer,

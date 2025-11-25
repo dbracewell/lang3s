@@ -2,7 +2,7 @@ import itertools
 import json
 import os
 from collections import defaultdict
-from typing import Dict, Iterable, Optional, NamedTuple
+from typing import Dict, Iterable, Optional, NamedTuple, cast
 
 import torch
 import torch.nn as nn
@@ -11,7 +11,7 @@ from lang3s import config
 from lang3s.models.embedder import Embedder, EmbeddingResult
 from lang3s.utils import decorators
 from .shared_types import TaskType, TransformerResult
-from .task import Task
+from .task import SentenceClassificationParams, Task
 from .task_registry import TaskRegistry
 
 
@@ -50,23 +50,10 @@ class MultiTaskTransformer(nn.Module):
         batch_size = config.INFERENCE_BATCH_SIZE
         for idx in range(0, len(embedding.mapping), batch_size):
             batch = embedding.batch(idx, idx + batch_size)
-            token_emb_list = batch.token_embeddings
-            B = len(batch.mapping)
-            T_max = max(arr.shape[0] for arr in token_emb_list)
-            H = token_emb_list[0].shape[1]
 
-            padded_token_embeddings = torch.zeros((B, T_max, H),
-                                                  dtype=torch.float32,
-                                                  device=self.device)
-
-            padded_token_mask = torch.zeros((B, T_max),
-                                            dtype=torch.bool,
-                                            device=self.device)
-            for b, arr in enumerate(token_emb_list):
-                T = arr.shape[0]
-                padded_token_embeddings[b, :T] = torch.from_numpy(arr).type(torch.float32, non_blocking=True).to(
-                    self.device)
-                padded_token_mask[b, :T] = True
+            hidden, rm = batch.padded_token_embeddings_with_mask()
+            padded_token_embeddings = torch.from_numpy(hidden).type(torch.float32, non_blocking=True).to(self.device)
+            padded_token_mask = torch.from_numpy(rm).type(torch.bool, non_blocking=True).to(self.device)
 
             sentence_embeddings = torch.stack(
                 [torch.tensor(e, dtype=torch.float32) for e in batch.sentence_embeddings],
@@ -85,7 +72,8 @@ class MultiTaskTransformer(nn.Module):
                     task.head.to(self.device)
                     device_embeddings = sentence_embeddings
                     device_mask = None
-                    if task.type.is_token() or getattr(task.head, "attention_layer", 0) > 0:
+
+                    if task.type.is_token() or cast(SentenceClassificationParams, task.params).num_attention_heads > 0:
                         device_embeddings = padded_token_embeddings
                         device_mask = padded_token_mask.bool()
 

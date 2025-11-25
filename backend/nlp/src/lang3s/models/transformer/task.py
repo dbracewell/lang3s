@@ -13,17 +13,25 @@ from .shared_types import TaskType, TransformerResult
 
 
 class SentenceClassificationParams(BaseModel):
-    num_attention_heads: int = 0
-    rank: int = 8
-    alpha: int = 8
-    min_confidence: float = 0
-    default_class: Optional[str] = None
-    ignore_classes: List[str] = Field(default_factory=list)
-    use_dora: bool = True
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        extra="ignore"
+    )
+    num_attention_heads: int = Field(default=0, description="The number of attention heads")
+    rank: int = Field(default=8, description="The rank of the DoRA layer")
+    alpha: int = Field(default=8, description="The alpha parameter of the DoRA layer")
+    min_confidence: float = Field(default=0, description="The minimum confidence level for a classification.")
+    default_class: Optional[str] = Field(default=None, description="The default clas.")
+    ignore_classes: List[str] = Field(default_factory=list,
+                                      description="The list of classes to not create annotations from (negative classes).")
+    use_dora: bool = Field(default=True, description="Whether to use DORA or not.")
+    use_mixup: bool = Field(default=False, description="Whether to use mixup data augmentation or not.")
+    mixup_alpha: float = Field(default=0.2, description="The alpha parameter of the mixup.")
+    use_focal_loss: bool = Field(default=False, description="Whether to use focal loss or not.")
 
 
 class TokenClassificationParams(BaseModel):
-    lstm_hidden_dim: int = Field(default=256)
+    lstm_hidden_dim: int = Field(default=256, description="The number of parameters for the LSTM in the BiLSTMCRF")
 
 
 class Task(BaseModel):

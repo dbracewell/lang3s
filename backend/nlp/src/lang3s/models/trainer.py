@@ -16,9 +16,9 @@ from transformers import get_linear_schedule_with_warmup  # pyright: ignore[repo
 
 from lang3s import config
 from lang3s.models.embedder import Embedder
-from lang3s.models.transformer import MultiTaskTransformer
-from .shared_types import TaskType
-from .task_registry import Task, TaskHead
+from lang3s.models.transformer.multi_task_transformer import MultiTaskTransformer
+from lang3s.models.transformer.task import TaskType
+from .task_registry import TaskHead
 
 embedder = Embedder()
 
@@ -503,21 +503,21 @@ def train_task(
     torch.save(best_model, f"{path}/{task_name}_head.pt")
 
     transformer = MultiTaskTransformer()
-    adapter = transformer.registry.register_task(Task(
-        name=task_name,
-        type=task_type,
-        label2id=label2id,
-        annotation_type=annotation_type,
-        language=language,
-        min_confidence=min_confidence,
-        default_class=default_class,
-        ignore_classes=ignore_classes or [],
-        alpha=alpha,
-        rank=rank,
-        num_attention_heads=num_attention_heads,
-        lstm_hidden=lstm_hidden,
-    ))
-
+    # adapter = transformer.registry.register_task(Task(
+    #     name=task_name,
+    #     type=task_type,
+    #     label2id=label2id,
+    #     annotation_type=annotation_type,
+    #     language=language,
+    #     min_confidence=min_confidence,
+    #     default_class=default_class,
+    #     ignore_classes=ignore_classes or [],
+    #     alpha=alpha,
+    #     rank=rank,
+    #     num_attention_heads=num_attention_heads,
+    #     lstm_hidden=lstm_hidden,
+    # ))
+    return
     with open(f"{path}/{task_name}.config.json", "w") as fp:
         json.dump(adapter.to_json(), fp, indent=2)
 

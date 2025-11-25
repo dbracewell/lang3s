@@ -4,7 +4,6 @@ from logging import Logger
 from typing import Dict, DefaultDict, Tuple
 from typing import Optional, Union
 
-from torch import nn
 from transformers import AutoModel, AutoTokenizer  # pyright: ignore[reportPrivateImportUsage]
 
 import lang3s.config as config
@@ -53,8 +52,21 @@ class EmbeddingResult(NamedTuple):
             sentence_embeddings=self.sentence_embeddings[start:end],
             cls_embeddings=self.cls_embeddings[start:end],
             token_embeddings=self.token_embeddings[start:end],
-            mapping=self.mapping[start:end],
+            mapping=self.mapping[start:end]
         )
+
+    def padded_token_embeddings_with_mask(self) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
+        token_embeddings = self.token_embeddings
+        B = len(self.sentence_embeddings)
+        max_T = max(arr.shape[0] for arr in token_embeddings)
+        H = token_embeddings[0].shape[1]
+        hidden = np.zeros((B, max_T, H))
+        mask = np.zeros((B, max_T))
+        for b, arr in enumerate(token_embeddings):
+            t = arr.shape[0]
+            hidden[b, :t] = arr
+            mask[b, :t] = True
+        return hidden, mask
 
 
 class DechunkedResult(NamedTuple):
@@ -68,61 +80,6 @@ class PoolingConfig(NamedTuple):
     token_word_pool: Literal["first", "mean", "max"] = "first"
     phrase_pool: Literal["mean", "max", "mean_max_concat"] = "mean_max_concat"
     use_last_n_layers: int = 4  # for layer pooling
-
-
-class SimpleEmbedder(nn.Module):
-
-    def __init__(self, model_name: str):
-        super().__init__()
-        self.model = AutoModel.from_pretrained(model_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.dimensions = self.model.config.hidden_size
-        self.max_length = self.tokenizer.model_max_length
-
-    def forward(self,
-                texts: Union[List[str], List[List[str]]],
-                is_split_into_words: bool = False) -> EmbeddingResult:
-
-        encodings = self.tokenizer(texts,
-                                   truncation=True,
-                                   padding=True,
-                                   return_tensors="pt",
-                                   is_split_into_words=is_split_into_words)
-
-        with torch.no_grad():
-            outputs = self.model(**encodings, output_hidden_states=True)
-
-        if encodings["input_ids"][0].dim() == 1:
-            encodings["input_ids"] = [encodings["input_ids"].cpu().numpy().tolist()]
-            encodings["attention_mask"] = [encodings["attention_mask"].cpu().numpy().tolist()]
-        else:
-            encodings["input_ids"] = encodings["input_ids"].cpu().numpy().tolist()
-            encodings["attention_mask"] = encodings["attention_mask"].cpu().numpy().tolist()
-
-        num_sentences = len(encodings["input_ids"])
-        token_word_mapping = []
-        for sentence_index in range(num_sentences):
-            input_ids = encodings["input_ids"][sentence_index]
-            word_ids = encodings.encodings[sentence_index].word_ids
-            token_word_mapping.append(
-                SentenceTokenMapping(
-                    token_count=len(input_ids),
-                    word_ids=word_ids,
-                )
-            )
-
-        if outputs.last_hidden_state.dim() == 1:
-            token_embeddings = outputs.last_hidden_state.detach().cpu().numpy().tolist()
-        else:
-            token_embeddings = [np.array(v) for v in outputs.last_hidden_state.cpu().numpy().tolist()]
-
-        return EmbeddingResult(
-            word_embeddings=[],
-            token_embeddings=token_embeddings,
-            sentence_embeddings=[],
-            cls_embeddings=[],
-            mapping=token_word_mapping,
-        )
 
 
 class Pooling:

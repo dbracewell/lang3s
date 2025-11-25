@@ -16,6 +16,7 @@ from transformers import (
     get_cosine_schedule_with_warmup,
 )
 
+from lang3s.models.transformer.shared_types import TaskType
 from lang3s.scripts.train_classifier import SentenceClassificationDataset
 
 # ============================================================
@@ -44,6 +45,7 @@ print("Using device:", DEVICE)
 # ============================================================
 
 dataset = SentenceClassificationDataset(
+    task_type=TaskType.SENTENCE,
     path=training_data,
     data_format="json",
     label="label",
@@ -51,8 +53,8 @@ dataset = SentenceClassificationDataset(
 )
 
 labels = np.array([dataset[i]["label"] for i in range(len(dataset))])
-num_labels = len(dataset.label2Id)
-id2label = dataset.id2label
+num_labels = len(dataset.label2idx)
+id2label = dataset.idx2label
 
 # split 70/15/15
 indices = np.arange(len(dataset))

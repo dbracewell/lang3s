@@ -1,13 +1,11 @@
-import json
-import os
 from typing import Dict, List, Optional, Tuple
 
 import torch
-from torch.utils.data import random_split, DataLoader, Dataset
+from torch.utils.data import random_split, DataLoader
+from tqdm import tqdm
 
-from lang3s import config
-from lang3s.models.embedder import Embedder
 from lang3s.models.transformer.task import Task, TaskType, TokenClassificationParams, bio_to_spans
+from .trainer import Lang3sDataset, Trainer
 
 
 def token_classification_collate(batch):
@@ -19,12 +17,22 @@ def token_classification_collate(batch):
     }
 
 
-class TokenDataset(Dataset):
+class TokenDataset(Lang3sDataset):
 
     def __init__(self, sentences: List[Tuple[List[str], List[str]]]):
+        super().__init__()
         self.sentences: List[Tuple[List[str], List[str]]] = sentences
-        self.label2idx: Dict[str, int] = {}
-        self.idx2label: Dict[int, str] = {}
+        all_labels = set()
+        for sentence in self.sentences:
+            for label in sentence[1]:
+                all_labels.add(label)
+        all_labels = sorted(all_labels)
+        if "O" in all_labels:
+            all_labels.remove("O")
+            all_labels = ["O"] + all_labels
+
+        self.label2idx = {lbl: idx for idx, lbl in enumerate(all_labels)}
+        self.idx2label = {v: k for k, v in self.label2idx.items()}
 
     def __len__(self):
         return len(self.sentences)
@@ -34,48 +42,32 @@ class TokenDataset(Dataset):
         return {"text": tokens, "label": labels}
 
 
-class IObTrainer:
+class IObTrainer(Trainer):
 
     def __init__(self,
-                 name: str,
-                 annotation_type: str,
-                 dataset: TokenDataset,
-                 language: Optional[str] = None,
-                 num_epochs: int = 20,
-                 patience: int = 5,
-                 batch_size: int = 32,
-                 learning_rate: float = 1e-4,
-                 weight_decay: float = 0.01,
-                 lstm_hidden_dim: int = 256,
-                 device: str = config.TRAINING_DEVICE,
+                 **kwargs
                  ):
-        self.dataset = dataset
-        self.embedder = Embedder()
-        self.embedding_dim = self.embedder.dimensions
+        super().__init__(**kwargs)
         self.pad_label = "O"
-        self.num_epochs = num_epochs
         self.best_span_f1 = 0.0
-        self.patience = patience
-        self.patience_counter = 0
         self.best_model = None
-        self.lr = learning_rate
-        self.batch_size = batch_size
-        self.weight_decay = weight_decay
-        self.device = device
         self.task = Task(
-            name=name,
-            annotation_type=annotation_type,
+            name=self.name,
+            annotation_type=self.annotation_type,
             type=TaskType.TOKEN,
-            language=language,
-            label2id=dataset.label2idx,
-            params=TokenClassificationParams(lstm_hidden_dim=lstm_hidden_dim),
+            language=self.lang,
+            label2id=self.dataset.label2idx,  # type: ignore
+            params=TokenClassificationParams(lstm_hidden_dim=kwargs.get("lstm_hidden_dim", 256)),
         )
         self.clf = self.task.create_head(self.embedding_dim)
-
-        self.clf.to(device)
-        self.embedder.device = device
+        self.clf.to(self.device)
+        self.embedder.device = self.device
+        self.weight_decay = kwargs.get("weight_decay", 0.1)
+        self.params["weight_decay"] = kwargs.get("weight_decay", 0.1)
 
     def train(self):
+        self._print_train_information(name=self.task.name, annotation_type=self.task.annotation_type)
+
         val_size = max(1, int(len(self.dataset) * 0.1))
         train_size = len(self.dataset) - val_size
         train_dataset, val_dataset = random_split(self.dataset, [train_size, val_size])
@@ -99,9 +91,9 @@ class IObTrainer:
             weight_decay=self.weight_decay,
         )
 
-        best_span_f1 = 0.0
-        patience_counter = 0
-        best_model = None
+        self.best_span_f1 = 0.0
+        self.patience_counter = 0
+        self.best_model = None
 
         for epoch in range(1, self.num_epochs + 1):
             self.train_one_epoch(
@@ -122,27 +114,22 @@ class IObTrainer:
             )
 
             # Early stopping on span-level F1
-            if span_f1 > best_span_f1 + 1e-4:
+            if span_f1 > self.best_span_f1 + 1e-4:
                 print(
-                    f"Span-F1 improved from {best_span_f1:.4f} to {span_f1:.4f}. Saving model..."
+                    f"Span-F1 improved from {self.best_span_f1:.4f} to {span_f1:.4f}. Saving model..."
                 )
-                best_span_f1 = span_f1
-                patience_counter = 0
-                best_model = self.clf.state_dict()
+                self.best_span_f1 = span_f1
+                self.patience_counter = 0
+                self.best_model = self.clf.state_dict()
             else:
-                patience_counter += 1
-                print(f"No improvement in span-F1. Patience {patience_counter}/{self.patience}")
-                if patience_counter >= self.patience:
+                self.patience_counter += 1
+                print(f"No improvement in span-F1. Patience {self.patience_counter}/{self.patience}")
+                if self.patience_counter >= self.patience:
                     print("Early stopping triggered on span-level F1.")
                     break
+            print()
 
-        model_path = f"{config.ADAPTERS_DIR}/{self.task.name}"
-        os.makedirs(model_path, exist_ok=True)
-        print(f"💾 Saving adapter and head for task '{self.task.name}'.'")
-
-        torch.save(best_model, f"{model_path}/{self.task.name}_head.pt")
-        with open(f"{model_path}/{self.task.name}.config.json", "w") as fp:
-            json.dump(self.task.to_json(), fp, indent=2)
+        self.save_model(self.task)
 
     def eval_one_epoch(self, dataloader: DataLoader, epoch: int, print_samples: bool = True):
         self.clf.eval()
@@ -152,7 +139,7 @@ class IObTrainer:
         all_text: List[List[str]] = []
 
         with torch.no_grad():
-            for batch in dataloader:
+            for batch in tqdm(dataloader, total=len(dataloader), desc="Evaluating"):
                 batch_inputs = self.prepare_batch(batch)
 
                 emb = batch_inputs["embeddings"]
@@ -230,11 +217,12 @@ class IObTrainer:
     def train_one_epoch(self,
                         dataloader: DataLoader,
                         epoch: int,
-                        optimizer: torch.optim.Optimizer):
+                        optimizer: torch.optim.Optimizer,
+                        scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None):
         self.clf.train()
         total_loss = 0.0
 
-        for batch_idx, batch in enumerate(dataloader):
+        for batch in tqdm(dataloader, total=len(dataloader), desc="  Training"):
             batch_inputs = self.prepare_batch(batch)
 
             emb = batch_inputs["embeddings"]
@@ -253,9 +241,6 @@ class IObTrainer:
             optimizer.step()
 
             total_loss += loss.item()
-
-            if batch_idx % 10 == 0:
-                print(f"[Epoch {epoch}] Step {batch_idx} Loss: {loss.item():.4f}")
 
         avg_loss = total_loss / max(1, len(dataloader))
         print(f"Epoch {epoch} Train Loss: {avg_loss:.4f}")
@@ -337,65 +322,3 @@ class IObTrainer:
             "labels": aligned_labels,  # [B, T]
             "mask": mask,  # [B, T]
         }
-
-
-class CoNLLDataset(TokenDataset):
-    """
-    A simple dataset for reading CoNLL format files.
-
-    Assumes:
-        token = first column
-        label = last column
-        sentences separated by blank lines
-    """
-
-    def __init__(self, path: str):
-        super().__init__([])
-        self._read_conll(path)
-
-    def _read_conll(self, path: str):
-        tokens: List[str] = []
-        labels: List[str] = []
-        all_labels = set()
-
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-
-                # Sentence boundary
-                if not line:
-                    if tokens:
-                        self.sentences.append((tokens, labels))
-                        tokens, labels = [], []
-                    continue
-
-                cols = line.split()
-                token = cols[0]
-                label = cols[-1]
-                all_labels.add(label)
-
-                tokens.append(token)
-                labels.append(label)
-
-        # Capture last sentence if file does not end with blank line
-        if tokens:
-            self.sentences.append((tokens, labels))
-
-        # Build stable label mappings, with "O" first if present
-        all_labels = sorted(all_labels)
-        if "O" in all_labels:
-            all_labels.remove("O")
-            all_labels = ["O"] + all_labels
-
-        self.label2idx = {lbl: idx for idx, lbl in enumerate(all_labels)}
-        self.idx2label = {v: k for k, v in self.label2idx.items()}
-
-
-if __name__ == "__main__":
-    dataset = CoNLLDataset("/Users/ik/prj/Lang3s/backend/nlp/data/phrase_chunk/train.conll")
-    trainer = IObTrainer("phrase_chunk_en",
-                         annotation_type="phrase_chunk",
-                         dataset=dataset,
-                         device="mps",
-                         num_epochs=5)
-    trainer.train()

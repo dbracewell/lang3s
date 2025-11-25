@@ -12,9 +12,9 @@ fi
 file=$1
 shift
 
-TRANSFORMERS_VERBOSITY=error
-TOKENIZERS_PARALLELISM=false
-PYTHONUNBUFFERED=1
+export TRANSFORMERS_VERBOSITY=error
+export TOKENIZERS_PARALLELISM=false
+export PYTHONUNBUFFERED=1
 
 export MODELS_DIR=./backend/nlp/models
 python -m "backend.nlp.src.lang3s.$file" "$@"
