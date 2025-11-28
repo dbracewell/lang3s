@@ -1,4 +1,6 @@
-from typing import Dict, List
+import json
+import random
+from typing import Any, Dict, List
 
 import torch
 from datasets import load_dataset
@@ -35,6 +37,72 @@ def read_jsonl(path: str, text: str = "text", label: str = "label"):
             sentences.append(doc[text])
             labels.append(doc[label])
     return sentences, labels
+
+
+def run_trial(cfg, trial_id, parameters: Dict[str, Any], task_type, dataset, val_dataset):
+    params = SentenceClassificationParams(**parameters)
+    params = params.model_dump()
+    params["learning_rate"] = cfg["lr"]
+    params["num_attention_heads"] = cfg["heads"]
+    params["dropout"] = cfg["dropout"]
+    params["lora_rank"] = cfg["lora_rank"]
+    params["dora_rank"] = cfg["dora_rank"]
+    params["num_epochs"] = 5
+    params["use_attention"] = cfg["use_attention"]
+    params["use_adapter"] = True
+    params["is_trial"] = True
+
+    trainer = SentenceClassifierTrainer(
+        name="test",
+        annotation_type="test",
+        task_type=task_type,
+        **params,
+        train_dataset=dataset,
+        val_dataset=val_dataset
+    )
+    trainer.train()
+    result = trainer.eval_one_epoch()
+    f1 = result["macro_f1"]
+    print(f"[Trial {trial_id}] Macro F1={f1:.4f}  cfg={cfg}\n")
+    return f1, params
+
+
+def random_search(dataset: Lang3sDataset,
+                  val_dataset: Lang3sDataset | None,
+                  parameters: Dict[str, Any],
+                  task_type: TaskType,
+                  n_trials=5):
+    search_space = {
+        "lora_rank": [4, 6, 8, 10],
+        "dora_rank": [8, 12, 16],
+        "heads": [2, 4],
+        "use_attention": [True, False],
+        "dropout": [0.05, 0.1, 0.15],
+        "lr": [1e-4, 2e-4, 3e-4],
+    }
+
+    keys = list(search_space.keys())
+    best = None
+    seen = set()
+
+    for t in range(1, n_trials + 1):
+        while True:
+            cfg = {k: random.choice(search_space[k]) for k in keys}
+            cfg_str = ", ".join(f"{k}={v}" for k, v in sorted(cfg.items(), key=lambda x: x[0]))
+            if cfg_str not in seen:
+                seen.add(cfg_str)
+                break
+        print(f"[Trial {t}] config={{{cfg_str}}}")
+        result = run_trial(cfg, t, parameters, task_type, dataset, val_dataset)
+
+        if best is None or result[0] > best[0]:
+            best = result
+
+    print("\nBEST CONFIG:", best)
+    best_params = best[1]  # type: ignore
+    best_params["is_trial"] = False
+    best_params["num_epochs"] = parameters["num_epochs"]
+    return best_params
 
 
 class SentenceClassificationDataset(Lang3sDataset):
@@ -95,9 +163,9 @@ class SentenceClassificationDataset(Lang3sDataset):
 
 
 class HuggingFaceDataset(Lang3sDataset):
-    def __init__(self, name: str, label: str = "label", text: str = "text"):
+    def __init__(self, name: str, label: str = "label", text: str = "text", split: str = "train"):
         super().__init__()
-        self.dataset = load_dataset(name)["train"]
+        self.dataset = load_dataset(name)[split]
         self.label = label
         self.text = text
         unique_labels = set(self.dataset[label])
@@ -115,81 +183,46 @@ class HuggingFaceDataset(Lang3sDataset):
         }
 
 
-# class ClassificationTrainer(Application):
-#     """
-#     This application trains a sentence classifier.
-#     """
-#
-#     task_name: str = Field(description="Name of the task, should be unique")
-#     data: str = Field(description="Path to the dataset")
-#     type: str = Field(description="The type of produced by the classifier which gets added to sentence metadata")
-#     multilabel: bool = Field(default=False, description="Determines if the classifier can produce multiple labels")
-#     lang: Optional[str] = Field(default=None, description="The language supported by the classifier")
-#     format: str = Field(default="text", description="The format of the dataset [text,json,hf]")
-#     label: str = Field(default="label", description="The label of the dataset")
-#     text: str = Field(default="text", description="The text of the dataset")
-#     mixup: bool = Field(default=False, description="Whether to use mixup augmentation")
-#     focal_loss: bool = Field(default=False, description="Whether to use focal loss")
-#     min_confidence: Optional[float] = Field(default=None, description="Minimum confidence threshold")
-#     default_class: Optional[str] = Field(default=None, description="Default class label")
-#     ignore_classes: Optional[List[str]] = Field(default=None,
-#                                                 description="Classes to not include during classification")
-#     num_epochs: int = Field(default=10, description="Number of epochs to train the model")
-#     rank: int = Field(default=8, description="Rank of DoRA Layer")
-#     num_attention_heads: int = Field(default=0, description="Number of heads for attention layer")
-#
-#     def run(self):
-#         task_type: TaskType = TaskType.SENTENCE_MULTILABEL if self.multilabel else TaskType.SENTENCE
-#
-#         if self.format == "hf":
-#             dataset = HuggingFaceDataset(self.data, label=self.label, text=self.text)
-#         else:
-#             dataset = SentenceClassificationDataset(
-#                 path=self.data,
-#                 task_type=task_type,
-#                 data_format=self.format,
-#                 label=self.label,
-#                 text=self.text
-#             )
-#
-#         if self.min_confidence is None:
-#             self.min_confidence = 0.5 if self.multilabel else 0.0
-#
-#         train_task(
-#             task_name=self.task_name,
-#             task_type=task_type,
-#             label2id=dataset.label2Id,
-#             language=self.lang,
-#             annotation_type=self.type,
-#             dataset=dataset,
-#             rank=self.rank,
-#             alpha=self.rank,
-#             num_epochs=self.num_epochs,
-#             min_confidence=self.min_confidence,
-#             default_class=self.default_class,
-#             ignore_classes=self.ignore_classes,
-#             use_mixup=self.mixup,
-#             use_focal_loss=self.focal_loss,
-#             num_attention_heads=self.num_attention_heads,
-#         )
-
-
 class ClfTrainer(Application, TrainerParams, SentenceClassificationParams):
     multilabel: bool = Field(default=False, description="Multilabel classification")
     format: str = Field(default="json", description="Format of the dataset")
+    auto_config: bool = Field(default=False, description="Automatically determine hyperparameters.")
+    auto_config_trials: int = Field(default=5,
+                                    description="Number of trials to run when searching for hyperparameters.")
 
     def run(self):
         params = dict(vars(self))
         params["task_type"] = TaskType.SENTENCE_MULTILABEL if self.multilabel else TaskType.SENTENCE
         if self.format == "hf":
-            dataset = HuggingFaceDataset(name=self.data, label=self.label, text=self.text)
+            train_dataset = HuggingFaceDataset(name=self.train_data, label=self.label, text=self.text)
+            val_dataset = HuggingFaceDataset(name=self.train_data, label=self.label, split="val")
         else:
-            dataset = SentenceClassificationDataset(task_type=params["task_type"],
-                                                    data_format=self.format,
-                                                    path=self.data,
-                                                    label=self.label,
-                                                    text=self.text)
-        trainer = SentenceClassifierTrainer(dataset=dataset, **params)
+            train_dataset = SentenceClassificationDataset(task_type=params["task_type"],
+                                                          data_format=self.format,
+                                                          path=self.train_data,
+                                                          label=self.label,
+                                                          text=self.text)
+            if self.val_data is not None:
+                val_dataset = SentenceClassificationDataset(task_type=params["task_type"],
+                                                            data_format=self.format,
+                                                            path=self.val_data,
+                                                            label=self.label,
+                                                            text=self.text)
+            else:
+                val_dataset = None
+
+        parameters = dict(vars(self))
+        if self.auto_config:
+            best_parameters = random_search(train_dataset,
+                                            val_dataset,
+                                            parameters,
+                                            params["task_type"],
+                                            n_trials=self.auto_config_trials)
+            with open(f"{self.name}_best_parameters.json", "w") as f:
+                json.dump(best_parameters, f, indent=2)
+            parameters.update(best_parameters)
+
+        trainer = SentenceClassifierTrainer(train_dataset=train_dataset, val_dataset=val_dataset, **params)
         trainer.train()
 
 

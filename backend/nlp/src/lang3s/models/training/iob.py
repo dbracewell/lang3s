@@ -1,11 +1,22 @@
-from typing import Dict, List, Optional, Tuple
+import itertools
+import sys
+from typing import Counter, Dict, List, Optional, Tuple, Any
 
+import seqeval.metrics
 import torch
+from sklearn.metrics import precision_recall_fscore_support
 from torch.utils.data import random_split, DataLoader
 from tqdm import tqdm
+from transformers import (
+    get_linear_schedule_with_warmup,  # pyright: ignore[reportPrivateImportUsage]
+    get_cosine_schedule_with_warmup,  # pyright: ignore[reportPrivateImportUsage]
+)
 
-from lang3s.models.transformer.task import Task, TaskType, TokenClassificationParams, bio_to_spans
-from .trainer import Lang3sDataset, Trainer
+from lang3s.models.transformer.heads import TokenClassificationHead
+from lang3s.models.transformer.shared_types import TaskType
+from lang3s.models.transformer.task import TokenClassificationParams, repair_bio_seq
+from lang3s.utils import flatten
+from .trainer import Lang3sDataset, Trainer, logger
 
 
 def token_classification_collate(batch):
@@ -30,7 +41,12 @@ class TokenDataset(Lang3sDataset):
         if "O" in all_labels:
             all_labels.remove("O")
             all_labels = ["O"] + all_labels
-
+        all_b = [tag[2:] for tag in all_labels if tag.startswith("B")]
+        for tag in all_b:
+            i_tag = f"I-{tag}"
+            if i_tag not in all_labels:
+                all_labels.append(i_tag)
+                
         self.label2idx = {lbl: idx for idx, lbl in enumerate(all_labels)}
         self.idx2label = {v: k for k, v in self.label2idx.items()}
 
@@ -47,91 +63,133 @@ class IObTrainer(Trainer):
     def __init__(self,
                  **kwargs
                  ):
-        super().__init__(**kwargs)
+        super().__init__(task_type=TaskType.TOKEN, **kwargs)
         self.pad_label = "O"
-        self.best_span_f1 = 0.0
-        self.best_model = None
-        self.task = Task(
-            name=self.name,
-            annotation_type=self.annotation_type,
-            type=TaskType.TOKEN,
-            language=self.lang,
-            label2id=self.dataset.label2idx,  # type: ignore
-            params=TokenClassificationParams(lstm_hidden_dim=kwargs.get("lstm_hidden_dim", 256)),
+        self.scheduler_name = kwargs.get("scheduler_name", "cosine")
+        self.warmup_ratio = kwargs.get("warmup_ratio", 0.15)
+        self.cache = []
+
+    def _create_clf_params(self, **kwargs):
+        return TokenClassificationParams(
+            **self.params,
         )
-        self.clf = self.task.create_head(self.embedding_dim)
-        self.clf.to(self.device)
-        self.embedder.device = self.device
-        self.weight_decay = kwargs.get("weight_decay", 0.1)
-        self.params["weight_decay"] = kwargs.get("weight_decay", 0.1)
 
-    def train(self):
-        self._print_train_information(name=self.task.name, annotation_type=self.task.annotation_type)
+    def _create_clf(self) -> torch.nn.Module:
+        return TokenClassificationHead(
+            hidden_size=self.embedding_dim,
+            num_labels=self.num_labels,
+            weights=self.weights if self.clf_params.use_class_weights else None,
+            idx2label=self.idx2label,
+            **self.clf_params.model_dump()
+        )
 
-        val_size = max(1, int(len(self.dataset) * 0.1))
-        train_size = len(self.dataset) - val_size
-        train_dataset, val_dataset = random_split(self.dataset, [train_size, val_size])
-        train_dataloader = DataLoader(
-            train_dataset,
-            batch_size=32,
+    def prepare_data(self):
+        if self.val_dataset is None:
+            val_size = max(1, int(len(self.train_dataset) * 0.1))
+            train_size = len(self.train_dataset) - val_size
+            self.train_dataset, self.val_dataset = random_split(self.train_dataset,
+                                                                [train_size, val_size],
+                                                                generator=torch.Generator().manual_seed(42))
+        self.train_dataloader = DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
             shuffle=True,
             collate_fn=token_classification_collate,
         )
-
-        val_dataloader = DataLoader(
-            val_dataset,
-            batch_size=64,
+        self.val_dataloader = DataLoader(
+            self.val_dataset,
+            batch_size=self.batch_size,
             shuffle=False,
             collate_fn=token_classification_collate,
         )
 
+        labels = []
+        for o in self.train_dataset:
+            labels.append(o["label"])
+
+        weights = []
+        label_counts = Counter(label for sent in labels for label in sent)
+        num_labels = len(label_counts)
+        total = sum(label_counts.values())
+        for idx in range(num_labels):
+            lbl = self.idx2label[idx]
+            freq = label_counts[lbl] / total
+            w = 1.0 / (freq + 1e-8)
+            weights.append(w)
+
+        weights = torch.tensor(weights, device=self.device, dtype=torch.float32)
+        self.weights = weights
+        self.weights = weights / weights.mean()
+
+    def _train_impl(self):
+        if len(self.cache) == 0:
+            logger.info("Caching training data...")
+            for batch in self.train_dataloader:
+                self.cache.append(self.prepare_batch(batch))
+            logger.info("Completed")
+
         optimizer = torch.optim.AdamW(
             self.clf.parameters(),
             lr=self.lr,
-            weight_decay=self.weight_decay,
+            weight_decay=0.01
         )
+        num_training_steps = len(self.train_dataloader) * self.num_epochs
+        num_warmup_steps = int(num_training_steps * self.warmup_ratio)
+        if self.scheduler_name == "linear":
+            scheduler = get_linear_schedule_with_warmup(optimizer,
+                                                        num_warmup_steps=num_warmup_steps,
+                                                        num_training_steps=num_training_steps)
+        else:
+            scheduler = get_cosine_schedule_with_warmup(
+                optimizer,
+                num_warmup_steps=num_warmup_steps,
+                num_training_steps=num_training_steps
+            )
 
-        self.best_span_f1 = 0.0
-        self.patience_counter = 0
+        best_span_f1 = float("-inf")
+        best_token_f1 = float("-inf")
+        best_score = float("-inf")
+        patience_counter = 0
         self.best_model = None
 
-        for epoch in range(1, self.num_epochs + 1):
+        epoch = 0
+        for epoch in tqdm(range(self.num_epochs), disable=not self.is_trial):
             self.train_one_epoch(
-                epoch=epoch,
-                dataloader=train_dataloader,
                 optimizer=optimizer,
+                scheduler=scheduler,
             )
 
-            (
-                val_loss,
-                span_prec,
-                span_rec,
-                span_f1,
-            ) = self.eval_one_epoch(
-                epoch=epoch,
-                dataloader=val_dataloader,
-                print_samples=True,
-            )
+            metrics = self.eval_one_epoch()
+            span_f1 = metrics["span_f1"]
+            token_f1 = metrics["token_f1"]
 
             # Early stopping on span-level F1
-            if span_f1 > self.best_span_f1 + 1e-4:
-                print(
-                    f"Span-F1 improved from {self.best_span_f1:.4f} to {span_f1:.4f}. Saving model..."
+            score = 2 * span_f1 + token_f1
+            # if span_f1 > best_span_f1 + 1e-4 or token_f1 > best_token_f1 + 1e-4:
+            if score > best_score + 1e-4:
+                logger.info(
+                    f"\nSpan-F1 {best_span_f1:.4f} => {span_f1:.4f}\nToken-F1 {best_token_f1:.4f} => {token_f1:.4f}\nSaving model..."
                 )
-                self.best_span_f1 = span_f1
-                self.patience_counter = 0
-                self.best_model = self.clf.state_dict()
+                best_span_f1 = max(best_span_f1, span_f1)
+                best_token_f1 = max(best_token_f1, token_f1)
+                best_score = max(best_score, 2 * best_span_f1 + best_token_f1)
+                patience_counter = 0
+                self.best_model = {k: v.detach().cpu().clone() for k, v in self.clf.state_dict().items()}
             else:
-                self.patience_counter += 1
-                print(f"No improvement in span-F1. Patience {self.patience_counter}/{self.patience}")
-                if self.patience_counter >= self.patience:
-                    print("Early stopping triggered on span-level F1.")
+                patience_counter += 1
+                logger.info(f"No improvement in span-F1. Patience {patience_counter}/{self.patience}")
+                if patience_counter >= self.patience:
+                    logger.info("Early stopping triggered on span-level F1.")
                     break
-            print()
 
-        self.save_model(self.task)
+            if not self.is_trial:
+                metrics["best_span_f1"] = best_span_f1
+                metrics["best_token_f1"] = best_token_f1
+                self.print_metrics(metrics, epoch)
 
-    def eval_one_epoch(self, dataloader: DataLoader, epoch: int, print_samples: bool = True):
+        return epoch
+
+    def eval_one_epoch(self) -> Dict[str, Any]:
         self.clf.eval()
         total_loss = 0.0
         all_gold: List[List[str]] = []
@@ -139,97 +197,123 @@ class IObTrainer(Trainer):
         all_text: List[List[str]] = []
 
         with torch.no_grad():
-            for batch in tqdm(dataloader, total=len(dataloader), desc="Evaluating"):
+            batch: Dict[str, Any]
+            for batch in tqdm(self.val_dataloader,
+                              total=len(self.val_dataloader),
+                              disable=self.is_trial,
+                              desc="Evaluating"):
                 batch_inputs = self.prepare_batch(batch)
 
                 emb = batch_inputs["embeddings"]
-                labels = batch_inputs["labels"]
+                aligned_labels = batch_inputs["labels"]
                 mask = batch_inputs["mask"]
+                word_ids_batch = batch_inputs["word_ids"]
 
-                loss = self.clf(
+                # Forward pass — return_logits includes raw logits
+                logits, loss = self.clf(
                     hidden=emb,
-                    labels=labels,
+                    labels=aligned_labels,
                     mask=mask,
+                    return_logits=True,
                 )
                 total_loss += loss.item()
-
-                # CRF decoding
-                pred_paths = self.clf(
-                    hidden=emb,
-                    mask=mask,
-                    labels=None,
-                )
 
                 # Realign predictions + gold to word-level using embedder mapping
                 sentences = batch["text"]
                 gold_labels_batch = batch["label"]
 
-                emb_eval = self.embedder(
-                    sentences,
-                    is_split_into_words=True,
-                    agg="mean",
-                )
-                word_ids_batch = [m.word_ids for m in emb_eval.mapping]
+                full_pred = logits.argmax(dim=-1).tolist()  # (B, T)
 
-                for b, (tokens, gold_seq, word_ids) in enumerate(
-                    zip(sentences, gold_labels_batch, word_ids_batch)
-                ):
-                    # word-level gold is already correct
-                    gold_seq_word = gold_seq
-
-                    # predicted word-level labels: first subword for each token
-                    pred_seq_word: List[str] = []
-                    for word_idx in range(len(tokens)):
-                        sub_positions = [i for i, w in enumerate(word_ids) if w == word_idx]
-                        if not sub_positions:
-                            pred_seq_word.append(self.pad_label)
+                for b, word_ids in enumerate(word_ids_batch):
+                    full_pred_ids = full_pred[b]
+                    restored_labels = []
+                    prev_wid = None
+                    for tid, wid in enumerate(word_ids):
+                        if wid is None or wid == prev_wid:
                             continue
-                        sub0 = sub_positions[0]
-                        pred_label_id = pred_paths[b][sub0]
-                        pred_seq_word.append(self.dataset.idx2label[pred_label_id])
+                        else:
+                            restored_labels.append(self.idx2label[full_pred_ids[tid]])
+                        prev_wid = wid
 
-                    all_text.append(tokens)
-                    all_gold.append(gold_seq_word)
-                    all_pred.append(pred_seq_word)
+                    all_pred.append(repair_bio_seq(restored_labels))
 
-        avg_loss = total_loss / max(1, len(dataloader))
-        print(f"Epoch {epoch} Val Loss: {avg_loss:.4f}")
-        s_prec, s_rec, s_f1 = IObTrainer.compute_span_f1(all_gold, all_pred)
-        print(f"Epoch {epoch} Span Precision:  {s_prec:.4f}")
-        print(f"Epoch {epoch} Span Recall:     {s_rec:.4f}")
-        print(f"Epoch {epoch} Span F1:         {s_f1:.4f}")
+                all_text.extend(sentences)
+                all_gold.extend([repair_bio_seq(lbls) for lbls in gold_labels_batch])
 
-        if print_samples:
-            print("\n--- SAMPLE PREDICTIONS ---")
-            for i in range(min(3, len(all_text))):
-                IObTrainer.print_predictions([all_text[i]], [all_gold[i]], [all_pred[i]])
+        avg_loss = total_loss / max(1, len(self.val_dataloader))
+        s_prec = seqeval.metrics.precision_score(all_gold, all_pred)
+        s_rec = seqeval.metrics.recall_score(all_gold, all_pred)
+        s_f1 = seqeval.metrics.f1_score(all_gold, all_pred)
+        t_prec, t_rec, t_f1, _ = precision_recall_fscore_support(flatten(all_gold),
+                                                                 flatten(all_pred),
+                                                                 average='macro',
+                                                                 zero_division=0)
 
-        return avg_loss, s_prec, s_rec, s_f1
+        return {
+            "loss": avg_loss,
+            "span_precision": s_prec,
+            "span_recall": s_rec,
+            "span_f1": s_f1,
+            "token_precision": t_prec,
+            "token_recall": t_rec,
+            "token_f1": t_f1,
+            "sample_text": all_text[:5],
+            "sample_gold": all_gold[:5],
+            "sample_pred": all_pred[:5],
+        }
 
-    @staticmethod
-    def print_predictions(texts, gold, pred):
-        for tokens, gold_seq, pred_seq in zip(texts, gold, pred):
-            print("Tokens:     ", " ".join(tokens))
-            print("Gold:       ", " ".join(gold_seq))
-            print("Predicted:  ", " ".join(pred_seq))
-            print("-" * 80)
+    def print_metrics(self, metrics: Dict[str, Any], epoch=-1, file=sys.stdout):
+        loss = metrics["loss"]
+        best_span_f1 = metrics.get("best_span_f1", metrics["span_f1"])
+        best_token_f1 = metrics.get("best_token_f1", metrics["token_f1"])
+        span_precision = metrics["span_precision"]
+        span_recall = metrics["span_recall"]
+        span_f1 = metrics["span_f1"]
+        token_precision = metrics["token_precision"]
+        token_recall = metrics["token_recall"]
+        token_f1 = metrics["token_f1"]
+        sample_text = metrics["sample_text"]
+        sample_gold = metrics["sample_gold"]
+        sample_pred = metrics["sample_pred"]
+        if epoch >= 0:
+            print(f"\n===== EPOCH {epoch + 1} RESULTS =====", file=file)
+        else:
+            print("\n===== FINAL TEST RESULTS =====", file=file)
+        print(f"     Loss: {loss:.4f}", file=file)
+        print("-------------------------------", file=file)
+        print(f" Token P: {token_precision:.4f}", file=file)
+        print(f" Token R: {token_recall:.4f}", file=file)
+        print(f"Token F1: {token_f1:.4f} (best: {best_token_f1:.4f})", file=file)
+        print("-------------------------------", file=file)
+        print(f" Span P: {span_precision:.4f}", file=file)
+        print(f" Span R: {span_recall:.4f}", file=file)
+        print(f"Span F1: {span_f1:.4f} (best: {best_span_f1:.4f})", file=file)
+        print("\n--- SAMPLE PREDICTIONS ---", file=file)
+        for tokens, gold_seq, pred_seq in zip(sample_text, sample_gold, sample_pred):
+            longest_label = max(len(lbl) for lbl in itertools.chain(pred_seq, gold_seq))
+            print("Tokens:     ", " ".join(tokens), file=file)
+            print("Gold:       ", " ".join(f"{lbl:<{longest_label}}" for lbl in gold_seq), file=file)
+            print("Predicted:  ", " ".join(f"{lbl:<{longest_label}}" for lbl in pred_seq), file=file)
+            print("-" * 80, file=file)
 
     def train_one_epoch(self,
-                        dataloader: DataLoader,
-                        epoch: int,
                         optimizer: torch.optim.Optimizer,
                         scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None):
         self.clf.train()
         total_loss = 0.0
 
-        for batch in tqdm(dataloader, total=len(dataloader), desc="  Training"):
-            batch_inputs = self.prepare_batch(batch)
+        # for batch in tqdm(self.train_dataloader, total=len(self.train_dataloader), desc="  Training"):
+        for batch in tqdm(range(len(self.train_dataloader)),
+                          disable=self.is_trial,
+                          desc="  Training"):
+            batch_inputs = self.cache[batch]
+            # batch_inputs = self.prepare_batch(batch)
 
             emb = batch_inputs["embeddings"]
             labels = batch_inputs["labels"]
             mask = batch_inputs["mask"]
 
-            loss = self.clf(
+            _, loss = self.clf(
                 hidden=emb,
                 labels=labels,
                 mask=mask,
@@ -239,86 +323,54 @@ class IObTrainer(Trainer):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.clf.parameters(), 5.0)
             optimizer.step()
+            if scheduler is not None:
+                scheduler.step()
 
             total_loss += loss.item()
 
-        avg_loss = total_loss / max(1, len(dataloader))
-        print(f"Epoch {epoch} Train Loss: {avg_loss:.4f}")
+        avg_loss = total_loss / max(1, len(self.train_dataloader))
         return avg_loss
-
-    @staticmethod
-    def compute_span_f1(all_gold: List[List[str]], all_pred: List[List[str]]):
-        """
-        Compute span-level (chunk-level) precision, recall, F1
-        over BIO segments.
-        """
-        gold_spans = []
-        pred_spans = []
-
-        for g_seq, p_seq in zip(all_gold, all_pred):
-            gold_spans.extend(bio_to_spans(g_seq))
-            pred_spans.extend(bio_to_spans(p_seq))
-
-        gold_set = set(gold_spans)
-        pred_set = set(pred_spans)
-
-        tp = len(gold_set & pred_set)
-        fp = len(pred_set - gold_set)
-        fn = len(gold_set - pred_set)
-
-        precision = tp / (tp + fp + 1e-9)
-        recall = tp / (tp + fn + 1e-9)
-        f1 = 2 * precision * recall / (precision + recall + 1e-9)
-
-        return precision, recall, f1
 
     def prepare_batch(
         self,
         batch,
-    ) -> Dict[str, torch.Tensor]:
+    ) -> Dict[str, Any]:
         sentences = batch["text"]
         gold_labels = batch["label"]
-
-        # 1) Run your long-sequence Embedder
         emb_result = self.embedder(
             sentences,
             is_split_into_words=True,
             agg="mean",
         )
+        padded_embeddings, padded_mask = emb_result.padded_token_embeddings_with_mask()
 
-        token_embeddings_list = emb_result.token_embeddings  # List[np.ndarray]
-        word_ids_list = [m.word_ids for m in emb_result.mapping]
+        embeddings = torch.from_numpy(padded_embeddings).type(torch.float32).to(self.device)
+        mask = torch.from_numpy(padded_mask).type(torch.bool).to(self.device)
 
         B = len(sentences)
-        max_T = max(arr.shape[0] for arr in token_embeddings_list)
-        H = token_embeddings_list[0].shape[1]
+        max_T = padded_embeddings.shape[1]
 
-        # 2) Pad embeddings + mask
-        embeddings = torch.zeros((B, max_T, H), dtype=torch.float32, device=self.device)
-        mask = torch.zeros((B, max_T), dtype=torch.bool, device=self.device)
-
-        for b, arr in enumerate(token_embeddings_list):
-            t = arr.shape[0]
-            embeddings[b, :t] = torch.tensor(arr, dtype=torch.float32, device=self.device)
-            mask[b, :t] = True
-
-        # 3) Build subword-aligned label tensor
         aligned_labels = torch.full(
             (B, max_T),
-            fill_value=self.dataset.label2idx[self.pad_label],
+            fill_value=-100,
             dtype=torch.long,
             device=self.device,
         )
 
+        word_ids_list = [m.word_ids for m in emb_result.mapping]
         for b, (word_ids, gold_seq) in enumerate(zip(word_ids_list, gold_labels)):
+            prev_word = None
             for sub_idx, word_id in enumerate(word_ids):
                 if word_id is None:
                     continue
-                if word_id < len(gold_seq):
-                    aligned_labels[b, sub_idx] = self.dataset.label2idx[gold_seq[word_id]]
+                if word_id != prev_word:
+                    aligned_labels[b, sub_idx] = self.label2idx[gold_seq[word_id]]
+
+                prev_word = word_id
 
         return {
             "embeddings": embeddings,  # [B, T, H]
             "labels": aligned_labels,  # [B, T]
             "mask": mask,  # [B, T]
+            "word_ids": word_ids_list,
         }

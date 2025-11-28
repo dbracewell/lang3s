@@ -26,8 +26,9 @@ def heavy_nlp(doc: Document, tasks: Optional[Iterable[str]] = None, is_reannotat
         return
 
     with torch.amp.autocast(dtype=torch.bfloat16, device_type="cpu"):  # type:ignore
+        sentences = [[t.text for t in s.tokens] for s in doc.text.sentences]
         result = embedder(
-            [[t.text for t in s.tokens] for s in doc.text.sentences],
+            sentences,
             is_split_into_words=True,
         )
 
@@ -39,7 +40,7 @@ def heavy_nlp(doc: Document, tasks: Optional[Iterable[str]] = None, is_reannotat
                 sources += tasks
             doc.text.remove_annotation(sources)
 
-        perform_heavy_tagging(doc, result, tasks)
+        perform_heavy_tagging(doc, sentences, result, tasks)
         extract_events_for_doc(doc)
 
         for annotation in doc.text.annotations:
@@ -147,10 +148,17 @@ def _add_token_span(start: Optional[int],
 
 
 def perform_heavy_tagging(
-    doc: Document, result: EmbeddingResult, tasks: Optional[Iterable[str]]
+    doc: Document,
+    sentences: List[List[str]],
+    result: EmbeddingResult,
+    tasks: Optional[Iterable[str]]
 ):
     tagger = MultiTaskTransformer()
-    outputs = tagger.forward(result, language=doc.language, tasks=tasks)
+    outputs = tagger.forward(result,
+                             sentences=sentences,
+                             language=doc.language,
+                             tasks=tasks)
+
     for source_name, output in outputs.items():
         if output.task_type.is_sentence_level():
             for l, sentence in zip(output.labels, doc.text.sentences):

@@ -2,7 +2,7 @@ import itertools
 import json
 import os
 from collections import defaultdict
-from typing import Dict, Iterable, Optional, NamedTuple, cast
+from typing import Dict, Iterable, List, Optional, NamedTuple, cast
 
 import torch
 import torch.nn as nn
@@ -43,6 +43,7 @@ class MultiTaskTransformer(nn.Module):
     def forward(
         self,
         embedding: EmbeddingResult,
+        sentences: List[List[str]],
         tasks: Optional[Iterable[str]] = None,
         language: Optional[str] = None,
     ) -> Dict[str, TransformerOutput]:
@@ -50,10 +51,23 @@ class MultiTaskTransformer(nn.Module):
         batch_size = config.INFERENCE_BATCH_SIZE
         for idx in range(0, len(embedding.mapping), batch_size):
             batch = embedding.batch(idx, idx + batch_size)
+            # batch_sentences = sentences[idx:idx + batch_size]
 
             hidden, rm = batch.padded_token_embeddings_with_mask()
             padded_token_embeddings = torch.from_numpy(hidden).type(torch.float32, non_blocking=True).to(self.device)
             padded_token_mask = torch.from_numpy(rm).type(torch.bool, non_blocking=True).to(self.device)
+
+            # word_to_subword = []
+            # word_ids_list = [m.word_ids for m in batch.mapping]
+            # for word_ids, tokens in zip(word_ids_list, batch_sentences):
+            #     mapping = []
+            #     for word_idx in range(len(tokens)):
+            #         sub_positions = [i for i, w in enumerate(word_ids) if w == word_idx]
+            #         if len(sub_positions) == 0:
+            #             mapping.append(None)  # rare, but safe fallback
+            #         else:
+            #             mapping.append(sub_positions[0])  # FIRST subword
+            #     word_to_subword.append(mapping)
 
             sentence_embeddings = torch.stack(
                 [torch.tensor(e, dtype=torch.float32) for e in batch.sentence_embeddings],
@@ -79,7 +93,7 @@ class MultiTaskTransformer(nn.Module):
 
                     task.head.eval()
                     output = task.head(hidden=device_embeddings, mask=device_mask, return_logits=True)
-                    labels = task.to_labels(output, batch)
+                    labels = task.to_labels(output, device_mask, batch)
                     outputs[task_name].append(TransformerOutput(
                         annotation_type=task.annotation_type,
                         task_type=task.type,

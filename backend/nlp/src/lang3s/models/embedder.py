@@ -31,7 +31,7 @@ class Chunk(NamedTuple):
 
 class SentenceTokenMapping(NamedTuple):
     token_count: int
-    word_ids: List[int]
+    word_ids: List[int | None]
 
 
 class ChunkResult(NamedTuple):
@@ -55,17 +55,21 @@ class EmbeddingResult(NamedTuple):
             mapping=self.mapping[start:end]
         )
 
-    def padded_token_embeddings_with_mask(self) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
+    def padded_token_embeddings_with_mask(self) -> Tuple[NDArray[np.floating], NDArray[np.bool]]:
         token_embeddings = self.token_embeddings
-        B = len(self.sentence_embeddings)
-        max_T = max(arr.shape[0] for arr in token_embeddings)
+
+        B = len(token_embeddings)
+        T_lengths = [arr.shape[0] for arr in token_embeddings]  # original subword lengths
+        max_T = max(T_lengths)
         H = token_embeddings[0].shape[1]
+
         hidden = np.zeros((B, max_T, H))
-        mask = np.zeros((B, max_T))
+        mask = np.full((B, max_T), False, dtype=np.bool)
         for b, arr in enumerate(token_embeddings):
             t = arr.shape[0]
             hidden[b, :t] = arr
             mask[b, :t] = True
+
         return hidden, mask
 
 

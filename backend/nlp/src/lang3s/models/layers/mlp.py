@@ -42,8 +42,7 @@ class MLPClassificationHead(nn.Module):
     def __init__(self,
                  hidden: int,
                  num_labels: int,
-                 dropout=0.3,
-                 loss_fn: nn.Module = nn.CrossEntropyLoss()):
+                 dropout=0.3):
         super(MLPClassificationHead, self).__init__()
         self.net = nn.Sequential(
             nn.LayerNorm(hidden),
@@ -59,7 +58,6 @@ class MLPClassificationHead(nn.Module):
             nn.Linear(hidden // 2, num_labels)
         )
         self.__init_weights()
-        self.loss_fn = loss_fn
 
     def __init_weights(self):
         for m in self.net.modules():
@@ -68,10 +66,5 @@ class MLPClassificationHead(nn.Module):
                 if m.bias is not None:
                     init.constant_(m.bias, 0)
 
-    def forward(self, x, labels=None):
-        logits = self.net(x)
-        if labels is not None:
-            loss = self.loss_fn(logits, labels)
-            return logits, loss
-
-        return logits
+    def forward(self, x):
+        return self.net(x)

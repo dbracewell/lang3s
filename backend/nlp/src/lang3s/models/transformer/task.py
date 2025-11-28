@@ -1,8 +1,7 @@
 import json
-from typing import Any, Dict, Optional, List, Tuple, cast
+from typing import Any, Dict, Literal, Optional, List, Tuple, cast
 
 import torch
-import torch.nn as nn
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
 from pydantic.fields import computed_field
@@ -17,21 +16,45 @@ class SentenceClassificationParams(BaseModel):
         arbitrary_types_allowed=True,
         extra="ignore"
     )
-    num_attention_heads: int = Field(default=0, description="The number of attention heads")
-    rank: int = Field(default=8, description="The rank of the DoRA layer")
-    alpha: int = Field(default=8, description="The alpha parameter of the DoRA layer")
+    use_adapter: bool = Field(default=True, description="Whether to use DORA or not.")
+    dora_rank: int = Field(default=8, description="The rank of the DoRA layer", examples=["ignore"])
+    lora_rank: int = Field(default=4, description="The rank of the LORA layer", examples=["ignore"])
+
     min_confidence: float = Field(default=0, description="The minimum confidence level for a classification.")
     default_class: Optional[str] = Field(default=None, description="The default clas.")
     ignore_classes: List[str] = Field(default_factory=list,
                                       description="The list of classes to not create annotations from (negative classes).")
-    use_dora: bool = Field(default=True, description="Whether to use DORA or not.")
+
     use_mixup: bool = Field(default=False, description="Whether to use mixup data augmentation or not.")
     mixup_alpha: float = Field(default=0.2, description="The alpha parameter of the mixup.")
+
     use_focal_loss: bool = Field(default=False, description="Whether to use focal loss or not.")
+
+    warmup_ratio: float = Field(default=0.1, description="The ratio of warmup examples.", examples=["ignore"])
+    learning_rate: float = Field(default=3e-4, description="The learning rate of the optimizer", examples=["ignore"])
+
+    dropout: float = Field(default=0.15, description="The dropout rate of the attention layer.")
+
+    use_attention: bool = Field(default=True, description="Whether to use attention or not.")
+    num_attention_heads: int = Field(default=0, description="The number of attention heads", examples=["ignore"])
 
 
 class TokenClassificationParams(BaseModel):
-    lstm_hidden_dim: int = Field(default=256, description="The number of parameters for the LSTM in the BiLSTMCRF")
+    use_attention: bool = Field(default=True, description="Whether to use attention or not.")
+    num_attention_heads: int = Field(default=2, description="The number of attention heads")
+
+    use_adapter: bool = Field(default=True, description="Whether to use LoRA/DoRA Parallel Adapter or not.")
+    dora_rank: int = Field(default=4, description="The rank of the DoRA layer")
+    lora_rank: int = Field(default=2, description="The rank of the LORA layer")
+
+    scheduler_name: Literal["cosine"] | Literal["linear"] = Field(default="cosine", description="The scheduler name.")
+    warmup_ratio: float = Field(default=0.15, description="The ratio of warmup examples.")
+    learning_rate: float = Field(default=1.2e-4, description="The learning rate of the optimizer")
+
+    dropout: float = Field(default=0.15, description="The dropout rate of the attention layer.")
+    window_radius: int = Field(default=2, description="The window radius of the attention layer.")
+
+    use_class_weights: bool = Field(default=False, description="Whether to use class weights or not.")
 
 
 class Task(BaseModel):
@@ -137,21 +160,15 @@ class Task(BaseModel):
             self.head = TokenClassificationHead(
                 hidden_size=hidden_size,
                 num_labels=len(self.label2id),
-                lstm_hidden=token_params.lstm_hidden_dim,
-                label2id=self.label2id,
+                **token_params.model_dump()
             )
         else:
             sentence_params: SentenceClassificationParams = cast(SentenceClassificationParams, self.params)
-            dummy_layer = nn.Linear(hidden_size, hidden_size)
             self.head = SentenceClassificationHead(
                 hidden_size=hidden_size,
                 num_labels=len(self.label2id),
                 task_type=self.type,
-                original_layer=dummy_layer,
-                rank=sentence_params.rank,
-                alpha=sentence_params.alpha,
-                num_attention_heads=sentence_params.num_attention_heads,
-                use_dora=sentence_params.use_dora,
+                **sentence_params.model_dump()
             )
 
         if path is not None:
@@ -163,7 +180,9 @@ class Task(BaseModel):
 
     def to_labels(self,
                   head_output: torch.Tensor | List[List[int]],
+                  mask: torch.Tensor | None,
                   embedding: EmbeddingResult) -> TransformerResult:
+
         if self.type.is_sentence_level():
             sentence_params = cast(SentenceClassificationParams, self.params)
             min_confidence = sentence_params.min_confidence
@@ -201,120 +220,9 @@ class Task(BaseModel):
                 return labels
 
         return decode_token_labels(
-            pred_paths=head_output,
+            logits=head_output,
+            mask=mask,
             idx2label=self.id2label,
-            pad_label='O',
-            word_ids_list=[m.word_ids for m in embedding.mapping]
-        )
-
-
-class TaskOld(BaseModel):
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True
-    )
-
-    annotation_type: str
-    name: str
-    type: TaskType
-    label2id: Dict[str, int]
-    num_attention_heads: int = 0
-    rank: int = 8
-    alpha: int = 8
-    language: Optional[str] = None
-    min_confidence: float = 0
-    default_class: Optional[str] = None
-    ignore_classes: List[str] = Field(default_factory=list)
-    lstm_hidden: Optional[int] = Field(default=256)
-    head: Optional[torch.nn.Module] = None
-    use_dora: bool = True
-
-    @computed_field
-    @property
-    def id2label(self) -> Dict[int, str]:
-        return {v: k for k, v in self.label2id.items()}
-
-    def to_json(self):
-        return self.model_dump(exclude={"head", "id2label"})
-
-    @classmethod
-    def from_dict(cls, json_dict):
-        return cls.model_validate(json_dict)
-
-    def create_head(self,
-                    hidden_size: int,
-                    device: torch.device | str = "cpu",
-                    path: Optional[str] = None):
-
-        label_list = [""] * len(self.label2id)
-        for idx, label in self.id2label.items():
-            label_list[idx] = label
-
-        if self.type == TaskType.TOKEN:
-            self.head = TokenClassificationHead(
-                hidden_size=hidden_size,
-                num_labels=len(self.label2id),
-                lstm_hidden=self.lstm_hidden or 256,
-                label2id=self.label2id,
-            )
-        else:
-            dummy_layer = nn.Linear(hidden_size, hidden_size)
-            self.head = SentenceClassificationHead(
-                hidden_size=hidden_size,
-                num_labels=len(self.label2id),
-                task_type=self.type,
-                original_layer=dummy_layer,
-                rank=self.rank,
-                alpha=self.alpha,
-                num_attention_heads=self.num_attention_heads,
-                use_dora=self.use_dora,
-            )
-
-        if path is not None:
-            self.head.load_state_dict(
-                torch.load(f"{path}/{self.name}_head.pt", map_location=device)
-            )
-        self.head.to(device)
-        self.head.eval()
-        return self.head
-
-    def to_labels(self,
-                  head_output: torch.Tensor | List[List[int]],
-                  embedding: EmbeddingResult) -> TransformerResult:
-
-        if self.type == TaskType.SENTENCE_MULTILABEL:
-            probs = torch.sigmoid(head_output)  # type: ignore
-            predictions = (probs >= self.min_confidence).int().cpu().tolist()
-            labels = []
-            for prediction in predictions:
-                row_label = []
-                row_probs = []
-                for index, value in enumerate(prediction):
-                    if value == 0:
-                        continue
-                    label_str = self.id2label[index]
-                    if label_str not in self.ignore_classes:
-                        row_label.append(label_str)
-                        row_probs.append(probs[index].item())
-                labels.append((row_label, row_probs))
-            return labels
-
-        if self.type == TaskType.SENTENCE:
-            probs = torch.softmax(head_output, dim=-1)  # type: ignore
-            predictions = torch.argmax(probs, dim=-1).cpu().tolist()
-            labels = []
-            for i, label in enumerate(predictions):
-                if probs[i][label] >= self.min_confidence:
-                    label_str = self.id2label[label]
-                    if label_str not in self.ignore_classes:
-                        labels.append((label_str, probs[i][label].item()))
-                else:
-                    labels.append((self.default_class, 0))
-            return labels
-
-        return decode_token_labels(
-            pred_paths=head_output,
-            idx2label=self.id2label,
-            pad_label='O',
             word_ids_list=[m.word_ids for m in embedding.mapping]
         )
 
@@ -363,36 +271,40 @@ def bio_to_spans(labels: List[str]) -> List[Tuple[str, int, int]]:
     return spans
 
 
-def decode_token_labels(pred_paths,
+def repair_bio_seq(labels: list[str]) -> list[str]:
+    fixed = []
+    prev = "O"
+    for tag in labels:
+        if tag.startswith("I-"):
+            t_type = tag[2:]
+            if prev == "O" or (not prev.endswith(t_type)):
+                tag = "B-" + t_type
+        fixed.append(tag)
+        prev = tag
+    return fixed
+
+
+def decode_token_labels(logits,
+                        mask,
                         word_ids_list,
-                        idx2label,
-                        pad_label="O"):
-    """
-    Convert CRF subword output → word-level spans only.
-    Returns: List[List[(label, start, end)]]
-    """
+                        idx2label):
     outputs = []
+    mask = mask.bool()
+    predictions = logits.argmax(dim=-1).tolist()
+    for b, word_ids in enumerate(word_ids_list):
+        pred = predictions[b]
+        labels = []
+        prev_wid = None
+        for tid, wid in enumerate(word_ids):
+            if not mask[b][tid]:
+                continue
 
-    for pred_sub, word_ids in zip(pred_paths, word_ids_list):
-
-        # 1. Extract unique word indices in order
-        unique_word_ids = []
-        for wid in word_ids:
-            if wid is not None and (not unique_word_ids or unique_word_ids[-1] != wid):
-                unique_word_ids.append(wid)
-
-        # 2. Convert subword → word BIO tags
-        pred_word_tags = []
-        for wid in unique_word_ids:
-            sub_positions = [i for i, w in enumerate(word_ids) if w == wid]
-            if not sub_positions:
-                pred_word_tags.append(pad_label)
+            if wid is None or wid == prev_wid:
+                continue
             else:
-                pred_id = pred_sub[sub_positions[0]]  # first subword
-                pred_word_tags.append(idx2label[pred_id])
+                labels.append(idx2label[pred[tid]])
+            prev_wid = wid
 
-        # 3. Return only spans
-        spans = bio_to_spans(pred_word_tags)
-        outputs.append(spans)
+        outputs.append(bio_to_spans(repair_bio_seq(labels)))
 
     return outputs

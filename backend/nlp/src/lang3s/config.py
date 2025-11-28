@@ -62,18 +62,18 @@ ADAPTER_CONFIG_FILE: str = os.path.join(ADAPTERS_DIR, "adapters.json")
 #####################################################################################
 # TRAINING AND INFERENCE PARAMETERS
 #####################################################################################
-def get_best_device(is_training: bool):
+def get_best_device():
     import torch
     if torch.cuda.is_available():
         return torch.device("cuda").type
-    elif is_training and torch.backends.mps.is_available():
+    elif torch.backends.mps.is_available():
         return torch.device("mps").type
     else:
         return torch.device("cpu").type
 
 
-TRAINING_DEVICE: str = os.environ.get("TRAINING_DEVICE", get_best_device(is_training=True))
-INFERENCE_DEVICE: str = os.environ.get("INFERENCE_DEVICE", get_best_device(is_training=False))
+TRAINING_DEVICE: str = os.environ.get("TRAINING_DEVICE", get_best_device())
+INFERENCE_DEVICE: str = os.environ.get("INFERENCE_DEVICE", get_best_device())
 INFERENCE_BATCH_SIZE: int = int(
     os.environ.get("INFERENCE_BATCH_SIZE", 32)
 )

@@ -147,6 +147,10 @@ class Application(BaseModel):
         annotation = unwrap_optional(field.annotation)
         default = field.default
 
+        examples = field.examples or []
+        if "ignore" in examples:
+            return
+
         origin = get_origin(annotation)
         args = get_args(annotation)
 
