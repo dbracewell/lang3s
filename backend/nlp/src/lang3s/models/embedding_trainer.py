@@ -736,7 +736,7 @@ def inference_test(model, tokenizer, config):
 if __name__ == '__main__':
 
     # === SWITCH MODE HERE: 'train' or 'inference' ===
-    RUN_MODE = 'train'
+    RUN_MODE = 'inference'
     # ===============================================
 
     config = {
@@ -759,8 +759,8 @@ if __name__ == '__main__':
         'num_binary_classes': 1,
         'num_token_classes': 7,
 
-        'save_path': 'dora_multitask_model.pt',
-
+        # 'save_path': 'dora_multitask_model.pt',
+        'save_path': 'dora_inference_model/pytorch_model.bin',
         "device": DEVICE
     }
 

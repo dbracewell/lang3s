@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "check_redis": "tsx --conditions=react-server --env-file=.env ./scripts/check_redis.ts",
-    "seed": "tsx --conditions=react-server --env-file=.env ./scripts/seed_ontology.ts"
+    "seed": "tsx --conditions=react-server --env-file=.env ./scripts/seed_ontology.ts",
+    "drizzle:json": "tsx --conditions=react-server --env-file=.env ./scripts/extract_schema.ts"
   },
   "prettier": {
     "plugins": [
@@ -85,6 +86,7 @@
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.7.0",
     "tailwindcss": "^4",
+    "ts-morph": "^27.0.2",
     "tsx": "^4.20.6",
     "tw-animate-css": "^1.4.0",
     "typescript": "^5"

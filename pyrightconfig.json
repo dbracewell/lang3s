@@ -1,5 +1,6 @@
 {
   "reportPrivateImportUsage": "none",
+  "enableTypeIgnoreComments": true,
   "include": [
     "src"
   ],

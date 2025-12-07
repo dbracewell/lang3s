@@ -6,11 +6,13 @@ from threading import Thread
 from typing import Iterable, List
 
 import numpy as np
+import sqlalchemy as db
 from numpy.typing import NDArray
 from psycopg import sql
 
 from lang3s import config
 from lang3s.db.database import Database
+from lang3s.db.models import DocumentsTable
 from lang3s.maths import binarize
 from lang3s.shared_types import DOCUMENT_COLUMNS, TEXT_ANNOTATION_COLUMNS, TEXT_COLUMNS, Document
 from lang3s.utils import decorators
@@ -38,7 +40,7 @@ class TextDatabase:
             daemon=False,
         ).start()
 
-        with self.__database.transaction() as cursor:
+        with self.__database.transaction(raw_connection=True) as cursor:
             self.__database.copy_from(
                 cursor,
                 "documents",
@@ -65,40 +67,24 @@ class TextDatabase:
 
     @property
     def doc_count(self):
-        with self.__database.cursor() as cursor:
-            cursor.execute("SELECT count(0) as count FROM documents")
-            r = cursor.fetchone()
-            if r is None:
-                return 0
-            return r["count"]
+        with self.__database.connection() as session:
+            return session.query(DocumentsTable).count()
 
     def get_documents(
         self, offset: int = 0, limit: int = 1000
     ) -> Generator[Document, None, None]:
-        with self.__database.cursor() as cursor:
-            query = sql.SQL(
-                """
-                SELECT docs.id as doc_id
-                FROM documents as docs
-                ORDER BY docs.id
-                OFFSET %s LIMIT %s
-                """
-            )
-
-            cursor.execute(
-                query,
-                (offset, limit),
-            )
-
-            for record in cursor:
-                doc_id = record["doc_id"]
-                json_file = os.path.join(config.DOCUMENTS_DIR, f"{doc_id}.json")
-                if os.path.exists(json_file):
-                    try:
-                        with open(json_file) as fp:
-                            yield Document.from_json(json.load(fp))
-                    except Exception:
-                        continue
+        with self.__database.connection() as session:
+            stmt = db.select(DocumentsTable.id).offset(offset).limit(limit)
+            doc_ids = session.execute(stmt).fetchall()
+        for record in doc_ids:
+            doc_id = record[0]
+            json_file = os.path.join(config.DOCUMENTS_DIR, f"{doc_id}.json")
+            if os.path.exists(json_file):
+                try:
+                    with open(json_file) as fp:
+                        yield Document.from_json(json.load(fp))
+                except Exception:
+                    continue
 
     def search(self,
                query: str,

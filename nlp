@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-if [ ! "$CONDA_DEFAULT_ENV" = "nlp" ]; then
-  conda activate nlp
-fi
-
 if [ $# -eq 0 ]; then
   echo "Error: No argument provided."
   exit 1

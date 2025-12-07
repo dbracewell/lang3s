@@ -1,15 +1,15 @@
 import json
-import math
 from contextlib import contextmanager
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Dict
 
 from pgvector.psycopg import register_vector
 from psycopg import sql
-from psycopg.rows import dict_row
-from psycopg_pool import ConnectionPool
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-import lang3s.config as config
-from lang3s.utils import decorators, partition
+from lang3s import config
+from lang3s.db.models import Base, ConfigurationTable
+from lang3s.utils import decorators
 
 
 def alias_identifier(ident, alias=None):
@@ -23,33 +23,87 @@ def alias_identifier(ident, alias=None):
         )
 
 
+@contextmanager
+def psy_raw(engine):
+    raw = engine.raw_connection()
+    try:
+        yield raw.connection  # yield psycopg3 connection
+    finally:
+        raw.close()
+
+
+MAX_INSERT_SIZE = 60000
+
+
 @decorators.singleton
 class Database:
-    MAX_INSERT_SIZE = 60000
 
     def __init__(self) -> None:
-        self.pool = ConnectionPool(
-            f"host={config.DB_HOST} dbname=lang3s user={config.DB_USER} password={config.DB_PASSWORD} port={config.DB_PORT}",
-            kwargs={"autocommit": True, "row_factory": dict_row},
-        )
+        self.engine = create_engine(config.DB_URL, echo=False, future=True)
+        self.SessionLocal = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, future=True)
 
     @contextmanager
     def cursor(self):
-        with self.pool.connection() as connection:
-            register_vector(connection)
-            with connection.cursor() as cursor:
+        with psy_raw(self.engine) as conn:
+            register_vector(conn)
+            with conn.cursor() as cursor:
                 yield cursor
-            connection.commit()
+            conn.commit()
+
+    @contextmanager
+    def connection(self, commit=False):
+        with self.engine.connect() as connection:
+            yield connection
+            if commit:
+                connection.commit()
+
+    @contextmanager
+    def session(self, commit=False):
+        with self.SessionLocal() as session:
+            yield session
+            if commit:
+                session.commit()
+
+    def execute(self, stmt, commit=False):
+        with self.connection(commit) as session:
+            return session.execute(stmt)
+
+    def add(self, stmt):
+        with self.session(commit=True) as session:
+            return session.add(stmt)
+
+    def upsert(self, stmt, index: str, set_values: Dict[str, Any]):
+        with self.connection(commit=True) as session:
+            on_conflict_stmt = stmt.on_conflict_do_update(
+                index_elements=[index],
+                set_=set_values,
+            )
+            return session.execute(on_conflict_stmt)
+
+    def insert_many_objects(self, objects: List[Base]):
+        with self.session(commit=True) as session:
+            return session.bulk_save_objects(objects)
+
+    def insert_many_mappings(self, table: Base, values: List[Dict[str, Any]]):
+        with self.session(commit=True) as session:
+            return session.bulk_insert_mappings(table, values)
 
     @contextmanager
     def transaction(
         self,
+        raw_connection: bool = False,
     ):
-        with self.pool.connection() as connection:
-            register_vector(connection)
-            with connection.cursor() as cursor:
-                yield cursor
-            connection.commit()
+        if not raw_connection:
+            with self.SessionLocal.begin() as tx:
+                yield tx
+                tx.commit()
+        else:
+            with psy_raw(self.engine) as connection:
+                register_vector(connection)
+                with connection.cursor() as cursor:
+                    with connection.transaction():
+                        yield cursor
+                connection.commit()
 
     def select(
         self,
@@ -78,20 +132,6 @@ class Database:
             cursor.execute(query)
             return cursor.fetchall()
 
-    def insert_many(
-        self, cursor, table: str, columns: List[str], data: List[Tuple[Any]]
-    ):
-        insert_size = math.floor(Database.MAX_INSERT_SIZE / len(columns))
-        for rows in partition(data, size=insert_size):
-            query = sql.SQL("INSERT INTO {} ({}) VALUES {}").format(
-                sql.Identifier(table),
-                sql.SQL(", ").join(sql.Identifier(c) for c in columns),
-                sql.SQL("({})").format(
-                    sql.SQL(", ").join(sql.Placeholder() for _ in columns)
-                ),
-            )
-            cursor.executemany(query, rows)
-
     def copy_from(
         self,
         cursor,
@@ -111,14 +151,10 @@ class Database:
     def get_config_value(
         self, config_name: str, default_value: Optional[Any] = None
     ) -> Any:
-        with self.cursor() as cursor:
-            cursor.execute(
-                "SELECT value FROM configuration where name=%s",
-                [config_name],
-            )
-            row = cursor.fetchone()
-            if row:
-                return row["value"]
+        with self.SessionLocal() as session:
+            result = session.query(ConfigurationTable).filter(ConfigurationTable.name == config_name).one_or_none()
+            if result:
+                return result.value
             return default_value
 
 

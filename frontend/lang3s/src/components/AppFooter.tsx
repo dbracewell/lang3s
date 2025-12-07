@@ -1,4 +1,4 @@
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   SidebarFooter,
   SidebarMenu,

@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 from pydantic import BaseModel
 
 from lang3s.agent.shared_types import AgentState, StepResult, AgentStep
-from lang3s.models.llm import RegisteredTool
+from lang3s.agent.llm import RegisteredTool
 
 
 def instruction_builder(

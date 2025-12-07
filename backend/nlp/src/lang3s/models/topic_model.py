@@ -9,8 +9,10 @@ from numpy.typing import NDArray
 from psycopg import sql
 from sklearn.decomposition import IncrementalPCA
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sqlalchemy import insert
 
 from lang3s.db import Database
+from lang3s.db.models import TopicsTable
 from lang3s.maths import binarize, cosine, normalize, weighted_average
 from lang3s.models.embedder import Embedder
 from lang3s.shared_types import Document
@@ -232,19 +234,20 @@ class Lang3sTopicModel:
     def _load_topics(self):
         self._topics = []
         db = Database()
-        for topic in db.select("topics", DB_COLUMNS):
-            self._topics.append(
-                Topic(
-                    id=topic["id"],
-                    support=topic["support"],
-                    embedding=topic["full_embedding"].to_numpy(),
-                    pca_centroid=np.zeros(REDUCED_DIMENSIONS),
-                    is_fixed=topic["is_fixed"],
-                    name=topic["name"],
-                    reducer=self.reducer,
-                    min_sim_threshold=self.sim_threshold,
+        with db.session() as session:
+            for topic in session.query(TopicsTable).all():
+                self._topics.append(
+                    Topic(
+                        id=topic.id,
+                        support=topic.support,
+                        embedding=topic.embedding.to_numpy(),
+                        pca_centroid=np.zeros(REDUCED_DIMENSIONS),
+                        is_fixed=topic.is_fixed,
+                        name=topic.name,
+                        reducer=self.reducer,
+                        min_sim_threshold=self.sim_threshold,
+                    )
                 )
-            )
         if len(self._topics) == 0:
             return
         embeddings = []
@@ -433,44 +436,57 @@ class Lang3sTopicModel:
         with db.cursor() as cursor:
             for topic in self._topics:
                 binary_embedding = binarize(topic.embedding)
-                query = sql.SQL("""
-                                INSERT INTO topics ({})
-                                VALUES
-                                {}
-                        ON CONFLICT (id)
-                                DO
-                                UPDATE
-                                    SET support = %s,
-                                    full_embedding = %s,
-                                    embedding = %s,
-                                    is_fixed = %s,
-                                    name = %s,
-                                    updated_at = %s
-                                """).format(
-                    sql.SQL(", ").join(sql.Identifier(c) for c in DB_COLUMNS),
-                    sql.SQL("({})").format(
-                        sql.SQL(", ").join(
-                            sql.Placeholder() for _ in DB_COLUMNS
-                        )
-                    ),
-                )
-                cursor.execute(
-                    query,
-                    (
-                        topic.id,
-                        topic.support,
-                        topic.embedding,
-                        binary_embedding,
-                        topic.is_fixed,
-                        topic.name,
-                        topic.support,
-                        topic.embedding,
-                        binary_embedding,
-                        topic.is_fixed,
-                        topic.name,
-                        datetime.datetime.now(datetime.timezone.utc),
-                    ),
-                )
+                values = {
+                    "id": topic.id,
+                    "name": topic.name,
+                    "support": topic.support,
+                    "embedding": binary_embedding,
+                    "fullEmbedding": topic.embedding,
+                    "updatedAt": datetime.datetime.now(datetime.timezone.utc),
+                    "fixed": topic.is_fixed,
+                }
+                insert_stmt = insert(TopicsTable).values(values)
+                update_values = {k: v for k, v in values.items() if k != "id"}
+                db.upsert(insert_stmt, "id", update_values)
+
+                # query = sql.SQL("""
+                #                 INSERT INTO topics ({})
+                #                 VALUES
+                #                 {}
+                #         ON CONFLICT (id)
+                #                 DO
+                #                 UPDATE
+                #                     SET support = %s,
+                #                     full_embedding = %s,
+                #                     embedding = %s,
+                #                     is_fixed = %s,
+                #                     name = %s,
+                #                     updated_at = %s
+                #                 """).format(
+                #     sql.SQL(", ").join(sql.Identifier(c) for c in DB_COLUMNS),
+                #     sql.SQL("({})").format(
+                #         sql.SQL(", ").join(
+                #             sql.Placeholder() for _ in DB_COLUMNS
+                #         )
+                #     ),
+                # )
+                # cursor.execute(
+                #     query,
+                #     (
+                #         topic.id,
+                #         topic.support,
+                #         topic.embedding,
+                #         binary_embedding,
+                #         topic.is_fixed,
+                #         topic.name,
+                #         topic.support,
+                #         topic.embedding,
+                #         binary_embedding,
+                #         topic.is_fixed,
+                #         topic.name,
+                #         datetime.datetime.now(datetime.timezone.utc),
+                #     ),
+                # )
 
     def get_topic(self, topic_id: int | str) -> Topic:
         if isinstance(topic_id, int):

@@ -1,40 +1,45 @@
-from collections import defaultdict
+from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import List, Optional, Any, Dict, cast, Literal, TYPE_CHECKING
+from typing import Callable, List, Optional, Any, Dict, Tuple, TYPE_CHECKING, Type
+
+from lang3s.agent.llm.chat_model import ChatModelResponse
+from lang3s.agent.token_estimator import TokenEstimator
 
 if TYPE_CHECKING:
-    from .agent import Agent
+    pass
 
 from pydantic import BaseModel
 
-from lang3s.utils.async_helper import run_sync
-from .memory import ModelScale, UnifiedMemory, MemoryConfig
-from .helpers import log_step_result
 
+@dataclass
+class AgentResult:
+    content: List[str] = field(default_factory=list)
+    parsed: List[Any] = field(default_factory=list)
+    exception: Optional[Exception] = field(default=None)
+    success: bool = field(default=True)
+    trace: List[Tuple[List[Dict[str, Any]], ChatModelResponse]] = field(default_factory=list)
 
-class ExampleList(BaseModel):
-    examples: List[str]
+    def update(self, chat_model_response: ChatModelResponse, messages: List[Dict[str, Any]]) -> "AgentResult":
+        if chat_model_response.content:
+            self.content.append(chat_model_response.content)
+        if chat_model_response.parsed:
+            self.parsed.append(chat_model_response.parsed)
+        if chat_model_response.exception:
+            self.exception = chat_model_response.exception
+            self.success = False
+        self.trace.append((messages.copy(), chat_model_response))
+        return self
 
-
-class StepResult(BaseModel):
-    output: Any = None
-    terminated: bool = False
-    success: bool = True
-
-
-class QueryPlan(BaseModel):
-    queries: List[str]
-    reasoning: str
-    action: Literal["query", "stop"]
-
-
-class Plan(BaseModel):
-    action: Literal[
-        "use_tool", "retrieve", "summarize", "stop", "reflect", "analyze", "generate_examples", "categorize"]
-    tool: Optional[str] = None
-    args: Optional[dict] = None
-    target_category: Optional[str] = None
-    reasoning: str
+    def merge(self, agent_result: "AgentResult") -> None:
+        if agent_result.content is None and agent_result.parsed is None and agent_result.exception is None:
+            return
+        self.content.extend(agent_result.content)
+        self.parsed.extend(agent_result.parsed)
+        self.trace.extend(agent_result.trace)
+        if not self.exception:
+            self.exception = agent_result.exception
+        if self.success:
+            self.success = agent_result.success
 
 
 class PersonaMode(Enum):
@@ -64,7 +69,7 @@ class PersonaMode(Enum):
 
         if self is PersonaMode.TONE:
             return (
-                "Rewrite or Generate text so the expression style matches the persona's tone. "
+                "Answer the user in a style that matches the persona's tone. "
                 "Do NOT alter factual meaning or add/remove information—only adjust tone."
             )
 
@@ -127,134 +132,131 @@ class Persona(BaseModel):
     description: str
     tone_instructions: str = ""
     worldview_instructions: str = ""
-    guardrails: str = (
-        "Preserve factual accuracy.\n"
-        "Avoid stereotypes, caricature, and extreme rhetoric.\n"
-        "Do not encourage or discourage specific political actions.\n"
-        "Stay respectful and grounded.\n"
-    )
+    guardrails: str = ""
 
-    def build_prompt(self, mode: PersonaMode):
+    def build_prompt(self, mode: PersonaMode, task: str):
         if mode == PersonaMode.NONE:
             return ""
         base = mode.get_instructions()
         parts = [
-            f"Persona name: {self.name}",
-            f"Persona description: {self.description}",
+            "Persona name:",
+            self.name,
             "",
-            "Persona Guardrails:",
-            self.guardrails.strip(),
+            "Persona description:",
+            self.description,
             "",
         ]
 
-        # Add relevant persona fields depending on the mode
+        if self.guardrails:
+            parts.append("Persona Guardrails:")
+            parts.append(self.guardrails.strip())
+            parts.append("")
+
         if mode is PersonaMode.TONE:
             parts.append("Persona Tone Instructions:")
             parts.append(self.tone_instructions.strip())
+            parts.append("")
 
         elif mode in (PersonaMode.PERSPECTIVE, PersonaMode.ANALYSIS,
                       PersonaMode.SUMMARIZATION, PersonaMode.QUERY_PLANNING):
             parts.append("Persona Worldview Instructions:")
             parts.append(self.worldview_instructions.strip())
+            parts.append("")
 
-        parts.append("")
         parts.append("Mode Instructions:")
         parts.append(base)
+        parts.append("")
 
-        return "\n".join(parts)
+        if task:
+            parts.append("User Task:")
+            parts.append(task)
+
+        return "\n".join(parts).strip()
 
 
+@dataclass
 class AgentState:
+    task: str
+    messages: List[Dict[str, Any]] = field(default_factory=list)
+    temperature: Optional[float] = field(default=None)
+    max_output_tokens: Optional[int] = field(default=None)
+    tools: Optional[List[Callable[..., Any]]] = field(default=None)
+    output_format: Optional[Type[BaseModel]] = field(default=None)
+    persona: Optional[Persona] = field(default=None)
+    persona_mode: Optional[PersonaMode] = field(default=None)
+    system_message: Optional[str] = field(default=None)
+    cache: Dict[str, Any] = field(default_factory=dict)
+    max_history: int = field(default=50)
+    terminated: bool = field(default=False)
+    max_input_tokens: int = field(default=1000000)
 
-    def __init__(self, persona: Optional["Persona"], model_scale=ModelScale.SMALL):
-        self.persona = persona
-        self.messages: List[dict] = []
-        self.cache: Dict[str, Any] = {}
-        self.memory_config = MemoryConfig(scale=model_scale)
-        self.last_plan: Optional[Plan] = None
-        self.last_output: Optional[Any] = None
-        self.system_message: str = "You are a helpful agent."
-        self.user_goal: Optional[str] = None
+    @classmethod
+    def from_existing(cls, state: "AgentState",
+                      task: str,
+                      persona_mode: Optional[PersonaMode] = None) -> "AgentState":
+        new_state = cls(**state.__dict__)
+        new_state.messages = []
+        new_state.task = task
+        new_state.persona_mode = persona_mode
+        new_state.terminated = False
+        new_state.cache = {}
+        return new_state
 
-    def reset_state(self):
-        self.messages = []
-        self.cache = {"steps": defaultdict(list), "local_memory": UnifiedMemory(self.memory_config)}
-        self.last_plan = None
-        self.last_output = None
-        self.system_message = "You are a helpful agent."
-        self.user_goal = None
+    def begin_agent(self):
+        self.messages.clear()
+        self.terminated = False
+        self.messages.append({"role": "system", "content": self.system_message or "You are a helpful agent."})
 
-    def update(self, new_message: dict):
-        self.messages.append(new_message)
-
-    def create_base_prompt(self, persona_mode: Optional[PersonaMode] = None) -> str:
-        persona_text = None
-        if self.persona is not None and persona_mode is not None:
-            persona_text = self.persona.build_prompt(persona_mode)
-        return self.local_memory.compile(
-            messages=self.messages,
-            last_output=self.last_output,
-            last_plan=self.last_plan,
-            user_goal=self.user_goal,
-            persona_text=persona_text,
-        )
-
-    def get_llm_messages(self, history: int = 1):
-        if self.system_message is not None:
-            return [{"role": "system", "content": self.system_message}] + self.messages[-history:]
-        return self.messages[-history:]
-
-    def prune(self):
-        self.messages = self.local_memory.prune_state(self.messages)
-
-    @property
-    def local_memory(self) -> UnifiedMemory:
-        return cast(UnifiedMemory, self.cache["local_memory"])
-
-    @property
-    def steps(self) -> Dict[str, List[StepResult]]:
-        return cast(Dict[str, List[StepResult]], self.cache["steps"])
-
-
-class AgentStep:
-
-    def __init__(self, name: Optional[str]):
-        self.name = name or self.__class__.__name__
-
-    async def _execute(self, agent: "Agent", state: AgentState) -> StepResult:
-        raise NotImplementedError
-
-    def run(self, agent: "Agent", state: AgentState) -> StepResult:
-        result = run_sync(self._execute(agent, state))
-        return self._process_result(state, result)
-
-    async def async_run(self, agent: "Agent", state: AgentState) -> StepResult:
-        result = await self._execute(agent, state)
-        return self._process_result(state, result)
-
-    def _process_result(self, state: AgentState, result: StepResult) -> StepResult:
-        if isinstance(result.output, Plan):
-            state.last_plan = result.output
+    def update(self, messages: dict | List[dict]):
+        if isinstance(messages, list):
+            self.messages.extend([self._set_priority(m) for m in messages])
         else:
-            state.last_output = result.output
-        if self.__class__.__name__ not in ["PlanRouterStep", "LoopStep"]:
-            log_step_result(self.name, result)
-            state.steps[self.name].append(result)
-        return result
+            self.messages.append(self._set_priority(messages))
 
+    def _set_priority(self, message: dict) -> dict:
+        priority = 1
+        role = message["role"]
+        if role == "system":
+            priority = 100
+        elif role == "tool":
+            priority = 10
+        elif role == "user":
+            priority = 5
+        message["_priority"] = priority
+        return message
 
-class PersonaAwareStep(AgentStep):
-    def __init__(self, name: Optional[str], mode: PersonaMode):
-        super().__init__(name)
-        self.mode = mode
+    def truncate(self, token_estimator: TokenEstimator):
+        if not self.messages:
+            return
 
+        self.remove_messages_if(lambda m: m.get("is_plan", False))
 
-class RetrievalResult(BaseModel):
-    result: str
-    score: float
+        system_msg = self.messages[0] if self.messages[0]["role"] == "system" else None
+        history = self.messages[1:] if system_msg else self.messages[:]
+        if len(history) > self.max_history:
+            history = history[-self.max_history:]
 
-    def __eq__(self, other):
-        return self.result == other.result
+        new_messages = []
+        if system_msg:
+            new_messages.append(system_msg)
+        new_messages.extend(history)
 
-    def __hash__(self):
-        return hash(self.result)
+        total_tokens = 0
+        for message in new_messages:
+            if "_token_count" not in message:
+                message["_token_count"] = token_estimator.count_messages([message])
+            total_tokens += message["_token_count"]
+
+        while total_tokens > self.max_input_tokens and len(new_messages) > 3:
+            candidates = new_messages[1:]
+            min_priority = min(m.get("_priority", 1) for m in candidates)
+            for i in range(1, len(new_messages)):
+                if new_messages[i].get("_priority", 1) == min_priority:
+                    removed = new_messages.pop(i)
+                    total_tokens -= removed["_token_count"]
+                    break
+
+        self.messages = new_messages
+
+    def remove_messages_if(self, filter: Callable[[Dict[str, Any]], bool]):
+        self.messages = [m for m in self.messages if not filter(m)]

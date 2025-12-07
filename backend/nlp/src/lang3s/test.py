@@ -5,6 +5,8 @@ from bs4 import BeautifulSoup
 from jsonlines import jsonlines
 
 from lang3s.app import Application
+from lang3s.db import TextDatabase
+from lang3s.models.topic_model import Lang3sTopicModel
 from lang3s.pipeline.runner import pipeline
 from lang3s_job_service import File
 
@@ -12,6 +14,13 @@ from lang3s_job_service import File
 class Test(Application):
 
     def run(self):
+        text_db = TextDatabase()
+        topic_model = Lang3sTopicModel()
+        for topic in topic_model.topics:
+            print(topic.name)
+
+        # row = session.query(Documents).filter(Documents.id == doc_id).one_or_none()
+        return
         files: List[File] = []
         with jsonlines.open(
             "/Users/ik/Library/Mobile Documents/com~apple~CloudDocs/project_reddit/reddit_distortions_20251104_1319.jsonl") as reader:

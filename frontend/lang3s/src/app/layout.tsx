@@ -4,7 +4,6 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { TRPCReactProvider } from "@/trpc/client";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-import UserProvider from "@/features/auth/UserContext";
 
 const inter = Inter({
   variable: "--font-inter",

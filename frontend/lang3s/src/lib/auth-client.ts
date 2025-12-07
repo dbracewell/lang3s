@@ -13,6 +13,7 @@ import {
   modeller,
   user,
 } from "@/features/auth/permissions";
+import { nextCookies } from "better-auth/next-js";
 
 export const authClient = createAuthClient({
   plugins: [
@@ -30,6 +31,7 @@ export const authClient = createAuthClient({
       },
       defaultRole: "user",
     }),
+    nextCookies(),
   ],
 });
 

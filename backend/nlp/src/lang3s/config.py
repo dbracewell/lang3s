@@ -20,6 +20,7 @@ DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "abba")
 DB_USER = os.environ.get("POSTGRES_USER", "admin")
 DB_HOST = os.environ.get("POSTGRES_HOST", "localhost")
 DB_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
+DB_URL = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/lang3s"
 
 #####################################################################################
 # REDIS
@@ -41,10 +42,11 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 XLM_ROBERTA = "xlm-roberta-base"
 GTE_MODEL = "Alibaba-NLP/gte-multilingual-base"
 MENTAL_HEALTH_ROBERTA = "mental/mental-roberta-base"
-__DEFAULT_EMBEDDING_MODEL = GTE_MODEL
+__DEFAULT_EMBEDDING_MODEL = XLM_ROBERTA
 EMBEDDING_MODEL: str = os.environ.get(
     "EMBEDDING_MODEL", __DEFAULT_EMBEDDING_MODEL
 )
+EMBEDDING_DIMENSION = 768
 
 #####################################################################################
 # STORAGE DIRECTORIES

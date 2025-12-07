@@ -1,7 +1,6 @@
 import { AppHeader } from "@/components/AppHeader";
 import { AppSidebar } from "@/components/AppSidebar";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import UserProvider from "@/features/auth/UserContext";
 import { cookies } from "next/headers";
 

@@ -4,7 +4,7 @@ from logging import Logger
 from typing import Dict, DefaultDict, Tuple
 from typing import Optional, Union
 
-from transformers import AutoModel, AutoTokenizer  # pyright: ignore[reportPrivateImportUsage]
+from transformers import AutoModel, AutoTokenizer
 
 import lang3s.config as config
 from lang3s.maths import normalize
