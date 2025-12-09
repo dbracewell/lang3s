@@ -57,22 +57,29 @@ class ToolCall:
                 else:
                     raw_result = self.function(**arguments.model_dump())
 
+                is_empty = False
                 if isinstance(raw_result, BaseModel):
                     content = raw_result.model_dump_json()
                 elif isinstance(raw_result, (dict, list)):
                     content = json.dumps(raw_result)
+                    is_empty = len(raw_result) == 0
                 elif isinstance(raw_result, (int, float, bool)):
                     content = json.dumps({"result": raw_result})
                 elif isinstance(raw_result, str):
                     content = json.dumps({"result": raw_result})
+                    is_empty = len(raw_result) == 0
                 elif raw_result is None:
                     content = json.dumps({"result": None})
+                    is_empty = True
                 else:
                     content = json.dumps({"result": str(raw_result)})
+                    is_empty = len(str(raw_result)) == 0
 
                 return {"role": "tool",
                         "name": self.name,
                         "tool_call_id": self.tool_call_id,
+                        "raw_result": raw_result,
+                        "is_empty": is_empty,
                         "content": content}
             except Exception as e:
                 last_exception = e

@@ -42,7 +42,7 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 XLM_ROBERTA = "xlm-roberta-base"
 GTE_MODEL = "Alibaba-NLP/gte-multilingual-base"
 MENTAL_HEALTH_ROBERTA = "mental/mental-roberta-base"
-__DEFAULT_EMBEDDING_MODEL = XLM_ROBERTA
+__DEFAULT_EMBEDDING_MODEL = GTE_MODEL
 EMBEDDING_MODEL: str = os.environ.get(
     "EMBEDDING_MODEL", __DEFAULT_EMBEDDING_MODEL
 )

@@ -20,8 +20,9 @@ class AgentResult:
     trace: List[Tuple[List[Dict[str, Any]], ChatModelResponse]] = field(default_factory=list)
 
     def update(self, chat_model_response: ChatModelResponse, messages: List[Dict[str, Any]]) -> "AgentResult":
-        if chat_model_response.content:
-            self.content.append(chat_model_response.content)
+        if not chat_model_response.tool_calls and chat_model_response.content and len(
+            chat_model_response.content.strip()) > 0:
+            self.content.append(chat_model_response.content.strip())
         if chat_model_response.parsed:
             self.parsed.append(chat_model_response.parsed)
         if chat_model_response.exception:
@@ -189,6 +190,8 @@ class AgentState:
     max_history: int = field(default=50)
     terminated: bool = field(default=False)
     max_input_tokens: int = field(default=1000000)
+    progress: int = field(default=0)
+    max_progress: int = field(default=0)
 
     @classmethod
     def from_existing(cls, state: "AgentState",
@@ -205,6 +208,8 @@ class AgentState:
     def begin_agent(self):
         self.messages.clear()
         self.terminated = False
+        self.max_progress = 0
+        self.progress = 0
         self.messages.append({"role": "system", "content": self.system_message or "You are a helpful agent."})
 
     def update(self, messages: dict | List[dict]):
@@ -214,6 +219,8 @@ class AgentState:
             self.messages.append(self._set_priority(messages))
 
     def _set_priority(self, message: dict) -> dict:
+        if "_priority" in message:
+            return message
         priority = 1
         role = message["role"]
         if role == "system":
@@ -229,7 +236,10 @@ class AgentState:
         if not self.messages:
             return
 
-        self.remove_messages_if(lambda m: m.get("is_plan", False))
+        self.remove_messages_if(
+            lambda m: m.get("is_plan", False) or (
+                m["role"] == "tool" and m.get("is_empty", False)
+            ))
 
         system_msg = self.messages[0] if self.messages[0]["role"] == "system" else None
         history = self.messages[1:] if system_msg else self.messages[:]

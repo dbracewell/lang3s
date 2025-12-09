@@ -9,10 +9,12 @@ import numpy as np
 import sqlalchemy as db
 from numpy.typing import NDArray
 from psycopg import sql
+from sqlalchemy import func
+from sqlalchemy.orm import noload
 
 from lang3s import config
 from lang3s.db.database import Database
-from lang3s.db.models import DocumentsTable
+from lang3s.db.models import DocumentsTable, TextAnnotationsTable
 from lang3s.maths import binarize
 from lang3s.shared_types import DOCUMENT_COLUMNS, TEXT_ANNOTATION_COLUMNS, TEXT_COLUMNS, Document
 from lang3s.utils import decorators
@@ -67,8 +69,17 @@ class TextDatabase:
 
     @property
     def doc_count(self):
-        with self.__database.connection() as session:
+        with self.__database.session() as session:
             return session.query(DocumentsTable).count()
+
+    def random_sentences(self, count: int) -> List[str]:
+        with self.__database.session() as session:
+            annotations: List[TextAnnotationsTable] = session.query(TextAnnotationsTable) \
+                .options(noload("*")) \
+                .filter(TextAnnotationsTable.type_ == "sentence" and TextAnnotationsTable.metadata_[
+                "is_stopword"] is False).order_by(func.random()).limit(count).all()  # type:ignore
+
+            return [a.text for a in annotations]  # type: ignore
 
     def get_documents(
         self, offset: int = 0, limit: int = 1000
@@ -103,22 +114,24 @@ class TextDatabase:
         with self.__database.cursor() as cursor:
             cursor.execute(sql_query,
                            (query, limit))
-            sentences = cursor.fetchall()
-            return [sentences["text"] for sentences in sentences]
+            result = cursor.fetchall()
+            return [sentence[0] for sentence in result]
 
     def sentence_search(self,
-                        embedding: NDArray[np.floating], max_difference: int, limit: int = 3) -> List[str]:
+                        embedding: NDArray[np.floating], min_similarity: float, limit: int = 3) -> List[str]:
         binarized_embedding = binarize(embedding)
+        max_difference = np.shape(embedding)[0] - min_similarity * np.shape(embedding)[0]
         query = sql.SQL("""
                         SELECT distinct text, (embedding <~> %s) as distance
                         FROM text_annotations
                         WHERE type = 'sentence'
                           and (embedding <~> %s) <= %s
+                          and (metadata ->> 'is_stopword')::boolean = false
                         ORDER BY distance
                         LIMIT %s
                         """)
         with self.__database.cursor() as cursor:
             cursor.execute(query,
                            (binarized_embedding, binarized_embedding, max_difference, limit))
-            sentences = cursor.fetchall()
-            return [sentences["text"] for sentences in sentences]
+            result = cursor.fetchall()
+            return [sentence[0] for sentence in result]

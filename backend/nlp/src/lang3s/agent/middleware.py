@@ -34,6 +34,25 @@ class Middleware:
         pass
 
 
+class ProgressMonitor(Middleware):
+
+    def before_agent(self, agent: "Agent", state: "AgentState"):
+        print(f"{state.progress} / {state.max_progress}")
+
+    def before_tool_call(self, agent: "Agent", state: "AgentState", progress: "AgentResult", tool: ToolCall):
+        print(f"{state.progress} / {state.max_progress}")
+
+    def after_tool_call(self, agent: "Agent", state: "AgentState", progress: "AgentResult", tool: ToolCall,
+                        tool_result: Any):
+        print(f"{state.progress} / {state.max_progress}")
+
+    def on_progress_update(self, agent: "Agent", state: "AgentState", progress: "AgentResult"):
+        print(f"{state.progress} / {state.max_progress}")
+
+    def after_agent(self, agent: "Agent", state: "AgentState", result: "AgentResult"):
+        print(f"{state.progress} / {state.max_progress}")
+
+
 class LoggingMiddleware(Middleware):
 
     def __init__(self, level: int = logging.DEBUG):
