@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { MenuSquareIcon, ShieldIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
+import { Logo } from "@/components/logo";
+import * as React from "react";
 
 type NavSidebarProps = {
   isOpen: boolean;
@@ -11,17 +13,27 @@ export const NavSidebar = ({ isOpen, setIsOpen }: NavSidebarProps) => {
   return (
     <div
       className={cn(
-        "from-sidebar-light to-sidebar-dark fixed top-0 left-0 z-50 flex h-screen w-[300px] flex-col border-r bg-linear-to-b p-4 shadow-2xl transition-all",
+        "mobile:w-[300px] from-sidebar-light to-sidebar-dark fixed top-0 left-0 z-50 flex h-screen w-full flex-col border-r bg-linear-to-b shadow-2xl transition-all",
         isOpen ? "animate-in translate-x-0" : "-translate-x-full",
       )}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex flex-1 items-center text-sm font-bold">
-          <ShieldIcon className="mr-2 size-4" /> KillerApp
+      <div className="mt-3 flex items-center justify-between px-2">
+        <div className="flex items-center gap-2 text-sm font-bold">
+          <Logo
+            height={16}
+            className="group-hover:fill-white dark:fill-white"
+          />{" "}
+          <span className="font-bold select-none">Lang3s</span>
         </div>
-        <Button variant="menu" onClick={() => setIsOpen(false)}>
-          <MenuSquareIcon className="" />
-        </Button>
+        <div className="flex w-full flex-1 items-center justify-end">
+          <Button
+            variant="menu"
+            size="icon-xs"
+            onClick={() => setIsOpen(false)}
+          >
+            <XIcon className="" />
+          </Button>
+        </div>
       </div>
     </div>
   );

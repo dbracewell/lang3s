@@ -1,9 +1,4 @@
-import {
-  Permission,
-  roleHasPermissions,
-  UserRole,
-} from "@/features/auth/permissions";
-import { authClient } from "@/lib/auth-client";
+import { Permission, roleHasPermissions, UserRole } from "@/features/auth/permissions";
 
 export type NavigationLink = {
   href: string;
@@ -120,8 +115,6 @@ export const NAVIGATION_LINKS: NavigationGroup[] = [
 ];
 
 export const filterLinks = (role: UserRole) => {
-  const d = authClient.admin.hasPermission({});
-
   return NAVIGATION_LINKS.filter(
     (g) => g.permissions == null || roleHasPermissions(role, g.permissions),
   ).map((g) => ({

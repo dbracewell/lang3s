@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none  aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
@@ -24,9 +24,10 @@ const buttonVariants = cva(
         note: "bg-amber-200 border border-amber-400 hover:bg-amber-100 text-amber-600",
         listButton:
           "hover:text-dodger-blue-500 hover:bg-dodger-blue-100 hover:border-dodger-blue-500 border bg-white text-slate-500",
-        menu: "[&_svg]size-6! transtion-all mr-4 border border-transparent hover:border-gray-400 hover:bg-gray-400/50 hover:rounded p-0.5! active:scale-95 dark:hover:bg-zinc-700 dark:hover:border-zinc-900",
+        menu: "[&_svg]size-6! transition-all border border-transparent hover:border-gray-400 hover:bg-gray-400/50 hover:rounded p-0.5! active:scale-95 dark:hover:bg-zinc-700 dark:hover:border-zinc-900",
+
         "menu-item":
-          "transtion-all mr-4 border border-transparent hover:border-gray-400 hover:bg-gray-400/50 hover:rounded p-0.5! dark:hover:bg-zinc-700 dark:hover:border-zinc-900 hover:shadow",
+          "transition-all mr-4 border border-transparent hover:border-dodger-blue-500 data-[state=open]:border-dodger-blue-500 data-[state=open]:text-white hover:text-white hover:bg-dodger-blue-400 hover:rounded  data-[state=open]:rounded data-[state=open]:bg-dodger-blue-400 data-[state=open]:shadow p-0.5! hover:shadow",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 
 export const useClickOutside = (
   ref: React.RefObject<HTMLElement | null>[],
@@ -6,8 +6,15 @@ export const useClickOutside = (
 ) => {
   useEffect(() => {
     const listener = (event: MouseEvent | TouchEvent) => {
+      const ele = event.target as HTMLElement;
       if (
-        ref.some((r) => r.current && r.current.contains(event.target as Node))
+        ele.parentElement == null ||
+        ref.some(
+          (r) =>
+            r.current &&
+            (r.current.contains(event.target as Node) ||
+              r.current === event.target),
+        )
       ) {
         return;
       }

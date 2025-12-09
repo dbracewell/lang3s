@@ -1,32 +1,13 @@
 "use client";
 import { CheckboxFormField } from "@/components/form-controls/checkbox-form-field";
 import { NumberInputFormField } from "@/components/form-controls/number-input-form-field";
-import {
-  SelectFormField,
-  SelectOptionItem,
-} from "@/components/form-controls/select-form-field";
+import { SelectFormField, SelectOptionItem } from "@/components/form-controls/select-form-field";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { capitalize } from "@/lib/formatters";
-import { formatURL } from "@/lib/formatters";
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { capitalize, formatURL } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import {
-  Lang3sSearchParams,
-  ParsedSearchParams,
-  QueryTypes,
-  SearchParamSchema,
-} from "@/features/search/params";
+import { Lang3sSearchParams, ParsedSearchParams, QueryTypes, SearchParamSchema } from "@/features/search/params";
 import { useTRPCQuery } from "@/trpc/use-queries";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SearchIcon, XIcon } from "lucide-react";
@@ -55,6 +36,7 @@ export const SearchBar = () => {
   const searchBarRef = useRef<HTMLFormElement>(null);
   const sTypeRef = useRef<HTMLDivElement | null>(null);
   const aTypeRef = useRef<HTMLDivElement | null>(null);
+  const openRef = useRef<HTMLDivElement | null>(null);
 
   const closeSearchOptions = (doingSearch: boolean) => {
     setOptionsOpen(false);
@@ -63,9 +45,9 @@ export const SearchBar = () => {
     }
   };
 
-  useClickOutside([searchBarRef, sTypeRef, aTypeRef], () =>
-    closeSearchOptions(false),
-  );
+  useClickOutside([searchBarRef, aTypeRef, sTypeRef, openRef], () => {
+    closeSearchOptions(false);
+  });
 
   const { data: annotationTypes } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationTypes.queryOptions(),
@@ -94,7 +76,16 @@ export const SearchBar = () => {
     form.setValue("minSimilarity", searchParams.minSimilarity);
     form.setValue("page", searchParams.page);
     form.setValue("semantic", searchParams.semantic);
-  }, [form, searchParams]);
+  }, [
+    form,
+    searchParams.q,
+    searchParams.atype,
+    searchParams.stype,
+    searchParams.aid,
+    searchParams.minSimilarity,
+    searchParams.page,
+    searchParams.semantic,
+  ]);
 
   useEffect(() => {
     setFormValues();
@@ -106,14 +97,14 @@ export const SearchBar = () => {
         ref={searchBarRef}
         onSubmit={form.handleSubmit(onSubmit)}
         id="searchBarForm"
-        className="group relative z-100"
+        className="group relative z-20 w-full max-w-xs py-1 sm:hidden md:block lg:max-w-sm"
         onFocus={() => setOptionsOpen(true)}
       >
         <InputGroup
           className={cn(
-            "w-full rounded-full bg-slate-200 hover:shadow-md",
+            "text-foreground bg-sidebar-dark/50 dark:border-border h-8 w-full rounded-full hover:shadow-sm dark:bg-zinc-700 dark:hover:shadow-zinc-500",
             isOptionsOpen &&
-              "rounded-none rounded-t-lg border border-b-0 border-slate-900 bg-slate-50",
+              "bg-background rounded-none rounded-t-lg border border-b-0 border-slate-800 dark:border-slate-500",
           )}
         >
           <FormField
@@ -130,6 +121,7 @@ export const SearchBar = () => {
                         field.onChange(e);
                         form.setValue("aid", null);
                       }}
+                      className="text-sm"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           form.handleSubmit(onSubmit);
@@ -143,15 +135,15 @@ export const SearchBar = () => {
             }}
           />
           <InputGroupAddon>
-            <SearchIcon />
+            <SearchIcon className="size-4" />
           </InputGroupAddon>
           {isOptionsOpen && (
             <InputGroupAddon align="inline-end">
               <Button
                 type="button"
-                size="icon-sm"
+                size="icon-xs"
                 variant="ghost"
-                className="size-5 rounded p-1! hover:text-slate-500"
+                className="size-4 rounded hover:text-slate-500"
                 onClick={() => setOptionsOpen(false)}
               >
                 <XIcon className="size-4" />
@@ -160,8 +152,9 @@ export const SearchBar = () => {
           )}
         </InputGroup>
         <div
+          ref={openRef}
           className={cn(
-            "absolute right-0 left-0 z-200 h-fit flex-col gap-5 rounded-b-lg border border-t-0 border-slate-900 bg-white p-5 px-5 text-xs shadow-2xl",
+            "dark:bg-sidebar-dark absolute right-0 left-0 z-200 h-fit flex-col gap-5 rounded-b-lg border border-t-0 border-slate-900 bg-white p-5 px-5 text-xs shadow-2xl dark:border-slate-500",
             isOptionsOpen ? "animate-dropdown flex" : "hidden",
           )}
         >
