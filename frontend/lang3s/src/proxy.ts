@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 const publicRoutes = ["sign-in", "install"];
 const authRoutes = ["sign-in", "install"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -24,6 +24,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  runtime: "nodejs",
-  matcher: ["/((?!api|api/inngest|_next/static|_next/image|.*\\.png$).*)"],
+  matcher: ["/((?!api|api/inngest|_next/static|_next/image|.*\\.png$).*)"]
 };

@@ -1,6 +1,6 @@
 import { Logo } from "@/components/logo";
 
-export default async function Home() {
+export default function Home() {
   return (
     <div className="flex h-full flex-1 flex-col items-center justify-center gap-2">
       <div className="flex flex-col items-center justify-center rounded-full border-2 bg-slate-200 p-40 shadow-2xl">

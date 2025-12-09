@@ -3,6 +3,8 @@ import { DocumentsViewPage } from "@/features/documents/ui/views/DocumentsViewPa
 import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 import React from "react";
 
+export const dynamic = "force-dynamic";
+
 const DocumentsPage = () => {
   prefetch(trpc.documents.getMany.infiniteQueryOptions({ cursor: 0 }));
   return (

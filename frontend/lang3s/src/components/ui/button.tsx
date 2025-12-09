@@ -24,6 +24,9 @@ const buttonVariants = cva(
         note: "bg-amber-200 border border-amber-400 hover:bg-amber-100 text-amber-600",
         listButton:
           "hover:text-dodger-blue-500 hover:bg-dodger-blue-100 hover:border-dodger-blue-500 border bg-white text-slate-500",
+        menu: "[&_svg]size-6! transtion-all mr-4 border border-transparent hover:border-gray-400 hover:bg-gray-400/50 hover:rounded p-0.5! active:scale-95 dark:hover:bg-zinc-700 dark:hover:border-zinc-900",
+        "menu-item":
+          "transtion-all mr-4 border border-transparent hover:border-gray-400 hover:bg-gray-400/50 hover:rounded p-0.5! dark:hover:bg-zinc-700 dark:hover:border-zinc-900 hover:shadow",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -32,6 +35,7 @@ const buttonVariants = cva(
         icon: "size-9",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
+        "icon-xs": "size-6",
       },
     },
     defaultVariants: {
