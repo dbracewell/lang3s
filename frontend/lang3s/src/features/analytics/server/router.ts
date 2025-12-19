@@ -1,15 +1,11 @@
-import { db } from "@/db";
-import {
-  EMBEDDING_DIMENSIONS,
-  TextAnnotationTable,
-  TopicsTable,
-} from "@/db/schema";
-import { logAndRethrow } from "@/lib/try-catch";
+import { db } from "@/lib/db";
+import { TextAnnotationTable, TopicsTable } from "@/lib/db/schema";
+import { logAndRethrow } from "@/lib/utils/try-catch";
 import {
   getAnnotationsInSentence,
   notOverlaps,
 } from "@/features/documents/server/subqueries";
-import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
 import {
   and,
   asc,
@@ -19,12 +15,13 @@ import {
   eq,
   gt,
   gte,
-  hammingDistance,
   inArray,
   ne,
+  or,
   sql,
 } from "drizzle-orm";
 import z from "zod";
+import { jsonbAgg, jsonbBuildObject } from "@/lib/db/funcs";
 
 export const AnalyticsRouter = createTRPCRouter({
   getAnnotationTypes: protectedProcedure.query(async () => {
@@ -72,7 +69,9 @@ export const AnalyticsRouter = createTRPCRouter({
       return await logAndRethrow(
         db
           .select({
-            text: sql<string>`upper(${TextAnnotationTable.text})`.as("text"),
+            text: sql<string>`upper(COALESCE(${TextAnnotationTable.metadata}->>'coref_text', ${TextAnnotationTable.content}))`.as(
+              "text",
+            ),
             value: TextAnnotationTable.value,
             count: count().as("count"),
             docCount: countDistinct(TextAnnotationTable.documentId).as(
@@ -90,7 +89,10 @@ export const AnalyticsRouter = createTRPCRouter({
               inArray(TextAnnotationTable.value, input.values),
             ),
           )
-          .groupBy((t) => [t.text, t.value])
+          .groupBy((t) => [
+            sql<string>`upper(COALESCE(${TextAnnotationTable.metadata}->>'coref_text', ${TextAnnotationTable.content}))`,
+            t.value,
+          ])
           .orderBy((t) => desc(t.count))
           .having((t) => gt(t.count, 10)),
       );
@@ -160,10 +162,12 @@ export const AnalyticsRouter = createTRPCRouter({
       .from(TopicsTable)
       .as("t2");
 
-    const similarity = sql<number>`1 - (${hammingDistance(
-      s1.embedding,
-      s2.embedding as any,
-    )}) / ${EMBEDDING_DIMENSIONS}`;
+    // const similarity = sql<number>`(${SEMANTIC_EMBEDDING_DIMENSION} - (${hammingDistance(
+    //   s1.embedding,
+    //   s2.embedding as any,
+    // )})) / ${SEMANTIC_EMBEDDING_DIMENSION}`;
+
+    const similarity = sql<number>`1 - (${s1.embedding}::halfvec <=> ${s2.embedding}::halfvec)::float`;
 
     const [points, sims] = await Promise.all([
       db
@@ -181,11 +185,137 @@ export const AnalyticsRouter = createTRPCRouter({
         })
         .from(s1)
         .innerJoin(s2, gt(s1.id, s2.id))
-        .where((t) => gte(t.similarity, 0.75)),
+        .where((t) => gte(t.similarity, 0.7)),
     ]);
     return {
       points,
       similarities: sims,
     };
   }),
+
+  getEventsForEntity: protectedProcedure
+    .input(
+      z.object({
+        entity: z.string(),
+        value: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { entity, value } = input;
+
+      const sentences = db
+        .select({
+          sentence: TextAnnotationTable.content,
+          sentenceId: TextAnnotationTable.sentenceId,
+          textId: TextAnnotationTable.textId,
+        })
+        .from(TextAnnotationTable)
+        .where(eq(TextAnnotationTable.type, "sentence"))
+        .as("sentences");
+
+      const entities = db
+        .selectDistinct({
+          textId: TextAnnotationTable.textId,
+        })
+        .from(TextAnnotationTable)
+        .where(
+          and(
+            eq(TextAnnotationTable.type, "entity"),
+            eq(TextAnnotationTable.value, value),
+            eq(
+              sql`lower(${TextAnnotationTable.content})`,
+              entity.toLowerCase(),
+            ),
+          ),
+        )
+        .as("entities");
+
+      const events = db
+        .select({
+          text: sql<string>`UPPER((${TextAnnotationTable.metadata})->>'lemma')::text`.as(
+            "event",
+          ),
+          sentence: sentences.sentence,
+          value: TextAnnotationTable.value,
+          A0: sql<string[]>`(${TextAnnotationTable.metadata}->'A0_TEXT')`.as(
+            "A0",
+          ),
+          A1: sql<string[]>`${TextAnnotationTable.metadata}->'A1_TEXT'`.as(
+            "A1",
+          ),
+          TIME: sql<string>`${TextAnnotationTable.metadata}->>'TIME_TEXT'`.as(
+            "TIME",
+          ),
+          LOC: sql<string>`${TextAnnotationTable.metadata}->>'LOC_TEXT'`.as(
+            "LOC",
+          ),
+          isA0: sql<boolean>`exists (
+      select 1
+      from jsonb_array_elements_text(metadata->'A0_TEXT') as elem
+      where lower(elem) = ${entity.toLowerCase()}
+  )`.as("isA0"),
+          isA1: sql<boolean>`exists (
+      select 1
+      from jsonb_array_elements_text(metadata->'A1_TEXT') as elem
+      where lower(elem) = ${entity.toLowerCase()}
+  )`.as("isA1"),
+          isLoc:
+            sql<boolean>`UPPER((metadata->>'LOC_TEXT')::text) = ${entity.toUpperCase()}`.as(
+              "isLoc",
+            ),
+        })
+        .from(TextAnnotationTable)
+        .innerJoin(entities, eq(entities.textId, TextAnnotationTable.textId))
+        .innerJoin(
+          sentences,
+          and(
+            eq(sentences.textId, TextAnnotationTable.textId),
+            eq(sentences.sentenceId, TextAnnotationTable.sentenceId),
+          ),
+        )
+        .where(
+          and(
+            eq(TextAnnotationTable.type, "event"),
+            or(
+              sql`exists (
+      select 1
+      from jsonb_array_elements_text(metadata->'A0_TEXT') as elem
+      where lower(elem) = ${entity.toLowerCase()}
+  )`,
+              sql`exists (
+      select 1
+      from jsonb_array_elements_text(metadata->'A1_TEXT') as elem
+      where lower(elem) = ${entity.toLowerCase()}
+  )`,
+              sql`UPPER((metadata->>'LOC_TEXT')::text) = ${entity.toUpperCase()}`,
+            ),
+          ),
+        )
+        .as("events");
+
+      return await logAndRethrow(
+        db
+          .select({
+            value: events.value,
+            count: count(),
+            events: jsonbAgg(
+              jsonbBuildObject({
+                text: events.text,
+                sentence: events.sentence,
+                A0: events.A0,
+                A1: events.A1,
+                TIME: events.TIME,
+                LOC: events.LOC,
+                isA0: events.isA0,
+                isA1: events.isA1,
+                isLoc: events.isLoc,
+              }),
+            ),
+          })
+          .from(events)
+
+          .groupBy((t) => [t.value])
+          .orderBy(events.value),
+      );
+    }),
 });

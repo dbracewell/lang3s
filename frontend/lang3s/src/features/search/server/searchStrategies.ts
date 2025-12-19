@@ -1,266 +1,324 @@
-import { db } from "@/db";
-import { DocumentsTable, TextAnnotationTable, TextTable } from "@/db/schema";
-import { logAndRethrow } from "@/lib/try-catch";
-import { PAGE_LIMIT } from "@/features/common/constants";
-import { SearchResults } from "@/features/search/types";
-import { and, asc, countDistinct, desc, eq, gte, ne, sql } from "drizzle-orm";
 import "server-only";
+import { db } from "@/lib/db";
+import { DocumentsTable, TextAnnotationTable, TextTable } from "@/lib/db/schema";
+import { logAndRethrow } from "@/lib/utils/try-catch";
+import { SearchResults } from "@/features/search/types";
+import { and, asc, count, countDistinct, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
 
-export const fullTextAnnotationSearch = async (
-  query: string,
-  annotationType: string,
-  page: number,
-) => {
-  const sub = db
+import {
+  cosineSimilarity,
+  generateNextPage,
+  jsonAgg,
+  jsonBuildObject,
+  orderDesc,
+  withPagination
+} from "@/lib/db/funcs";
+
+export const createPaginatedSearchResults = async ({
+  sub,
+  page,
+  searchType,
+}: {
+  sub: any; // Because of Drizzle typing problems
+  page: number;
+  searchType: string;
+}) => {
+  const [total, results, entities] = await logAndRethrow(
+    Promise.all([
+      db.select({ count: countDistinct(sub.documentId) }).from(sub),
+      withPagination(
+        db
+          .select()
+          .from(sub)
+          .orderBy((t) => [desc(t.rank), asc(t.documentId)]),
+        { page },
+      ),
+      db
+        .select({
+          entity: sql<string>`LOWER(COALESCE(${TextAnnotationTable.metadata}->>'coref_text', ${TextAnnotationTable.content}))`,
+          count: countDistinct(TextAnnotationTable.documentId),
+        })
+        .from(TextAnnotationTable)
+        .innerJoin(sub, eq(TextAnnotationTable.documentId, sub.documentId))
+        .where(eq(TextAnnotationTable.type, "entity"))
+        .groupBy((t) => [t.entity])
+        .orderBy((t) => [desc(t.count), asc(t.entity)])
+        .having((t) => gte(t.count, 2)),
+    ]),
+  );
+
+  const { hasNextPage, finalResults } = generateNextPage(results);
+  return {
+    type: searchType,
+    total: total[0].count,
+    results: finalResults,
+    entities: entities,
+    nextCursor: hasNextPage ? Math.max(page, 1) + 1 : undefined,
+  } as SearchResults;
+};
+
+export const annotationSearch = async ({
+  query,
+  embedding,
+  annotationType,
+  isStrict,
+  page,
+}: {
+  query: string;
+  embedding?: number[];
+  annotationType: string;
+  isStrict: boolean;
+  page: number;
+}) => {
+  const strictSearch = db
     .select({
       documentId: TextAnnotationTable.documentId,
-      similarity: sql`pgroonga_score(tableoid,ctid)`.as("rank"),
-      highlight: sql<string>`array_to_string(
-					pgroonga_snippet_html (
-										${TextAnnotationTable.text},
-										 pgroonga_query_extract_keywords(${query})
-										 ), ' ... ')`.as("highlight"),
-      start: TextAnnotationTable.start,
+      text: sql<string>`COALESCE(${TextAnnotationTable.metadata}->>'coref_text',
+      ${TextAnnotationTable.content})`.as("strict_text"),
+      a0: sql<string[]>`${TextAnnotationTable.metadata}->'A0_TEXT'`.as("A0"),
+      a1: sql<string[]>`${TextAnnotationTable.metadata}->'A1_TEXT'`.as("A1"),
+      time: sql<string>`${TextAnnotationTable.metadata}->'TIME_TEXT'`.as(
+        "TIME",
+      ),
+      location: sql<string>`${TextAnnotationTable.metadata}->'LOC_TEXT'`.as(
+        "LOCATION",
+      ),
+      itemId: TextAnnotationTable.id,
+      rank: sql<number>`ROW_NUMBER() OVER (ORDER BY 
+          CASE
+            WHEN COALESCE(pgroonga_score(tableoid,ctid), -10) < 1 THEN 1
+            ELSE pgroonga_score(tableoid,ctid) 
+          END
+      DESC)`.as("strict_rank"),
     })
     .from(TextAnnotationTable)
     .where(
       and(
+        or(
+          sql`${TextAnnotationTable.content} &@~  ${query}`,
+          eq(sql`UPPER(${TextAnnotationTable.value})`, sql`UPPER(${query})`),
+        ),
         eq(TextAnnotationTable.type, annotationType),
-        sql`${TextAnnotationTable.text} &@~  (${query}, 
-																ARRAY[1],
- 																ARRAY['scorer_tf_idf($index)'],
- 																'ml_text_search_index')::pgroonga_full_text_search_condition_with_scorers`,
+        or(
+          isNull(sql`${TextAnnotationTable.metadata}->>'is_stopword'`),
+          eq(sql`${TextAnnotationTable.metadata}->>'is_stopword'`, "false"),
+        ),
       ),
-    )
-    .as("snippets");
+    );
 
-  const offset = Math.min(0, (page - 1) * PAGE_LIMIT);
-  const [total, results] = await logAndRethrow(
-    Promise.all([
-      db
-        .select({ count: countDistinct(DocumentsTable.id) })
-        .from(DocumentsTable)
-        .innerJoin(sub, eq(DocumentsTable.id, sub.documentId)),
-      db
-        .select({
-          documentTitle: DocumentsTable.title,
-          documentId: sub.documentId,
-          rank: sql<number>`sum(${sub.similarity})`.as("rank"),
-          highlights: sql<{ similarity: number; text: string }[]>`json_arrayagg(
-						json_build_object('similarity', ${sub.similarity},
-						                  'text', ${sub.highlight})
-															order by ${sub.similarity} desc
-				)`,
-        })
-        .from(sub)
-        .innerJoin(DocumentsTable, eq(sub.documentId, DocumentsTable.id))
-        .groupBy((t) => [t.documentId, t.documentTitle])
-        .orderBy((t) => [desc(t.rank), asc(t.documentId)])
-        .limit(PAGE_LIMIT + 1)
-        .offset(offset),
-    ]),
-  );
-
-  const hasNextPage = results.length > PAGE_LIMIT;
-  const finalResults = hasNextPage
-    ? results.slice(0, results.length - 1)
-    : results;
-
-  return {
-    type: "text",
-    total: total[0].count,
-    results: finalResults,
-    nextCursor: hasNextPage ? Math.min(page, 1) + 1 : undefined,
-  } as SearchResults;
-};
-
-export const fullTextDocumentSearch = async (query: string, page: number) => {
-  const sub = await db
-    .select({
-      documentId: TextTable.documentId,
-      similarity: sql<number>`pgroonga_score(tableoid,ctid)`.as("rank"),
-      highlight:
-        sql<string>`array_to_string(pgroonga_snippet_html (${TextTable.text},
-										 pgroonga_query_extract_keywords(${query})), '\n')`.as("highlight"),
-    })
-    .from(TextTable)
-    .where(
-      (t) =>
-        sql`${TextTable.text} &@~  (${query}, 
-																ARRAY[1],
- 																ARRAY['scorer_tf_idf($index)'],
- 																'ml_text_search_index')::pgroonga_full_text_search_condition_with_scorers`,
-    )
-    .as("sub");
-
-  const offset = Math.min(0, (page - 1) * PAGE_LIMIT);
-  const [total, results] = await logAndRethrow(
-    Promise.all([
-      db
-        .select({ count: countDistinct(DocumentsTable.id) })
-        .from(DocumentsTable)
-        .innerJoin(sub, eq(DocumentsTable.id, sub.documentId)),
-      db
-        .select({
-          documentTitle: DocumentsTable.title,
-          documentId: sub.documentId,
-          rank: sub.similarity,
-          highlights: sql<{ similarity: number; text: string }[]>`json_arrayagg(
-						json_build_object('similarity', ${sub.similarity},
-						                  'text', ${sub.highlight})
-															order by ${sub.similarity} desc
-				)`,
-        })
-        .from(sub)
-        .innerJoin(DocumentsTable, eq(sub.documentId, DocumentsTable.id))
-        .orderBy((t) => [desc(t.rank), asc(t.documentId)])
-        .groupBy((t) => [t.documentId, t.documentTitle, t.rank])
-        .limit(PAGE_LIMIT + 1)
-        .offset(offset),
-    ]),
-  );
-
-  const hasNextPage = results.length > PAGE_LIMIT;
-  const finalResults = hasNextPage
-    ? results.slice(0, results.length - 1)
-    : results;
-
-  return {
-    type: "text",
-    total: total[0].count,
-    results: finalResults,
-    nextCursor: hasNextPage ? Math.min(page, 1) + 1 : undefined,
-  } as SearchResults;
-};
-
-export const semanticAnnotationSearch = async (
-  embedding: string,
-  annotationType: string,
-  page: number,
-  minSimilarity: number,
-) => {
-  const sim = db
+  const semanticSearch = db
     .select({
       documentId: TextAnnotationTable.documentId,
-      text: TextAnnotationTable.text,
-      annotationType: TextAnnotationTable.type,
-      embedding: TextAnnotationTable.embedding,
-      similarity:
-        sql<number>`(1 - (embedding <~> ${embedding})::float / 768)`.as(
-          "similarity",
-        ),
+      text: sql<string>`COALESCE(${TextAnnotationTable.metadata}->>'coref_text',
+      ${TextAnnotationTable.content})`.as("semantic_text"),
+      a0: sql<string[]>`${TextAnnotationTable.metadata}->'A0_TEXT'`.as(
+        "semantic_A0",
+      ),
+      a1: sql<string[]>`${TextAnnotationTable.metadata}->'A1_TEXT'`.as(
+        "semantic_A1",
+      ),
+      time: sql<string>`${TextAnnotationTable.metadata}->'TIME_TEXT'`.as(
+        "semantic_TIME",
+      ),
+      location: sql<string>`${TextAnnotationTable.metadata}->'LOC_TEXT'`.as(
+        "semantic_LOCATION",
+      ),
+      itemId: TextAnnotationTable.id,
+      rank: sql<number>`ROW_NUMBER() OVER (ORDER BY embedding <=> ${JSON.stringify(embedding)})`.as(
+        "semantic_rank",
+      ),
     })
     .from(TextAnnotationTable)
-    .as("sim_search");
-
-  const sub = db
-    .select({
-      documentTitle: DocumentsTable.title,
-      documentId: DocumentsTable.id,
-      highlights: sql<{ similarity: number; text: string }[]>`
-			json_arrayagg( 
-					json_build_object('similarity', ${sim.similarity}, 
-														'text', ${sim.text}) 
-														order by ${sim.similarity} desc)`.as("highlight"),
-      rank: sql<number>`max(${sim.similarity})`.as("rank"),
-    })
-    .from(DocumentsTable)
-    .innerJoin(sim, eq(DocumentsTable.id, sim.documentId))
     .where(
       and(
-        ne(sim.similarity, NaN),
-        gte(sim.similarity, minSimilarity),
-        eq(sim.annotationType, annotationType),
+        gte(
+          cosineSimilarity(TextAnnotationTable.embedding, embedding ?? []),
+          annotationType !== "entity" ? 0.4 : 0.6,
+        ),
+        eq(TextAnnotationTable.type, annotationType),
+        or(
+          isNull(sql`${TextAnnotationTable.metadata}->>'is_stopword'`),
+          eq(sql`${TextAnnotationTable.metadata}->>'is_stopword'`, "false"),
+        ),
       ),
     )
-    .groupBy((t) => [t.documentTitle, t.documentId])
-    .as("sub");
+    .offset(0);
 
-  const offset = Math.min(0, (page - 1) * PAGE_LIMIT);
-  const [total, results] = await logAndRethrow(
-    Promise.all([
-      db.select({ count: countDistinct(sub.documentId) }).from(sub),
-      db
-        .select()
-        .from(sub)
-        .orderBy((t) => [desc(t.rank), asc(t.documentId)])
-        .limit(PAGE_LIMIT + 1)
-        .offset(offset),
-    ]),
-  );
+  let rankedSearch;
 
-  const hasNextPage = results.length > PAGE_LIMIT;
-  const finalResults = hasNextPage
-    ? results.slice(0, results.length - 1)
-    : results;
+  if (embedding == null) {
+    //Something happened and we don't have an embedding just do keyword search
 
-  return {
-    type: "vector",
-    total: total[0].count,
-    results: finalResults,
-    nextCursor: hasNextPage ? Math.min(page, 1) + 1 : undefined,
-  } as SearchResults;
-};
-
-export const semanticDocumentSearch = async (
-  embedding: string,
-  page: number,
-  minSimilarity: number,
-) => {
-  const sim = db
-    .select({
-      documentId: TextTable.documentId,
-      text: sql<string>`SUBSTRING(${TextTable.text},0,512) || '...'`.as(
-        "text2",
-      ),
-      embedding: TextTable.embedding,
-      similarity:
-        sql<number>`(1 - (embedding <~> ${embedding})::float / 768)`.as(
-          "similarity",
+    const aliased = strictSearch.as("aliased");
+    rankedSearch = db
+      .select({
+        documentId: aliased.documentId,
+        rank: sql<number>`1.0 / (60.0 + ${aliased.rank}) + 1.0 / (60.0 + ${aliased.rank})`.as(
+          "rank",
         ),
-    })
-    .from(TextTable)
-    .as("sim_search");
+        text: aliased.text,
+        a1: aliased.a1,
+        a0: aliased.a0,
+        time: aliased.time,
+        location: aliased.location,
+      })
+      .from(aliased)
+      .as("rankedSearch");
+  } else {
+    const union = db
+      .select()
+      .from(semanticSearch.unionAll(strictSearch).as("union_q"))
+      .as("union");
+
+    rankedSearch = db
+      .select({
+        documentId: union.documentId,
+        text: union.text,
+        a1: union.a1,
+        a0: union.a0,
+        time: union.time,
+        location: union.location,
+        rank: sql<number>`SUM(1.0 / (60.0 + ${union.rank}))`.as("rank"),
+        count: count(),
+      })
+      .from(union)
+      .groupBy((t) => [
+        t.documentId,
+        union.text,
+        union.a1,
+        union.a0,
+        union.time,
+        union.location,
+        union.itemId,
+      ])
+      .having((t) => gte(t.count, isStrict ? 2 : 0))
+      .as("rankedSearch");
+  }
 
   const sub = db
     .select({
       documentTitle: DocumentsTable.title,
       documentId: DocumentsTable.id,
-      highlights: sql<{ similarity: number; text: string }[]>`
-			json_arrayagg( 
-					json_build_object('similarity', ${sim.similarity}, 
-														'text', ${sim.text})
-														order by ${sim.similarity} desc)`.as("highlight"),
-      rank: sql<number>`max(${sim.similarity})`.as("rank"),
+      highlights: jsonAgg(
+        jsonBuildObject({
+          rank: rankedSearch.rank,
+          text: rankedSearch.text,
+          a1: rankedSearch.a1,
+          a0: rankedSearch.a0,
+          time: rankedSearch.time,
+          location: rankedSearch.location,
+        }),
+        orderDesc(sql`${rankedSearch.rank}`),
+      ).as("highlight"),
+      rank: sql<number>`sum(${rankedSearch.rank})`.as("rank"),
     })
     .from(DocumentsTable)
-    .innerJoin(sim, eq(DocumentsTable.id, sim.documentId))
-    .where(and(ne(sim.similarity, NaN), gte(sim.similarity, minSimilarity)))
+    .innerJoin(rankedSearch, eq(DocumentsTable.id, rankedSearch.documentId))
     .groupBy((t) => [t.documentTitle, t.documentId])
     .as("sub");
 
-  const offset = Math.min(0, (page - 1) * PAGE_LIMIT);
-  const [total, results] = await logAndRethrow(
-    Promise.all([
-      db.select({ count: countDistinct(sub.documentId) }).from(sub),
-      db
-        .select()
-        .from(sub)
-        .orderBy((t) => [desc(t.rank), asc(t.documentId)])
-        .limit(PAGE_LIMIT + 1)
-        .offset(offset),
-    ]),
-  );
+  return await createPaginatedSearchResults({
+    sub,
+    page,
+    searchType: annotationType === "sentence" ? "sentence" : "annotation",
+  });
+};
 
-  const hasNextPage = results.length > PAGE_LIMIT;
-  const finalResults = hasNextPage
-    ? results.slice(0, results.length - 1)
-    : results;
+export const documentSearch = async ({
+  query,
+  embedding,
+  isStrict,
+  page,
+}: {
+  query: string;
+  embedding?: number[];
+  isStrict: boolean;
+  page: number;
+}) => {
+  const strictSearch = db
+    .select({
+      documentId: TextTable.documentId,
+      text: TextTable.content,
+      rank: sql<number>`ROW_NUMBER() OVER (ORDER BY pgroonga_score(tableoid,ctid) DESC)`.as(
+        "strict_rank",
+      ),
+    })
+    .from(TextTable)
+    .where((t) => sql`${TextTable.content} &@~  ${query}`);
 
-  return {
-    type: "vector",
-    total: total[0].count,
-    results: finalResults,
-    nextCursor: hasNextPage ? Math.min(page, 1) + 1 : undefined,
-  } as SearchResults;
+  const semanticSearch = db
+    .select({
+      documentId: TextTable.documentId,
+      text: TextTable.content,
+      rank: sql<number>`ROW_NUMBER() OVER (ORDER BY embedding <=> ${JSON.stringify(embedding)})`.as(
+        "seamntic_rank",
+      ),
+    })
+    .from(TextTable)
+    .where(gte(cosineSimilarity(TextTable.embedding, embedding ?? []), 0.3))
+    .offset(0);
+
+  let rankedSearch;
+
+  if (embedding == null) {
+    const aliased = strictSearch.as("aliased");
+    rankedSearch = db
+      .select({
+        documentId: aliased.documentId,
+        text: sql<string>`array_to_string(pgroonga_snippet_html (${aliased.text},
+										 pgroonga_query_extract_keywords(${query})), '\n')`.as("highlight"),
+        rank: sql<number>`1.0 / (60.0 + ${aliased.rank})`.as("rank"),
+      })
+      .from(aliased)
+      .as("rankedSearch");
+  } else {
+    //We are not in strict mode, but will use hybrid search as a boost
+    const union = db
+      .select()
+      .from(semanticSearch.unionAll(strictSearch).as("union_q"))
+      .as("union");
+
+    rankedSearch = db
+      .select({
+        documentId: union.documentId,
+        text: sql<string>`
+            CASE
+            WHEN array_to_string(pgroonga_snippet_html (${union.text},
+										 pgroonga_query_extract_keywords(${query})), '\n') = '' THEN SUBSTRING(${union.text},0,512)
+            ELSE array_to_string(pgroonga_snippet_html (${union.text},
+										 pgroonga_query_extract_keywords(${query})), '\n')
+            END
+        `.as("highlight"),
+        count: count(),
+        rank: sql<number>`SUM(1.0 / (60.0 + ${union.rank}))`.as("rrf_score"),
+      })
+      .from(union)
+      .groupBy((t) => [t.documentId, union.text])
+      .having((t) => gte(t.count, isStrict ? 2 : 0))
+      .as("rankedSearch");
+  }
+
+  const sub = db
+    .select({
+      documentTitle: DocumentsTable.title,
+      documentId: DocumentsTable.id,
+      highlights: jsonAgg(
+        jsonBuildObject({
+          rank: rankedSearch.rank,
+          text: rankedSearch.text,
+        }),
+        orderDesc(sql`${rankedSearch.rank}`),
+      ).as("highlight"),
+      rank: sql<number>`sum(${rankedSearch.rank})`.as("rank"),
+    })
+    .from(DocumentsTable)
+    .innerJoin(rankedSearch, eq(DocumentsTable.id, rankedSearch.documentId))
+    .groupBy((t) => [t.documentTitle, t.documentId])
+    .as("sub");
+
+  return await createPaginatedSearchResults({
+    sub,
+    page,
+    searchType: "document",
+  });
 };

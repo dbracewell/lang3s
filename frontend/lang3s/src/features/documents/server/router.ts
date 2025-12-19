@@ -1,19 +1,16 @@
-import { db } from "@/db";
-import { DocumentsTable, TextAnnotationTable, TextTable } from "@/db/schema";
-import { logAndRethrow } from "@/lib/try-catch";
-import { PAGE_LIMIT } from "@/features/common/constants";
-import {
-  getAnnotationsInSentence,
-  notOverlaps,
-} from "@/features/documents/server/subqueries";
-import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { db } from "@/lib/db";
+import { DocumentsTable, TextAnnotationTable, TextTable } from "@/lib/db/schema";
+import { logAndRethrow } from "@/lib/utils/try-catch";
+import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, desc, eq, lt, ne, sql } from "drizzle-orm";
+import { asc, count, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { promises as fs } from "fs";
-import path from "path"; // For path manipulation
+import path from "path";
 import { DocumentSchema } from "@/features/common/schemas";
-import { env } from "@/env/env";
+import { env } from "@/lib/env/env";
+import * as zlib from "node:zlib";
+import { generateNextPage, withPagination } from "@/lib/db/funcs";
 
 export const DocumentsRouter = createTRPCRouter({
   getMany: protectedProcedure
@@ -24,16 +21,12 @@ export const DocumentsRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       const { cursor } = input;
-      let offset = Math.max(cursor ?? 0, 0);
-
-      const totalDocs = await logAndRethrow(
-        db.select({ count: count(DocumentsTable.id) }).from(DocumentsTable),
-      );
+      const page = Math.max(1, cursor ?? 1);
 
       const entities = db
         .select({
           textId: TextAnnotationTable.textId,
-          entity: sql<string>`lower(${TextAnnotationTable.text})`.as(
+          entity: sql<string>`lower(${TextAnnotationTable.content})`.as(
             "entity_text",
           ),
           count: count(TextAnnotationTable.id).as("count"),
@@ -56,40 +49,45 @@ export const DocumentsRouter = createTRPCRouter({
         .groupBy(entities.textId)
         .as("sub");
 
-      const docs = await logAndRethrow(
-        db
-          .select({
-            id: DocumentsTable.id,
-            title: DocumentsTable.title,
-            metadata: DocumentsTable.metadata,
-            text: sql<string>`SUBSTRING(${TextTable.text},0,512) || '...'`.as(
-              "text",
-            ),
-            entities: sub.entities,
-          })
-          .from(DocumentsTable)
-          .leftJoin(TextTable, eq(DocumentsTable.id, TextTable.documentId))
-          .innerJoin(sub, eq(TextTable.id, sub.textId))
-          .offset(offset * PAGE_LIMIT)
-          .limit(PAGE_LIMIT + 1)
-          .orderBy((t) => asc(t.id)),
+      const [totalDocs, docs] = await logAndRethrow(
+        Promise.all([
+          db.select({ count: count(DocumentsTable.id) }).from(DocumentsTable),
+          withPagination(
+            db
+              .select({
+                id: DocumentsTable.id,
+                title: DocumentsTable.title,
+                metadata: DocumentsTable.metadata,
+                text: sql<string>`SUBSTRING(${TextTable.content},0,512) || '...'`.as(
+                  "text",
+                ),
+                entities: sub.entities,
+              })
+              .from(DocumentsTable)
+              .leftJoin(TextTable, eq(DocumentsTable.id, TextTable.documentId))
+              .innerJoin(sub, eq(TextTable.id, sub.textId))
+              .orderBy((t) => asc(t.id)),
+            { page: cursor },
+          ),
+        ]),
       );
 
-      const hasNext = docs.length > PAGE_LIMIT;
-      const finalDocs = hasNext ? docs.slice(0, docs.length - 1) : docs;
+      const { hasNextPage, finalResults } = generateNextPage(docs);
       return {
-        nextCursor: hasNext ? offset + 1 : undefined,
+        nextCursor: hasNextPage ? page + 1 : undefined,
         totalDocs: totalDocs,
-        posts: finalDocs,
+        posts: finalResults,
       };
     }),
 
   getOne: protectedProcedure
     .input(z.object({ id: z.string().min(1) }))
     .query(async ({ input }) => {
-      const filePath = path.join(env.DOCUMENTS_DIR, `${input.id}.json`);
+      const filePath = path.join(env.DOCUMENTS_DIR, `${input.id}.json.gz`);
       try {
-        const jsonData = await fs.readFile(filePath, "utf8");
+        const jsonData = zlib
+          .gunzipSync(await fs.readFile(filePath))
+          .toString("utf-8");
         const document = DocumentSchema.parse(JSON.parse(jsonData));
         return {
           ...document,
@@ -105,45 +103,5 @@ export const DocumentsRouter = createTRPCRouter({
       } catch {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
-    }),
-
-  test: protectedProcedure
-    .input(
-      z.object({
-        type1: z.string(),
-        type2: z.string(),
-      }),
-    )
-    .query(async ({ input }) => {
-      const q1 = getAnnotationsInSentence({
-        annotationType: input.type1,
-        textConversion: "upper",
-      }).as("q1");
-      const q2 = getAnnotationsInSentence({
-        annotationType: input.type2,
-        textConversion: "upper",
-      }).as("q2");
-      return await db
-        .select({
-          e1: q1.text,
-          e1Type: q1.value,
-          e2: q2.text,
-          e2Type: q2.value,
-          count: count(),
-        })
-        .from(q1)
-        .innerJoin(
-          q2,
-          and(
-            eq(q2.sentenceId, q1.sentenceId),
-            ne(q1.annotationId, q2.annotationId),
-            ne(q1.text, q2.text),
-            input.type1 !== input.type2 ? notOverlaps(q1, q2) : undefined,
-            input.type1 === input.type2 ? lt(q1.text, q2.text) : undefined,
-          ),
-        )
-        .groupBy((t) => [t.e1, t.e2, t.e1Type, t.e2Type])
-        .orderBy((t) => [desc(t.count)])
-        .limit(100);
     }),
 });

@@ -1,5 +1,5 @@
-import { db } from "@/db";
-import { user } from "@/db/schema";
+import { db } from "@/lib/db";
+import { user } from "@/lib/db/schema";
 import { SignInPageView } from "@/features/auth/ui/views/SignInPageView";
 import { redirect } from "next/navigation";
 

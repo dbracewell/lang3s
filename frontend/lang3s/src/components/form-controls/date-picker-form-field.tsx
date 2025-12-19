@@ -11,7 +11,7 @@ import {
    PopoverContent,
    PopoverTrigger,
 } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { CalendarIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { FieldValues, Path, UseFormReturn } from "react-hook-form";

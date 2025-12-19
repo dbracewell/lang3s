@@ -344,7 +344,7 @@ class OneShotStrategy(Strategy):
 
 class IterativeStrategy(Strategy):
     """
-    Iteratively calls a sub-strategy or a per-iteration LLM step.
+    Iteratively calls a realtime-strategy or a per-iteration LLM step.
     Useful for generating many items when you can only emit one per call.
     """
 

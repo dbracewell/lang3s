@@ -191,7 +191,7 @@ class SentenceClassifierTrainer(Trainer):
             metrics = self.eval_one_epoch()
             if not self.is_trial:
                 self.print_metrics(metrics, epoch=epoch)
-                
+
             macro_f1 = metrics["macro_f1"]
             if macro_f1 > best_val_f1:
                 logger.info(f"Validation F1 improved ({best_val_f1:.4f} -> {macro_f1:.4f}). Saving best model...")
@@ -343,8 +343,8 @@ class SentenceClassifierTrainer(Trainer):
         mask = None
         if self.clf_params.use_attention and self.clf_params.num_attention_heads > 0:
             hidden, mask = result.padded_token_embeddings_with_mask()
-            hidden = torch.from_numpy(hidden).type(torch.float32, non_blocking=True).to(self.device)
-            mask = torch.from_numpy(mask).type(torch.bool, non_blocking=True).to(self.device)
+            hidden = torch.from_numpy(hidden).type(torch.float32).to(self.device)
+            mask = torch.from_numpy(mask).type(torch.bool).to(self.device)
         else:
             hidden = torch.stack(
                 [torch.as_tensor(e, device=self.device, dtype=torch.float32) for e in result.sentence_embeddings],

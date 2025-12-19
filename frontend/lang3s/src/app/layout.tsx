@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
-import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { TRPCReactProvider } from "@/trpc/client";
+import { TRPCReactProvider } from "@/lib/trpc/client";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { ThemeProvider } from "@/components/ui/theme-provider";
+import React from "react";
+import "@/app/globals.css";
+import { SSEProvider } from "@/lib/events/SSEProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,12 +35,14 @@ export default function RootLayout({
       <body className={`${inter.className} ${poppins.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="dark"
           enableSystem
           disableTransitionOnChange
         >
           <TRPCReactProvider>
-            <NuqsAdapter>{children}</NuqsAdapter>
+            <NuqsAdapter>
+              <SSEProvider>{children}</SSEProvider>
+            </NuqsAdapter>
           </TRPCReactProvider>
           <Toaster richColors />
         </ThemeProvider>

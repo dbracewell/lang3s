@@ -3,7 +3,6 @@ import logging
 from typing import Iterable, List, Optional, cast
 
 import numpy as np
-import torch
 from numpy.typing import NDArray
 
 from lang3s.maths import normalize
@@ -25,26 +24,26 @@ def heavy_nlp(doc: Document, tasks: Optional[Iterable[str]] = None, is_reannotat
     if doc.text is None:
         return
 
-    with torch.amp.autocast(dtype=torch.bfloat16, device_type="cpu"):  # type:ignore
-        sentences = [[t.text for t in s.tokens] for s in doc.text.sentences]
-        result = embedder(
-            sentences,
-            is_split_into_words=True,
-        )
+    # with torch.amp.autocast(dtype=torch.float32, device_type="cpu"):
+    sentences = [[t.text for t in s.tokens] for s in doc.text.sentences]
+    result = embedder(
+        sentences,
+        is_split_into_words=True,
+    )
 
-        if not is_reannotation:
-            create_core_embeddings(doc, result)
-        else:
-            sources = ["rb_event_extractor"]
-            if tasks is not None:
-                sources += tasks
-            doc.text.remove_annotation(sources)
+    if not is_reannotation:
+        create_core_embeddings(doc, result)
+    else:
+        sources = ["rb_event_extractor"]
+        if tasks is not None:
+            sources += tasks
+        doc.text.remove_annotation(sources)
 
-        perform_heavy_tagging(doc, sentences, result, tasks)
-        extract_events_for_doc(doc)
+    perform_heavy_tagging(doc, sentences, result, tasks)
+    extract_events_for_doc(doc)
 
-        for annotation in doc.text.annotations:
-            embed_annotation(annotation)
+    for annotation in doc.text.annotations:
+        embed_annotation(annotation)
 
 
 def _to_mean_array(
@@ -199,6 +198,7 @@ def extract_events_for_doc(doc: Document):
             value=event.trigger.value,
             source="rb_event_extractor",
             metadata={
+                Metadata.LEMMA: event.trigger.lemma,
                 Metadata.A0: [a0.id for a0 in event.A0],
                 Metadata.A0_TEXT: [a0.text for a0 in event.A0],
                 Metadata.A1: [a1.id for a1 in event.A1],

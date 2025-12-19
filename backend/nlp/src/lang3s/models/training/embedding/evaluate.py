@@ -1,175 +1,89 @@
-import sys
-
 import numpy as np
 import torch
 from datasets import load_dataset
 from scipy.stats import spearmanr
 from sentence_transformers import SentenceTransformer
-from sentence_transformers.evaluation import EmbeddingSimilarityEvaluator
-from sentence_transformers.readers.InputExample import InputExample
+from tqdm import tqdm
 
+from lang3s import config
 from lang3s.models.embedder import Embedder
-from lang3s.models.layers.projection import SemanticProjectionHead  # your trained head
+from lang3s.models.training.embedding.generate_dataset import DEVICE
 
-teacher_model_name: str = "sentence-transformers/all-mpnet-base-v2"
-
-
-def load_sts_examples(split="test", lang="en"):
-    ds = load_dataset("stsb_multi_mt", lang, split=split)
-    examples = []
-
-    for ex in ds:
-        s1 = ex["sentence1"]
-        s2 = ex["sentence2"]
-        score = float(ex["similarity_score"])
-
-        examples.append(InputExample(
-            texts=[s1, s2],
-            label=score / 5.0  # normalize 0–5 to 0–1
-        ))
-    return examples
+# --- 1. CONFIGURATION ---
+# Path to your trained head
+MODEL_PATH = "xlmr_to_mpnet_projection_head_v3.pth"
+BATCH_SIZE = 32
+TEACHER_ID = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 
 
-def build_sts_evaluator(split="test", lang="en"):
-    examples = load_sts_examples(split=split, lang=lang)
-    return EmbeddingSimilarityEvaluator.from_input_examples(
-        examples,
-        name=f"sts_{lang}_{split}"
-    )
+def cosine_similarity(emb1: np.ndarray, emb2: np.ndarray) -> np.ndarray:
+    """Computes cosine similarity between two batches of embeddings."""
+    norm1 = np.linalg.norm(emb1, axis=1)
+    norm2 = np.linalg.norm(emb2, axis=1)
+    dot_product = (emb1 * emb2).sum(axis=1)
+    return dot_product / (norm1 * norm2 + 1e-9)
 
 
-def evaluate_sts(student_head_path, device="cpu"):
-    evaluator = build_sts_evaluator(split="test", lang="en")
+def main():
+    device = config.TRAINING_DEVICE
 
-    class DummyModelCardData:
-        def __init__(self):
-            self.evaluation_data = []
+    # A. Initialize Your Custom Backbone
+    print("Initializing your Custom Embedder...")
+    # The Embedder handles its own config/device/model loading
+    backbone = Embedder()
 
-        def set_evaluation_metrics(self, evaluator, metrics, epoch, step):
-            self.evaluation_data.append({
-                "evaluator": getattr(evaluator, "name", None),
-                "metrics": metrics,
-                "epoch": epoch,
-                "step": step,
-            })
+    teacher_model = SentenceTransformer(TEACHER_ID).to(device)
+    teacher_model.eval()
 
-    # Build wrapper to expose encode()
-    class StudentWrapper:
-        def __init__(self, embedder, head, device="cpu", use_projection=True):
-            self.embedder = embedder
-            self.head = head
-            self.device = device
+    compress_layer = torch.nn.Linear(768, 384)
+    compress_layer.load_state_dict(torch.load("./finetuned_xlm_roberta/compressed.pt"))
+    compress_layer.to(DEVICE)
+    # C. Load STSB Dataset
+    print("Loading STSB Validation Set...")
+    dataset = load_dataset("sentence-transformers/stsb", split="test")
+    # dataset = load_sts_examples("test")
+    sentences1 = dataset['sentence1']
+    sentences2 = dataset['sentence2']
+    gold_scores = dataset['score']
 
-            # Required by EmbeddingSimilarityEvaluator
-            self.similarity_fn_name = "cosine"
-            self.model_card_data = DummyModelCardData()
-            self.use_projection = use_projection
+    # D. Inference Loop
+    print(f"Evaluating on {len(gold_scores)} pairs...")
 
-        def encode(self, sentences, *args, **kwargs):
-            """
-            Accepts arbitrary keyword args to maintain compatibility
-            with SentenceTransformer.encode().
-            """
+    def get_vectors(text_list):
+        t_batch = teacher_model.encode(text_list, show_progress_bar=False)
+        result = backbone(text_list, batch_size=BATCH_SIZE)
+        vecs_torch = torch.as_tensor(np.array(result.sentence_embeddings), device=DEVICE)
+        # with torch.no_grad():
+        #     vecs_np = compress_layer(vecs_torch).cpu().numpy()
+        vecs_np = vecs_torch.detach().cpu().numpy()
+        return vecs_np, t_batch
 
-            convert_to_numpy = kwargs.get("convert_to_numpy", True)
-            normalize_embeddings = kwargs.get("normalize_embeddings", True)
-            batch_size = kwargs.get("batch_size", 32)
-            # (batch_size isn't used by your embedder)
+    # Run Inference in Batches
+    all_cosine_scores = []
+    xlm_cosine_scores = []
+    teacher_cosine_scores = []
 
-            # Run your embedder
-            res = self.embedder(sentences, is_split_into_words=False)
+    for i in tqdm(range(0, len(sentences1), BATCH_SIZE)):
+        batch_s1 = sentences1[i: i + BATCH_SIZE]  # type:ignore
+        batch_s2 = sentences2[i: i + BATCH_SIZE]  # type:ignore
 
-            # Projection head
-            if self.use_projection:
-                emb = self.head(
-                    torch.tensor(np.array(res.sentence_embeddings), dtype=torch.float32, device=self.device)
-                )
-            else:
-                emb = torch.tensor(np.array(res.sentence_embeddings), dtype=torch.float32, device=self.device)
+        # Get Projected Vectors
+        xlm1, temb1 = get_vectors(batch_s1)
+        xlm2, temb2 = get_vectors(batch_s2)
 
-            emb = emb.detach().cpu().numpy()
+        # Compute Cosine Similarity
+        xlm_cosine_scores.extend(cosine_similarity(xlm1, xlm2).tolist())
+        teacher_cosine_scores.extend(cosine_similarity(temb1, temb2).tolist())
 
-            if normalize_embeddings:
-                emb /= np.linalg.norm(emb, axis=1, keepdims=True) + 1e-8
+    # E. Calculate Spearman
+    xlm_spearman_corr, _ = spearmanr(gold_scores, xlm_cosine_scores)
+    teacher_spearman_corr, _ = spearmanr(gold_scores, teacher_cosine_scores)
 
-            return emb
-
-    teacher = SentenceTransformer(teacher_model_name, device=device)
-    embedder = Embedder()
-    embedder.device = device
-    head = SemanticProjectionHead(embedder.dimensions, output_dim=768)
-    head.load_state_dict(torch.load(student_head_path, map_location=device))
-    head.eval()
-
-    student = StudentWrapper(embedder, head)
-    scores = evaluator(student)
-    scores2 = evaluator(teacher)
-    scores3 = evaluator(StudentWrapper(embedder, head, use_projection=False))
-    print("STS Benchmark Score Teacher:", scores2)
-    print("STS Benchmark Score XLM Roberta:", scores3)
-    print("STS Benchmark Score Student:", scores)
+    print("\n" + "=" * 40)
+    print(f"✅ Corrected STSB Fine Tuned XLM Roberta Spearman Correlation: {xlm_spearman_corr * 100:.2f}")
+    print(f"✅ Corrected STSB Teacher Spearman Correlation: {teacher_spearman_corr * 100:.2f}")
+    print("=" * 40)
 
 
-def evaluate_similarity_alignment(student_head_path,
-                                  teacher_model="sentence-transformers/all-mpnet-base-v2",
-                                  sentences=None,
-                                  device="cpu"):
-    # Load teacher
-    teacher = SentenceTransformer(teacher_model, device=device)
-
-    # Load student
-    embedder = Embedder()
-    embedder.device = device
-    head = SemanticProjectionHead(embedder.dimensions, output_dim=teacher.get_sentence_embedding_dimension())
-    head.load_state_dict(torch.load(student_head_path, map_location=device))
-    head.to(device)
-    head.eval()
-
-    # Prepare text
-    if sentences is None:
-        # small quick multilingual sample
-        sentences = [
-            "The cat sat on the mat.",
-            "A dog is sleeping on a rug.",
-            "The Eiffel Tower is in Paris.",
-            "He is reading a newspaper.",
-            "今日は寿司を食べました。",
-            "明日は雨が降るでしょう。",
-            "私は本を読みます。",
-            "これはとても面白い映画です。",
-            "This movie is very interesting.",
-            "Machine learning models can learn representations.",
-            "Embedding models are used for semantic search.",
-        ]
-
-    print("Computing teacher embeddings...")
-    teacher_emb = teacher.encode(
-        sentences,
-        convert_to_numpy=True,
-        normalize_embeddings=True,
-        batch_size=64,
-        show_progress_bar=False,
-    )
-
-    print("Computing student embeddings...")
-    res = embedder(sentences, is_split_into_words=False)
-    student_emb = head(
-        torch.tensor(res.sentence_embeddings, dtype=torch.float32, device=device)
-    ).cpu().detach().numpy()
-
-    # similarity matrices
-    teach_sim = teacher_emb @ teacher_emb.T
-    stud_sim = student_emb @ student_emb.T
-
-    # correlation
-    rho, p = spearmanr(teach_sim.flatten(), stud_sim.flatten())
-
-    print("====== Similarity Structure Alignment Test ======")
-    print(f"Spearman correlation: {rho:.4f} (p={p})")
-    print("=================================================")
-
-    return rho
-
-
-# evaluate_similarity_alignment("semantic_head_distilled_mpnet_multilingual.pt", device="cpu")
-evaluate_sts(sys.argv[1])
+if __name__ == "__main__":
+    main()

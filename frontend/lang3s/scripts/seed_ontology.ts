@@ -1,5 +1,5 @@
-import { db } from "@/db";
-import { OntologyTable } from "@/db/schemas/ontology";
+import { db } from "@/lib/db";
+import { OntologyTable } from "@/lib/db/schemas/ontology";
 import verb_ontology from "./verb_ontology.json";
 
 type Node = {

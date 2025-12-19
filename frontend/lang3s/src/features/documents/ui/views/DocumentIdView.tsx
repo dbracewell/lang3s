@@ -1,3 +1,4 @@
+"use client";
 import { DocumentView } from "@/components/text/DocumentView";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,14 +11,15 @@ import {
 } from "@/components/ui/card";
 import { GetDocumentResult } from "@/features/documents/types";
 import { NotebookTextIcon, XIcon } from "lucide-react";
-import Link from "next/link";
 import React from "react";
+import { useRouter } from "next/navigation";
 
 export const DocumentIdView = ({
   documentData,
 }: {
   documentData: GetDocumentResult;
 }) => {
+  const router = useRouter();
   return (
     <div className="flex h-full flex-1 overflow-hidden">
       <Card className="flex min-h-0 flex-1 flex-col">
@@ -37,12 +39,15 @@ export const DocumentIdView = ({
             <Button variant="note">
               <NotebookTextIcon />
             </Button>
-            <Link
-              href="/documents"
-              className="hover:bg-accent/50 flex size-8 items-center justify-center rounded-md hover:border"
-            >
+            <Button variant="ghost" type="button" onClick={() => router.back()}>
               <XIcon />
-            </Link>
+            </Button>
+            {/*<Link*/}
+            {/*  href="/documents"*/}
+            {/*  className="hover:bg-accent/50 flex size-8 items-center justify-center rounded-md hover:border"*/}
+            {/*>*/}
+            {/*  <XIcon />*/}
+            {/*</Link>*/}
           </CardAction>
         </CardHeader>
         <CardContent className="flex h-full min-h-0 flex-1">

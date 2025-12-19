@@ -1,6 +1,6 @@
 "use client";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { capitalize } from "@/lib/formatters";
+import { capitalize } from "@/lib/utils/formatters";
 import { SearchBar } from "@/features/search/ui/components/SearchBar";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";

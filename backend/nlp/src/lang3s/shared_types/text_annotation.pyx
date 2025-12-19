@@ -1,5 +1,4 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, cdivision=True
-from collections import namedtuple
 from typing import Any, Dict, Optional, List
 
 import numpy as np
@@ -7,11 +6,10 @@ from numpy.typing import NDArray
 from psycopg.types.json import Jsonb
 
 from . import AnnotationTypes
+from .db_columns import TextAnnotationRow
 from .metadata import Metadata
 from .text cimport Text
 from .text_object cimport TextObject
-from .db_columns import TextAnnotationRow
-from ..maths import binarize
 
 cdef class TextAnnotation(TextObject):
     def __init__(
@@ -229,8 +227,7 @@ cdef class TextAnnotation(TextObject):
             mapping=f"{self.type}:{self.value}"
             if self.type not in ["sentence", "noun_chunk"]
             else None,
-            embedding=binarize(arr),
-            full_embedding=arr,
+            embedding=arr,
             metadata=Jsonb(self._meta.to_dict())  #type:ignore
         ))
 

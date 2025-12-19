@@ -1,6 +1,4 @@
-import { cn } from "@/lib/utils";
-import { extent } from "d3-array";
-import { drag, type D3DragEvent } from "d3-drag";
+import { cn } from "@/lib/utils/cn";
 import {
   forceCenter,
   forceCollide,
@@ -62,6 +60,7 @@ export interface BubbleSimilarityChartProps {
     points: Point[];
     similarities: Omit<Similarity, "source" | "target">[];
   };
+  splitLabels?: string;
   showLabels?: boolean;
   onNodeClick?: (node: Point) => void;
   styles?: BubbleChartStyles;
@@ -74,6 +73,7 @@ export interface BubbleSimilarityChartProps {
 export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
   data,
   showLabels = true,
+  splitLabels,
   onNodeClick,
   styles = {},
   className,
@@ -94,12 +94,12 @@ export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
       backgroundColor = "#fff",
       linkColor = "#999",
       linkOpacity = 0.4,
-      nodeFill = "#69b3a2",
+      nodeFill = (n) => "#69b3a2",
       nodeStroke = "#333",
       nodeStrokeWidth = 0.5,
       centerNodeColor = "#ff8c00",
-      labelColor = "#111",
-      labelFontSize = 11,
+      labelColor = "#fff",
+      labelFontSize = 6,
       tooltipBg = "rgba(0,0,0,0.8)",
       tooltipTextColor = "#fff",
     } = styles;
@@ -127,7 +127,7 @@ export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
     const supports = data.points.map((p) => p.support);
     const radiusScale = scaleSqrt()
       .domain([Math.min(...supports), Math.max(...supports)])
-      .range([8, 40]);
+      .range([8, 70]);
 
     const centralNode = data.points.reduce((a, b) =>
       a.support > b.support ? a : b,
@@ -178,23 +178,6 @@ export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
       )
       .attr("stroke", nodeStroke)
       .attr("stroke-width", nodeStrokeWidth)
-      // .call(
-      //   drag<SVGCircleElement, Point>()
-      //     .on("start", (event: D3DragEvent<SVGCircleElement, Point, Point>) => {
-      //       if (!event.active) simulation.alphaTarget(0.3).restart();
-      //       event.subject.fx = event.subject.x;
-      //       event.subject.fy = event.subject.y;
-      //     })
-      //     .on("drag", (event: D3DragEvent<SVGCircleElement, Point, Point>) => {
-      //       event.subject.fx = event.x;
-      //       event.subject.fy = event.y;
-      //     })
-      //     .on("end", (event: D3DragEvent<SVGCircleElement, Point, Point>) => {
-      //       if (!event.active) simulation.alphaTarget(0);
-      //       event.subject.fx = null;
-      //       event.subject.fy = null;
-      //     }),
-      // )
       .on("mouseover", (event: any, d: Point) => {
         tooltip.style("visibility", "visible").text(`${d.name} (${d.support})`);
       })
@@ -218,7 +201,7 @@ export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
       labels = g
         .append("g")
         .selectAll<SVGTextElement, Point>("text")
-        .data(nodes)
+        .data(nodes.filter((n) => n.support > 100))
         .join("text")
         .attr("text-anchor", "middle")
         .attr("dy", 4)
@@ -229,7 +212,31 @@ export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
             ? `${labelFontSize(d)}px`
             : `${labelFontSize}px`,
         )
-        .text((d) => d.name);
+        .each(function (d) {
+          // 1. Clear existing content (crucial for re-renders/updates)
+          this.textContent = "";
+
+          const lines = splitLabels ? d.name.split(splitLabels) : [d.name];
+          const lineHeight = 1.2; // em
+          const ns = "http://www.w3.org/2000/svg"; // Required for creating SVG elements
+
+          lines.forEach((line, i) => {
+            const tspan = document.createElementNS(ns, "tspan");
+
+            tspan.textContent = line;
+            tspan.setAttribute("x", "0"); // Keep centered
+
+            let dyValue;
+            if (i === 0) {
+              dyValue = `${0.35 - ((lines.length - 1) * lineHeight) / 2}em`;
+            } else {
+              dyValue = `${lineHeight}em`;
+            }
+
+            tspan.setAttribute("dy", dyValue);
+            this.appendChild(tspan);
+          });
+        });
     }
 
     // --- Simulation setup ---
@@ -240,9 +247,9 @@ export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
         "link",
         forceLink<Point, Similarity>(links)
           .id((d: Point) => d.id)
-          .distance((d: Similarity) => 300 - d.similarity * 100),
+          .distance((d: Similarity) => (1 - d.similarity) * 100),
       )
-      .force("charge", forceManyBody().strength(-100))
+      .force("charge", forceManyBody().strength(-20))
       .force("center", forceCenter(dimensions.width / 2, dimensions.height / 2))
       .force(
         "collide",
@@ -258,34 +265,48 @@ export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
 
       node.attr("cx", (d) => d.x ?? 0).attr("cy", (d) => d.y ?? 0);
 
-      if (labels) labels.attr("x", (d) => d.x ?? 0).attr("y", (d) => d.y ?? 0);
+      if (labels) labels.attr("transform", (d) => `translate(${d.x},${d.y})`);
     });
 
     simulation.on("end", () => {
-      const xExtent = extent(nodes, (d) => d.x!) as [number, number];
-      const yExtent = extent(nodes, (d) => d.y!) as [number, number];
-
-      const graphWidth = xExtent[1] - xExtent[0];
-      const graphHeight = yExtent[1] - yExtent[0];
-
-      const scale = Math.min(
-        dimensions.width / (graphWidth * 1.5),
-        dimensions.height / (graphHeight * 1.5),
-      );
-
-      const translateX =
-        dimensions.width / 2 - scale * (xExtent[0] + graphWidth / 2);
-      const translateY =
-        dimensions.height / 2 - scale * (yExtent[0] + graphHeight / 2);
-
-      const initialTransform = zoomIdentity
-        .translate(translateX, translateY)
-        .scale(scale);
-
+      const { width, height } = dimensions;
       svg
         .transition()
-        .duration(50)
-        .call(zoomBehavior.transform as any, initialTransform);
+        .duration(500)
+        .call(
+          zoomBehaviorRef.current!.translateTo as any,
+          width / 2,
+          height / 2,
+        );
+
+      zoomBehaviorRef.current?.scaleBy(
+        svg.transition().duration(0) as any,
+        0.5,
+      );
+      // const xExtent = extent(nodes, (d) => d.x!) as [number, number];
+      // const yExtent = extent(nodes, (d) => d.y!) as [number, number];
+      //
+      // const graphWidth = xExtent[1] - xExtent[0];
+      // const graphHeight = yExtent[1] - yExtent[0];
+      //
+      // const scale = Math.min(
+      //   dimensions.width / (graphWidth * 1.5),
+      //   dimensions.height / (graphHeight * 1.5),
+      // );
+      //
+      // const translateX =
+      //   dimensions.width / 2 - scale * (xExtent[0] + graphWidth / 2);
+      // const translateY =
+      //   dimensions.height / 2 - scale * (yExtent[0] + graphHeight / 2);
+      //
+      // const initialTransform = zoomIdentity
+      //   .translate(translateX, translateY)
+      //   .scale(scale);
+      //
+      // svg
+      //   .transition()
+      //   .duration(50)
+      //   .call(zoomBehavior.transform as any, initialTransform);
     });
 
     // --- Zoom & Pan ---
@@ -361,11 +382,11 @@ export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
       className="relative h-full min-h-0 w-full flex-1 grow"
     >
       <div
+        className="bg-white/90 dark:bg-zinc-800/90"
         style={{
           position: "absolute",
           top: "10px",
           right: "15px",
-          background: "rgba(255,255,255,0.9)",
           borderRadius: "8px",
           padding: "4px",
           boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
@@ -374,16 +395,28 @@ export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
           gap: "4px",
         }}
       >
-        <button onClick={handleZoomIn} className="p-2 hover:bg-slate-100">
+        <button
+          onClick={handleZoomIn}
+          className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
+        >
           <ZoomInIcon className="size-4" />
         </button>
-        <button onClick={handleZoomOut} className="p-2 hover:bg-slate-100">
+        <button
+          onClick={handleZoomOut}
+          className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
+        >
           <ZoomOutIcon className="size-4" />
         </button>
-        <button onClick={handleResetZoom} className="p-2 hover:bg-slate-100">
+        <button
+          onClick={handleResetZoom}
+          className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
+        >
           <RotateCcwIcon className="size-4" />
         </button>
-        <button onClick={handleRecenter} className="p-2 hover:bg-slate-100">
+        <button
+          onClick={handleRecenter}
+          className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
+        >
           <SquareSquareIcon className="size-4" />
         </button>
       </div>

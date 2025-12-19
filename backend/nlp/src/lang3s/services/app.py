@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
@@ -6,14 +7,24 @@ from fastapi import FastAPI
 from lang3s import config
 from .documents import router as documents_router
 from .embeddings import router as embedding_router
-from .topics import router as topic_router
+from .topics import router as topic_router, init_globals
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+logger = logging.getLogger(__name__)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Application starting up...")
+    init_globals()
+    yield
+    logger.info("Application shutting down...")
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(topic_router)
 app.include_router(embedding_router)

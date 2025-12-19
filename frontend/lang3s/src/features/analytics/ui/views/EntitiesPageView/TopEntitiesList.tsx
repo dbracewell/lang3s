@@ -6,19 +6,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useTagSearchParams } from "@/features/analytics/hooks";
-import { useTRPCQuery } from "@/trpc/use-queries";
+import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import {
   ChartNetworkIcon,
   CircleQuestionMarkIcon,
   SearchIcon,
+  SquareActivityIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import { useMemo, useState } from "react";
+import { parseAsBoolean } from "nuqs/server";
 
-export const TopEntitiesList = ({ values }: { values: string[] }) => {
+export const TopEntitiesList = ({
+  values,
+  defaultValues,
+}: {
+  values: string[];
+  defaultValues: string[];
+}) => {
   const [filter, setFilter] = useState("");
-  const [selectedValues] = useTagSearchParams(values);
+  const [selectedValues] = useTagSearchParams(defaultValues);
   const [, setEntityText] = useQueryState(
     "entity",
     parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
@@ -27,13 +35,16 @@ export const TopEntitiesList = ({ values }: { values: string[] }) => {
     "entityType",
     parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
   );
-  const debouncedSelectedValues = useDebounce(selectedValues, 1000);
-  const debouncedFilter = useDebounce(filter, 100);
+  const [, setShowEvents] = useQueryState(
+    "showEvents",
+    parseAsBoolean.withDefault(false).withOptions({ clearOnDefault: true }),
+  );
+  const debouncedFilter = useDebounce(filter, 500);
 
   const { data, isLoading } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationCounts.queryOptions({
       annotationType: "entity",
-      values: debouncedSelectedValues,
+      values: selectedValues,
     }),
   );
 
@@ -50,15 +61,15 @@ export const TopEntitiesList = ({ values }: { values: string[] }) => {
   }
 
   return (
-    <div className="mx-auto flex min-h-0 w-full flex-1 flex-col gap-2">
+    <div className="mx-auto flex min-h-0 w-full flex-1 flex-col gap-2 p-3">
       <Input
         placeholder="Filter by Entity..."
         className="max-w-md"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
       />
-      <div className="flex flex-1 flex-col overflow-hidden rounded-lg border bg-white shadow">
-        <div className="bg-dodger-blue-500 grid grid-cols-5 p-2 font-semibold text-white">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-lg border bg-white shadow dark:bg-zinc-900">
+        <div className="bg-heading grid grid-cols-5 p-2 font-semibold text-white">
           <div className="text-center">Entity</div>
           <div className="text-center">Entity Type</div>
           <div className="flex items-center justify-center gap-1">
@@ -87,10 +98,10 @@ export const TopEntitiesList = ({ values }: { values: string[] }) => {
             return (
               <div
                 key={index}
-                className="hover:bg-dodger-blue-200 grid h-10 grid-cols-5 divide-x text-sm odd:bg-slate-200 hover:font-bold"
+                className="hover:bg-dodger-blue-200 dark:hover:bg-dodger-blue-800 even:bg-alternate-row bg-row grid h-10 grid-cols-5 divide-x text-sm hover:font-bold"
               >
                 <div className="group flex items-center justify-between border-r px-4">
-                  <div className="mr-4">{r.text}</div>
+                  <div className="mr-4 truncate">{r.text}</div>
                   <div className="hidden items-center gap-2 group-hover:flex">
                     <Hint asChild hint={`Search for ${r.text} in documents.`}>
                       <Button
@@ -104,12 +115,32 @@ export const TopEntitiesList = ({ values }: { values: string[] }) => {
                         </Link>
                       </Button>
                     </Hint>
-                    <Hint asChild hint="Examine co-occurring entities.">
+                    <Hint
+                      asChild
+                      hint={`Examine entities mentioned with ${r.text}.`}
+                    >
                       <Button
                         variant="ghost"
                         size="icon-sm"
                         className="hover:bg-dodger-blue-500 hover:text-white"
                         onClick={() => {
+                          setEntityText(r.text);
+                          setEntityType(r.value);
+                        }}
+                      >
+                        <SquareActivityIcon />
+                      </Button>
+                    </Hint>
+                    <Hint
+                      asChild
+                      hint={`Examine the events involving ${r.text}.`}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="hover:bg-dodger-blue-500 hover:text-white"
+                        onClick={() => {
+                          setShowEvents(true);
                           setEntityText(r.text);
                           setEntityType(r.value);
                         }}

@@ -1,4 +1,4 @@
-import { useTRPCQuery } from "@/trpc/use-queries";
+import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { useCallback, useMemo } from "react";
 import { DEFAULT_ONTOLOGY_COLOR } from "@/features/ontology/constants";
 

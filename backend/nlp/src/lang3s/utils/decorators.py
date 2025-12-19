@@ -1,19 +1,24 @@
 from threading import Lock
-from typing import Any, Callable, Dict, Type, TypeVar, cast
+from typing import TypeVar, Dict, Any, Callable
 
+try:
+    from typing import ParamSpec
+except ImportError:
+    from typing_extensions import ParamSpec
+
+P = ParamSpec("P")
 T = TypeVar("T")
 
 
-def singleton(cls: Type[T]) -> Callable[..., T]:
-    _instances: Dict[Type[T], T] = {}
+def singleton(cls: Callable[P, T]) -> Callable[P, T]:
+    _instances: Dict[Any, T] = {}
     _lock = Lock()
 
-    def get_instance(*args: Any, **kwargs: Any) -> T:
+    def get_instance(*args: P.args, **kwargs: P.kwargs) -> T:
         if cls not in _instances:
             with _lock:
-                # Double-checked locking
                 if cls not in _instances:
                     _instances[cls] = cls(*args, **kwargs)
         return _instances[cls]
 
-    return cast(Callable[..., T], get_instance)
+    return get_instance

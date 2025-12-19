@@ -1,5 +1,5 @@
 import { Progress } from "@/components/ui/progress";
-import { RouterOutputs } from "@/trpc/types";
+import { RouterOutputs } from "@/lib/trpc/types";
 import React from "react";
 
 export const ProgressCell = ({

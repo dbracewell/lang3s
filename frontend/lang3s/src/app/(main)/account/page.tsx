@@ -1,7 +1,7 @@
 import { AccountPageView } from "@/features/account/ui/views/AccountsPageVIew";
 import { getUser } from "@/features/auth/server/actions";
 import { FullUserInfo } from "@/features/common/types";
-import { caller } from "@/trpc/server";
+import { caller } from "@/lib/trpc/server";
 import React from "react";
 
 const UserPage = async () => {

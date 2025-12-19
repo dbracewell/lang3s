@@ -1,3 +1,4 @@
+import gzip
 import itertools
 import json
 import os
@@ -17,7 +18,7 @@ from lang3s.db.database import Database
 from lang3s.db.models import DocumentsTable, TextAnnotationsTable
 from lang3s.maths import binarize
 from lang3s.shared_types import DOCUMENT_COLUMNS, TEXT_ANNOTATION_COLUMNS, TEXT_COLUMNS, Document
-from lang3s.utils import decorators
+from lang3s.utils.meta import SingletonMeta
 
 
 def _write_docs_to_disk(documents: Iterable[Document]):
@@ -26,12 +27,11 @@ def _write_docs_to_disk(documents: Iterable[Document]):
 
     for doc in documents:
         doc_path = os.path.join(documents_dir, f"{doc.id}.json")
-        with open(doc_path, "w") as fp:
-            json.dump(doc.to_json(), fp)
+        with gzip.open(doc_path + ".gz", "wt", encoding="utf-8") as gzip_fp:
+            json.dump(doc.to_json(), gzip_fp)  # type: ignore
 
 
-@decorators.singleton
-class TextDatabase:
+class TextDatabase(metaclass=SingletonMeta):
     def __init__(self) -> None:
         self.__database = Database()
 
@@ -89,12 +89,13 @@ class TextDatabase:
             doc_ids = session.execute(stmt).fetchall()
         for record in doc_ids:
             doc_id = record[0]
-            json_file = os.path.join(config.DOCUMENTS_DIR, f"{doc_id}.json")
+            json_file = os.path.join(config.DOCUMENTS_DIR, f"{doc_id}.json.gz")
             if os.path.exists(json_file):
                 try:
-                    with open(json_file) as fp:
+                    with gzip.open(json_file) as fp:
                         yield Document.from_json(json.load(fp))
-                except Exception:
+                except Exception as e:
+                    print(e)
                     continue
 
     def search(self,

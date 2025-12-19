@@ -1,7 +1,7 @@
 import { ColumnDef } from "@/components/data-table/data-table-types";
 import { StringSort } from "@/components/data-table/SortFunctions";
 import { Checkbox } from "@/components/ui/checkbox";
-import { user } from "@/db/schema";
+import { user } from "@/lib/db/schema";
 import { DeleteUser } from "@/features/admin/ui/views/AdminUsersPageView/DeleteUser";
 import { EditUserDialog } from "@/features/admin/ui/views/AdminUsersPageView/EditUserDialog";
 import { UserRole } from "@/features/auth/permissions";

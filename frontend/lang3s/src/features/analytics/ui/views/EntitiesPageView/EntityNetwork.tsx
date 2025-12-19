@@ -10,11 +10,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useTagSearchParams } from "@/features/analytics/hooks";
-import { useTRPCQuery } from "@/trpc/use-queries";
+import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { XIcon } from "lucide-react";
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
+import { parseAsBoolean } from "nuqs/server";
 
 const COLORS = [
   "#84bff5", //dodger-blue-300
@@ -38,6 +39,10 @@ export const EntityNetwork = ({ values }: { values: string[] }) => {
     "entityType",
     parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
   );
+  const [showEvents] = useQueryState(
+    "showEvents",
+    parseAsBoolean.withDefault(false).withOptions({ clearOnDefault: true }),
+  );
 
   const { data, isLoading } = useTRPCQuery((trpc) =>
     trpc.analytics.getCoocurrence.queryOptions(
@@ -54,7 +59,7 @@ export const EntityNetwork = ({ values }: { values: string[] }) => {
     ),
   );
 
-  if (!entityText || !entityType) {
+  if (showEvents || !entityText || !entityType) {
     return null;
   }
 
@@ -62,7 +67,10 @@ export const EntityNetwork = ({ values }: { values: string[] }) => {
     <Card className="absolute top-0 left-0 z-10 h-full w-full">
       <CardHeader>
         <CardTitle className="text-2xl">
-          {entityText} ({entityType})
+          Other entities mentioned with{" "}
+          <span className="text-dodger-blue-500 font-black">
+            {entityText} ({entityType})
+          </span>
         </CardTitle>
         <CardDescription>
           Displays the number of times each entity was mentioned in the same

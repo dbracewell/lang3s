@@ -2,11 +2,11 @@
 import { CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth/auth-client";
 import { AuthPageCard } from "@/features/auth/ui/components/AuthPageCard";
-import { useTRPC } from "@/trpc/client";
+import { useTRPC } from "@/lib/trpc/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { redirect, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -45,7 +45,10 @@ export const SignInPageView = () => {
       <form action={onSubmit}>
         <CardContent className="cols mb-5 gap-6">
           <div className="cols gap-1">
-            <label htmlFor="username" className="text-primary text-sm">
+            <label
+              htmlFor="username"
+              className="text-primary text-sm dark:text-slate-200"
+            >
               Username
             </label>
             <Input
@@ -56,7 +59,10 @@ export const SignInPageView = () => {
             />
           </div>
           <div className="cols gap-1">
-            <label htmlFor="password" className="text-primary text-sm">
+            <label
+              htmlFor="password"
+              className="text-primary text-sm dark:text-slate-200"
+            >
               Password
             </label>
             <Input

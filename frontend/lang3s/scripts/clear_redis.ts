@@ -1,7 +1,7 @@
-import { getRedisClient } from "@/lib/redis";
+import { getGlobalConnection } from "@/lib/redis";
 
 const main = async () => {
-  const client = await getRedisClient();
+  const client = await getGlobalConnection();
 
   try {
     const size = await client.flushAll();

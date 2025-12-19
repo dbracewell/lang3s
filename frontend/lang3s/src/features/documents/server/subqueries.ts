@@ -1,21 +1,6 @@
-import { db } from "@/db";
-import { TextAnnotationTable } from "@/db/schema";
-import {
-  and,
-  AnyColumn,
-  Column,
-  eq,
-  getTableColumns,
-  gt,
-  inArray,
-  lt,
-  or,
-  SQL,
-  sql,
-  SQLWrapper,
-  Table,
-  type SelectedFields,
-} from "drizzle-orm";
+import { db } from "@/lib/db";
+import { TextAnnotationTable } from "@/lib/db/schema";
+import { and, AnyColumn, eq, gt, inArray, lt, or, SQL, sql } from "drizzle-orm";
 
 export const metadataSelect = <T>(
   field: string,
@@ -84,7 +69,7 @@ export const selectTextAnnotations = <T extends Record<string, any>>({
         eq(TextAnnotationTable.type, annotationType),
         tags ? inArray(TextAnnotationTable.value, tags) : undefined,
         text
-          ? eq(sql`upper(${TextAnnotationTable.text})`, text.toUpperCase())
+          ? eq(sql`upper(${TextAnnotationTable.content})`, text.toUpperCase())
           : undefined,
       ),
     );
@@ -131,10 +116,14 @@ export const getAnnotationsInSentence = ({
       textId: TextAnnotationTable.textId,
       text:
         textConversion == null
-          ? TextAnnotationTable.text
+          ? TextAnnotationTable.content
           : textConversion === "lower"
-            ? sql<string>`lower(${TextAnnotationTable.text})`.as("text")
-            : sql<string>`upper(${TextAnnotationTable.text})`.as("text"),
+            ? sql<string>`lower(COALESCE(${TextAnnotationTable.metadata}->>'coref_text', ${TextAnnotationTable.content}))`.as(
+                "text",
+              )
+            : sql<string>`upper(COALESCE(${TextAnnotationTable.metadata}->>'coref_text', ${TextAnnotationTable.content}))`.as(
+                "text",
+              ),
       value: TextAnnotationTable.value,
     },
   }).as("other");

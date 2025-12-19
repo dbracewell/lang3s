@@ -1,24 +1,41 @@
 import datetime
 import logging
+import os
 import time
-from typing import Iterable, List, NamedTuple, Optional
+import traceback
+from typing import Iterable, List, NamedTuple, Optional, Sequence
 
+import joblib
 import numpy as np
 import shortuuid
+import sqlalchemy
 from numpy.typing import NDArray
-from psycopg import sql
+from pgvector import HalfVector
 from sklearn.decomposition import IncrementalPCA
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sqlalchemy import insert
+from sqlalchemy import select, cast, Boolean, Select, distinct
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session
 
+from lang3s import config
 from lang3s.db import Database
-from lang3s.db.models import TopicsTable
-from lang3s.maths import binarize, cosine, normalize, weighted_average
-from lang3s.models.embedder import Embedder
+from lang3s.db.models import TopicsTable, TextAnnotationsTable
+from lang3s.maths import cosine, normalize, weighted_average
 from lang3s.shared_types import Document
-from lang3s.utils import decorators, flatten
+from lang3s.utils import flatten
+from lang3s.utils.meta import SingletonMeta
 
 logger = logging.getLogger("TopicModel")
+
+
+class SearchResult(NamedTuple):
+    documentId: str
+    sentenceId: int
+    textId: str
+    content: str
+    embedding: HalfVector
+    cleaned: str
+    cosine_similarity: float
 
 
 class TopicSentence(NamedTuple):
@@ -46,7 +63,20 @@ class OnlineReducer:
     def transform(self, vectors):
         if not self.fitted:
             raise RuntimeError("PCA not fitted yet.")
-        return self.pca.transform(vectors)
+        return self.pca.transform(vectors).astype(np.float32)
+
+    def save(self):
+        output_file = os.path.join(config.MODELS_DIR, "online_reducer.pkl")
+        joblib.dump(self.pca, output_file)
+
+    @staticmethod
+    def load():
+        model_file = os.path.join(config.MODELS_DIR, "online_reducer.pkl")
+        reducer = OnlineReducer()
+        if os.path.exists(model_file):
+            reducer.pca = joblib.load(model_file)
+            reducer.fitted = True
+        return reducer
 
 
 class Topic:
@@ -73,45 +103,30 @@ class Topic:
     @property
     def doc_count(self) -> int:
         db = Database()
-
-        with db.cursor() as cursor:
-            binary_embedding = binarize(self.embedding)
-            dimensions = Embedder().dimensions
-            query = sql.SQL(
-                """
-                SELECT count(distinct text_id) as count
-                FROM text_annotations
-                WHERE type = 'sentence'
-                  and (1 - (embedding <~> %s) / %s) >= %s::float
-                  and (metadata ->> 'is_stopword')::boolean = FALSE
-                """
+        with db.session() as session:  # type: Session
+            stmt = (
+                select(sqlalchemy.func.count(distinct(TextAnnotationsTable.id)))
+                .where(
+                    TextAnnotationsTable.type_ == "sentence",
+                    (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding)) >= FULL_EMBEDDING_THRESHOLD,
+                    cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False
+                )
             )
-            cursor.execute(query, [binary_embedding, dimensions, FULL_EMBEDDING_THRESHOLD])
-            r = cursor.fetchone()
-            if r is None:
-                return 0
-            return r["count"]
+            return session.scalar(stmt)
 
     @property
     def sentence_count(self) -> int:
         db = Database()
-        with db.cursor() as cursor:
-            binary_embedding = binarize(self.embedding)
-            dimensions = Embedder().dimensions
-            query = sql.SQL(
-                """
-                SELECT count(0) as count
-                FROM text_annotations
-                WHERE type = 'sentence'
-                  and (1 - (embedding <~> %s) / %s) >= %s:: float
-                  and (metadata ->> 'is_stopword')::boolean = FALSE
-                """
+        with db.session() as session:  # type: Session
+            stmt = (
+                select(sqlalchemy.func.count(TextAnnotationsTable.id))
+                .where(
+                    TextAnnotationsTable.type_ == "sentence",
+                    (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding)) >= FULL_EMBEDDING_THRESHOLD,
+                    cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False
+                )
             )
-            cursor.execute(query, [binary_embedding, dimensions, FULL_EMBEDDING_THRESHOLD])
-            r = cursor.fetchone()
-            if r is None:
-                return 0
-            return r["count"]
+            return session.scalar(stmt)
 
     def merge(self, other: "Topic"):
         self.centroid = normalize(
@@ -140,34 +155,30 @@ class Topic:
 
     def get_sentences(self, limit: int = 1000):
         db = Database()
-        bit_embedding = binarize(self.embedding)
-        dimensions = Embedder().dimensions
-        with db.cursor() as cursor:
-            query = sql.SQL(
-                """
-                SELECT doc_id,
-                       sentence_id,
-                       text_id,
-                       text,
-                       full_embedding::vector,
-                       clean_text,
-                       1 - (embedding <~> %s) / %s AS cosine_similarity
-                FROM text_annotations
-                WHERE type = 'sentence'
-                  and (1 - (embedding <~> %s) / %s) >= %s::float
-                  and (metadata ->> 'is_stopword')::boolean = FALSE
-                ORDER BY cosine_similarity DESC
-                LIMIT %s
-                """
+        with db.session() as session:  # type: Session
+            similarity_score = (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding))
+            stmt = (
+                select(
+                    TextAnnotationsTable.documentId,
+                    TextAnnotationsTable.sentenceId,
+                    TextAnnotationsTable.textId,
+                    TextAnnotationsTable.content,
+                    TextAnnotationsTable.embedding,
+                    TextAnnotationsTable.cleaned,
+                    similarity_score.label("cosine_similarity")
+                )
+                .where(
+                    TextAnnotationsTable.type_ == "sentence",
+                    similarity_score >= FULL_EMBEDDING_THRESHOLD,
+                    cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False
+                )
+                .order_by(similarity_score.desc())
+                .limit(limit)
             )
-            cursor.execute(
-                query,
-                [bit_embedding, dimensions, bit_embedding, dimensions, self.min_sim_threshold, limit],
-            )
-            results = cursor.fetchall()
+            sentences: Sequence[SearchResult] = session.execute(stmt).all()  # type:ignore
             reduced = normalize(
                 self.reducer.transform(
-                    [row["full_embedding"] for row in results]
+                    [row.embedding.to_numpy().astype(np.float32) for row in sentences]
                 )
             )
             similarities = [
@@ -175,14 +186,14 @@ class Topic:
             ]
             return [
                 TopicSentence(
-                    text=row["text"],
-                    clean=row["clean_text"],
-                    doc_id=row["doc_id"],
-                    text_id=row["text_id"],
-                    sentence_id=row["sentence_id"],
-                    similarity=similarity,
+                    text=row.content,
+                    clean=row.cleaned,
+                    doc_id=row.documentId,
+                    text_id=row.textId,
+                    sentence_id=row.sentenceId,
+                    similarity=similarity.item(),
                 )
-                for row, similarity in zip(results, similarities)
+                for row, similarity in zip(sentences, similarities)
                 if similarity >= self.min_sim_threshold
             ]
 
@@ -190,15 +201,13 @@ class Topic:
 DB_COLUMNS = [
     "id",
     "support",
-    "full_embedding",
     "embedding",
     "is_fixed",
     "name",
 ]
 
 
-@decorators.singleton
-class Lang3sTopicModel:
+class Lang3sTopicModel(metaclass=SingletonMeta):
     def __init__(
         self,
     ):
@@ -227,48 +236,47 @@ class Lang3sTopicModel:
         self.sentences_added: int = 0
         self.total_time = 0
         self.buffer: List[NDArray[np.floating]] = []
-        self.reducer = OnlineReducer()
+        self.reducer = OnlineReducer.load()
         self._topics: List[Topic] = []
         self._load_topics()
 
     def _load_topics(self):
         self._topics = []
         db = Database()
-        with db.session() as session:
-            for topic in session.query(TopicsTable).all():
+        with db.session() as session:  # type: Session
+            for topic in session.scalars(select(TopicsTable)).all():
                 self._topics.append(
                     Topic(
                         id=topic.id,
                         support=topic.support,
                         embedding=topic.embedding.to_numpy(),
                         pca_centroid=np.zeros(REDUCED_DIMENSIONS),
-                        is_fixed=topic.is_fixed,
+                        is_fixed=topic.fixed,
                         name=topic.name,
                         reducer=self.reducer,
                         min_sim_threshold=self.sim_threshold,
                     )
                 )
-        if len(self._topics) == 0:
-            return
-        embeddings = []
-        with db.cursor() as cursor:
-            query = sql.SQL(
-                """
-                SELECT full_embedding
-                FROM text_annotations
-                WHERE type = 'sentence'
-                  and (metadata ->> 'is_stopword')::boolean = FALSE
-                ORDER BY RANDOM()
-                LIMIT 5000
-                """
-            )
-            cursor.execute(query)
-            embeddings = [
-                row["full_embedding"].to_numpy() for row in cursor.fetchall()
-            ]
-        if len(embeddings) > REDUCED_DIMENSIONS:
-            self.reducer.fit_batch(embeddings)
-            self.__update_centroids()
+            if len(self._topics) == 0:
+                return
+
+            if not self.reducer.fitted:
+                embeddings = []
+                stmt: Select[tuple[TextAnnotationsTable]] = (
+                    select(TextAnnotationsTable)
+                    .where(
+                        TextAnnotationsTable.type_ == "sentence",
+                        cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False
+                    )
+                    .order_by(sqlalchemy.func.random())
+                    .limit(5000)
+                )
+                for sentence in session.scalars(stmt).all():
+                    embeddings.append(sentence.embedding.to_numpy())
+
+                if len(embeddings) > REDUCED_DIMENSIONS:
+                    self.reducer.fit_batch(embeddings)
+                    self.__update_centroids()
 
     def partial_fit_sentence_embeddings(
         self, embeddings: List[List[float]] | List[NDArray[np.floating]]
@@ -384,42 +392,46 @@ class Lang3sTopicModel:
                 )
 
     def merge_topics(self):
-        old_topic_count = len(self._topics)
-        merged = set()
-        new_topics = []
+        try:
+            old_topic_count = len(self._topics)
+            merged = set()
+            new_topics = []
 
-        for i in range(len(self._topics)):
-            if i in merged:
-                continue
-
-            topic_i = self._topics[i].copy()
-
-            for j in range(i + 1, len(self._topics)):
-                topic_j = self._topics[j]
-
-                if j in merged or topic_j.is_fixed:
+            for i in range(len(self._topics)):
+                if i in merged:
                     continue
 
-                sim = cosine(topic_i.centroid, topic_j.centroid)
+                topic_i = self._topics[i].copy()
 
-                can_merge = sim > self.merge_threshold
-                if topic_i.is_fixed:
-                    can_merge = sim > self.fixed_sim_threshold
+                for j in range(i + 1, len(self._topics)):
+                    topic_j = self._topics[j]
 
-                if can_merge:
-                    topic_i.merge(topic_j)
-                    merged.add(j)
+                    if j in merged or topic_j.is_fixed:
+                        continue
 
-            if (
-                topic_i.support >= self.min_support
-                and topic_i.doc_count >= self.min_document_count
-            ):
-                new_topics.append(topic_i)
+                    sim = cosine(topic_i.centroid, topic_j.centroid)
 
-        self._topics = new_topics
-        logger.info(
-            f"Merged {old_topic_count} topics down to {len(self._topics)} topics",
-        )
+                    can_merge = sim > self.merge_threshold
+                    if topic_i.is_fixed:
+                        can_merge = sim > self.fixed_sim_threshold
+
+                    if can_merge:
+                        topic_i.merge(topic_j)
+                        merged.add(j)
+
+                if (
+                    topic_i.support >= self.min_support
+                    and topic_i.doc_count >= self.min_document_count
+                ):
+                    new_topics.append(topic_i)
+
+            self._topics = new_topics
+            logger.info(
+                f"Merged {old_topic_count} topics down to {len(self._topics)} topics",
+            )
+        except Exception as e:
+            traceback.print_exc()
+            logger.exception(f"Error in merge: {e}", stack_info=True)
 
     @property
     def topics(self):
@@ -433,60 +445,19 @@ class Lang3sTopicModel:
         if len(self._topics) == 0:
             return
         db = Database()
-        with db.cursor() as cursor:
-            for topic in self._topics:
-                binary_embedding = binarize(topic.embedding)
-                values = {
-                    "id": topic.id,
-                    "name": topic.name,
-                    "support": topic.support,
-                    "embedding": binary_embedding,
-                    "fullEmbedding": topic.embedding,
-                    "updatedAt": datetime.datetime.now(datetime.timezone.utc),
-                    "fixed": topic.is_fixed,
-                }
-                insert_stmt = insert(TopicsTable).values(values)
-                update_values = {k: v for k, v in values.items() if k != "id"}
-                db.upsert(insert_stmt, "id", update_values)
-
-                # query = sql.SQL("""
-                #                 INSERT INTO topics ({})
-                #                 VALUES
-                #                 {}
-                #         ON CONFLICT (id)
-                #                 DO
-                #                 UPDATE
-                #                     SET support = %s,
-                #                     full_embedding = %s,
-                #                     embedding = %s,
-                #                     is_fixed = %s,
-                #                     name = %s,
-                #                     updated_at = %s
-                #                 """).format(
-                #     sql.SQL(", ").join(sql.Identifier(c) for c in DB_COLUMNS),
-                #     sql.SQL("({})").format(
-                #         sql.SQL(", ").join(
-                #             sql.Placeholder() for _ in DB_COLUMNS
-                #         )
-                #     ),
-                # )
-                # cursor.execute(
-                #     query,
-                #     (
-                #         topic.id,
-                #         topic.support,
-                #         topic.embedding,
-                #         binary_embedding,
-                #         topic.is_fixed,
-                #         topic.name,
-                #         topic.support,
-                #         topic.embedding,
-                #         binary_embedding,
-                #         topic.is_fixed,
-                #         topic.name,
-                #         datetime.datetime.now(datetime.timezone.utc),
-                #     ),
-                # )
+        for topic in self._topics:
+            values = {
+                "id": topic.id,
+                "name": topic.name,
+                "support": topic.support,
+                "embedding": topic.embedding.tolist(),
+                "updated_at": datetime.datetime.now(datetime.timezone.utc),
+                "is_fixed": topic.is_fixed,
+            }
+            insert_stmt = insert(TopicsTable).values(values)
+            update_values = {k: v for k, v in values.items() if k != "id"}
+            db.upsert(insert_stmt, "id", update_values)
+        self.reducer.save()
 
     def get_topic(self, topic_id: int | str) -> Topic:
         if isinstance(topic_id, int):

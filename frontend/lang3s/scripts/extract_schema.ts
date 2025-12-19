@@ -33,7 +33,7 @@ import fs from "fs";
 // CONFIG
 //
 
-const SCHEMA_DIR = path.resolve(__dirname, "../src/db/schemas/");
+const SCHEMA_DIR = path.resolve(__dirname, "../src/lib/db/schemas/");
 const OUT_FILE = path.resolve(__dirname, "../../../drizzle-schema.json");
 
 //
@@ -400,9 +400,6 @@ function main() {
 
   // Pass 1: collect enums
   for (const file of project.getSourceFiles()) {
-    if (file.getBaseNameWithoutExtension() === "auth") {
-      continue;
-    }
     for (const decl of file.getVariableDeclarations()) {
       const init = decl.getInitializer();
       if (!init || !Node.isCallExpression(init)) continue;
@@ -420,9 +417,6 @@ function main() {
 
   // Pass 2: collect tables
   for (const file of project.getSourceFiles()) {
-    // if (file.getBaseNameWithoutExtension() === "auth") {
-    //   continue;
-    // }
     for (const decl of file.getVariableDeclarations()) {
       const init = decl.getInitializer();
       if (!init || !Node.isCallExpression(init)) continue;

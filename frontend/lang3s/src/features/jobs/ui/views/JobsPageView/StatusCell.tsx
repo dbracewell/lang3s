@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils";
-import { RouterOutputs } from "@/trpc/types";
+import { cn } from "@/lib/utils/cn";
+import { RouterOutputs } from "@/lib/trpc/types";
 import {
   CircleCheckIcon,
   CircleXIcon,

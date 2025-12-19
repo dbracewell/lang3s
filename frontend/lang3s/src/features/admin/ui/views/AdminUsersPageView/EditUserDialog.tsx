@@ -20,7 +20,7 @@ import {
   UserRoleDescriptions,
   UserRoles,
 } from "@/features/auth/permissions";
-import { useTRPCMutation } from "@/trpc/use-mutation";
+import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PencilIcon } from "lucide-react";
 import { useRouter } from "next/navigation";

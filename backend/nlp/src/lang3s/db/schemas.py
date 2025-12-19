@@ -142,9 +142,8 @@ class TextModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    text: str
-    fullEmbedding: list[float]
-    embedding: list[int]
+    content: str
+    embedding: list[float]
     documentId: str
     metadata: Optional[dict] = None
     createdAt: Optional[datetime] = None
@@ -154,7 +153,7 @@ class TextAnnotationsModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    text: str
+    content: str
     cleaned: str
     textId: str
     documentId: str
@@ -165,8 +164,7 @@ class TextAnnotationsModel(BaseModel):
     value: str
     source: str
     mapping: Optional[str] = None
-    fullEmbedding: list[float]
-    embedding: list[int]
+    embedding: list[float]
     metadata: Optional[dict] = None
     createdAt: Optional[datetime] = None
     updatedAt: Optional[datetime] = None

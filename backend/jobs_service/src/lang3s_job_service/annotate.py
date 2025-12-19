@@ -19,9 +19,16 @@ class InputType(str, enum.Enum):
     jsonl = "jsonl"
     json = "json"
     file = "file"
+    filejsonl = "filejsonl"
 
 
-class StructuredSchema(BaseModel):
+class BaseSchema(BaseModel):
+
+    def to_file(self, index: int, row: Dict[str, Any]):
+        return File.model_validate(row)
+
+
+class StructuredSchema(BaseSchema):
     text_column: str
     title_column: Optional[str]
     metadata: Dict[str, str] = Field(default_factory=dict)
@@ -34,6 +41,22 @@ class StructuredSchema(BaseModel):
     @staticmethod
     def from_dict(file: Dict[Any, Any]) -> "StructuredSchema":
         return StructuredSchema.model_validate(file)
+
+    def to_file(self, index: int, row: Dict[str, Any]):
+        path = f"file-{index}"
+        content = cast(str, row[self.text_column])
+        if content.strip() == "":
+            return
+        metadata = {
+            "title": row[self.title_column] if self.title_column else path,
+        }
+        metadata.update({k: row[cast(str, v)] for k, v in self.metadata.items()})
+        return File(
+            path=path,
+            content=content,
+            mime_type="text/plain",
+            metadata=metadata,
+        )
 
 
 class CSVSchema(StructuredSchema):
@@ -52,25 +75,25 @@ class CSVSchema(StructuredSchema):
 rows_read = 0
 
 
-def to_file(
-    index: int,
-    row: Dict[str, Any],
-    schema: StructuredSchema,
-) -> Optional[File]:
-    path = f"file-{index}"
-    content = cast(str, row[schema.text_column])
-    if content.strip() == "":
-        return
-    metadata = {
-        "title": row[schema.title_column] if schema.title_column else path,
-    }
-    metadata.update({k: row[cast(str, v)] for k, v in schema.metadata.items()})
-    return File(
-        path=path,
-        content=content,
-        mime_type="text/plain",
-        metadata=metadata,
-    )
+# def to_file(
+#     index: int,
+#     row: Dict[str, Any],
+#     schema: BaseSchema,
+# ) -> Optional[File]:
+#     path = f"file-{index}"
+#     content = cast(str, row[schema.text_column])
+#     if content.strip() == "":
+#         return
+#     metadata = {
+#         "title": row[schema.title_column] if schema.title_column else path,
+#     }
+#     metadata.update({k: row[cast(str, v)] for k, v in schema.metadata.items()})
+#     return File(
+#         path=path,
+#         content=content,
+#         mime_type="text/plain",
+#         metadata=metadata,
+#     )
 
 
 def read_structured_files(
@@ -88,12 +111,15 @@ def read_structured_files(
     elif input_type == InputType.jsonl:
         schema = StructuredSchema.from_file(args.schema)
         generator = jsonl_row_generator(file)
+    elif input_type == InputType.filejsonl:
+        schema = BaseSchema()
+        generator = jsonl_row_generator(file)
     else:
         raise Exception(f"{input_type} is not supported")
 
     files = []
     for doc in generator:
-        new_file = to_file(len(files), doc, schema)
+        new_file = schema.to_file(len(files), doc)  # to_file(len(files), doc, schema)
         if new_file:
             files.append(new_file)
     return files
@@ -208,12 +234,12 @@ if __name__ == "__main__":
 
     job_service = JobService(
         api_key="lang3skUMvPskpvXQvKVIbsbrQEJFTGvNLjkjGpfIOZmpsMeKVfjWUobFwwmCCUcFeOzxX",
-        api_host="http://localhost:3001",
+        api_host="http://localhost:3000",
     )
 
     files: List[File] = []
 
-    if args.type in [InputType.csv, InputType.json, InputType.jsonl]:
+    if args.type in [InputType.csv, InputType.json, InputType.jsonl, InputType.filejsonl]:
         files = read_structured_files(args.source, args.schema, args.type)
         print(f"Generated {len(files)} and read in {rows_read} rows")
 

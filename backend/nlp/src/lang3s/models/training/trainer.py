@@ -105,7 +105,7 @@ class Trainer:
 
         self.task_type = task_type
         self.embedder = Embedder()
-        self.embedding_dim = self.embedder.dimensions
+        self.embedding_dim = config.TOKEN_EMBEDDING_DIMENSION
         self.num_epochs = num_epochs
         self.patience = patience
         self.name = name

@@ -2,15 +2,12 @@ import gzip
 import importlib.resources
 import json
 from collections import Counter
-from typing import Dict, Optional
-from typing import List
+from typing import Dict, List, Optional
 
 import numpy as np
 import spacy
 import spacy.tokens
 from fastcoref import spacy_component
-from lang3s.shared_types.text import Text
-from lang3s.shared_types.text_annotation import TextAnnotation
 from more_itertools.more import first
 from sklearn.feature_extraction.text import TfidfVectorizer
 from spacy.language import Language
@@ -20,7 +17,10 @@ from spacy.util import filter_spans
 from spacy_download import load_spacy
 
 from lang3s.shared_types import AnnotationTypes, Metadata
+from lang3s.shared_types.text import Text
+from lang3s.shared_types.text_annotation import TextAnnotation
 from lang3s.utils import decorators, filter_none
+from lang3s import config
 
 test = spacy_component
 
@@ -33,13 +33,16 @@ SPACY_MODELS = {
 
 @decorators.singleton
 class CoreLanguageProcessor:
-
     def __init__(self):
         self.pipelines = {}
         self.patterns = {}
         self.matchers = {}
 
-        with importlib.resources.files("lang3s.nlp").joinpath("mwe.json.gz").open("rb") as f_in:
+        with (
+            importlib.resources.files("lang3s.nlp")
+                .joinpath("mwe.json.gz")
+                .open("rb") as f_in
+        ):
             with gzip.open(f_in, "rt") as f_gz:
                 mwe_dict = json.load(f_gz)
                 for k, mwe in mwe_dict.items():
@@ -71,14 +74,14 @@ class CoreLanguageProcessor:
             nlp.add_pipe("merge_mwv", last=True)
             nlp.add_pipe("fix_mwv", last=True)
 
-        # if language == "en":
-        #     nlp.add_pipe(
-        #         "fastcoref",
-        #         config={
-        #             "device": "cpu",
-        #         },
-        #         last=True,
-        #     )
+        if language == "en" and config.USE_COREFERENCE:
+            nlp.add_pipe(
+                "fastcoref",
+                config={
+                    "device": "cpu",
+                },
+                last=True,
+            )
 
         return self.pipelines[language]
 
@@ -96,7 +99,15 @@ def merge_mwv(doc):
 
     with doc.retokenize() as retok:
         for span in spans:
-            retok.merge(span, attrs={"_": {"is_mwv": True, "lemma": " ".join([t.lemma_ for t in span])}})
+            retok.merge(
+                span,
+                attrs={
+                    "_": {
+                        "is_mwv": True,
+                        "lemma": " ".join([t.lemma_ for t in span]),
+                    }
+                },
+            )
     return doc
 
 
@@ -117,7 +128,6 @@ def core_nlp(language: str, texts: List[Text]):
     )
 
     for text, doc in zip(texts, spacy_docs):
-
         sentences = {
             s.start: i for i, s in enumerate(doc.sents) if s.text.strip() != ""
         }
@@ -164,7 +174,7 @@ def core_nlp(language: str, texts: List[Text]):
         compute_sentence_weight(sentence_annotations)
 
         coref_map: Dict[int, spacy.tokens.Span] = {}
-        # handle_coreference(language, doc, coref_map)
+        handle_coreference(language, doc, coref_map)
 
         entity_map: Dict[int, TextAnnotation] = {}
         for entity in doc.ents:
@@ -206,7 +216,7 @@ def core_nlp(language: str, texts: List[Text]):
 
 
 def handle_coreference(language, doc, coref_map):
-    if language == "en":
+    if language == "en" and config.USE_COREFERENCE:
         for cluster in doc._.coref_clusters:
             spans: List[spacy.tokens.Span] = []
 
@@ -230,9 +240,7 @@ def handle_coreference(language, doc, coref_map):
 
             most_common: str = first(
                 Counter(
-                    span.label_
-                    for span in spans
-                    if span.label_ != "UNKNOWN"
+                    span.label_ for span in spans if span.label_ != "UNKNOWN"
                 ).most_common(1),
                 ["MISC", 1],
             )[0]
@@ -333,43 +341,3 @@ def compute_sentence_weight(
 
     for weight, sentence in zip(combined_weights, sentences):
         sentence[Metadata.WEIGHT.value] = weight
-
-
-def get_dependency_path(token1, token2):
-    ancestors1 = {token1}.union(set(token1.ancestors))
-    common_ancestor = None
-    for ancestor in token2.ancestors:
-        if ancestor in ancestors1:
-            common_ancestor = ancestor
-            break
-    if not common_ancestor:
-        return []
-
-    path1, path2 = [], []
-    tok = token1
-    while tok != common_ancestor:
-        path1.append(tok)
-        tok = tok.head
-    path1.append(common_ancestor)
-    tok = token2
-    while tok != common_ancestor:
-        path2.append(tok)
-        tok = tok.head
-    path2 = list(reversed(path2))
-    return path1 + path2[1:]
-
-
-def overlaps(t1, t2):
-    return t1.idx < t2.end_char and (t1.idx + len(t1.text)) > t2.start_char
-
-
-def extract_relation_phrase(path, e1, e2):
-    # Keep verbs, prepositions, or important nouns/adjectives
-    rel_tokens = [
-        tok.lemma_
-        for tok in path
-        if not overlaps(tok, e1)
-           and not overlaps(tok, e2)
-           and tok.pos_ in ("VERB", "ADP", "AUX", "NOUN")
-    ]
-    return " ".join(rel_tokens)

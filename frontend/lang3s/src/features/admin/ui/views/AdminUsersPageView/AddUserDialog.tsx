@@ -19,7 +19,7 @@ import {
   UserAccountSchema,
   UserAccountSchemaType,
 } from "@/features/common/schemas";
-import { useTRPCMutation } from "@/trpc/use-mutation";
+import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { UserRoundPlusIcon } from "lucide-react";
 import { useRouter } from "next/navigation";

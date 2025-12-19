@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { RequiredField } from "@/components/form-controls/required-field";
 import { Checkbox } from "@/components/ui/checkbox";
 import {

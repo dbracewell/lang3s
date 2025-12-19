@@ -1,15 +1,16 @@
 import json
 from contextlib import contextmanager
-from typing import Any, List, Optional, Tuple, Dict
+from typing import Any, List, Optional, Tuple, Dict, Generator, ContextManager
 
 from pgvector.psycopg import register_vector
 from psycopg import sql
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import event
+from sqlalchemy.orm import sessionmaker, Session
 
 from lang3s import config
 from lang3s.db.models import Base, ConfigurationTable
-from lang3s.utils import decorators
+from lang3s.utils.meta import SingletonMeta
 
 
 def alias_identifier(ident, alias=None):
@@ -35,12 +36,15 @@ def psy_raw(engine):
 MAX_INSERT_SIZE = 60000
 
 
-@decorators.singleton
-class Database:
+class Database(metaclass=SingletonMeta):
 
     def __init__(self) -> None:
         self.engine = create_engine(config.DB_URL, echo=False, future=True)
         self.SessionLocal = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, future=True)
+
+        @event.listens_for(self.engine, "connect")
+        def connect(dbapi_connection, connection_record):
+            register_vector(dbapi_connection)
 
     @contextmanager
     def cursor(self):

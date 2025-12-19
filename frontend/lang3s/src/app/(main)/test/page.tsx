@@ -1,15 +1,33 @@
-import React from "react";
+// "use client"; // Marks this as a Client Component
 
-const Page = () => {
+// import { useState } from "react";
+// import { useJobProgress } from "@/hooks/events/useJobProgress";
+// import { useUser } from "@/features/auth/UserContext";
+import { caller } from "@/lib/trpc/server";
+
+export default async function Page() {
+  // const [notifications, setNotifications] = useState<string[]>([]);
+  // const progress = useJobProgress("abc");
+  // const user = useUser();
+  const events = await caller.analytics.getEventsForEntity({
+    entity: "CHINA",
+  });
   return (
-    <div className="flex flex-1 flex-col gap-2">
-      <div className="peer/abc">Test</div>
-
-      <div className="bg-dodger-blue-500 border-2 text-2xl font-semibold peer-hover/abc:border-2">
-        Test
-      </div>
+    <div>
+      {/*<h3>Real-time Notifications:</h3>*/}
+      {/*<ul>{progress}</ul>*/}
+      {/*<p>{user.id}</p>*/}
+      {events.map((e, i) => (
+        <div key={i}>
+          {e.value} {e.count}
+          {e.events.map((event, j) => (
+            <div key={j}>
+              {event.sentence} <br />
+              {event.text} {event.A0} {event.A1} {event.LOC}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
-};
-
-export default Page;
+}

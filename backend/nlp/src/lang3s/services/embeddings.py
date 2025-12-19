@@ -14,10 +14,9 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-
 embedder = Embedder()
 
 
 @router.post("/")
 async def embed(request: EmbeddingRequest):
-    return embedder([request.text]).sentence_embeddings[0]
+    return embedder([request.text]).sentence_embeddings[0].tolist()

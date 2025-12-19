@@ -4,4 +4,4 @@ pnpm drizzle-kit push
 pnpm tsx --conditions=react-server --env-file=.env ./scripts/clear_redis.ts
 
 DOCUMENTS_DIR="${DOCUMENTS_DIR:-/Users/ik/prj/Lang3s/documents}"
-rm $DOCUMENTS_DIR/*.json
+rm $DOCUMENTS_DIR/*.json.gz

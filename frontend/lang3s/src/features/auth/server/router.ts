@@ -1,7 +1,7 @@
-import { db } from "@/db";
-import { apikey as ApiKeyTable, user as UserTable } from "@/db/schema";
-import { auth } from "@/lib/auth";
-import { logAndRethrow } from "@/lib/try-catch";
+import { db } from "@/lib/db";
+import { apikey as ApiKeyTable, user as UserTable } from "@/lib/db/schema";
+import { auth } from "@/lib/auth/auth";
+import { logAndRethrow } from "@/lib/utils/try-catch";
 import { UserType } from "@/features/admin/ui/views/AdminUsersPageView/columns";
 import { UserRole } from "@/features/auth/permissions";
 import { getUserApiKeys } from "@/features/auth/server/actions";
@@ -11,7 +11,7 @@ import {
   createTRPCRouter,
   protectedProcedure,
   requirePermissions,
-} from "@/trpc/init";
+} from "@/lib/trpc/init";
 import { and, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import z from "zod";

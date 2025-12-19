@@ -1,7 +1,7 @@
-import { db } from "@/db";
-import { JobsTable, jobStatuses } from "@/db/schema";
-import { ANNOTATION_QUEUE, getRedisClient } from "@/lib/redis";
-import { logAndRethrow } from "@/lib/try-catch";
+import { db } from "@/lib/db";
+import { JobsTable, jobStatuses } from "@/lib/db/schema";
+import { ANNOTATION_QUEUE, getGlobalConnection } from "@/lib/redis";
+import { logAndRethrow } from "@/lib/utils/try-catch";
 import { getUserApiKeys } from "@/features/auth/server/actions";
 import { Lang3sFile } from "@/features/common/classes";
 import { BasicUserInfo } from "@/features/common/types";
@@ -10,7 +10,7 @@ import {
   createTRPCRouter,
   isSystemApiKey,
   requirePermissions,
-} from "@/trpc/init";
+} from "@/lib/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { and, AnyColumn, desc, eq, or, sql } from "drizzle-orm";
 import z from "zod";
@@ -235,7 +235,7 @@ export const jobsRouter = createTRPCRouter({
       }
 
       try {
-        const redis = await getRedisClient();
+        const redis = await getGlobalConnection();
         for (const file of files) {
           const task = { job_id: job_id, content: JSON.stringify(file) };
           await redis.rPush(ANNOTATION_QUEUE, JSON.stringify(task));

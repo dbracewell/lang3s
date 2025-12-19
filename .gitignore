@@ -97,4 +97,4 @@ htmlcov/
 *.bak
 *.swp
 
-documents
+./documents

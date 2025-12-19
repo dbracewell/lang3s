@@ -46,7 +46,7 @@ spacy_download = "1.1.0"
 uvicorn = "*"
 redis = "7.0.0"
 bertopic = ">=0.17.3,<0.18.0"
-lang3s-job-service = { path = "/Users/ik/prj/Lang3s/backend/jobs_service" }
+lang3s-job-service = { path = "../jobs_service" }
 jsonlines = ">=4.0.0,<5.0.0"
 hnswlib = ">=0.8.0,<0.9.0"
 psycopg = { version = ">=3.2.12,<4.0.0", extras = ["binary", "pgvector"] }
@@ -59,6 +59,9 @@ numpy = "2.3.4"
 beautifulsoup4 = "^4.14.2"
 markdown = "^3.10"
 sqlalchemy = "^2.0.44"
+requests = ">=2.32.5,<3.0.0"
+pydantic = "2.11.4"
+pydantic-core = "2.33.2"
 
 
 [tool.poetry.group.dev.dependencies]

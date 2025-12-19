@@ -56,7 +56,7 @@ class VectorOperator(enum.Enum):
         elif self is VectorOperator.HammingDistance:
             return sql.SQL("1 - ({vector_col} <~> {query}::float / {dimension})").format(
                 vector_col=sql.Identifier(VECTOR_COLUMN),
-                dimension=sql.Identifier(str(config.EMBEDDING_DIMENSION)),
+                dimension=sql.Identifier(str(config.TOKEN_EMBEDDING_DIMENSION)),
                 query=sql.Placeholder("vec"),
             )
         elif self is VectorOperator.InnerProduct:

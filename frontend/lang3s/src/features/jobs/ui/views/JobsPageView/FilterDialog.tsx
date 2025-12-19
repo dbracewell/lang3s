@@ -19,8 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { jobStatuses } from "@/db/schema";
-import { cn } from "@/lib/utils";
+import { jobStatuses } from "@/lib/db/schema";
+import { cn } from "@/lib/utils/cn";
 import { ListFilterIcon, ListFilterPlusIcon } from "lucide-react";
 
 export const FilterDialog = <T extends object>({

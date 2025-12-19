@@ -1,9 +1,9 @@
-import { db } from "@/db";
-import { AnnotationToOntology, OntologyTable } from "@/db/schema";
-import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { db } from "@/lib/db";
+import { AnnotationToOntology, OntologyTable } from "@/lib/db/schema";
+import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
 import { eq, sql } from "drizzle-orm";
 import z from "zod";
-import { logAndRethrow } from "@/lib/try-catch";
+import { logAndRethrow } from "@/lib/utils/try-catch";
 
 export const ontologyRouter = createTRPCRouter({
   getColorMapping: protectedProcedure.query(async () => {

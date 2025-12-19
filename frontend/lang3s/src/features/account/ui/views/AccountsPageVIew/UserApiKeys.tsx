@@ -4,7 +4,7 @@ import { DeleteButton } from "@/components/DeleteButton";
 import { Button } from "@/components/ui/button";
 import { roleHasPermissions } from "@/features/auth/permissions";
 import { FullUserInfo } from "@/features/common/types";
-import { useTRPCMutation } from "@/trpc/use-mutation";
+import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { KeyIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";

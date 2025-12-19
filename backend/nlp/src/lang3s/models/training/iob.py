@@ -46,7 +46,7 @@ class TokenDataset(Lang3sDataset):
             i_tag = f"I-{tag}"
             if i_tag not in all_labels:
                 all_labels.append(i_tag)
-                
+
         self.label2idx = {lbl: idx for idx, lbl in enumerate(all_labels)}
         self.idx2label = {v: k for k, v in self.label2idx.items()}
 
@@ -340,7 +340,6 @@ class IObTrainer(Trainer):
         emb_result = self.embedder(
             sentences,
             is_split_into_words=True,
-            agg="mean",
         )
         padded_embeddings, padded_mask = emb_result.padded_token_embeddings_with_mask()
 

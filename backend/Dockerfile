@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.12-bookworm
 
 WORKDIR /app
 
@@ -21,32 +21,34 @@ ENV REDIS_HOST=${REDIS_HOST}
 ENV DEVICE=${DEVICE}
 ENV PYTHONUNBUFFERED=1
 
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_VIRTUALENVS_CREATE=1 \
+    POETRY_CACHE_DIR=/tmp/poetry_cache
 
 #Install supervisord
 RUN apt-get update && apt-get install -y supervisor cargo && rm -rf /var/lib/apt/lists/*
 
+RUN pip install poetry
+
 #Install Job Service
-COPY jobs_service/src/lang3s_job_service src/lang3s_job_service
-COPY jobs_service/pyproject.toml .
-RUN  pip install . &&  rm -rf src/
+COPY jobs_service/ jobs_service
+COPY nlp/src/ nlp/src
+COPY nlp/pyproject.toml nlp/pyproject.toml
+COPY nlp/setup.py nlp/setup.py
+COPY nlp/README.md nlp/README.md
+WORKDIR /app/nlp/
+RUN poetry config virtualenvs.create false
+RUN poetry install  --no-root  && rm -rf $POETRY_CACHE_DIR
+RUN poetry run python setup.py build_ext --inplace
 
-#Install requirements
-COPY nlp/requirements.txt .
-RUN pip install -r requirements.txt
 
-#Copy core models
-COPY nlp/models models
+COPY nlp/models /app/models
 ENV MODELS_DIR=models
-
-#Install base model
-COPY nlp/load_base_model.py .
-RUN python load_base_model.py && rm load_base_model.py
-
-#Copy project, install, and remove unneeded source
-COPY nlp/src/lang3s src/lang3s
-COPY nlp/pyproject.toml .
-RUN  pip install  . &&  rm -rf src/
-
 ENV TOKENIZERS_PARALLELISM=false
-COPY run.py .
+COPY run.py /app/nlp/src
+
+ENV VIRTUAL_ENV=/app/nlp/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+WORKDIR /app/nlp/src
 CMD ["python", "run.py"]

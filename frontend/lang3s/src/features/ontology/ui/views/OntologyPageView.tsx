@@ -1,7 +1,7 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { useTRPCMutation } from "@/trpc/use-mutation";
-import { useTRPCQuery } from "@/trpc/use-queries";
+import { useTRPCMutation } from "@/lib/trpc/use-mutation";
+import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import React from "react";
 
 export const OntologyPageView = () => {

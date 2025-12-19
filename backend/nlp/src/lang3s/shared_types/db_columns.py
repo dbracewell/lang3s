@@ -14,7 +14,6 @@ TEXT_ANNOTATION_COLUMNS = [
     "clean_text",
     "mapping",
     "embedding",
-    "full_embedding",
     "metadata",
 ]
 
@@ -25,7 +24,6 @@ TEXT_COLUMNS = [
     "text",
     "doc_id",
     "embedding",
-    "full_embedding",
     "metadata",
 ]
 

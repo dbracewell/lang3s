@@ -1,7 +1,7 @@
 "use client";
 import { Spinner } from "@/components/Spinner";
 import { BasicUserInfo } from "@/features/common/types";
-import { useTRPCQuery } from "@/trpc/use-queries";
+import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import React, { createContext } from "react";
 
 export const UserContext = createContext<{

@@ -1,5 +1,5 @@
 import { TextAnnotation } from "@/components/text/TextAnnotation";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { Lang3sTextAnnotation } from "@/features/common/classes";
 import { memo } from "react";
 import { useOntologyColors } from "@/features/ontology/hooks";
@@ -20,7 +20,9 @@ export const Sentence = memo(
           data-sentence={"true"}
           className={cn(
             "flex flex-1 flex-wrap items-start gap-1 rounded-md border p-2 text-sm",
-            index % 2 == 0 ? "bg-white" : "bg-gray-100",
+            index % 2 == 0
+              ? "bg-white dark:bg-zinc-900"
+              : "bg-gray-100 dark:bg-zinc-800",
           )}
         >
           {sentence

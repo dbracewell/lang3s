@@ -4,8 +4,8 @@ import {
   SortFnType,
 } from "@/components/data-table/data-table-types";
 import { useDataTableContext } from "@/components/data-table/DataTableContext";
-import { capitalize } from "@/lib/formatters";
-import { cn } from "@/lib/utils";
+import { capitalize } from "@/lib/utils/formatters";
+import { cn } from "@/lib/utils/cn";
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import React, { useEffect } from "react";
 

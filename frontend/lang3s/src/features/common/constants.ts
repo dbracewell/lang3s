@@ -13,3 +13,5 @@ export const AnnotationColors: Record<string, string> = {
 };
 
 export const PAGE_LIMIT = 25;
+
+export const DEFAULT_MIN_SIMILARITY = 0.5;

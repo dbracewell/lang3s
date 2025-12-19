@@ -1,5 +1,5 @@
 import { FilterState } from "@/components/data-table/data-table-types";
-import { omitFields } from "@/lib/type-utils";
+import { omitFields } from "@/lib/utils/type-utils";
 import { useCallback, useState } from "react";
 
 export const useFilters = <T extends object>() => {

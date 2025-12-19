@@ -8,6 +8,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from lang3s.db import Database
 from lang3s.models.topic_model import Lang3sTopicModel
 
 logger = logging.Logger(__name__)
@@ -30,8 +31,8 @@ class Task(NamedTuple):
     data: Any
 
 
+topic_model = None
 work_queue = queue.Queue()
-
 
 total_tasks = 0
 is_updating_task = False
@@ -59,22 +60,26 @@ def worker():
                 topic_model.label_topics()
                 topic_model.save_topics()
         except Exception as e:
-            logger.error(f"Error in worker: {e}")
+            logger.exception(f"Error in worker: {e}", stack_info=True)
         finally:
             work_queue.task_done()
             global total_tasks
             total_tasks -= 1
 
 
-# Start background thread
-threading.Thread(target=worker, daemon=True).start()
+def init_globals():
+    """Call this ONCE when the app starts"""
+    global topic_model
+    # This ensures we get the singleton instance
+    topic_model = Lang3sTopicModel()
+
+    # Start the thread here, not at the top level
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
 
 
 class AddRequest(BaseModel):
     embeddings: List[List[float]]
-
-
-topic_model = Lang3sTopicModel()
 
 
 @router.post("/")

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { XIcon } from "lucide-react";
 import { Logo } from "@/components/logo";
 import * as React from "react";
@@ -13,8 +13,8 @@ export const NavSidebar = ({ isOpen, setIsOpen }: NavSidebarProps) => {
   return (
     <div
       className={cn(
-        "mobile:w-[300px] from-sidebar-light to-sidebar-dark fixed top-0 left-0 z-50 flex h-screen w-full flex-col border-r bg-linear-to-b shadow-2xl transition-all",
-        isOpen ? "animate-in translate-x-0" : "-translate-x-full",
+        "mobile:w-[300px] from-sidebar-light to-sidebar-dark shadow-shadow fixed top-0 left-0 z-50 flex h-screen w-full flex-col border-r bg-linear-to-b transition-all",
+        isOpen ? "animate-in translate-x-0 shadow-2xl" : "-translate-x-full",
       )}
     >
       <div className="mt-3 flex items-center justify-between px-2">

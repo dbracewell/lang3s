@@ -13,7 +13,6 @@ from .db_columns import TextRow
 from .metadata import AnnotationTypes
 from .text_annotation import TextAnnotation
 from .text_object cimport TextObject
-from ..maths import binarize
 
 cdef class Text(TextObject):
     def __cinit__(self):
@@ -142,8 +141,7 @@ cdef class Text(TextObject):
             id=self.id,
             text=self.text,
             doc_id=self.doc_id,
-            embedding=binarize(arr),
-            full_embedding=arr,
+            embedding=arr,
             metadata=Jsonb(self._meta.to_dict()),  #type: ignore
         ))
 

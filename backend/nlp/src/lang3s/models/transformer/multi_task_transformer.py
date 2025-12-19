@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 
 from lang3s import config
-from lang3s.models.embedder import Embedder, EmbeddingResult
+from lang3s.models.embedder import EmbeddingResult
 from lang3s.utils import decorators
 from .shared_types import TaskType, TransformerResult
 from .task import SentenceClassificationParams, Task
@@ -25,7 +25,7 @@ class TransformerOutput(NamedTuple):
 class MultiTaskTransformer(nn.Module):
     def __init__(self):
         super().__init__()
-        self.registry = TaskRegistry(hidden_size=Embedder().dimensions)
+        self.registry = TaskRegistry(hidden_size=config.TOKEN_EMBEDDING_DIMENSION)
         self.device = config.INFERENCE_DEVICE
         self.pad_label = 'O'
         if os.path.exists(config.ADAPTERS_DIR):
@@ -54,8 +54,8 @@ class MultiTaskTransformer(nn.Module):
             # batch_sentences = sentences[idx:idx + batch_size]
 
             hidden, rm = batch.padded_token_embeddings_with_mask()
-            padded_token_embeddings = torch.from_numpy(hidden).type(torch.float32, non_blocking=True).to(self.device)
-            padded_token_mask = torch.from_numpy(rm).type(torch.bool, non_blocking=True).to(self.device)
+            padded_token_embeddings = torch.from_numpy(hidden).type(torch.float32).to(self.device)
+            padded_token_mask = torch.from_numpy(rm).type(torch.bool).to(self.device)
 
             # word_to_subword = []
             # word_ids_list = [m.word_ids for m in batch.mapping]

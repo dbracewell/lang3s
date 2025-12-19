@@ -10,7 +10,7 @@ FASTAPI_PORT = int(os.environ.get(
 #####################################################################################
 # NODEJS BACKEND AND SYSTEM KEY
 #####################################################################################
-NODEJS_HOST = os.environ.get("BACKEND_HOST", "http://localhost:3001")
+NODEJS_HOST = os.environ.get("BACKEND_HOST", "http://localhost:3000")
 SYSTEM_API_KEY = os.environ.get("SYSTEM_API_KEY", "456789")
 
 #####################################################################################
@@ -39,14 +39,15 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 #####################################################################################
 # EMBEDDING MODEL
 #####################################################################################
-XLM_ROBERTA = "xlm-roberta-base"
-GTE_MODEL = "Alibaba-NLP/gte-multilingual-base"
-MENTAL_HEALTH_ROBERTA = "mental/mental-roberta-base"
-__DEFAULT_EMBEDDING_MODEL = GTE_MODEL
-EMBEDDING_MODEL: str = os.environ.get(
-    "EMBEDDING_MODEL", __DEFAULT_EMBEDDING_MODEL
-)
-EMBEDDING_DIMENSION = 768
+XLM_ROBERTA = "/Users/ik/prj/Lang3s/finetuned_xlm_roberta"
+EMBEDDING_MODEL: str = XLM_ROBERTA
+TOKEN_EMBEDDING_DIMENSION = 768
+SEMANTIC_EMBEDDING_DIMENSION = 384
+
+#####################################################################################
+# NLP OPTIONS
+#####################################################################################
+USE_COREFERENCE = True
 
 #####################################################################################
 # STORAGE DIRECTORIES

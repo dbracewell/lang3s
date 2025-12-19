@@ -1,9 +1,7 @@
-import { Spinner } from "@/components/Spinner";
-import { DocumentsViewPage } from "@/features/documents/ui/views/DocumentsViewPage";
-import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 import React from "react";
-
-export const dynamic = "force-dynamic";
+import { HydrateClient, prefetch, trpc } from "@/lib/trpc/server";
+import { DocumentsViewPage } from "@/features/documents/ui/views/DocumentsViewPage";
+import { Spinner } from "@/components/Spinner";
 
 const DocumentsPage = () => {
   prefetch(trpc.documents.getMany.infiniteQueryOptions({ cursor: 0 }));

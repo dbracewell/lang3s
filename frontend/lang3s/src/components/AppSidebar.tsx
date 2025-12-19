@@ -14,7 +14,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { useUser } from "@/features/auth/UserContext";
 import { filterLinks } from "@/features/common/navigation";
 import Link from "next/link";

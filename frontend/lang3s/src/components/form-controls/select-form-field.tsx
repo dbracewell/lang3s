@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { FieldValues, Path, UseFormReturn } from "react-hook-form";
 import { RequiredField } from "@/components/form-controls/required-field";
 import { RefObject } from "react";

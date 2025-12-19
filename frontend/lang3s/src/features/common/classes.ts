@@ -11,7 +11,7 @@ export type TextAnnotationProps = {
 };
 
 export const Lang3sFile = z.object({
-  path: z.string(),
+  path: z.string().nullish(),
   mime_type: z.string(),
   content: z.string(),
   encoding: z.string().nullish(),

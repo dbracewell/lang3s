@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { formatURL } from "@/lib/formatters";
-import { cn } from "@/lib/utils";
+import { formatURL } from "@/lib/utils/formatters";
+import { cn } from "@/lib/utils/cn";
 import { Lang3sTextAnnotation } from "@/features/common/classes";
-import { AnnotationColors } from "@/features/common/constants";
+import {
+  AnnotationColors,
+  DEFAULT_MIN_SIMILARITY,
+} from "@/features/common/constants";
 import { SearchIcon } from "lucide-react";
 import Link from "next/link";
 import React, { memo } from "react";
@@ -186,11 +189,13 @@ export const TextAnnotation = memo(
             );
           }}
           className={cn(
-            "cols entity",
+            "entity flex flex-col text-black",
             annotation.type != "token"
               ? "cursor-pointer overflow-clip rounded-md border border-amber-500 bg-amber-100 px-2 text-center after:-mx-2 after:bg-amber-500 after:p-[1px] after:text-center after:text-[10px] after:text-white after:uppercase"
               : "pt-0.5",
-            annotation.type != "token" && AnnotationColors[color],
+            annotation.type === "token"
+              ? "text-foreground"
+              : AnnotationColors[color],
           )}
         >
           {annotation.text}
@@ -206,7 +211,7 @@ export const TextAnnotation = memo(
             <Link
               href={formatURL("/search", {
                 aid: annotation.id,
-                minSimilarity: 0.7,
+                minSimilarity: DEFAULT_MIN_SIMILARITY,
                 stype: "annotation",
                 semantic: true,
                 atype: annotation.type,

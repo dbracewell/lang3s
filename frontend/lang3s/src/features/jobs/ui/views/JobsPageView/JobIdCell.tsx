@@ -2,7 +2,7 @@
 import { useDataTableContext } from "@/components/data-table/DataTableContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { useTRPCMutation } from "@/trpc/use-mutation";
+import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { Trash2Icon } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { toast } from "sonner";

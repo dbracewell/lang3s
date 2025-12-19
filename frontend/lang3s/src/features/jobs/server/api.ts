@@ -1,4 +1,4 @@
-import { env } from "@/env/env";
+import { env } from "@/lib/env/env";
 import { Permission, roleHasPermissions } from "@/features/auth/permissions";
 import { getUserByApiKey } from "@/features/auth/server/actions";
 import { cache } from "react";

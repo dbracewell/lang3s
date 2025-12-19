@@ -1,9 +1,9 @@
 "use server";
-import { db } from "@/db";
-import { apikey as ApiKeyTable, user as UserTable } from "@/db/schema";
-import { env } from "@/env/env";
-import { auth } from "@/lib/auth";
-import { logAndRethrow } from "@/lib/try-catch";
+import { db } from "@/lib/db";
+import { apikey as ApiKeyTable, user as UserTable } from "@/lib/db/schema";
+import { env } from "@/lib/env/env";
+import { auth } from "@/lib/auth/auth";
+import { logAndRethrow } from "@/lib/utils/try-catch";
 import { UserRole } from "@/features/auth/permissions";
 import {
   AdminAccountSchema,

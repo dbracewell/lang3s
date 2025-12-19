@@ -1,7 +1,7 @@
 "use client";
 import { useConfirmationDialog } from "@/components/ConfirmationDialog";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { useTRPCMutation } from "@/trpc/use-mutation";
+import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { UserX2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";

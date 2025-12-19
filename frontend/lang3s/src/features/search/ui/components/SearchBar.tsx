@@ -1,14 +1,32 @@
 "use client";
 import { CheckboxFormField } from "@/components/form-controls/checkbox-form-field";
 import { NumberInputFormField } from "@/components/form-controls/number-input-form-field";
-import { SelectFormField, SelectOptionItem } from "@/components/form-controls/select-form-field";
+import {
+  SelectFormField,
+  SelectOptionItem,
+} from "@/components/form-controls/select-form-field";
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { capitalize, formatURL } from "@/lib/formatters";
-import { cn } from "@/lib/utils";
-import { Lang3sSearchParams, ParsedSearchParams, QueryTypes, SearchParamSchema } from "@/features/search/params";
-import { useTRPCQuery } from "@/trpc/use-queries";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import { capitalize, formatURL } from "@/lib/utils/formatters";
+import { cn } from "@/lib/utils/cn";
+import {
+  Lang3sSearchParams,
+  ParsedSearchParams,
+  QueryTypes,
+  SearchParamSchema,
+} from "@/features/search/params";
+import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SearchIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -61,10 +79,10 @@ export const SearchBar = () => {
   });
 
   const queryType = form.watch("stype");
-  const isSemantic = form.watch("semantic");
 
   const onSubmit = (values: ParsedSearchParams) => {
-    router.push(formatURL("/search", values));
+    router.push(formatURL("/search", { ...values, cursor: 1 }));
+    router.refresh();
     closeSearchOptions(true);
   };
 
@@ -73,23 +91,23 @@ export const SearchBar = () => {
     form.setValue("atype", searchParams.atype);
     form.setValue("stype", searchParams.stype);
     form.setValue("aid", searchParams.aid);
-    form.setValue("minSimilarity", searchParams.minSimilarity);
-    form.setValue("page", searchParams.page);
-    form.setValue("semantic", searchParams.semantic);
+    form.setValue("cursor", searchParams.cursor);
+    form.setValue("isStrict", searchParams.isStrict);
   }, [
     form,
     searchParams.q,
     searchParams.atype,
     searchParams.stype,
     searchParams.aid,
-    searchParams.minSimilarity,
-    searchParams.page,
-    searchParams.semantic,
+    searchParams.cursor,
+    searchParams.isStrict,
   ]);
 
   useEffect(() => {
     setFormValues();
   }, [setFormValues]);
+
+  const query = form.watch("q");
 
   return (
     <Form {...form}>
@@ -102,9 +120,11 @@ export const SearchBar = () => {
       >
         <InputGroup
           className={cn(
-            "text-foreground bg-sidebar-dark/50 dark:border-border h-8 w-full rounded-full hover:shadow-sm dark:bg-zinc-700 dark:hover:shadow-zinc-500",
-            isOptionsOpen &&
-              "bg-background rounded-none rounded-t-lg border border-b-0 border-slate-800 dark:border-slate-500",
+            "text-foreground bg-sidebar-dark/50 dark:border-border hover:shadow-shadow dark:hover:shadow-dodger-blue-900 dark:hover:bg-background h-8 w-full rounded-full hover:shadow-xs",
+            !!query && "bg-background! dark:bg-background!",
+            isOptionsOpen
+              ? "bg-background dark:bg-background hover:bg-background dark:hover:bg-background rounded-none rounded-t-lg border border-b-0 border-slate-800 dark:border-slate-500"
+              : "hover:bg-white dark:bg-zinc-700",
           )}
         >
           <FormField
@@ -160,17 +180,10 @@ export const SearchBar = () => {
         >
           <CheckboxFormField
             reactHookForm={form}
-            name="semantic"
-            label="Semantic Search"
+            name="isStrict"
+            label="Strict Search"
             formDescriptionClassName="text-xs"
-            description="Searches for related concepts instead of keyword matches"
-            onCheckedChange={(e) => {
-              if (!e) {
-                form.setValue("minSimilarity", 0);
-              } else {
-                form.setValue("minSimilarity", 0.6);
-              }
-            }}
+            description="Requires keyword matches to be present in the search results"
           />
           <SelectFormField
             reactHookForm={form}
@@ -190,19 +203,6 @@ export const SearchBar = () => {
                 value: type,
                 node: capitalize(type, true),
               }))}
-            />
-          )}
-          {isSemantic && (
-            <NumberInputFormField
-              reactHookForm={form}
-              name="minSimilarity"
-              label="Min Similarity."
-              min={0.1}
-              max={1}
-              step={0.05}
-              className="bg-white"
-              formDescriptionClassName="text-xs"
-              description="A higher similarity will more strictly match, but will return fewer results."
             />
           )}
           <Button type="submit" form="searchBarForm">

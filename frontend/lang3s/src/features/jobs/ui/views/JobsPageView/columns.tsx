@@ -1,11 +1,11 @@
 "use client";
 import { ColumnDef } from "@/components/data-table/data-table-types";
 import { StringStartsWith } from "@/components/data-table/FilterFunctions";
-import { formatDuration } from "@/lib/formatters";
+import { formatDuration } from "@/lib/utils/formatters";
 import { JobIdCell } from "@/features/jobs/ui/views/JobsPageView/JobIdCell";
 import { ProgressCell } from "@/features/jobs/ui/views/JobsPageView/ProgressCell";
 import { StatusCell } from "@/features/jobs/ui/views/JobsPageView/StatusCell";
-import { RouterOutputs } from "@/trpc/types";
+import { RouterOutputs } from "@/lib/trpc/types";
 
 export type JobType = RouterOutputs["jobs"]["getAll"][number];
 export const columns: ColumnDef<JobType>[] = [

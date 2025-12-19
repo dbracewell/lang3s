@@ -7,7 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import * as React from "react";
 import { Suspense, useMemo } from "react";
@@ -16,7 +16,7 @@ import { filterLinks, NavigationGroup } from "@/features/common/navigation";
 import { useUser } from "@/features/auth/UserContext";
 import { DynamicIcon } from "@/components/DynamicIcon";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { SearchBar } from "@/features/search/ui/components/SearchBar";
 
 type MenuBarProps = {
@@ -39,7 +39,7 @@ export const MenuBar = ({ setIsMenuOpen }: MenuBarProps) => {
         <Logo height={16} className="group-hover:fill-white dark:fill-white" />{" "}
         <span className="font-bold select-none">Lang3s</span>
       </Link>
-      <div className="hidden items-center text-sm font-medium sm:flex">
+      <div className="-gap-2 hidden items-center gap-1 text-sm font-medium sm:flex">
         {navigationLinks.map((section) => (
           <Menu key={section.title} section={section} />
         ))}
@@ -58,11 +58,11 @@ const Menu = ({ section }: { section: NavigationGroup }) => {
   const pathname = usePathname();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger asChild className="group">
         <Button variant="menu-item" size="sm" className="group">
           <DynamicIcon
             name={section.icon}
-            className="group-hover:stroke-white dark:stroke-white"
+            className="group-hover:stroke-white group-data-[state=open]:stroke-white dark:stroke-white"
           />
           {section.title}
         </Button>
@@ -79,7 +79,11 @@ const Menu = ({ section }: { section: NavigationGroup }) => {
           return (
             <DropdownMenuItem
               key={i}
-              className={cn("", isActive && "bg-slate-200 dark:bg-slate-800")}
+              className={cn(
+                "",
+                isActive &&
+                  "bg-dodger-blue-500 focus:bg-dodger-blue-500/80 text-white focus:text-white",
+              )}
               asChild
             >
               <Link
@@ -88,7 +92,10 @@ const Menu = ({ section }: { section: NavigationGroup }) => {
               >
                 <DynamicIcon
                   name={link.icon}
-                  className="group-hover:stroke-white dark:stroke-white"
+                  className={cn(
+                    "group-hover:stroke-white dark:stroke-white",
+                    isActive && "stroke-white",
+                  )}
                 />
                 {link.title}
               </Link>
