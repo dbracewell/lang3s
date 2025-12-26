@@ -97,12 +97,6 @@
         "mappings": ["process:biological"]
       },
       {
-        "name": "State",
-        "description": "Static conditions.",
-        "children": [],
-        "mappings": ["process:state"]
-      },
-      {
         "name": "Motion",
         "description": "Processes involving movement or displacement.",
         "children": [

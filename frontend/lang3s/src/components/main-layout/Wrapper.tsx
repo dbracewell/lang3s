@@ -1,5 +1,5 @@
 "use client";
-import "react";
+import React from "react";
 import { useState } from "react";
 import { NavSidebar } from "@/components/main-layout/NavSidebar";
 import { MenuBar } from "@/components/main-layout/MenuBar";

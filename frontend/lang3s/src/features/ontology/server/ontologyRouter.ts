@@ -1,0 +1,226 @@
+import { db } from "@/lib/db";
+import { AnnotationToOntology, OntologyTable } from "@/lib/db/schema";
+import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
+import { eq, sql } from "drizzle-orm";
+import z from "zod";
+import { logAndRethrow } from "@/lib/utils/try-catch";
+import { jsonAgg } from "@/lib/db/funcs";
+import { AnnotationColors } from "@/features/common/constants";
+import { roleHasPermissions } from "@/features/auth/permissions";
+import { TRPCError } from "@trpc/server";
+import { OntologyConceptSchema } from "@/features/ontology/schemas";
+
+export const ontologyRouter = createTRPCRouter({
+  conceptNameExists: protectedProcedure
+    .input(z.object({ name: z.string() }))
+    .query(async ({ input }) => {
+      return (
+        (
+          await logAndRethrow(() =>
+            db
+              .select()
+              .from(OntologyTable)
+              .where(eq(OntologyTable.name, input.name)),
+          )
+        ).length > 0
+      );
+    }),
+
+  deleteConcept: protectedProcedure
+    .input(z.object({ path: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const { user } = ctx;
+      const { path } = input;
+      if (
+        !roleHasPermissions(user.role, [
+          "model:create",
+          "data:load",
+          "data:update",
+        ])
+      ) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const [result] = await logAndRethrow(() =>
+        db
+          .delete(OntologyTable)
+          .where(sql`path <@ ${path}::ltree`)
+          .returning(),
+      );
+      if (result == null) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      return result;
+    }),
+
+  updateConcept: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        values: z.object({
+          color: z.enum(Object.keys(AnnotationColors)).optional(),
+          description: z.string().min(1).optional(),
+          properties: z.record(z.string(), z.string()).optional(),
+          mapping: z.array(z.string()).optional(),
+        }),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { user } = ctx;
+      const { id, values } = input;
+      const { mapping, ...ontTableProps } = values;
+      if (
+        !roleHasPermissions(user.role, [
+          "model:create",
+          "data:load",
+          "data:update",
+        ])
+      ) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      if (
+        ontTableProps.properties ||
+        ontTableProps.color ||
+        ontTableProps.description
+      ) {
+        const [ontUpdate] = await logAndRethrow(() =>
+          db
+            .update(OntologyTable)
+            .set({
+              ...ontTableProps,
+            })
+            .where(eq(OntologyTable.id, id))
+            .returning(),
+        );
+
+        if (ontUpdate == null) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+      }
+
+      if (mapping)
+        await db.transaction(async (tx) => {
+          await tx
+            .delete(AnnotationToOntology)
+            .where(eq(AnnotationToOntology.ontologyId, id));
+          if (mapping.length > 0) {
+            await tx.insert(AnnotationToOntology).values(
+              mapping.map((m) => ({
+                ontologyId: id,
+                annotation: m,
+              })),
+            );
+          }
+        });
+    }),
+  getColorMapping: protectedProcedure.query(async () => {
+    const rows = await logAndRethrow(() =>
+      db
+        .select({
+          mapping: AnnotationToOntology.annotation,
+          color: OntologyTable.color,
+        })
+        .from(OntologyTable)
+        .innerJoin(
+          AnnotationToOntology,
+          eq(AnnotationToOntology.ontologyId, OntologyTable.id),
+        ),
+    );
+    const colors: Record<string, string> = {};
+    rows.forEach((r) => (colors[r.mapping] = r.color));
+    return colors;
+  }),
+  addConcept: protectedProcedure
+    .input(OntologyConceptSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { user } = ctx;
+      const { name, parentId, description } = input;
+
+      if (!roleHasPermissions(user.role, ["model:create"])) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const parent = parentId
+        ? await db.query.OntologyTable.findFirst({
+            where: (c, { eq }) => eq(c.id, parentId),
+          })
+        : undefined;
+
+      if (!parent) {
+        throw new TRPCError({ code: "BAD_REQUEST" });
+      }
+
+      const path = parent ? `${parent.path}.${name}` : name;
+
+      return await logAndRethrow(() =>
+        db
+          .insert(OntologyTable)
+          .values({
+            name,
+            parentId: parent?.id ?? null,
+            path,
+            description,
+          })
+          .returning(),
+      );
+    }),
+  getTopLevel: protectedProcedure.query(async () => {
+    const [result, mapping] = await logAndRethrow(() =>
+      Promise.all([
+        db.execute(sql`
+        WITH RECURSIVE ontology_tree AS (
+          SELECT id, name, description, path, parent_id, color, properties
+          FROM ${OntologyTable}
+          WHERE parent_id is null
+          UNION ALL
+          SELECT c.id, c.name, c.description, c.path, c.parent_id, c.color, c.properties
+          FROM ontology c
+          JOIN ontology_tree ct ON c.parent_id = ct.id
+        )
+        SELECT * FROM ontology_tree;
+      `),
+        db
+          .select({
+            id: AnnotationToOntology.ontologyId,
+            mappings: jsonAgg(AnnotationToOntology.annotation),
+          })
+          .from(AnnotationToOntology)
+          .groupBy((t) => t.id),
+      ]),
+    );
+    console.log(result.rows[0]);
+    return result.rows.map((r) => ({
+      id: r.id as number,
+      name: r.name as string,
+      mappings: (mapping.find((m) => m.id === r.id)?.mappings ??
+        []) as string[],
+      description: r.description as string,
+      path: r.path as string,
+      parentId: r.parent_id as number,
+      color: r.color as string,
+      properties: r.properties as Record<string, string>,
+    }));
+  }),
+});
+
+async function insertConcept(
+  name: string,
+  parentName: string | null | undefined,
+  props: Record<string, any> = {},
+) {
+  const parent = parentName
+    ? await db.query.OntologyTable.findFirst({
+        where: (c, { eq }) => eq(c.name, parentName),
+      })
+    : undefined;
+
+  const path = parent ? `${parent.path}.${name}` : name;
+
+  await db.insert(OntologyTable).values({
+    name,
+    parentId: parent?.id ?? null,
+    path,
+    properties: props,
+  });
+}

@@ -4,10 +4,10 @@ export const capitalize = (text: string, allWords: boolean = false): string => {
   }
   return text
     .split(/[\s_]+/g)
-    .filter((s) => s != null && s !== undefined && s !== "")
+    .filter((s) => s != null && true && s !== "")
     .map((word, idx) => {
       if (allWords || idx === 0) {
-        return word[0].toUpperCase() + word.slice(1);
+        return word[0].toUpperCase() + word.slice(1).toLowerCase();
       }
       return word;
     })
@@ -43,4 +43,12 @@ export const formatURL = (
     }
   });
   return `${path}/?${paramBuilder.toString()}`;
+};
+
+export const formatNumber = (num: number) => {
+  return new Intl.NumberFormat(undefined, {
+    notation: "standard",
+    compactDisplay: "long",
+    style: "decimal",
+  }).format(num);
 };

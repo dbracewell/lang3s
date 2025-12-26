@@ -3,8 +3,10 @@ import csv
 import enum
 import json
 import os
+import random
 import sys
 import traceback
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional, cast
 
@@ -25,6 +27,12 @@ class InputType(str, enum.Enum):
 class BaseSchema(BaseModel):
 
     def to_file(self, index: int, row: Dict[str, Any]):
+        if "metadata" not in row:
+            row["metadata"] = dict()
+        row["metadata"]["published_date"] = (datetime.now() - timedelta(days=random.randint(0, 10))).strftime(
+            "%Y-%m-%d")
+        row["metadata"]["trust_score"] = random.random()
+        row["metadata"]["trust_code"] = random.randint(0, 100)
         return File.model_validate(row)
 
 
@@ -75,33 +83,9 @@ class CSVSchema(StructuredSchema):
 rows_read = 0
 
 
-# def to_file(
-#     index: int,
-#     row: Dict[str, Any],
-#     schema: BaseSchema,
-# ) -> Optional[File]:
-#     path = f"file-{index}"
-#     content = cast(str, row[schema.text_column])
-#     if content.strip() == "":
-#         return
-#     metadata = {
-#         "title": row[schema.title_column] if schema.title_column else path,
-#     }
-#     metadata.update({k: row[cast(str, v)] for k, v in schema.metadata.items()})
-#     return File(
-#         path=path,
-#         content=content,
-#         mime_type="text/plain",
-#         metadata=metadata,
-#     )
-
-
 def read_structured_files(
     file: str, schema_file: str | Path, input_type: InputType
 ) -> List[File]:
-    generator = None
-    schema = None
-
     if input_type == InputType.csv:
         schema = CSVSchema.from_file(schema_file)
         generator = csv_row_generator(file, schema)

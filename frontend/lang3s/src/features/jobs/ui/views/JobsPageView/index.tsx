@@ -9,11 +9,25 @@ import { FilterDialog } from "@/features/jobs/ui/views/JobsPageView/FilterDialog
 import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Trash2Icon, XIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { columns, type JobType } from "./columns";
+import { ScrollableBox } from "@/components/scrolling/Scrollbox";
+import { AddUserDialog } from "@/features/auth/ui/views/AdminUsersPageView/AddUserDialog";
+import { useUser } from "@/features/auth/UserContext";
+import {
+  PagePermissions,
+  roleHasPermissions,
+} from "@/features/auth/permissions";
+import { redirect } from "next/navigation";
 
 export const JobPageView = () => {
+  const user = useUser();
+  const hasPermissions = roleHasPermissions(
+    user.role,
+    PagePermissions['"/system/jobs"'],
+  );
+
   const { data, refetch } = useTRPCQuery((trpc) =>
     trpc.jobs.getAll.queryOptions(),
   );
@@ -52,20 +66,29 @@ export const JobPageView = () => {
     initialSortColumn: "id",
     appearance: {
       sortButton: "text-white bg-white/30",
-      container: "shadow bg-white rounded-xl",
-      headerRow: "bg-dodger-blue-500 divide-x text-white text-center",
+      container: "shadow bg-card rounded-xl",
+      headerRow: "bg-heading divide-x text-white text-center",
       headerCell: "p-2",
       bodyCell: "p-1 h-10",
-      bodyRow: "border-b divide-x even:bg-slate-200",
+      bodyRow: "border-b divide-x even:bg-alternate-row bg-row",
     },
   });
 
+  if (!hasPermissions) {
+    redirect("/");
+    return null;
+  }
+
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col gap-2 text-sm">
+    <ScrollableBox.Container className="gap-2">
+      <ScrollableBox.Header>
+        <h1>Jobs</h1>
+        <p className="pageSubheading">View and manage jobs.</p>
+      </ScrollableBox.Header>
       <div className="flex items-center justify-between px-1">
         <div className="flex flex-col items-center gap-1">
           {isDeleting ? (
-            <div className="flex items-center gap-2 rounded-lg border bg-white/50 p-1 shadow">
+            <div className="flex items-center gap-2 rounded-lg border bg-slate-300/50 p-1 shadow dark:bg-slate-700/50">
               <Checkbox
                 id="selectAll"
                 onCheckedChange={(e) => {
@@ -116,6 +139,6 @@ export const JobPageView = () => {
       >
         <DataTable />
       </DataTableProvider>
-    </div>
+    </ScrollableBox.Container>
   );
 };

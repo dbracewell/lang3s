@@ -6,16 +6,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-from transformers import get_linear_schedule_with_warmup
+from transformers import get_linear_schedule_with_warmup, AutoTokenizer
 
 from lang3s.models import Embedder
+from lang3s import config
+from lang3s.models.base_transformer_model import ForkedBaseModel
 
 # --- CONFIGURATION ---
 BATCH_SIZE = 128
 # LR = 1e-4  # 62%
 # EPOCHS = 5  # 62%
 
-LR = 2e-5
+LR = 1e-4  # 2e-5
 EPOCHS = 4
 MAX_LEN = 64
 
@@ -65,7 +67,7 @@ class MNRLWithHardNegatives(nn.Module):
     def forward(self, q, p, n):
         # C. Construct Candidate Pool (Positives + Negatives)
         # Shape: [2 * B, 384]
-        # candidates = torch.cat([p, n], dim=0)
+        candidates = torch.cat([p, n], dim=0)
         # D. Compute Similarity Matrix
         # Query (B) x Candidates (2B) -> Scores (B, 2B)
         scores = torch.matmul(q, p.transpose(0, 1)) * SCALE
@@ -85,19 +87,19 @@ def train():
     dataset = QueryDistillationDataset("query_training_data.pkl")
     loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
 
-    model = Embedder()
-    model.model.to(DEVICE)
-    # model = QueryAdapter(input_dim=384).to(DEVICE)
-    model.model.train()
-    for p in model.model.parameters():
+    tokenizer = AutoTokenizer.from_pretrained(config.EMBEDDING_MODEL)
+    model = ForkedBaseModel(config.EMBEDDING_MODEL)
+    model.to(DEVICE)
+    model.train()
+    for p in model.parameters():
         p.requires_grad = False
-    for p in model.model.search_layers.parameters():
+    for p in model.search_layers.parameters():
         p.requires_grad = True
-    for p in model.model.search_compression.parameters():
+    for p in model.search_compression.parameters():
         p.requires_grad = True
 
-    trainable_params = list(model.model.search_layers.parameters()) + \
-                       list(model.model.search_compression.parameters())
+    trainable_params = list(model.search_layers.parameters()) + \
+                       list(model.search_compression.parameters())
     optimizer = torch.optim.AdamW(trainable_params, lr=LR)
     # criterion = CosineTripletLoss(margin=0.2)  # Margin of 0.2 is standard for cosine
     criterion = MNRLWithHardNegatives()
@@ -106,7 +108,7 @@ def train():
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=int(0.1 * total_steps), num_training_steps=total_steps
     )
-
+    mse_loss = nn.MSELoss()
     print("Starting MNRL Training...")
 
     for epoch in range(EPOCHS):
@@ -114,7 +116,7 @@ def train():
         total_loss = 0
         for batch in loop:
             # A. Get Data
-            q = batch['query']  # [B, 384]
+            q = [t.lower() for t in batch['query']]  # [B, 384]
             p = batch['target_vec'].to(DEVICE)  # [B, 384]
             n = batch['negative_vec'].to(DEVICE)  # [B, 384]
 
@@ -123,12 +125,12 @@ def train():
             p = F.normalize(p, p=2, dim=1)
             n = F.normalize(n, p=2, dim=1)
 
-            inputs = model.tokenizer(q,
-                                     padding=True,
-                                     truncation=True,
-                                     return_tensors="pt",
-                                     max_length=MAX_LEN).to(DEVICE)
-            outputs = model.model(**inputs, task="search")
+            inputs = tokenizer(q,
+                               padding=True,
+                               truncation=True,
+                               return_tensors="pt",
+                               max_length=MAX_LEN).to(DEVICE)
+            outputs = model(**inputs, task="search")
             last_hidden_state = outputs["semantic_head"]
             compressor = outputs["compressor"]
 
@@ -139,7 +141,7 @@ def train():
             sent_compressed = compressor(sent_768)  # 368-d
             q_out = torch.nn.functional.normalize(sent_compressed, p=2, dim=1)
 
-            loss = criterion(q_out, p, n)
+            loss = criterion(q_out, p, n) + mse_loss(q_out, p)
 
             optimizer.zero_grad()
             loss.backward()
@@ -150,9 +152,9 @@ def train():
         print(f"Epoch {epoch + 1}: average_loss={total_loss / len(loader):.4f}")
 
     # Save
-    torch.save(model.model.search_layers.state_dict(), "search_fine_tune.pt")
-    torch.save(model.model.search_compression.state_dict(), "search_compressed.pt")
-    print("✅ Saved query_adapter.pt")
+    torch.save(model.search_layers.state_dict(), "search_layers.pt")
+    torch.save(model.search_compression.state_dict(), "search_compressed.pt")
+    print("✅ Saved search model")
 
 
 if __name__ == "__main__":

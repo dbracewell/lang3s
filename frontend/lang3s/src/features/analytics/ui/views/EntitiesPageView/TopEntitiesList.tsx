@@ -4,10 +4,9 @@ import { Hint } from "@/components/hint";
 import { Spinner } from "@/components/Spinner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useDebounce } from "@/hooks/useDebounce";
-import { useTagSearchParams } from "@/features/analytics/hooks";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import {
+  ArrowDownIcon,
   ChartNetworkIcon,
   CircleQuestionMarkIcon,
   SearchIcon,
@@ -15,18 +14,30 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { parseAsBoolean } from "nuqs/server";
+import { formatNumber, formatURL } from "@/lib/utils/formatters";
+import { PageNumbers } from "@/components/PageNumbers";
+import { useRouter } from "next/navigation";
+import { defaultValues } from "@/features/analytics/ui/views/EntitiesPageView/index";
 
 export const TopEntitiesList = ({
   values,
-  defaultValues,
+  sortBy,
+  page,
+  filter,
 }: {
+  page: number;
+  sortBy: string;
+  filter?: string;
   values: string[];
-  defaultValues: string[];
 }) => {
-  const [filter, setFilter] = useState("");
-  const [selectedValues] = useTagSearchParams(defaultValues);
+  const [newFilter, setNewFilter] = useState(filter);
+  let finalSortBy = sortBy.toLowerCase();
+  if (!["mentions", "docs", "mentionsperdoc"].includes(sortBy.toLowerCase())) {
+    finalSortBy = "mentions";
+  }
+  const router = useRouter();
   const [, setEntityText] = useQueryState(
     "entity",
     parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
@@ -39,62 +50,136 @@ export const TopEntitiesList = ({
     "showEvents",
     parseAsBoolean.withDefault(false).withOptions({ clearOnDefault: true }),
   );
-  const debouncedFilter = useDebounce(filter, 500);
+
+  useEffect(() => {
+    setNewFilter(filter);
+  }, [filter]);
 
   const { data, isLoading } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationCounts.queryOptions({
       annotationType: "entity",
-      values: selectedValues,
+      values,
+      page,
+      sortBy: finalSortBy,
+      filter,
     }),
   );
 
-  const filteredData = useMemo(() => {
-    const filterText = debouncedFilter.trim().toUpperCase();
-    if (!!filterText) {
-      return data?.filter((r) => r.text.includes(filterText));
-    }
-    return data;
-  }, [data, debouncedFilter]);
-
-  if (isLoading) {
+  if (isLoading || data == null) {
     return <Spinner />;
   }
 
   return (
     <div className="mx-auto flex min-h-0 w-full flex-1 flex-col gap-2 p-3">
-      <Input
-        placeholder="Filter by Entity..."
-        className="max-w-md"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-      />
+      <div className="flex items-center gap-5">
+        <Input
+          placeholder="Filter by Entity (Press enter to search)..."
+          className="max-w-md"
+          value={newFilter ?? ""}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              router.push(
+                formatURL("/entities", {
+                  filter: newFilter,
+                  sortBy: sortBy === "mentions" ? undefined : sortBy,
+                  tags:
+                    new Set(values).union(new Set(defaultValues)).size ==
+                    defaultValues.length
+                      ? undefined
+                      : values.join(","),
+                }),
+              );
+            }
+          }}
+          onChange={(e) => setNewFilter(e.target.value)}
+        />
+        <div className="hidden flex-1 text-lg font-semibold md:block">
+          {formatNumber(data.total)} total Entities
+        </div>
+      </div>
       <div className="flex flex-1 flex-col overflow-hidden rounded-lg border bg-white shadow dark:bg-zinc-900">
         <div className="bg-heading grid grid-cols-5 p-2 font-semibold text-white">
           <div className="text-center">Entity</div>
           <div className="text-center">Entity Type</div>
-          <div className="flex items-center justify-center gap-1">
-            Mention Count
+          <div className="flex items-center justify-center gap-2">
+            {finalSortBy === "mentions" ? (
+              <span className="flex items-center">
+                <ArrowDownIcon className="mr-2 size-4" /> Mention Count
+              </span>
+            ) : (
+              <Link
+                href={formatURL("/entities", {
+                  filter: newFilter,
+                  sortBy: "mentions",
+                  tags:
+                    new Set(values).union(new Set(defaultValues)).size ==
+                    defaultValues.length
+                      ? undefined
+                      : values.join(","),
+                })}
+              >
+                Mention Count{" "}
+              </Link>
+            )}
             <Hint
               hint={`Number of times this entity is mentioned\n(Includes multiple mentions per document.)`}
             >
               <CircleQuestionMarkIcon className="size-4" />
             </Hint>
           </div>
-          <div className="flex items-center justify-center gap-1">
-            Document Count
+          <div className="flex items-center justify-center gap-2">
+            {finalSortBy === "docs" ? (
+              <span className="flex items-center">
+                <ArrowDownIcon className="mr-2 size-4" /> Document Count
+              </span>
+            ) : (
+              <Link
+                href={formatURL("/entities", {
+                  filter: newFilter,
+                  sortBy: "docs",
+                  tags:
+                    new Set(values).union(new Set(defaultValues)).size ==
+                    defaultValues.length
+                      ? undefined
+                      : values.join(","),
+                })}
+                className="hover:underline"
+              >
+                Document Count{" "}
+              </Link>
+            )}
             <Hint hint="Number of documents in which this entity appears">
               <CircleQuestionMarkIcon className="size-4" />
             </Hint>
           </div>
           <div className="flex items-center justify-center gap-1">
-            Mentions Per Document
+            {finalSortBy === "mentionsperdoc" ? (
+              <span className="flex items-center">
+                <ArrowDownIcon className="mr-2 size-4" /> Mentions Per Document
+              </span>
+            ) : (
+              <Link
+                href={formatURL("/entities", {
+                  filter: newFilter,
+                  sortBy: "mentionsPerDoc",
+                  tags:
+                    new Set(values).union(new Set(defaultValues)).size ==
+                    defaultValues.length
+                      ? undefined
+                      : values.join(","),
+                })}
+                className="hover:underline"
+              >
+                Mentions Per Document
+              </Link>
+            )}
             <Hint hint="Average number of times the entity is mentioned in documents in which it appears.">
               <CircleQuestionMarkIcon className="size-4" />
             </Hint>
           </div>
         </div>
         <div className="scrollable flex-1">
-          {filteredData?.map((r, index) => {
+          {data.results.map((r, index) => {
             return (
               <div
                 key={index}
@@ -151,16 +236,36 @@ export const TopEntitiesList = ({
                   </div>
                 </div>
                 <div className="flex items-center px-4">{r.value}</div>
-                <div className="flex items-center px-4">{r.count}</div>
-                <div className="flex items-center px-4">{r.docCount}</div>
                 <div className="flex items-center px-4">
-                  {r.mentionsPerDocument}
+                  {formatNumber(r.count)}
+                </div>
+                <div className="flex items-center px-4">
+                  {formatNumber(r.docCount)}
+                </div>
+                <div className="flex items-center px-4">
+                  {r.mentionsPerDocument.toFixed(2)}
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+      <PageNumbers
+        totalPages={data.totalPages}
+        currentPage={page}
+        pageLink={(nextPage) =>
+          formatURL("/entities", {
+            filter: newFilter,
+            sortBy: "docs",
+            page: nextPage,
+            tags:
+              new Set(values).union(new Set(defaultValues)).size ==
+              defaultValues.length
+                ? undefined
+                : values.join(","),
+          })
+        }
+      />
     </div>
   );
 };

@@ -1,7 +1,5 @@
 "use client";
-import { Spinner } from "@/components/Spinner";
 import { BasicUserInfo } from "@/features/common/types";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import React, { createContext } from "react";
 
 export const UserContext = createContext<{
@@ -18,15 +16,13 @@ export const useUser = (): BasicUserInfo => {
   return user.user;
 };
 
-export const UserProvider = ({ children }: { children: React.ReactNode }) => {
-  const { data: user, isPending } = useTRPCQuery((trpc) =>
-    trpc.auth.getCurrentUser.queryOptions(undefined, {
-      staleTime: 30 * 60 * 1000,
-    }),
-  );
-  if (isPending || user == null) {
-    return <Spinner />;
-  }
+export const UserProvider = ({
+  user,
+  children,
+}: {
+  user: BasicUserInfo;
+  children: React.ReactNode;
+}) => {
   return (
     <UserContext.Provider value={{ user }}>{children}</UserContext.Provider>
   );

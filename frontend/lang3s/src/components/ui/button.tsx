@@ -13,9 +13,9 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         destructiveOutline:
-          "bg-white border hover:bg-destructive hover:text-white hover:border-red-700",
+          "bg-white dark:bg-zinc-800 border hover:bg-destructive dark:hover:bg-destructive hover:text-white hover:border-red-700",
         outline:
-          "border bg-white shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "border bg-white shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 text-black dark:text-foreground dark:border-zinc-500",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:
@@ -23,7 +23,8 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         note: "bg-amber-200 border border-amber-400 hover:bg-amber-100 text-amber-600",
         listButton:
-          "hover:text-dodger-blue-500 hover:bg-dodger-blue-100 hover:border-dodger-blue-500 border bg-white text-slate-500",
+          "hover:text-dodger-blue-500 dark:hover:text-dodger-blue-500 hover:bg-dodger-blue-100 hover:border-dodger-blue-500 border dark:text-slate-300 dark:bg-zinc-800 bg-white text-slate-500",
+
         menu: "[&_svg]size-6! transition-all border border-transparent hover:border-gray-400 hover:bg-gray-400/50 hover:rounded p-0.5! active:scale-95 dark:hover:bg-zinc-700 dark:hover:border-zinc-900",
 
         "menu-item":

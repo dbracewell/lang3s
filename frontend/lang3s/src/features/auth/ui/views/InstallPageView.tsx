@@ -5,15 +5,15 @@ import { Form } from "@/components/ui/form";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { createAdminAccount } from "@/features/auth/server/actions";
 import { AuthPageCard } from "@/features/auth/ui/components/AuthPageCard";
-import {
-  AdminAccountSchema,
-  AdminAccountSchemaType,
-} from "@/features/common/schemas";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import {
+  AdminAccountSchema,
+  AdminAccountSchemaType,
+} from "@/features/auth/schemas";
 
 export const InstallPageView = () => {
   const router = useRouter();

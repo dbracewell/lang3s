@@ -1,18 +1,14 @@
 "use client";
-import { Highlight, SearchResults } from "@/features/search/types";
+import { Highlight } from "@/features/search/types";
 import Link from "next/link";
-import {
-  Lang3sSearchParams,
-  ParsedSearchParams,
-} from "@/features/search/params";
-import { useTRPCSuspenseInfiniteQuery } from "@/lib/trpc/use-queries";
-import { InfiniteScroll } from "@/components/InfiniteScroll";
-import { cn } from "@/lib/utils/cn";
-import { useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { ArrowUpIcon, CircleQuestionMarkIcon } from "lucide-react";
+import { ParsedSearchParams } from "@/features/search/params";
+import { useTRPCInfiniteQuery } from "@/lib/trpc/use-queries";
+import { InfiniteScroll } from "@/components/scrolling/InfiniteScroll";
+import React, { Fragment, useRef, useState } from "react";
+import { CircleQuestionMarkIcon, FileTextIcon, SearchIcon } from "lucide-react";
 import { formatURL } from "@/lib/utils/formatters";
 import { Hint } from "@/components/hint";
+import { DocumentScrollHeader } from "@/components/scrolling/DocumentScrollHeader";
 
 export const SearchViewPage = ({
   searchParams,
@@ -23,43 +19,37 @@ export const SearchViewPage = ({
   const [isScrolled, setIsScrolled] = useState(false);
   const {
     data: results,
+    isLoading,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-  } = useTRPCSuspenseInfiniteQuery((trpc) =>
+  } = useTRPCInfiniteQuery((trpc) =>
     trpc.search.search.infiniteQueryOptions(
       { ...searchParams },
       { getNextPageParam: (lastPage) => lastPage.nextCursor, staleTime: 60 },
     ),
   );
 
+  if (isLoading || results == null) {
+    return (
+      <div className="flex min-h-full flex-1 flex-col items-center justify-center">
+        <SearchIcon className="text-dodger-blue-500 size-20 animate-pulse" />
+        <span className="text-lg font-bold">Searching...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-1 flex-col gap-3">
-      <div className="bg-heading flex h-10 items-center justify-between rounded-lg border p-2 text-lg font-bold text-white">
-        Search Resulted in{" "}
-        {new Intl.NumberFormat(undefined, {
-          style: "decimal",
-        }).format(results.pages[0].total)}{" "}
-        Total Documents{" "}
-        <Button
-          className={cn(
-            "hover:bg-white/50! dark:hover:bg-white/30!",
-            isScrolled ? "visible" : "hidden",
-          )}
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => {
-            scrollRef.current?.scrollTo({
-              top: 0,
-            });
-          }}
-        >
-          <ArrowUpIcon />
-        </Button>
-      </div>
+      <DocumentScrollHeader
+        count={results.pages[0].total}
+        scrollRef={scrollRef}
+        isScrolled={isScrolled}
+        isSearch={true}
+      />
       <div className="flex min-h-0 flex-1 gap-2">
         <div
-          className="scrollable flex flex-1 flex-col gap-4 pr-2"
+          className="scrollable bg-alternate-row/50 dark:bg-row/20 flex flex-1 flex-col rounded-lg border pr-2"
           ref={scrollRef}
           onScroll={(e) => {
             if (scrollRef.current) {
@@ -77,22 +67,17 @@ export const SearchViewPage = ({
             .flatMap((page) =>
               page.results.flatMap((r) => ({ type: page.type, ...r })),
             )
-            .map((r, index) => (
-              <div className="flex items-start gap-2" key={r.documentId}>
-                <div
-                  className={cn(
-                    "bg-row flex w-full flex-col gap-1 overflow-clip rounded-lg border p-2",
-                    index % 2 == 1 && "bg-alternate-row!",
-                  )}
-                >
+            .map((r) => (
+              <Fragment key={r.documentId}>
+                <div className="flex w-full flex-col gap-1 px-2 py-3">
                   <Link
                     href={formatURL(`/documents/${r.documentId}`, {
                       ...searchParams,
                       cursor: 1,
                     })}
-                    className="link"
+                    className="link flex items-center gap-2 text-lg"
                   >
-                    {r.documentTitle}
+                    <FileTextIcon className="size-4" /> {r.documentTitle}
                   </Link>
                   <div className="flex flex-col">
                     {displayHighlights({
@@ -101,7 +86,7 @@ export const SearchViewPage = ({
                     })}
                   </div>
                 </div>
-              </div>
+              </Fragment>
             ))}
           <InfiniteScroll
             fetchNextPage={fetchNextPage}
@@ -110,7 +95,7 @@ export const SearchViewPage = ({
           />
         </div>
         <div className="hidden h-full min-h-0 w-[200px] overflow-clip rounded-lg border pb-12 md:block">
-          <h1 className="bg-heading/50 flex items-center justify-center gap-2 border-b px-2 py-2 text-lg dark:text-white">
+          <h1 className="bg-heading/70 flex items-center justify-center gap-2 border-b px-2 py-2 text-lg text-white dark:text-white">
             Top Entities{" "}
             <Hint hint="Number of documents this entity is mentioned in.">
               <CircleQuestionMarkIcon className="size-4" />
@@ -146,7 +131,7 @@ const displayHighlights = ({
   searchType: "annotation" | "sentence" | "document";
   highlights: Highlight[];
 }) => {
-  if (searchType === "annotation") {
+  if (searchType === "annotation" || searchType === "sentence") {
     const counted: Record<string, number> = {};
     highlights.forEach((highlight) => {
       const h = formatHighlight(highlight);
@@ -156,7 +141,7 @@ const displayHighlights = ({
       counted[h]++;
     });
     return (
-      <div className="grid grid-cols-1 items-start gap-x-3 px-2 py-1 text-sm">
+      <>
         {Object.entries(counted)
           .sort((a, b) => b[1] - a[1])
           .map(([key, value]) => (
@@ -164,9 +149,13 @@ const displayHighlights = ({
               key={key}
               className="flex items-baseline justify-between gap-2"
             >
-              <div className="w-full max-w-7 text-xs! font-bold">({value})</div>
+              {searchType === "annotation" && (
+                <div className="w-full max-w-7 text-base! font-bold">
+                  ({value})
+                </div>
+              )}
               <p
-                className="flex-1 text-sm"
+                className="flex-1 text-base"
                 dangerouslySetInnerHTML={{
                   __html: key
                     .replaceAll('<span class="keyword">', "<b>")
@@ -175,7 +164,7 @@ const displayHighlights = ({
               />
             </div>
           ))}
-      </div>
+      </>
     );
   }
   return (
@@ -184,7 +173,7 @@ const displayHighlights = ({
         return (
           <p
             key={index}
-            className="px-2 py-1 text-sm"
+            className="py-1 text-base"
             dangerouslySetInnerHTML={{
               __html: formatHighlight(highlight)
                 .replaceAll('<span class="keyword">', "<b>")

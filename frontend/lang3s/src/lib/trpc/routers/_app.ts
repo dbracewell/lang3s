@@ -1,18 +1,24 @@
-import { AnalyticsRouter } from "@/features/analytics/server/router";
-import { authRouter } from "@/features/auth/server/router";
-import { DocumentsRouter } from "@/features/documents/server/router";
-import { jobsRouter } from "@/features/jobs/server/router";
-import { ontologyRouter } from "@/features/ontology/server/router";
-import { SearchRouter } from "@/features/search/server/router";
+import { AnalyticsRouter } from "@/features/analytics/server/analyticsRouter";
+import { authRouter } from "@/features/auth/server/authRouter";
+import { DocumentsRouter } from "@/features/documents/server/documentsRouter";
+import { jobsRouter } from "@/features/jobs/server/jobsRouter";
+import { ontologyRouter } from "@/features/ontology/server/ontologyRouter";
+import { SearchRouter } from "@/features/search/server/searchRouter";
 import { createTRPCRouter } from "@/lib/trpc/init";
+import { TopicsRouter } from "@/features/topics/server/router";
+import { reportsRouter } from "@/features/reports/server/reportsRouter";
+import { systemRouter } from "@/features/common/server/systemRouter";
 
 export const appRouter = createTRPCRouter({
   documents: DocumentsRouter,
   search: SearchRouter,
   analytics: AnalyticsRouter,
+  topics: TopicsRouter,
   jobs: jobsRouter,
   ontology: ontologyRouter,
   auth: authRouter,
+  reports: reportsRouter,
+  system: systemRouter,
 });
 
 export type AppRouter = typeof appRouter;

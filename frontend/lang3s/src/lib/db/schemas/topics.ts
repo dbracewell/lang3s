@@ -19,6 +19,7 @@ export const TopicsTable = pgTable(
       dimensions: SEMANTIC_EMBEDDING_DIMENSION,
     }).notNull(),
     support: integer("support").notNull().default(0),
+    documents: integer("doc_support").notNull().default(0),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

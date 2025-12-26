@@ -56,7 +56,7 @@ def short_test():
     print(f"\nQuerying: '{query_text}'")
 
     # --- A. BASE MODEL (No Adapter) ---
-    base_q = embedder([query_text], task="nli").sentence_embeddings[0]  # [384]
+    base_q = embedder([query_text.lower()], task="nli").sentence_embeddings[0]  # [384]
     adapted_q = embedder([query_text], task="search").sentence_embeddings[0]  # [384]
     scores_base = np.dot(corpus_matrix, base_q)
     scores_adapted = np.dot(corpus_matrix, adapted_q)
@@ -117,4 +117,4 @@ def evaluate():
 
 if __name__ == "__main__":
     short_test()
-    evaluate()
+    # evaluate()

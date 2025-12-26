@@ -13,7 +13,7 @@ class File(BaseModel):
     mime_type: str = Field(default="text/plain")
     encoding: Optional[str] = Field(default=None)
     content: str
-    metadata: Dict[str, str] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class JobStatus(str, enum.Enum):

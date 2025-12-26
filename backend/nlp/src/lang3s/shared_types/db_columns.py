@@ -7,6 +7,7 @@ TEXT_ANNOTATION_COLUMNS = [
     "start",
     "end",
     "sentence_id",
+    "sentence_aid",
     "type",
     "value",
     "source",

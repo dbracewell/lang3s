@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 from pgvector import HalfVector
 from sklearn.decomposition import IncrementalPCA
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sqlalchemy import select, cast, Boolean, Select, distinct
+from sqlalchemy import select, cast, Boolean, Select, distinct, delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -48,7 +48,7 @@ class TopicSentence(NamedTuple):
 
 
 REDUCED_DIMENSIONS = 200
-FULL_EMBEDDING_THRESHOLD = 0.75
+FULL_EMBEDDING_THRESHOLD = 0.65
 
 
 class OnlineReducer:
@@ -105,7 +105,7 @@ class Topic:
         db = Database()
         with db.session() as session:  # type: Session
             stmt = (
-                select(sqlalchemy.func.count(distinct(TextAnnotationsTable.id)))
+                select(sqlalchemy.func.count(distinct(TextAnnotationsTable.documentId)))
                 .where(
                     TextAnnotationsTable.type_ == "sentence",
                     (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding)) >= FULL_EMBEDDING_THRESHOLD,
@@ -119,7 +119,7 @@ class Topic:
         db = Database()
         with db.session() as session:  # type: Session
             stmt = (
-                select(sqlalchemy.func.count(TextAnnotationsTable.id))
+                select(sqlalchemy.func.count(distinct(TextAnnotationsTable.id)))
                 .where(
                     TextAnnotationsTable.type_ == "sentence",
                     (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding)) >= FULL_EMBEDDING_THRESHOLD,
@@ -445,11 +445,17 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         if len(self._topics) == 0:
             return
         db = Database()
+        topics_to_delete = []
         for topic in self._topics:
+            support = topic.sentence_count
+            if support < self.min_support and not topic.is_fixed:
+                topics_to_delete.append(topic.id)
+                continue
             values = {
                 "id": topic.id,
                 "name": topic.name,
-                "support": topic.support,
+                "support": support,
+                "doc_support": topic.doc_count,
                 "embedding": topic.embedding.tolist(),
                 "updated_at": datetime.datetime.now(datetime.timezone.utc),
                 "is_fixed": topic.is_fixed,
@@ -457,6 +463,11 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
             insert_stmt = insert(TopicsTable).values(values)
             update_values = {k: v for k, v in values.items() if k != "id"}
             db.upsert(insert_stmt, "id", update_values)
+
+        if len(topics_to_delete) > 0:
+            with db.session() as session:  # type: Session
+                session.execute(delete(TopicsTable).where(TopicsTable.id.in_(topics_to_delete)))
+            self._topics = [topic for topic in self._topics if topic.id not in topics_to_delete]
         self.reducer.save()
 
     def get_topic(self, topic_id: int | str) -> Topic:

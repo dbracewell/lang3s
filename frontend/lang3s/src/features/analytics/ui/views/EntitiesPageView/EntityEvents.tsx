@@ -138,7 +138,7 @@ export const EntityEvents = () => {
                         >
                           <td className="p-1 text-center">{event.text}</td>
                           <td className="p-1 text-center whitespace-pre-wrap">
-                            {event.A0.map((a0, k) => (
+                            {event.A0?.map((a0, k) => (
                               <p key={k}>
                                 {a0.toUpperCase() ===
                                 entityText.toUpperCase() ? (
@@ -153,7 +153,7 @@ export const EntityEvents = () => {
                           </td>
                           <td className="p-1 text-center">
                             {" "}
-                            {event.A1.map((a1, k) => (
+                            {event.A1?.map((a1, k) => (
                               <p key={k}>
                                 {a1.toUpperCase() ===
                                 entityText.toUpperCase() ? (

@@ -1,5 +1,5 @@
 "use client";
-import { ScrollableBox } from "@/components/Scrollbox";
+import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { Sentence } from "@/components/text/Sentence";
 import { cn } from "@/lib/utils/cn";
 import { Lan3gsDocument } from "@/features/common/classes";
@@ -15,20 +15,18 @@ export const DocumentView = memo(
   ({ documentData, targetAnnotationType }: DocumentViewProps) => {
     const document = new Lan3gsDocument({ ...documentData });
     return (
-      <div className={cn("grid min-h-0 flex-1 grid-cols-1 gap-2")}>
-        <ScrollableBox.Container className="bg-background py-2 inset-shadow-sm">
-          <ScrollableBox.ScrollArea className="gap-2 px-5 pr-2">
-            {document.text?.sentences.map((s, i) => (
-              <Sentence
-                key={i}
-                index={i}
-                sentence={s}
-                targetAnnotation={targetAnnotationType}
-              />
-            ))}
-          </ScrollableBox.ScrollArea>
-        </ScrollableBox.Container>
-      </div>
+      <ScrollableBox.Container className="bg-background py-2 inset-shadow-sm">
+        <ScrollableBox.ScrollArea className="gap-2">
+          {document.text?.sentences.map((s, i) => (
+            <Sentence
+              key={i}
+              index={i}
+              sentence={s}
+              targetAnnotation={targetAnnotationType}
+            />
+          ))}
+        </ScrollableBox.ScrollArea>
+      </ScrollableBox.Container>
     );
   },
 );

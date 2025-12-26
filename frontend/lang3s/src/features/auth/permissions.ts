@@ -1,7 +1,7 @@
 import { createAccessControl } from "better-auth/plugins/access";
 import {
-  defaultStatements,
   adminAc,
+  defaultStatements,
   userAc,
 } from "better-auth/plugins/admin/access";
 
@@ -83,25 +83,31 @@ export const RolePermissions: Record<UserRole, Permission[]> = {
 
 const permissionsByAsset = {
   ...defaultStatements,
+  project: ["create", "share", "update", "delete"],
 };
+
 export const ac = createAccessControl(permissionsByAsset);
 
 export const user = ac.newRole({
   ...userAc.statements,
 });
 export const admin = ac.newRole({
+  project: ["create", "share", "update", "delete"],
   ...adminAc.statements,
 });
 
 export const analyst = ac.newRole({
+  project: ["create", "share", "update", "delete"],
   ...userAc.statements,
 });
 
 export const modeller = ac.newRole({
+  project: ["create", "share", "update", "delete"],
   ...userAc.statements,
 });
 
 export const dataLoader = ac.newRole({
+  project: ["create", "share", "update", "delete"],
   ...userAc.statements,
 });
 
@@ -126,4 +132,10 @@ export const roleHasPermissions = (
     return pSet.size === intersection.size;
   }
   return intersection.size > 0;
+};
+
+export const PagePermissions: Record<string, Permission[]> = {
+  "/system/jobs": ["jobs:view"],
+  "/system/ontology/editor": ["model:create", "data:update", "data:load"],
+  "/system/metadata": ["model:create", "data:update", "data:load"],
 };

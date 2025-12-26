@@ -19,7 +19,7 @@ export const Sentence = memo(
         <div
           data-sentence={"true"}
           className={cn(
-            "flex flex-1 flex-wrap items-start gap-1 rounded-md border p-2 text-sm",
+            "flex flex-1 flex-wrap items-start gap-1 p-2 text-sm",
             index % 2 == 0
               ? "bg-white dark:bg-zinc-900"
               : "bg-gray-100 dark:bg-zinc-800",
@@ -41,7 +41,6 @@ export const Sentence = memo(
               />
             ))}
         </div>
-        <div className="flex w-[20px] flex-col gap-0.5"></div>
       </div>
     );
   },

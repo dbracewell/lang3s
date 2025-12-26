@@ -1,3 +1,5 @@
+import "@/app/globals.css";
+
 import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
@@ -5,7 +7,6 @@ import { TRPCReactProvider } from "@/lib/trpc/client";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import React from "react";
-import "@/app/globals.css";
 import { SSEProvider } from "@/lib/events/SSEProvider";
 
 const inter = Inter({

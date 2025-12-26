@@ -19,4 +19,6 @@ embedder = Embedder()
 
 @router.post("/")
 async def embed(request: EmbeddingRequest):
-    return embedder([request.text]).sentence_embeddings[0].tolist()
+    text = request.text
+    has_case = text.lower() != text and text.upper() != text
+    return embedder([request.text], task="nli" if has_case else "search").sentence_embeddings[0].tolist()

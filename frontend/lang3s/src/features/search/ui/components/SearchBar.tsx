@@ -82,7 +82,6 @@ export const SearchBar = () => {
 
   const onSubmit = (values: ParsedSearchParams) => {
     router.push(formatURL("/search", { ...values, cursor: 1 }));
-    router.refresh();
     closeSearchOptions(true);
   };
 

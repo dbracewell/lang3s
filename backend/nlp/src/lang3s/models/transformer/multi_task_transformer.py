@@ -13,6 +13,7 @@ from lang3s.utils import decorators
 from .shared_types import TaskType, TransformerResult
 from .task import SentenceClassificationParams, Task
 from .task_registry import TaskRegistry
+from lang3s.utils.meta import SingletonMeta
 
 
 class TransformerOutput(NamedTuple):
@@ -21,8 +22,7 @@ class TransformerOutput(NamedTuple):
     labels: TransformerResult
 
 
-@decorators.singleton
-class MultiTaskTransformer(nn.Module):
+class MultiTaskTransformer(nn.Module, metaclass=SingletonMeta):
     def __init__(self):
         super().__init__()
         self.registry = TaskRegistry(hidden_size=config.TOKEN_EMBEDDING_DIMENSION)

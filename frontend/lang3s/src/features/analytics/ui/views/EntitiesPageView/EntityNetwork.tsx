@@ -16,6 +16,8 @@ import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
 import { parseAsBoolean } from "nuqs/server";
+import { TreemapNode } from "recharts/types/util/types";
+import { JSXElementConstructor, ReactElement, useCallback } from "react";
 
 const COLORS = [
   "#84bff5", //dodger-blue-300
@@ -107,12 +109,9 @@ export const EntityNetwork = ({ values }: { values: string[] }) => {
               stroke="#fff"
               animationDuration={0}
               fill="#8884d8"
+              //@ts-ignore
               content={(props) => (
-                <CustomizedContent
-                  colors={COLORS}
-                  source={entityText}
-                  {...props}
-                />
+                <CustomizedContent source={entityText} {...props} />
               )}
             >
               <Tooltip content={<CustomTooltip />} />
@@ -143,22 +142,12 @@ const CustomTooltip = ({
   return null;
 };
 
-/* eslint-disable  @typescript-eslint/no-explicit-any */
-const CustomizedContent = (props: any) => {
-  const {
-    root,
-    depth,
-    x,
-    y,
-    width,
-    height,
-    index,
-    payload,
-    colors,
-    rank,
-    name,
-    source,
-  } = props;
+const CustomizedContent = (props: TreemapNode) => {
+  const { source, root, depth, x, y, width, height, index, name } = props;
+
+  if (name == null) {
+    return <></>;
+  }
 
   let parts = name.split(" - ");
   let shortName =
@@ -179,8 +168,8 @@ const CustomizedContent = (props: any) => {
         style={{
           fill:
             depth < 2
-              ? colors[
-                  Math.floor((index / root.children.length) * colors.length)
+              ? COLORS[
+                  Math.floor((index / root.children.length) * COLORS.length)
                 ]
               : "#ffffff00",
           stroke: "#fff",

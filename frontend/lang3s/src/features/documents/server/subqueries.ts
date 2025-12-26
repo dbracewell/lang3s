@@ -1,39 +1,13 @@
 import { db } from "@/lib/db";
 import { TextAnnotationTable } from "@/lib/db/schema";
-import { and, AnyColumn, eq, gt, inArray, lt, or, SQL, sql } from "drizzle-orm";
-
-export const metadataSelect = <T>(
-  field: string,
-  sqlType: "int" | "float" | "varchar",
-): SQL.Aliased<T> => {
-  switch (sqlType) {
-    case "int":
-      return sql<T>`(metadata->>${field})::int`.as(field);
-    case "float":
-      return sql<T>`(metadata->>${field})::numeric`.as(field);
-    default:
-      return sql<T>`(metadata->>${field})::varchar`.as(field);
-  }
-};
+import { and, AnyColumn, eq, gt, inArray, lt, or } from "drizzle-orm";
+import { coalesce, jsonValue, lower, upper } from "@/lib/db/funcs";
+import { randomAlphaUnderscore } from "@/lib/utils/random";
 
 type WithTextAnnotationColumns = {
   textId: AnyColumn;
   start: AnyColumn;
   end: AnyColumn;
-};
-const __overlaps = <T extends WithTextAnnotationColumns>(t1: T, t2: T) => {
-  return and(
-    eq(t1.textId, t2.textId),
-    lt(t1.start, t2.end),
-    gt(t1.end, t2.start),
-  );
-};
-
-export const overlaps = (t1: unknown, t2: unknown) => {
-  return __overlaps(
-    t1 as WithTextAnnotationColumns,
-    t2 as WithTextAnnotationColumns,
-  );
 };
 
 const __notOverlaps = <T extends WithTextAnnotationColumns>(t1: T, t2: T) => {
@@ -50,44 +24,9 @@ export const notOverlaps = (t1: unknown, t2: unknown) => {
   );
 };
 
-export const selectTextAnnotations = <T extends Record<string, any>>({
-  annotationType,
-  columns,
-  tags,
-  text,
-}: {
-  annotationType: string;
-  columns: T;
-  tags?: string[];
-  text?: string;
-}) => {
-  return db
-    .select(columns)
-    .from(TextAnnotationTable)
-    .where(
-      and(
-        eq(TextAnnotationTable.type, annotationType),
-        tags ? inArray(TextAnnotationTable.value, tags) : undefined,
-        text
-          ? eq(sql`upper(${TextAnnotationTable.content})`, text.toUpperCase())
-          : undefined,
-      ),
-    );
-};
-
-export function randomAlphaUnderscore(length: number): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    const idx = Math.floor(Math.random() * chars.length);
-    result += chars[idx];
-  }
-  return result;
-}
-
 export const getAnnotationsInSentence = ({
   annotationType,
-  textConversion,
+  textConversion = "upper",
   tags,
   text,
 }: {
@@ -96,49 +35,36 @@ export const getAnnotationsInSentence = ({
   tags?: string[];
   text?: string;
 }) => {
-  const s1 = selectTextAnnotations({
-    annotationType: "sentence",
-    columns: {
-      sentenceId: TextAnnotationTable.id,
-      start: TextAnnotationTable.start,
-      end: TextAnnotationTable.end,
-      textId: TextAnnotationTable.textId,
-    },
-  }).as("s1");
-  const other = selectTextAnnotations({
-    annotationType,
-    tags,
-    text,
-    columns: {
-      id: TextAnnotationTable.id,
-      start: TextAnnotationTable.start,
-      end: TextAnnotationTable.end,
-      textId: TextAnnotationTable.textId,
-      text:
-        textConversion == null
-          ? TextAnnotationTable.content
-          : textConversion === "lower"
-            ? sql<string>`lower(COALESCE(${TextAnnotationTable.metadata}->>'coref_text', ${TextAnnotationTable.content}))`.as(
-                "text",
-              )
-            : sql<string>`upper(COALESCE(${TextAnnotationTable.metadata}->>'coref_text', ${TextAnnotationTable.content}))`.as(
-                "text",
-              ),
-      value: TextAnnotationTable.value,
-    },
-  }).as("other");
-
-  const prefix = randomAlphaUnderscore(5);
   return db
     .select({
-      textId: sql<string>`${s1.textId}`.as(prefix + "textId"),
-      sentenceId: sql<string>`${s1.sentenceId}`.as(prefix + "sentenceId"),
-      text: sql<string>`${other.text}`.as(prefix + "text"),
-      value: sql<string>`${other.value}`.as(prefix + "value"),
-      annotationId: sql<string>`${other.id}`.as(prefix + "annotationId"),
-      start: sql<number>`${other.start}`.as(prefix + "start"),
-      end: sql<number>`${other.end}`.as(prefix + "end"),
+      sentenceAId: TextAnnotationTable.sentenceAid,
+      annotationId: TextAnnotationTable.id,
+      start: TextAnnotationTable.start,
+      end: TextAnnotationTable.end,
+      text: (textConversion === "upper"
+        ? upper(
+            coalesce(
+              jsonValue<string>(TextAnnotationTable.metadata, "coref_text"),
+              TextAnnotationTable.content,
+            ),
+          )
+        : lower(
+            coalesce(
+              jsonValue<string>(TextAnnotationTable.metadata, "coref_text"),
+              TextAnnotationTable.content,
+            ),
+          )
+      ).as(randomAlphaUnderscore(10)),
+      value: TextAnnotationTable.value,
     })
-    .from(s1)
-    .innerJoin(other, overlaps(s1, other));
+    .from(TextAnnotationTable)
+    .where(
+      and(
+        eq(TextAnnotationTable.type, annotationType),
+        tags ? inArray(TextAnnotationTable.value, tags) : undefined,
+        text
+          ? eq(upper(TextAnnotationTable.content), text.toUpperCase())
+          : undefined,
+      ),
+    );
 };

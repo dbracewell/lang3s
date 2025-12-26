@@ -25,11 +25,23 @@ class ForkedBaseModel(nn.Module):
 
         self.nli_layers = nn.ModuleList(full_model.encoder.layer[split_layer:])
         self.nli_compression = nn.Linear(config.hidden_size, 384)
+        self.search_layers = copy.deepcopy(self.nli_layers)
+        self.search_compression = copy.deepcopy(self.nli_compression)
 
         if os.path.exists(os.path.join(base_model_name, "nli_compressed.pt")):
             self.nli_compression.load_state_dict(torch.load(os.path.join(base_model_name, "nli_compressed.pt")))
         else:
             print("Warning could not find compression layer for nli, using random weights", file=sys.stderr, flush=True)
+
+        if os.path.exists(os.path.join(base_model_name, "search_layers.pt")):
+            self.search_layers.load_state_dict(torch.load(os.path.join(base_model_name, "search_layers.pt")))
+        else:
+            print("Warning could not find search layers for search, using nli weights", file=sys.stderr, flush=True)
+
+        if os.path.exists(os.path.join(base_model_name, "search_compressed.pt")):
+            self.search_compression.load_state_dict(torch.load(os.path.join(base_model_name, "search_compressed.pt")))
+        else:
+            print("Warning could not find compression layer for search, using nli weights", file=sys.stderr, flush=True)
 
     def forward_trunk(self, input_ids, attention_mask):
         """Runs the shared bottom layers (0-9)"""
@@ -55,6 +67,9 @@ class ForkedBaseModel(nn.Module):
         if task == "nli":
             layers = self.nli_layers
             compressor = self.nli_compression
+        elif task == "search":
+            layers = self.search_layers
+            compressor = self.search_compression
         else:
             raise ValueError(f"Unknown task: {task}")
 

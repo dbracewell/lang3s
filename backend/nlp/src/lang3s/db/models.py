@@ -237,6 +237,7 @@ class TextAnnotationsTable(Base):
     start = Column('start', Integer, nullable=False)
     end = Column('end', Integer, nullable=False)
     sentenceId = Column('sentence_id', Integer, nullable=False)
+    sentenceAid = Column('sentence_aid', Text, nullable=False)
     type_ = Column('type', Text, nullable=False)
     value = Column('value', Text, nullable=False)
     source = Column('source', Text, nullable=False)
@@ -261,6 +262,7 @@ class TopicsTable(Base):
     fixed = Column('is_fixed', Boolean, nullable=False)
     embedding = Column('embedding', HALFVEC(config.SEMANTIC_EMBEDDING_DIMENSION), nullable=False)
     support = Column('support', Integer, nullable=False)
+    documents = Column("doc_support", Integer, nullable=False)
     createdAt = Column('created_at', DateTime, nullable=True)
     updatedAt = Column('updated_at', DateTime, nullable=True)
 

@@ -5,15 +5,15 @@ import { env } from "@/lib/env/env";
 import { auth } from "@/lib/auth/auth";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { UserRole } from "@/features/auth/permissions";
-import {
-  AdminAccountSchema,
-  AdminAccountSchemaType,
-} from "@/features/common/schemas";
 import { BasicUserInfo } from "@/features/common/types";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import {
+  AdminAccountSchema,
+  AdminAccountSchemaType,
+} from "@/features/auth/schemas";
 
 export const requireAdmin = cache(async () => {
   const user = await getUser();
@@ -51,7 +51,7 @@ export const getUserByApiKey = cache(async (apiKey: string) => {
 });
 
 export const getUserCount = async () => {
-  return await db.$count(UserTable);
+  return db.$count(UserTable);
 };
 
 export const createAdminAccount = async (values: AdminAccountSchemaType) => {

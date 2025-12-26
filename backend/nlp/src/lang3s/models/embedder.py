@@ -207,6 +207,12 @@ class Embedder:
             if hasattr(self, "compression_layer"):
                 self.compression_layer.to(self._device)
 
+        if task == "search":
+            if isinstance(texts[0], list):
+                texts = [[t.lower() for t in text] for text in texts]
+            else:
+                texts = [t.lower() for t in texts]
+
         chunk_result = self._chunk(
             texts, is_split_into_words=is_split_into_words
         )

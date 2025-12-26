@@ -1,13 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  halfvec,
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-} from "drizzle-orm/pg-core";
+import { halfvec, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 export const TOKEN_EMBEDDING_DIMENSION = 768;
 export const SEMANTIC_EMBEDDING_DIMENSION = 384;
@@ -94,6 +86,7 @@ export const TextAnnotationTable = pgTable(
     start: integer("start").notNull(),
     end: integer("end").notNull(),
     sentenceId: integer("sentence_id").notNull(),
+    sentenceAid: text("sentence_aid").notNull(),
     type: text("type").notNull(),
     value: text("value").notNull(),
     source: text("source").notNull(),
@@ -113,6 +106,7 @@ export const TextAnnotationTable = pgTable(
   (table) => [
     index("text_annotation_type_idx").on(table.type),
     index("text_annotation_value_idx").on(table.value),
+    index("text_annotation_sentence_aid").on(table.sentenceAid),
     index("text_annotation_sentence_id_idx").on(table.sentenceId),
     index("text_annotation_mapping_index").on(table.mapping),
     index("ml_text_annotation_search_index").using("pgroonga", table.content),

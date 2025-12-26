@@ -8,21 +8,24 @@ import { Button } from "@/components/ui/button";
 
 export const MultiValueSelector = ({
   values,
-  defaultValues,
+  currentlySelected,
   className,
   title,
 }: {
   values: string[];
-  defaultValues?: string[];
+  currentlySelected?: string[];
   className?: string;
   title: string;
 }) => {
   const [isOpen, setOpen] = useState(false);
   const [selectedValues, setSelectedValues] = useTagSearchParams(
-    defaultValues ?? values,
+    currentlySelected ?? values,
   );
   const [localValues, setLocalValues] = useState<string[]>(selectedValues);
-  useEffect(() => setLocalValues(selectedValues), [selectedValues]);
+  useEffect(
+    () => setLocalValues(currentlySelected ?? values),
+    [currentlySelected, values],
+  );
 
   return (
     <div

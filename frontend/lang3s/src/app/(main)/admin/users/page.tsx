@@ -1,4 +1,4 @@
-import { AdminUsersPageView } from "@/features/admin/ui/views/AdminUsersPageView";
+import { AdminUsersPageView } from "@/features/auth/ui/views/AdminUsersPageView";
 import { requireAdmin } from "@/features/auth/server/actions";
 
 const AdminUsersPage = async (props: PageProps<"/admin/users">) => {

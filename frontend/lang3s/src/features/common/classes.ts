@@ -15,14 +15,8 @@ export const Lang3sFile = z.object({
   mime_type: z.string(),
   content: z.string(),
   encoding: z.string().nullish(),
-  metadata: z.record(z.string(), z.string()).default({}).optional(),
+  metadata: z.record(z.string(), z.any()).default({}).optional(),
 });
-export type Lang3sFileType = z.infer<typeof Lang3sFile>;
-
-export type TextAnnotationDB = {
-  type: string;
-  annotations: TextAnnotationProps[];
-};
 
 export class Lang3sTextAnnotation {
   id: string;
@@ -155,17 +149,6 @@ export class Lang3sTextAnnotation {
 
   public toString = (): string => {
     return this.text;
-  };
-
-  toJSON = () => {
-    return {
-      start: this.start,
-      end: this.end,
-      type: this.type,
-      value: this.value,
-      text: this.text,
-      metadata: this.metadata,
-    };
   };
 
   public static create = ({

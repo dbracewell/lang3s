@@ -1,9 +1,23 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { DocumentsTable, TextAnnotationTable, TextTable } from "@/lib/db/schema";
+import {
+  DocumentsTable,
+  TextAnnotationTable,
+  TextTable,
+} from "@/lib/db/schema";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { SearchResults } from "@/features/search/types";
-import { and, asc, count, countDistinct, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  countDistinct,
+  desc,
+  eq,
+  gte,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import {
   cosineSimilarity,
@@ -11,7 +25,7 @@ import {
   jsonAgg,
   jsonBuildObject,
   orderDesc,
-  withPagination
+  withPagination,
 } from "@/lib/db/funcs";
 
 export const createPaginatedSearchResults = async ({
@@ -23,7 +37,7 @@ export const createPaginatedSearchResults = async ({
   page: number;
   searchType: string;
 }) => {
-  const [total, results, entities] = await logAndRethrow(
+  const [total, results, entities] = await logAndRethrow(() =>
     Promise.all([
       db.select({ count: countDistinct(sub.documentId) }).from(sub),
       withPagination(
@@ -60,11 +74,13 @@ export const createPaginatedSearchResults = async ({
 export const annotationSearch = async ({
   query,
   embedding,
+  threshold,
   annotationType,
   isStrict,
   page,
 }: {
   query: string;
+  threshold: number;
   embedding?: number[];
   annotationType: string;
   isStrict: boolean;
@@ -84,20 +100,15 @@ export const annotationSearch = async ({
         "LOCATION",
       ),
       itemId: TextAnnotationTable.id,
-      rank: sql<number>`ROW_NUMBER() OVER (ORDER BY 
-          CASE
-            WHEN COALESCE(pgroonga_score(tableoid,ctid), -10) < 1 THEN 1
-            ELSE pgroonga_score(tableoid,ctid) 
-          END
-      DESC)`.as("strict_rank"),
+      rawScore: sql<number>`1`.as("rawScore"),
+      rank: sql<number>`ROW_NUMBER() OVER (ORDER BY pgroonga_score(tableoid,ctid) DESC)`.as(
+        "strict_rank",
+      ),
     })
     .from(TextAnnotationTable)
     .where(
       and(
-        or(
-          sql`${TextAnnotationTable.content} &@~  ${query}`,
-          eq(sql`UPPER(${TextAnnotationTable.value})`, sql`UPPER(${query})`),
-        ),
+        sql`${TextAnnotationTable.content} &@~  (${query})`,
         eq(TextAnnotationTable.type, annotationType),
         or(
           isNull(sql`${TextAnnotationTable.metadata}->>'is_stopword'`),
@@ -124,6 +135,10 @@ export const annotationSearch = async ({
         "semantic_LOCATION",
       ),
       itemId: TextAnnotationTable.id,
+      rawScore:
+        sql<number>`1 - (embedding <=> ${JSON.stringify(embedding)})`.as(
+          "rawScore",
+        ),
       rank: sql<number>`ROW_NUMBER() OVER (ORDER BY embedding <=> ${JSON.stringify(embedding)})`.as(
         "semantic_rank",
       ),
@@ -133,7 +148,7 @@ export const annotationSearch = async ({
       and(
         gte(
           cosineSimilarity(TextAnnotationTable.embedding, embedding ?? []),
-          annotationType !== "entity" ? 0.4 : 0.6,
+          threshold,
         ),
         eq(TextAnnotationTable.type, annotationType),
         or(
@@ -145,10 +160,7 @@ export const annotationSearch = async ({
     .offset(0);
 
   let rankedSearch;
-
   if (embedding == null) {
-    //Something happened and we don't have an embedding just do keyword search
-
     const aliased = strictSearch.as("aliased");
     rankedSearch = db
       .select({
@@ -165,33 +177,54 @@ export const annotationSearch = async ({
       .from(aliased)
       .as("rankedSearch");
   } else {
-    const union = db
-      .select()
-      .from(semanticSearch.unionAll(strictSearch).as("union_q"))
-      .as("union");
+    const aliased = strictSearch.as("aliased");
+    const union = isStrict
+      ? db
+          .select()
+          .from(aliased)
+          .where(
+            sql`array_to_string(pgroonga_snippet_html (${aliased.text},
+    								 pgroonga_query_extract_keywords(${query})), '\n') != ''`,
+          )
+          .as("union_q2")
+      : db
+          .select()
+          .from(semanticSearch.unionAll(strictSearch).as("union_q"))
+          .as("union");
 
     rankedSearch = db
       .select({
         documentId: union.documentId,
-        text: union.text,
+        text: sql<string>`
+            CASE
+            WHEN array_to_string(pgroonga_snippet_html (${union.text},
+    								 pgroonga_query_extract_keywords(${query})), '\n') = '' THEN SUBSTRING(${union.text},0,512)
+            ELSE array_to_string(pgroonga_snippet_html (${union.text},
+    								 pgroonga_query_extract_keywords(${query})), '\n')
+            END
+        `.as("highlight"),
         a1: union.a1,
         a0: union.a0,
         time: union.time,
         location: union.location,
         rank: sql<number>`SUM(1.0 / (60.0 + ${union.rank}))`.as("rank"),
-        count: count(),
       })
       .from(union)
-      .groupBy((t) => [
-        t.documentId,
+      .where(
+        isStrict
+          ? sql`array_to_string(pgroonga_snippet_html (${union.text},
+    								 pgroonga_query_extract_keywords(${query})), '\n') != ''`
+          : undefined,
+      )
+      .groupBy(
+        union.documentId,
         union.text,
         union.a1,
         union.a0,
         union.time,
         union.location,
         union.itemId,
-      ])
-      .having((t) => gte(t.count, isStrict ? 2 : 0))
+      )
       .as("rankedSearch");
   }
 
@@ -227,11 +260,13 @@ export const annotationSearch = async ({
 export const documentSearch = async ({
   query,
   embedding,
+  threshold,
   isStrict,
   page,
 }: {
   query: string;
   embedding?: number[];
+  threshold: number;
   isStrict: boolean;
   page: number;
 }) => {
@@ -244,7 +279,7 @@ export const documentSearch = async ({
       ),
     })
     .from(TextTable)
-    .where((t) => sql`${TextTable.content} &@~  ${query}`);
+    .where((t) => sql`${TextTable.content} &@~  (${query})`);
 
   const semanticSearch = db
     .select({
@@ -255,7 +290,9 @@ export const documentSearch = async ({
       ),
     })
     .from(TextTable)
-    .where(gte(cosineSimilarity(TextTable.embedding, embedding ?? []), 0.3))
+    .where(
+      gte(cosineSimilarity(TextTable.embedding, embedding ?? []), threshold),
+    )
     .offset(0);
 
   let rankedSearch;
@@ -272,11 +309,20 @@ export const documentSearch = async ({
       .from(aliased)
       .as("rankedSearch");
   } else {
-    //We are not in strict mode, but will use hybrid search as a boost
-    const union = db
-      .select()
-      .from(semanticSearch.unionAll(strictSearch).as("union_q"))
-      .as("union");
+    const aliased = strictSearch.as("aliased");
+    const union = isStrict
+      ? db
+          .select()
+          .from(aliased)
+          .where(
+            sql`array_to_string(pgroonga_snippet_html (${aliased.text},
+    								 pgroonga_query_extract_keywords(${query})), '\n') != ''`,
+          )
+          .as("union_q2")
+      : db
+          .select()
+          .from(semanticSearch.unionAll(strictSearch).as("union_q"))
+          .as("union");
 
     rankedSearch = db
       .select({
@@ -284,17 +330,15 @@ export const documentSearch = async ({
         text: sql<string>`
             CASE
             WHEN array_to_string(pgroonga_snippet_html (${union.text},
-										 pgroonga_query_extract_keywords(${query})), '\n') = '' THEN SUBSTRING(${union.text},0,512)
+    								 pgroonga_query_extract_keywords(${query})), '\n') = '' THEN SUBSTRING(${union.text},0,512)
             ELSE array_to_string(pgroonga_snippet_html (${union.text},
-										 pgroonga_query_extract_keywords(${query})), '\n')
+    								 pgroonga_query_extract_keywords(${query})), '\n')
             END
         `.as("highlight"),
-        count: count(),
         rank: sql<number>`SUM(1.0 / (60.0 + ${union.rank}))`.as("rrf_score"),
       })
       .from(union)
       .groupBy((t) => [t.documentId, union.text])
-      .having((t) => gte(t.count, isStrict ? 2 : 0))
       .as("rankedSearch");
   }
 

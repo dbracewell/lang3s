@@ -212,6 +212,8 @@ cdef class TextAnnotation(TextObject):
         else:
             arr = np.array(emb, dtype=np.float32)
 
+        sent: TextAnnotation = self.sentence
+
         return list(TextAnnotationRow(
             id=self.id,
             text_id=self.owner.id,
@@ -219,6 +221,7 @@ cdef class TextAnnotation(TextObject):
             start=self.start,
             end=self.end,
             sentence_id=self.sentence_id,
+            sentence_aid=sent.id,
             type=self.type,
             value=self.value,
             source=self.source,
@@ -243,6 +246,8 @@ cdef class TextAnnotation(TextObject):
 
     property sentence:
         def __get__(self) -> TextAnnotation:
+            if self.type == AnnotationTypes.SENTENCE.value:
+                return self
             cdef list sentences = self.get_sentences()
             if len(sentences) == 0:
                 raise Exception("No sentence found")

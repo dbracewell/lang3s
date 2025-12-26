@@ -42,12 +42,6 @@ export const DocumentIdView = ({
             <Button variant="ghost" type="button" onClick={() => router.back()}>
               <XIcon />
             </Button>
-            {/*<Link*/}
-            {/*  href="/documents"*/}
-            {/*  className="hover:bg-accent/50 flex size-8 items-center justify-center rounded-md hover:border"*/}
-            {/*>*/}
-            {/*  <XIcon />*/}
-            {/*</Link>*/}
           </CardAction>
         </CardHeader>
         <CardContent className="flex h-full min-h-0 flex-1">

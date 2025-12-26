@@ -28,7 +28,13 @@ export const auth = betterAuth({
     }),
     adminPlugin({
       ac: ac,
-      roles: { admin, user, analyst, modeller, dataLoader },
+      roles: {
+        admin: admin,
+        user: user,
+        analyst: analyst,
+        modeller: modeller,
+        dataLoader: dataLoader,
+      },
       defaultRole: "user",
       adminRoles: ["admin"],
     }),
@@ -42,3 +48,5 @@ export const auth = betterAuth({
     nextCookies(),
   ],
 });
+
+type Session = typeof auth.$Infer.Session;

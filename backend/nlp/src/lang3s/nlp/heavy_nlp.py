@@ -124,7 +124,7 @@ def create_core_embeddings(doc: Document, result: EmbeddingResult):
 
     # Document level embedding is the weighted sum of the
     # sentence embeddings
-    doc.text.embedding = normalize(doc_emb).astype(np.float16)
+    doc.text.embedding = normalize(doc_emb).astype(np.float32)
 
 
 def _add_token_span(start: Optional[int],
