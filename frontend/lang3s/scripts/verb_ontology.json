@@ -327,7 +327,7 @@
         "mappings": ["event:avoidance"]
       }
     ],
-    "mappings": []
+    "mappings": ["entity:EVENT"]
   },
   "Relation": {
     "name": "Relation",
@@ -372,11 +372,11 @@
     "description": "Static conditions.",
     "children": [
       {
-        "name": "Location",
+        "name": "LocativeState",
         "description": "Situating an entity in space.",
         "children": [
           {
-            "name": "Residence",
+            "name": "Residency",
             "description": "Long\u2011term or habitual location.",
             "children": [],
             "mappings": ["state:residence"]
