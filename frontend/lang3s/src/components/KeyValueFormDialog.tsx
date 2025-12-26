@@ -13,8 +13,6 @@ import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 
-const schema = z.object({ values: z.record(z.string(), z.any()) });
-
 export const KeyValueFormDialog = ({
   defaultValues,
   title,
@@ -88,7 +86,7 @@ export const KeyValueFormDialog = ({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogTrigger
-        className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+        className={buttonVariants({ variant: "ghost", size: "icon-xs" })}
       >
         <PencilIcon />
       </DialogTrigger>

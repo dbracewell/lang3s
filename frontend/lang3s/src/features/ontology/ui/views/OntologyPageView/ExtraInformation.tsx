@@ -2,10 +2,22 @@ import { useOntology } from "@/components/ontology/OntologySelector";
 import { AnnotationColors } from "@/features/common/constants";
 import { cn } from "@/lib/utils/cn";
 import { RouteIcon, TablePropertiesIcon } from "lucide-react";
-import React from "react";
+import React, { useEffect } from "react";
+import { parseAsString, useQueryState } from "nuqs";
 
 export const ExtraInformation = () => {
-  const { currentNode } = useOntology();
+  const { currentNode, rootNode } = useOntology();
+  const [, setPathParam] = useQueryState(
+    "path",
+    parseAsString
+      .withDefault(rootNode)
+      .withOptions({ clearOnDefault: true, shallow: true }),
+  );
+
+  useEffect(() => {
+    setPathParam(currentNode ? currentNode.path : "");
+  }, [currentNode]);
+
   if (currentNode == null) {
     return null;
   }

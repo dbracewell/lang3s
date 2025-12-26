@@ -13,6 +13,20 @@ import { cn } from "@/lib/utils/cn";
 import { RouterOutputs } from "@/lib/trpc/types";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/Spinner";
+import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 
 const getBreadCrumbPart = (
   value: string,
@@ -58,6 +72,7 @@ type OntologyNode = RouterOutputs["ontology"]["getTopLevel"][number];
 type OntologyInfo = {
   ontology: RouterOutputs["ontology"]["getTopLevel"];
   breadcrumbs: string[];
+  rootNode: string;
   current: string;
   currentNode?: OntologyNode;
   checkedNodes?: string[];
@@ -70,6 +85,7 @@ type OntologyInfo = {
 
 export const OntologyContext = createContext<OntologyInfo>({
   breadcrumbs: [],
+  rootNode: "ALL",
   ontology: [],
   current: "",
   setCurrent: () => {},
@@ -86,11 +102,13 @@ export const useOntology = (): OntologyInfo => {
 
 export const OntologyProvider = ({
   rootNode = "ALL",
+  selectedNode,
   children,
   checkedNodes,
   setCheckedNodes,
 }: {
   rootNode?: string;
+  selectedNode?: string;
   isSelector?: boolean;
   children: React.ReactNode;
   checkedNodes?: string[];
@@ -101,15 +119,18 @@ export const OntologyProvider = ({
       staleTime: 5 * 60 * 1000,
     }),
   );
-  const [current, setCurrent] = useState(rootNode);
+  const [current, setCurrent] = useState(selectedNode ?? rootNode);
   const [currentNode, setCurrentNode] = useState<OntologyNode | undefined>(
     undefined,
   );
+
   const breadcrumbs = useMemo(() => {
+    if (ontology == null) return [];
+    if (!ontology.find((o) => o.path === current)) return [rootNode];
     const parts = current.split(".");
     const topIndex = parts.findIndex((n) => n === rootNode);
     return parts.slice(topIndex);
-  }, [current, rootNode]);
+  }, [current, rootNode, ontology]);
 
   const sections = useMemo(() => {
     if (ontology == null) {
@@ -172,6 +193,7 @@ export const OntologyProvider = ({
       setCheckedNodes,
       sections,
       currentNode,
+      rootNode,
     }),
     [
       current,
@@ -181,6 +203,7 @@ export const OntologyProvider = ({
       sections,
       setCheckedNodes,
       currentNode,
+      rootNode,
     ],
   );
 
@@ -229,7 +252,8 @@ const SelectorBreadCrumbs = ({
   const { breadcrumbs, setCurrent } = useOntology();
   return (
     <div className="bg-muted text-muted-foreground scrollable flex min-w-full items-center gap-2 overflow-x-auto rounded border p-2 text-xs">
-      <NetworkIcon className="size-3" />
+      {/*<NetworkIcon className="size-3" />*/}
+      <SelectorSearch />
       {breadcrumbs.map((c, i) => (
         <Fragment key={i}>
           {getBreadCrumbPart(c, i, breadcrumbs, maxBreadcrumbs, setCurrent)}
@@ -403,7 +427,9 @@ const SelectorSections = ({
                         className,
                         !!breadcrumbs.find((p) => o.name === p)
                           ? "bg-accent!"
-                          : isSelected(o.path, checkedNodes) && "bg-accent/40!",
+                          : isSelected(o.path, checkedNodes)
+                            ? "bg-accent/40!"
+                            : "hover:bg-accent/20",
                       )}
                     >
                       <SelectorSectionEntryCheckbox o={o} />
@@ -440,13 +466,61 @@ const SelectorSections = ({
   );
 };
 
+const SelectorSearch = () => {
+  const { ontology, setCurrent } = useOntology();
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon-xs"
+          role="combobox"
+          type="button"
+          aria-expanded={open}
+        >
+          <NetworkIcon />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[200px] p-0 sm:w-[500px]" align="start">
+        <Command>
+          <CommandInput placeholder="Search for concept..." />
+          <CommandList className="w-full">
+            <CommandEmpty>Nothing found.</CommandEmpty>
+            <CommandGroup>
+              {ontology
+                .filter((o) => o.path !== "ALL")
+                .map((o) => (
+                  <CommandItem
+                    key={o.path}
+                    value={o.path}
+                    onSelect={() => {
+                      setCurrent(o.path);
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="truncate">
+                      {o.path.split(".").slice(1).join(" > ")}
+                    </span>
+                  </CommandItem>
+                ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 const SelectedInformation = ({
   className,
   children,
   showPath = true,
+  showName = true,
 }: {
   className?: string;
   showPath?: boolean;
+  showName?: boolean;
   children?: React.ReactNode;
 }) => {
   const { currentNode } = useOntology();
@@ -470,28 +544,30 @@ const SelectedInformation = ({
     >
       <div
         className={cn(
-          "flex w-full flex-col gap-3 pb-1",
-          children && "border-b",
+          "flex w-full flex-col gap-3",
+          children && "border-b pb-1",
         )}
       >
-        <h3 className="truncate border-b pb-1 text-lg font-bold">
-          {currentNode.name}
-        </h3>
-        {showPath && (
-          <div className="flex flex-col gap-1">
-            <h4 className="truncate text-xs font-medium">Path</h4>
-            <p className="truncate text-sm">
-              {currentNode.path.split(".").join(" > ")}
-            </p>
-          </div>
+        {showName && (
+          <h3 className="truncate border-b pb-1 text-2xl font-bold">
+            {currentNode.name}
+          </h3>
         )}
         <div className="flex flex-col gap-1">
-          <h4 className="truncate text-xs font-medium">Description</h4>
-          <p className="truncate text-sm">
-            {!!currentNode.description
-              ? currentNode.description
-              : "Not defined"}
-          </p>
+          {showPath && (
+            <div className="flex w-full items-center gap-1 truncate text-sm">
+              <h4 className="font-medium">Path</h4>
+              <p>{currentNode.path.split(".").join(" > ")}</p>
+            </div>
+          )}
+          <div className="flex w-full items-center gap-1 truncate text-sm">
+            <h4 className="font-medium">Description:</h4>
+            <p>
+              {!!currentNode.description
+                ? currentNode.description
+                : "Not defined"}
+            </p>
+          </div>
         </div>
       </div>
       {children}

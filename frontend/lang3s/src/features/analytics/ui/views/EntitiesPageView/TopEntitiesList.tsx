@@ -79,7 +79,7 @@ export const TopEntitiesList = ({
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               router.push(
-                formatURL("/entities", {
+                formatURL("/analytics/entities", {
                   filter: newFilter,
                   sortBy: sortBy === "mentions" ? undefined : sortBy,
                   tags:
@@ -108,7 +108,7 @@ export const TopEntitiesList = ({
               </span>
             ) : (
               <Link
-                href={formatURL("/entities", {
+                href={formatURL("/analytics/entities", {
                   filter: newFilter,
                   sortBy: "mentions",
                   tags:
@@ -134,7 +134,7 @@ export const TopEntitiesList = ({
               </span>
             ) : (
               <Link
-                href={formatURL("/entities", {
+                href={formatURL("/analytics/entities", {
                   filter: newFilter,
                   sortBy: "docs",
                   tags:
@@ -159,7 +159,7 @@ export const TopEntitiesList = ({
               </span>
             ) : (
               <Link
-                href={formatURL("/entities", {
+                href={formatURL("/analytics/entities", {
                   filter: newFilter,
                   sortBy: "mentionsPerDoc",
                   tags:
@@ -195,7 +195,9 @@ export const TopEntitiesList = ({
                         size="icon-sm"
                         className="hover:bg-dodger-blue-500 hover:text-white"
                       >
-                        <Link href={`/search?q=${encodeURIComponent(r.text)}`}>
+                        <Link
+                          href={`/search?q=${encodeURIComponent(`"${r.text}"`)}`}
+                        >
                           <SearchIcon />
                         </Link>
                       </Button>
@@ -254,7 +256,7 @@ export const TopEntitiesList = ({
         totalPages={data.totalPages}
         currentPage={page}
         pageLink={(nextPage) =>
-          formatURL("/entities", {
+          formatURL("/analytics/entities", {
             filter: newFilter,
             sortBy: "docs",
             page: nextPage,

@@ -10,7 +10,11 @@ import { EditorPanel } from "@/features/ontology/ui/views/OntologyEditorPageView
 import { AddConceptDialog } from "@/features/ontology/ui/views/OntologyEditorPageView/AddConceptDialog";
 import { DeleteConceptButton } from "@/features/ontology/ui/views/OntologyEditorPageView/DeleteConceptButton";
 
-export const OntologyEditorPageView = () => {
+export const OntologyEditorPageView = ({
+  selectedNode,
+}: {
+  selectedNode?: string;
+}) => {
   return (
     <ScrollableBox.Container>
       <ScrollableBox.Header>
@@ -18,7 +22,7 @@ export const OntologyEditorPageView = () => {
         <p className="pageSubheading">Edit the system Ontology.</p>
       </ScrollableBox.Header>
       <div className="flex h-full min-h-0 w-full flex-1 gap-3">
-        <OntologySelector.Provider rootNode="ALL">
+        <OntologySelector.Provider rootNode="ALL" selectedNode={selectedNode}>
           <OntologySelector.SelectedInformation className="scrollable hidden h-full min-h-0 sm:block sm:w-[300px] lg:w-[500px]">
             <EditorPanel />
           </OntologySelector.SelectedInformation>

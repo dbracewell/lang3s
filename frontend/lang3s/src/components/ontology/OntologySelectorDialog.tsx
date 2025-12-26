@@ -55,13 +55,14 @@ export const OntologySelectorDialog = ({
             setCheckedNodes={onSelect ? setCheckedNodes : undefined}
           >
             <OntologySelector.Container>
+              <OntologySelector.BreadCrumbs />
               <OntologySelector.Sections />
               <OntologySelector.SelectedInformation
-                className="min-w-full"
+                className="min-w-full p-1!"
                 showPath={false}
+                showName={false}
               />
               <OntologySelector.SelectionSummary />
-              <OntologySelector.BreadCrumbs />
               {onSelect && (
                 <Button
                   type="button"

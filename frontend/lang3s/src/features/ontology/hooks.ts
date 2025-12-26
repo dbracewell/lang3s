@@ -27,10 +27,8 @@ export const useDeleteConcept = () => {
   const { mutate, isPending } = useTRPCMutation((trpc) => ({
     mutation: trpc.ontology.deleteConcept.mutationOptions({
       onSuccess: (data) =>
-        toast.success(
-          `Successfully deleted ${data.name} and all it's children`,
-        ),
-      onError: () => toast.error("Failed to delete  concept"),
+        toast.success(`Successfully deleted ${data.name} and all children`),
+      onError: () => toast.error("Failed to delete concept"),
     }),
   }));
 

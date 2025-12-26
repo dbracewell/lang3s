@@ -58,7 +58,7 @@ export const AnnotationTypeValueFormDialog = ({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogTrigger
-        className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+        className={buttonVariants({ variant: "ghost", size: "icon-xs" })}
       >
         <PencilIcon />
       </DialogTrigger>

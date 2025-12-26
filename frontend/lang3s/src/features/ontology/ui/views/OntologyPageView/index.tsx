@@ -4,7 +4,11 @@ import { OntologySelector } from "@/components/ontology/OntologySelector";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { ExtraInformation } from "@/features/ontology/ui/views/OntologyPageView/ExtraInformation";
 
-export const OntologyPageView = () => {
+export const OntologyPageView = ({
+  selectedNode,
+}: {
+  selectedNode?: string;
+}) => {
   return (
     <ScrollableBox.Container>
       <ScrollableBox.Header>
@@ -12,7 +16,7 @@ export const OntologyPageView = () => {
         <p className="pageSubheading">View and explore the system Ontology.</p>
       </ScrollableBox.Header>
       <div className="flex h-full min-h-0 w-full flex-1 gap-3">
-        <OntologySelector.Provider rootNode="ALL">
+        <OntologySelector.Provider rootNode="ALL" selectedNode={selectedNode}>
           <OntologySelector.SelectedInformation className="scrollable hidden h-full min-h-0 sm:block sm:w-[300px] lg:w-[500px]">
             <ExtraInformation />
           </OntologySelector.SelectedInformation>

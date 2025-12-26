@@ -2,7 +2,7 @@ import { AnnotationColors } from "@/features/common/constants";
 import z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Form } from "@/components/ui/form";
 import { cn } from "@/lib/utils/cn";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -24,7 +24,9 @@ const schema = z.object({
 export const ColorPickerDialog = ({
   defaultColor,
   onSelect,
+  title,
 }: {
+  title?: string | React.ReactNode;
   defaultColor?: string;
   onSelect: (color: string) => void;
 }) => {
@@ -52,13 +54,13 @@ export const ColorPickerDialog = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
-        className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+        className={buttonVariants({ variant: "ghost", size: "icon-xs" })}
       >
         <PaletteIcon />
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Color Picker</DialogTitle>
+          <DialogTitle>{title ?? "Color Picker"}</DialogTitle>
           <DialogDescription className="sr-only">
             Select the color to use.
           </DialogDescription>
@@ -72,12 +74,15 @@ export const ColorPickerDialog = ({
                   type="button"
                   onClick={() => form.setValue("color", color)}
                   className={cn(
-                    "flex items-center gap-2 rounded border p-2",
+                    "flex items-center gap-2 rounded border p-2 text-sm",
                     currentColor === color && "bg-accent",
                   )}
                 >
                   <div
-                    className={cn("size-4 border", AnnotationColors[color])}
+                    className={cn(
+                      "aspect-square size-4 shrink-0 border",
+                      AnnotationColors[color],
+                    )}
                   />
                   {color}
                 </button>

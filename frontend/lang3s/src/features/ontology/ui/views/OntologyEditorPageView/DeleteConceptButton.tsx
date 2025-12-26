@@ -11,7 +11,7 @@ export const DeleteConceptButton = ({ path }: { path: string }) => {
       <LoadingButton
         isLoading={isPending}
         variant="ghost"
-        className="hover:bg-destructive hover:text-white"
+        className="hover:bg-destructive! bg-l rounded-md hover:text-white"
         size="icon-xs"
         type="button"
         onClick={() => mutateFn(path)}

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils/cn";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Loader2Icon } from "lucide-react";
 import React from "react";
 
@@ -30,8 +30,7 @@ export const LoadingButton = ({
       <div
         className={cn(
           "col-start-1 col-end-1 row-start-1 row-end-1",
-          isLoading ? "invisible" : "visible",
-          className,
+          isLoading ? "invisible!" : "visible!",
         )}
       >
         {children}
@@ -39,7 +38,7 @@ export const LoadingButton = ({
       <div
         className={cn(
           "col-start-1 col-end-1 row-start-1 row-end-1",
-          isLoading ? "visible" : "invisible",
+          isLoading ? "visible!" : "invisible!",
         )}
       >
         <Loader2Icon className="animate-spin" />
