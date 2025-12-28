@@ -67,8 +67,8 @@ export const HeatMap = ({
       .style("opacity", "0")
       .style("pointer-events", "none");
 
-    const xGroup = [...new Set(data.map((d) => d.text1))];
-    const yGroup = [...new Set(data.map((d) => d.text2))];
+    const xGroup = [...new Set(data.map((d) => String(d.text1)))];
+    const yGroup = [...new Set(data.map((d) => String(d.text2)))];
     const maxvalue = Math.max(
       ...data.map((d) =>
         d.text1 === d.text2 ? 0 : Chart.getCount(d, countType),
@@ -128,11 +128,11 @@ export const HeatMap = ({
       .append("rect")
       // @ts-ignore
       .attr("x", (d) => {
-        return x(d.text1);
+        return x(String(d.text1));
       })
       // @ts-ignore
       .attr("y", (d) => {
-        return y(d.text2);
+        return y(String(d.text2));
       })
       .attr("rx", 4)
       .attr("ry", 4)

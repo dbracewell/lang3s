@@ -1,3 +1,4 @@
+"use client";
 import { ChevronRightIcon, NetworkIcon } from "lucide-react";
 import React, {
   createContext,
@@ -100,7 +101,7 @@ export const useOntology = (): OntologyInfo => {
   return ontology;
 };
 
-export const OntologyProvider = ({
+const Provider = ({
   rootNode = "ALL",
   selectedNode,
   children,
@@ -219,7 +220,7 @@ export const OntologyProvider = ({
   );
 };
 
-const SelectorContainer = ({
+const Container = ({
   children,
   className,
   orientation = "vertical",
@@ -245,11 +246,7 @@ const SelectorContainer = ({
   );
 };
 
-const SelectorBreadCrumbs = ({
-  maxBreadcrumbs = 4,
-}: {
-  maxBreadcrumbs?: number;
-}) => {
+const BreadCrumbs = ({ maxBreadcrumbs = 4 }: { maxBreadcrumbs?: number }) => {
   const { breadcrumbs, setCurrent } = useOntology();
   return (
     <div className="bg-muted text-muted-foreground scrollable flex min-w-full items-center gap-2 overflow-x-auto rounded border p-2 text-xs">
@@ -388,7 +385,7 @@ export type Section = {
   hasChildren: boolean;
 }[];
 
-const SelectorSections = ({
+const Sections = ({
   className,
   sectionHeader,
   sectionFooter,
@@ -579,10 +576,10 @@ const SelectedInformation = ({
 };
 
 export const OntologySelector = {
-  Provider: OntologyProvider,
-  Container: SelectorContainer,
-  BreadCrumbs: SelectorBreadCrumbs,
-  Sections: SelectorSections,
-  SelectionSummary: SelectionSummary,
-  SelectedInformation: SelectedInformation,
+  Provider,
+  Container,
+  BreadCrumbs,
+  Sections,
+  SelectionSummary,
+  SelectedInformation,
 };

@@ -1,5 +1,13 @@
 import { sql } from "drizzle-orm";
-import { halfvec, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  halfvec,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
 export const TOKEN_EMBEDDING_DIMENSION = 768;
 export const SEMANTIC_EMBEDDING_DIMENSION = 384;

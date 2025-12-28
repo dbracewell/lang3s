@@ -1,8 +1,6 @@
 "use client";
-import { useConfirmationDialog } from "@/components/ConfirmationDialog";
-import { Button } from "@/components/ui/button";
+import { useConfirmationDialog } from "@/components/dialogs/ConfirmationDialog";
 import { Trash2Icon } from "lucide-react";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { useRouter } from "next/navigation";
 import { LoadingButton } from "@/components/ui/loading-button";

@@ -1,4 +1,8 @@
-import { EventSchemas, isKnownType, parseEventMessage } from "@/lib/events/events";
+import {
+  EventSchemas,
+  isKnownType,
+  parseEventMessage,
+} from "@/lib/events/events";
 import { eventBus } from "@/lib/events/eventBus";
 
 export const TAB_ID = crypto.randomUUID();

@@ -3,7 +3,7 @@ import React, { Fragment, useMemo } from "react";
 import { cn } from "@/lib/utils/cn";
 import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
-import { SearchIcon } from "lucide-react";
+import { CircleQuestionMarkIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { parseAsStringEnum, useQueryState } from "nuqs";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
@@ -27,43 +27,54 @@ export const TopicsListView = ({ points }: DataProps) => {
     return null;
   }
   return (
-    <ScrollableBox.ScrollArea outerClassName="p-0!">
-      <div className="grid flex-1 grid-cols-1 md:grid-cols-[3fr_2fr]">
-        {points
-          .sort((a, b) => b.support - a.support)
-          .map((topic, index) => (
-            <Fragment key={topic.id}>
-              <div
-                className={cn(
-                  "bg-row flex items-center gap-2 px-3 py-1",
-                  index % 2 === 0 && "bg-alternate-row",
-                )}
-              >
-                <Hint hint="Search the corpus for this topic" asChild>
-                  <Button size="icon-xs" variant="ghost">
-                    <SearchIcon />
-                  </Button>
-                </Hint>
-                <Link href={`/analytics/topics/${topic.id}`} className="link">
-                  {topic.name}
-                </Link>
-              </div>
-              <div
-                className={cn(
-                  "bg-row hidden items-center px-3 py-1 md:flex",
-                  index % 2 === 0 && "bg-alternate-row",
-                )}
-              >
-                <div
-                  className="bg-dodger-blue-500 h-1 justify-self-center"
-                  style={{
-                    width: `${Math.max(5, (topic.support / total) * 350)}px`,
-                  }}
-                />
-              </div>
-            </Fragment>
-          ))}
+    <div className="flex min-h-0 flex-col">
+      <div className="bg-heading grid grid-cols-1 rounded-t-lg border border-b-0 px-4 py-1 font-bold text-white md:grid-cols-[3fr_2fr]">
+        <h2>Topic</h2>
+        <h2 className="flex items-center gap-2 px-4">
+          Support
+          <Hint hint={`Number of sentences expressing this topic`}>
+            <CircleQuestionMarkIcon className="size-4" />
+          </Hint>
+        </h2>
       </div>
-    </ScrollableBox.ScrollArea>
+      <ScrollableBox.ScrollArea outerClassName="p-0! flex-1 rounded-t-none">
+        <div className="grid flex-1 grid-cols-1 md:grid-cols-[3fr_2fr]">
+          {points
+            .sort((a, b) => b.support - a.support)
+            .map((topic, index) => (
+              <Fragment key={topic.id}>
+                <div
+                  className={cn(
+                    "bg-row flex items-center gap-2 px-3 py-1",
+                    index % 2 === 0 && "bg-alternate-row",
+                  )}
+                >
+                  <Hint hint="Search the corpus for this topic" asChild>
+                    <Button size="icon-xs" variant="ghost">
+                      <SearchIcon />
+                    </Button>
+                  </Hint>
+                  <Link href={`/analytics/topics/${topic.id}`} className="link">
+                    {topic.name}
+                  </Link>
+                </div>
+                <div
+                  className={cn(
+                    "bg-row hidden items-center px-3 py-1 md:flex",
+                    index % 2 === 0 && "bg-alternate-row",
+                  )}
+                >
+                  <div
+                    className="bg-dodger-blue-500 h-1 justify-self-center"
+                    style={{
+                      width: `${Math.max(5, (topic.support / total) * 350)}px`,
+                    }}
+                  />
+                </div>
+              </Fragment>
+            ))}
+        </div>
+      </ScrollableBox.ScrollArea>
+    </div>
   );
 };

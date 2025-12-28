@@ -11,6 +11,7 @@ from .metadata import Metadata
 from .text cimport Text
 from .text_object cimport TextObject
 
+
 cdef class TextAnnotation(TextObject):
     def __init__(
         self,

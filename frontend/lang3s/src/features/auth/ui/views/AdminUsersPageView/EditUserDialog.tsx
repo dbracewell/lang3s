@@ -15,11 +15,7 @@ import {
 import { Form } from "@/components/ui/form";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { UserType } from "@/features/auth/ui/views/AdminUsersPageView/columns";
-import {
-  UserRole,
-  UserRoleDescriptions,
-  UserRoles,
-} from "@/features/auth/permissions";
+import { UserRoleDescriptions, UserRoles } from "@/features/auth/permissions";
 import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PencilIcon } from "lucide-react";

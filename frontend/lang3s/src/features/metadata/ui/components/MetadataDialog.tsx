@@ -54,6 +54,7 @@ export const MetadataDialog = ({
 }: {
   possibleMetadata: { source: string; key: string }[];
 }) => {
+  const router = useRouter();
   const [open, setOpen] = useQueryState(
     "edit",
     parseAsBoolean.withDefault(false).withOptions({ clearOnDefault: true }),
@@ -71,7 +72,6 @@ export const MetadataDialog = ({
     formatter: parseAsString,
   });
 
-  const router = useRouter();
   const form = useForm<MetadataSchemaType>({
     resolver: zodResolver(MetadataSchema),
     defaultValues: {
@@ -133,25 +133,25 @@ export const MetadataDialog = ({
   const source = form.watch("source");
   const isEdit = metadataValues.id ?? false;
 
-  const nameOptions =
-    isEdit && metadataValues.name
-      ? [
-          {
+  const nameOptions = useMemo(() => {
+    if (isEdit && metadataValues.name) {
+      return [
+        {
+          type: "item",
+          value: metadataValues.name,
+        } as SelectOptionItem,
+      ];
+    }
+    return possibleMetadata
+      .filter((s) => s.source === source)
+      .map(
+        (s) =>
+          ({
             type: "item",
-            value: metadataValues.name,
-          } as SelectOptionItem,
-        ]
-      : useMemo(() => {
-          return possibleMetadata
-            .filter((s) => s.source === source)
-            .map(
-              (s) =>
-                ({
-                  type: "item",
-                  value: s.key,
-                }) as SelectOptionItem,
-            );
-        }, [source, possibleMetadata]);
+            value: s.key,
+          }) as SelectOptionItem,
+      );
+  }, [source, possibleMetadata, metadataValues.name]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>

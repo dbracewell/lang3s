@@ -106,8 +106,8 @@ export type SeriesSourceType = (typeof SERIES_SOURCES)[number];
 export type ChartType = (typeof CHART_TYPES)[number];
 export type DisplayType = "text" | "value" | "text-value";
 export type ChartSeries = {
-  text1: string;
-  text2: string;
+  text1: string | number;
+  text2: string | number;
   value1: string | number;
   value2: string | number;
   mentionCount: number;

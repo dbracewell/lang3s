@@ -3,8 +3,8 @@ import { Wrapper } from "@/components/main-layout/Wrapper";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { BasicUserInfo } from "@/features/common/types";
 import "../globals.css";
+import { UserRole } from "@/features/auth/permissions";
 
 const MainLayout = async (props: LayoutProps<"/">) => {
   const session = await auth.api.getSession({
@@ -12,10 +12,16 @@ const MainLayout = async (props: LayoutProps<"/">) => {
   });
   const user = session?.user;
   if (user == null) {
-    redirect("/sign-in");
+    return redirect("/sign-in");
   }
   return (
-    <UserProvider user={user as BasicUserInfo}>
+    <UserProvider
+      user={{
+        id: user.id,
+        role: user.role as UserRole,
+        username: user.username ?? user.email,
+      }}
+    >
       <Wrapper>{props.children}</Wrapper>
     </UserProvider>
   );

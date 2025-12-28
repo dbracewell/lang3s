@@ -1,4 +1,5 @@
-import { useDeleteConcept } from "@/features/ontology/hooks";
+"use client";
+import { useDeleteConcept } from "@/features/ontology/hooks/useDeleteConcept";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { Trash2Icon } from "lucide-react";
 import React from "react";

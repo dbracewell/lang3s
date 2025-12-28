@@ -9,12 +9,9 @@ import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 const DocumentsPage = () => {
   prefetch(trpc.documents.getMany.infiniteQueryOptions({ cursor: 0 }));
   return (
-    <ScrollableBox.Container className="gap-3">
+    <ScrollableBox.Container className="gap-2">
       <ScrollableBox.Header>
         <h1>Documents</h1>
-        <p className="pageSubheading">
-          Access to all processed documents in the system
-        </p>
       </ScrollableBox.Header>
       <HydrateClient fallback={<DocumentsViewPageSkeleton />}>
         <DocumentsViewPage />

@@ -1,3 +1,4 @@
+"use client";
 import {
   Dialog,
   DialogContent,
@@ -15,10 +16,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import z from "zod";
 import { InputFormField } from "@/components/form-controls/input-form-field";
 import { TextareaFormField } from "@/components/form-controls/textarea-form-field";
-import { useAddConcept } from "@/features/ontology/hooks";
 import { OntologyConceptSchema } from "@/features/ontology/schemas";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useTRPCMutation } from "@/lib/trpc/use-mutation";
+import { toast } from "sonner";
 
 export const AddConceptDialog = ({
   parentId,
@@ -38,7 +40,13 @@ export const AddConceptDialog = ({
       parentId,
     },
   });
-  const addConcept = useAddConcept();
+  const addConcept = useTRPCMutation((trpc) => ({
+    mutation: trpc.ontology.addConcept.mutationOptions({
+      onSuccess: (data) =>
+        toast.success(`Successfully created ${data[0].name}`),
+      onError: () => toast.error("Failed to create new concept"),
+    }),
+  }));
 
   const name = form.watch("name");
   const debouncedName = useDebounce(name, 500);

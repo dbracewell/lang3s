@@ -11,12 +11,10 @@ import {
   eq,
   ne,
   not,
-  or,
   sql,
 } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { TopicsTable } from "@/lib/db/schemas/topics";
-import { upper } from "@/lib/db/funcs";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import {
@@ -26,11 +24,9 @@ import {
   SeriesSourceType,
 } from "@/features/reports/types";
 import { MetadataConfiguration, MetadataItem } from "@/features/common/types";
-import {
-  getBaseAnnotationQuery,
-  getMetadata,
-} from "@/features/common/server/queries";
+import { getMetadata } from "@/features/common/server/queries";
 import { jsonValue } from "@/lib/db/helpers/json";
+import { Annotations } from "@/lib/db/annotations";
 
 const LIMIT = 35;
 
@@ -191,19 +187,17 @@ const getTopNAnnotations = ({
   countType: CountType;
   displayType: DisplayType;
 }) => {
-  const base = getBaseAnnotationQuery({
-    isSentence: false,
-    requireOntology: true,
-    contentTransform: (v) => upper(v),
-  }).as(randomAlphaUnderscore());
-
-  const ontologyWildCards = sql.join(
-    value
+  const base = Annotations.getAnnotationsWithOntology({
+    options: { normalize: true },
+    computedColumns: (o) => ({
+      value: sql<string>`${o.name}`.as(randomAlphaUnderscore()),
+    }),
+    limitTo: value
       .split(",")
-      .flatMap((v) => [v, `${v}.*`])
-      .map((v) => sql`${v}`),
-    sql`, `,
-  );
+      .map((v) => v.trim())
+      .filter(Boolean),
+    annotationFields: ["sentenceAid", "documentId"],
+  }).as(randomAlphaUnderscore());
 
   return db
     .select({
@@ -224,7 +218,6 @@ const getTopNAnnotations = ({
       mentionCount: count(),
     })
     .from(base)
-    .where(sql`${base.path} ~ any(array[${ontologyWildCards}]::lquery[])`)
     .groupBy((t) => [t.text, t.value])
     .orderBy((t) => [desc(Chart.getCountColumn(countType, t)), asc(t.text)])
     .limit(LIMIT)
@@ -251,11 +244,19 @@ const getBaseQuery = ({
         countType,
         displayType,
       });
-      const base = getBaseAnnotationQuery({
-        isSentence: false,
-        requireOntology: true,
-        contentTransform: (v) => upper(v),
+
+      const base = Annotations.getAnnotationsWithOntology({
+        options: { normalize: true },
+        computedColumns: (o) => ({
+          value: sql<string>`${o.name}`.as(randomAlphaUnderscore()),
+        }),
+        limitTo: value
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean),
+        annotationFields: ["sentenceAid", "documentId"],
       }).as(randomAlphaUnderscore());
+
       return db
         .select({
           sentenceAId: base.sentenceAid,
@@ -291,10 +292,9 @@ const getBaseQuery = ({
 
     case "TOPIC":
       const topNTopics = getTopNTopics({ countType });
-      const baseSentence = getBaseAnnotationQuery({
-        isSentence: true,
-        requireOntology: false,
-      }).as(randomAlphaUnderscore());
+      const baseSentence = Annotations.getSentences().as(
+        randomAlphaUnderscore(),
+      );
       return db
         .selectDistinct({
           sentenceAId: baseSentence.sentenceAid,

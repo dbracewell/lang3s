@@ -6,7 +6,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { OntologySelector } from "@/components/ontology/OntologySelector";
+import { OntologySelector } from "@/features/ontology/ui/components/OntologySelector";
 import React, { useEffect, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { NetworkIcon } from "lucide-react";

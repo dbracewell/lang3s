@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useTagSearchParams } from "@/features/analytics/hooks";
+import { useTagSearchParams } from "@/features/analytics/hooks/useTagSearch";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { XIcon } from "lucide-react";
 import Link from "next/link";

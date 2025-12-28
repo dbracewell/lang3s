@@ -1,6 +1,6 @@
 "use client";
-import { useTagSearchParams } from "@/features/analytics/hooks";
-import { OntologySelectorDialog } from "@/components/ontology/OntologySelectorDialog";
+import { useTagSearchParams } from "@/features/analytics/hooks/useTagSearch";
+import { OntologySelectorDialog } from "@/features/ontology/ui/components/OntologySelectorDialog";
 import { ChevronDownIcon, ChevronUpIcon, NetworkIcon } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils/cn";

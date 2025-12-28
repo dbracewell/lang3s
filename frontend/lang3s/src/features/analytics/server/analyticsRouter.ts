@@ -69,7 +69,7 @@ export const AnalyticsRouter = createTRPCRouter({
       }
 
       const [total, results] = await logAndRethrow(() => {
-        const q3 = Annotations.getAnnotationWithOntology({
+        const q3 = Annotations.getAnnotationsWithOntology({
           options: { normalize: true },
           limitTo: input.values,
           ontologyFields: ["path", "color"],
@@ -127,7 +127,7 @@ export const AnalyticsRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       return logAndRethrow(async () => {
-        const q1 = Annotations.getAnnotationWithOntology({
+        const q1 = Annotations.getAnnotationsWithOntology({
           options: { normalize: true },
           limitTo: [input.leftValue],
           computedColumns: (o) => ({
@@ -142,7 +142,7 @@ export const AnalyticsRouter = createTRPCRouter({
           )
           .as("q1");
 
-        const q2 = Annotations.getAnnotationWithOntology({
+        const q2 = Annotations.getAnnotationsWithOntology({
           options: { normalize: true },
           limitTo: input.rightValues,
           annotationFields: ["id", "start", "end", "sentenceAid"],
@@ -186,7 +186,7 @@ export const AnalyticsRouter = createTRPCRouter({
       return await logAndRethrow(() => {
         const { entity, value } = input;
 
-        const entityQuery = Annotations.getAnnotationWithOntology({
+        const entityQuery = Annotations.getAnnotationsWithOntology({
           options: { normalize: true },
           annotationFields: ["sentenceAid"],
           limitTo: [value],
@@ -207,7 +207,7 @@ export const AnalyticsRouter = createTRPCRouter({
           )
           .as("entities_with_sentences");
 
-        const eventsBaseQuery = Annotations.getAnnotationWithOntology({
+        const eventsBaseQuery = Annotations.getAnnotationsWithOntology({
           limitTo: ["ALL.Event", "ALL.State", "ALL.Process"],
           options: { normalize: true, includeEventArgs: true },
           annotationFields: ["sentenceAid"],
@@ -371,7 +371,7 @@ export const AnalyticsRouter = createTRPCRouter({
               and(
                 gte(t.similarity, MIN_TOPIC_SIMILARITY),
                 eq(TextAnnotationTable.type, "sentence"),
-                ne(sql`${TextAnnotationTable.metadata}->>'is_stopword'`, true),
+                Annotations.isNotStopword,
               ),
             )
             .as("sentence");
@@ -387,7 +387,7 @@ export const AnalyticsRouter = createTRPCRouter({
             .orderBy((t) => desc(t.similarity))
             .limit(20);
 
-          const baseEntityQuery = Annotations.getAnnotationWithOntology({
+          const baseEntityQuery = Annotations.getAnnotationsWithOntology({
             options: { normalize: true },
             limitTo: [
               "ALL.Entity.Physical",

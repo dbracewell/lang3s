@@ -17,6 +17,7 @@ import * as zlib from "node:zlib";
 import { generateNextPage, withPagination } from "@/lib/db/funcs";
 import { Annotations, OntologyMappings } from "@/lib/db/annotations";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
+import { DEFAULT_ONTOLOGY_COLOR } from "@/features/common/constants";
 
 export const DocumentsRouter = createTRPCRouter({
   getMany: protectedProcedure
@@ -31,7 +32,7 @@ export const DocumentsRouter = createTRPCRouter({
       const [totalDocs, docs] = await logAndRethrow(() => {
         const entities = db
           .select({
-            ...Annotations.getDefaultColumns({
+            ...Annotations.getColumns({
               options: {
                 normalize: true,
               },
@@ -125,7 +126,8 @@ export const DocumentsRouter = createTRPCRouter({
               value:
                 annotationIdMapping.find((m) => a.id == m.id)?.value ?? a.value,
               color:
-                annotationIdMapping.find((m) => a.id == m.id)?.color ?? "SLATE",
+                annotationIdMapping.find((m) => a.id == m.id)?.color ??
+                DEFAULT_ONTOLOGY_COLOR,
             })),
           },
         };

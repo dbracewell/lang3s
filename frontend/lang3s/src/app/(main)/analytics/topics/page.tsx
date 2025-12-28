@@ -11,7 +11,9 @@ const TopicsPage = async () => {
     <ScrollableBox.Container className="gap-3">
       <div className="flex flex-col">
         <h1>Topics</h1>
-        <p className="pageSubheading">The topics discussed in the corpus.</p>
+        <p className="pageSubheading">
+          The recurring themes discovered within the corpus
+        </p>
       </div>
       <TopicsPageTabs />
       <TopicsListView points={data.points} />

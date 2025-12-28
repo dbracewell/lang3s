@@ -19,7 +19,10 @@ import { parseAsBoolean } from "nuqs/server";
 import { formatNumber, formatURL } from "@/lib/utils/formatters";
 import { PageNumbers } from "@/components/PageNumbers";
 import { useRouter } from "next/navigation";
-import { defaultValues, useTagSearchParams } from "@/features/analytics/hooks";
+import {
+  defaultValues,
+  useTagSearchParams,
+} from "@/features/analytics/hooks/useTagSearch";
 
 export const TopEntitiesList = ({
   sortBy,

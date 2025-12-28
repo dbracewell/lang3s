@@ -31,7 +31,10 @@ const EntitiesPage = async (props: PageProps<"/analytics/entities">) => {
       <ScrollableBox.Header className="flex flex-col items-start gap-y-2 lg:flex-row">
         <div className="flex flex-col">
           <h1>Entities</h1>
-          <p className="pageSubheading">The unique entities </p>
+          <p className="pageSubheading max-w-sm">
+            The entities (real-world objects, e.g. people, places,
+            organizations, dates, etc.) mentioned in the corpus
+          </p>
         </div>
         <div className="flex w-full flex-1 items-center justify-center">
           <EntityTypeSelector values={values} />

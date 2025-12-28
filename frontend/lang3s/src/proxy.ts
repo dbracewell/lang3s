@@ -10,10 +10,15 @@ export async function proxy(request: NextRequest) {
     headers: await headers(),
   });
 
-  const page = request.url.split("/").pop() ?? "";
-
+  const url = new URL(request.url);
+  const page = url.pathname.split("/").pop() ?? "/";
   if (!session && !publicRoutes.includes(page)) {
-    return NextResponse.redirect(new URL("/sign-in", request.url));
+    return NextResponse.redirect(
+      new URL(
+        `/sign-in?redirect=${encodeURIComponent(request.url)}`,
+        request.url,
+      ),
+    );
   } else if (session && authRoutes.includes(page)) {
     return NextResponse.redirect(new URL("/", request.url));
   } else if (session?.user.role !== "admin" && request.url.includes("/admin")) {

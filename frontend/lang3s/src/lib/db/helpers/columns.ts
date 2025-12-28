@@ -1,5 +1,5 @@
 import { getTableColumns, Table } from "drizzle-orm";
-import { PickColumns } from "@/lib/db/funcs";
+import { PickColumns } from "@/lib/db/helpers/typing";
 
 export function selectFields<
   T extends Table,

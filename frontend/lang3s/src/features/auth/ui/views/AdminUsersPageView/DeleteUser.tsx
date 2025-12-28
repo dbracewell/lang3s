@@ -1,5 +1,5 @@
 "use client";
-import { useConfirmationDialog } from "@/components/ConfirmationDialog";
+import { useConfirmationDialog } from "@/components/dialogs/ConfirmationDialog";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { UserX2Icon } from "lucide-react";

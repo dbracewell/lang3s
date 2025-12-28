@@ -21,7 +21,7 @@ import { Chart, SeriesSourceType } from "@/features/reports/types";
 import {
   DefaultOntologyTrigger,
   OntologySelectorDialog,
-} from "@/components/ontology/OntologySelectorDialog";
+} from "@/features/ontology/ui/components/OntologySelectorDialog";
 
 type DualAxisFormProps = {
   defaultValues?: ChartSchemaType;

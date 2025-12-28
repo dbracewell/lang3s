@@ -13,7 +13,6 @@ import { coalesce, cosineSimilarity, jsonValue, upper } from "@/lib/db/funcs";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { AnnotationToOntology, OntologyTable } from "@/lib/db/schemas/ontology";
 import { db } from "@/lib/db/index";
-import { matchPath } from "@/features/ontology/utils";
 
 const EVENT_ARGS = {
   a0: sql<string[]>`${TextAnnotationTable.metadata}->'A0_TEXT'`.as("A0"),
@@ -147,9 +146,9 @@ function _getDefaultColumns<
 const ontologyMappingSubquery = BASE_ONTOLOGY_QUERY.where(undefined).as(
   randomAlphaUnderscore(),
 );
-export type OntologyMappingColumns =
+type OntologyMappingColumns =
   (typeof ontologyMappingSubquery)["_"]["selectedFields"];
-export type OntologyMappingColumnNames = keyof OntologyMappingColumns;
+type OntologyMappingColumnNames = keyof OntologyMappingColumns;
 type OntologyTablePickedColumns<K extends keyof OntologyMappingColumns> = {
   [P in K]: OntologyMappingColumns[P];
 };
@@ -224,15 +223,29 @@ const GET_SENTENCES = db
     and(
       eq(TextAnnotationTable.type, "sentence"),
       not(
-        sql`coalesce(${TextAnnotationTable.metadata}->>'is_stopword'::boolean,false)::boolean`,
+        sql<boolean>`COALESCE((${TextAnnotationTable.metadata}->>'is_stopword')::boolean,false)`,
       ),
     ),
   );
 
+const createPathWildcards = (values: string[]) => {
+  return sql.join(
+    values.flatMap((v) => [v, `${v}.*`]).map((v) => sql`${v}`),
+    sql`, `,
+  );
+};
+
+const matchPath = (
+  table: { path: string } | typeof OntologyTable,
+  values: string[],
+) => {
+  return sql`${table.path} ~ any(array[${createPathWildcards(values)}]::lquery[])`;
+};
+
 export const Annotations = {
-  getDefaultColumns: _getDefaultColumns,
+  getColumns: _getDefaultColumns,
   getSentences: () => GET_SENTENCES,
-  getAnnotationWithOntology: _getAnnotationsWithOntology,
+  getAnnotationsWithOntology: _getAnnotationsWithOntology,
   getFullTextSnippet: function (query: string, text: SQLWrapper) {
     return sql`array_to_string(pgroonga_snippet_html (${text},
     								 pgroonga_query_extract_keywords(${query})), '\n') != ''`;
@@ -240,7 +253,7 @@ export const Annotations = {
   fullTextScore: FULL_TEXT_SCORE,
   fullTextRank: FULL_TEXT_RANK,
   isNotStopword: not(
-    sql`coalesce(${TextAnnotationTable.metadata}->>'is_stopword'::boolean,false)`,
+    sql<boolean>`COALESCE((${TextAnnotationTable.metadata}->>'is_stopword')::boolean,false)`,
   ),
 } as const;
 

@@ -18,7 +18,7 @@ import { DynamicIcon } from "@/components/DynamicIcon";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import { SearchBar } from "@/features/search/ui/components/SearchBar";
-import { UserButton } from "@/components/UserButton";
+import { UserButton } from "@/components/buttons/UserButton";
 
 type MenuBarProps = {
   setIsMenuOpen: (value: boolean) => void;

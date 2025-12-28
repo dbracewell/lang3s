@@ -1,17 +1,22 @@
-import { useOntology } from "@/components/ontology/OntologySelector";
+"use client";
+import { useOntology } from "@/features/ontology/ui/components/OntologySelector";
 import { AnnotationColors } from "@/features/common/constants";
 import { cn } from "@/lib/utils/cn";
 import { RouteIcon, TablePropertiesIcon } from "lucide-react";
 import React, { useEffect } from "react";
-import { ColorPickerDialog } from "@/components/ColorPickerDialog";
-import { KeyValueFormDialog } from "@/components/KeyValueFormDialog";
-import { AnnotationTypeValueFormDialog } from "@/components/AnnotationTypeValueFormDialog";
-import { useUpdateOntology } from "@/features/ontology/hooks";
+import { ColorPickerDialog } from "@/components/dialogs/ColorPickerDialog";
+import { KeyValueFormDialog } from "@/components/dialogs/KeyValueFormDialog";
+import { AnnotationTypeValueFormDialog } from "@/components/dialogs/AnnotationTypeValueFormDialog";
 import { parseAsString, useQueryState } from "nuqs";
+import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 
-export const EditorPanel = () => {
+export const OntologyEditorInformationPanel = () => {
   const { currentNode, rootNode } = useOntology();
-  const updateOntology = useUpdateOntology();
+  const updateOntology = useTRPCMutation((trpc) => ({
+    mutation: trpc.ontology.updateConcept.mutationOptions(),
+    successToast: "Successfully updated ontology",
+    errorToast: "Failed to update ontology",
+  }));
   const [, setPathParam] = useQueryState(
     "path",
     parseAsString

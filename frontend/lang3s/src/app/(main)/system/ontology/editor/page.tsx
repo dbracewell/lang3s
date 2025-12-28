@@ -2,7 +2,8 @@ import React from "react";
 import { roleHasPermissions } from "@/features/auth/permissions";
 import { redirect } from "next/navigation";
 import { getUser } from "@/features/auth/server/actions";
-import { OntologyEditorPageView } from "@/features/ontology/ui/views/OntologyEditorPageView";
+import { OntologyEditor } from "@/features/ontology/ui/components/OntologyEditor";
+import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 
 const OntologyEditorPage = async (
   props: PageProps<"/system/ontology/editor">,
@@ -15,7 +16,15 @@ const OntologyEditorPage = async (
       `/system/ontology/viewer${selectedNode ? `?path=${selectedNode}` : ""}`,
     );
   }
-  return <OntologyEditorPageView selectedNode={selectedNode} />;
+  return (
+    <ScrollableBox.Container>
+      <ScrollableBox.Header>
+        <h1>Ontology Editor</h1>
+        <p className="pageSubheading">Edit the system Ontology</p>
+      </ScrollableBox.Header>
+      <OntologyEditor selectedNode={selectedNode} />
+    </ScrollableBox.Container>
+  );
 };
 
 export default OntologyEditorPage;

@@ -1,11 +1,12 @@
-import { useOntology } from "@/components/ontology/OntologySelector";
+"use client";
+import { useOntology } from "@/features/ontology/ui/components/OntologySelector";
 import { AnnotationColors } from "@/features/common/constants";
 import { cn } from "@/lib/utils/cn";
 import { RouteIcon, TablePropertiesIcon } from "lucide-react";
 import React, { useEffect } from "react";
 import { parseAsString, useQueryState } from "nuqs";
 
-export const ExtraInformation = () => {
+export const OntologyViewerInformationPanel = () => {
   const { currentNode, rootNode } = useOntology();
   const [, setPathParam] = useQueryState(
     "path",

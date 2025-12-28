@@ -1,5 +1,4 @@
 import { AccountPageView } from "@/features/auth/ui/views/AccountsPageVIew";
-import { getUser } from "@/features/auth/server/actions";
 import { FullUserInfo } from "@/features/common/types";
 import { caller } from "@/lib/trpc/server";
 import React from "react";

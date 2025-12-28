@@ -51,5 +51,3 @@ export type MetadataConfiguration = Record<
   MetadataSourceType,
   Record<string, MetadataItem>
 >;
-
-export const formatWithMetadata = (value: string, metadata: MetadataItem) => {};

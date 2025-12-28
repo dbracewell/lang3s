@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
-export const SignInPageView = () => {
+export const SignInPageView = ({ redirect }: { redirect?: string }) => {
   const [isPending, setIsPending] = useState(false);
   const queryClient = useQueryClient();
   const trpc = useTRPC();
@@ -28,7 +28,7 @@ export const SignInPageView = () => {
         onRequest: () => setIsPending(true),
         onResponse: () => setIsPending(false),
         onSuccess: async () => {
-          router.push("/");
+          router.push(redirect ?? "/");
         },
       },
     });
@@ -45,10 +45,7 @@ export const SignInPageView = () => {
       <form action={onSubmit}>
         <CardContent className="cols mb-5 gap-6">
           <div className="cols gap-1">
-            <label
-              htmlFor="username"
-              className="text-primary text-sm dark:text-slate-200"
-            >
+            <label htmlFor="username" className="text-sm dark:text-slate-200">
               Username
             </label>
             <Input
@@ -59,10 +56,7 @@ export const SignInPageView = () => {
             />
           </div>
           <div className="cols gap-1">
-            <label
-              htmlFor="password"
-              className="text-primary text-sm dark:text-slate-200"
-            >
+            <label htmlFor="password" className="text-sm dark:text-slate-200">
               Password
             </label>
             <Input
