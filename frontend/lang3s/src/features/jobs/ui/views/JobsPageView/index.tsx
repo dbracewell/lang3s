@@ -9,24 +9,17 @@ import { FilterDialog } from "@/features/jobs/ui/views/JobsPageView/FilterDialog
 import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Trash2Icon, XIcon } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { columns, type JobType } from "./columns";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { AddUserDialog } from "@/features/auth/ui/views/AdminUsersPageView/AddUserDialog";
 import { useUser } from "@/features/auth/UserContext";
-import {
-  PagePermissions,
-  roleHasPermissions,
-} from "@/features/auth/permissions";
+import { roleHasPermissions } from "@/features/auth/permissions";
 import { redirect } from "next/navigation";
 
 export const JobPageView = () => {
   const user = useUser();
-  const hasPermissions = roleHasPermissions(
-    user.role,
-    PagePermissions['"/system/jobs"'],
-  );
+  const hasPermissions = roleHasPermissions(user.role, ["jobs:view"]);
 
   const { data, refetch } = useTRPCQuery((trpc) =>
     trpc.jobs.getAll.queryOptions(),
@@ -66,7 +59,7 @@ export const JobPageView = () => {
     initialSortColumn: "id",
     appearance: {
       sortButton: "text-white bg-white/30",
-      container: "shadow bg-card rounded-xl",
+      container: "shadow bg-card rounded-xl h-full border",
       headerRow: "bg-heading divide-x text-white text-center",
       headerCell: "p-2",
       bodyCell: "p-1 h-10",
@@ -124,6 +117,7 @@ export const JobPageView = () => {
             <div className="p-[3px]">
               <Button
                 variant="listButton"
+                size="sm"
                 onClick={() => setIsDeleting((p) => !p)}
               >
                 <Trash2Icon /> Bulk Delete

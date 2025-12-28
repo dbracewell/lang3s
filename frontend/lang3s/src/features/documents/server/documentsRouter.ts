@@ -14,13 +14,9 @@ import path from "path";
 import { DocumentSchema } from "@/features/common/schemas";
 import { env } from "@/lib/env/env";
 import * as zlib from "node:zlib";
-import {
-  coalesce,
-  generateNextPage,
-  jsonValue,
-  lower,
-  withPagination,
-} from "@/lib/db/funcs";
+import { generateNextPage, withPagination } from "@/lib/db/funcs";
+import { Annotations, OntologyMappings } from "@/lib/db/annotations";
+import { randomAlphaUnderscore } from "@/lib/utils/random";
 
 export const DocumentsRouter = createTRPCRouter({
   getMany: protectedProcedure
@@ -32,38 +28,36 @@ export const DocumentsRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const { cursor } = input;
       const page = Math.max(1, cursor ?? 1);
+      const [totalDocs, docs] = await logAndRethrow(() => {
+        const entities = db
+          .select({
+            ...Annotations.getDefaultColumns({
+              options: {
+                normalize: true,
+              },
+              fields: ["textId"],
+            }),
+            count: count().as("count"),
+          })
+          .from(TextAnnotationTable)
+          .where(eq(TextAnnotationTable.type, "entity"))
+          .groupBy((t) => [t.content, t.textId])
+          .orderBy((t) => [desc(t.count), asc(t.content)])
+          .as("entities");
 
-      const entities = db
-        .select({
-          textId: TextAnnotationTable.textId,
-          entity: lower(
-            coalesce(
-              jsonValue(TextAnnotationTable.metadata, "coref_text"),
-              TextAnnotationTable.content,
-            ),
-          ).as("entity"),
-          count: count(TextAnnotationTable.id).as("count"),
-        })
-        .from(TextAnnotationTable)
-        .where(eq(TextAnnotationTable.type, "entity"))
-        .groupBy((t) => [t.textId, t.entity])
-        .orderBy((t) => [desc(t.count), asc(t.entity)])
-        .as("entities");
-
-      const sub = db
-        .select({
-          textId: entities.textId,
-          entities: sql<string[]>`ARRAY_AGG(${entities.entity} || 
+        const sub = db
+          .select({
+            textId: entities.textId,
+            entities: sql<string[]>`ARRAY_AGG(${entities.content} || 
                      ' (<b>' || ${entities.count} || '</b>)' )`.as(
-            "entity_array",
-          ),
-        })
-        .from(entities)
-        .groupBy(entities.textId)
-        .as("sub");
+              "entity_array",
+            ),
+          })
+          .from(entities)
+          .groupBy(entities.textId)
+          .as("sub");
 
-      const [totalDocs, docs] = await logAndRethrow(() =>
-        Promise.all([
+        return Promise.all([
           db.select({ count: count(DocumentsTable.id) }).from(DocumentsTable),
           withPagination(
             db
@@ -82,8 +76,8 @@ export const DocumentsRouter = createTRPCRouter({
               .orderBy((t) => asc(t.id)),
             { page: cursor },
           ),
-        ]),
-      );
+        ]);
+      });
 
       const { hasNextPage, finalResults } = generateNextPage(docs);
       return {
@@ -102,6 +96,24 @@ export const DocumentsRouter = createTRPCRouter({
           .gunzipSync(await fs.readFile(filePath))
           .toString("utf-8");
         const document = DocumentSchema.parse(JSON.parse(jsonData));
+
+        const ontologyMapping = OntologyMappings.getOntologyMappings().as(
+          randomAlphaUnderscore(),
+        );
+
+        const annotationIdMapping = await db
+          .select({
+            id: TextAnnotationTable.id,
+            value: ontologyMapping.path,
+            color: ontologyMapping.color,
+          })
+          .from(TextAnnotationTable)
+          .innerJoin(
+            ontologyMapping,
+            eq(TextAnnotationTable.mapping, ontologyMapping.mapping),
+          )
+          .where(eq(TextAnnotationTable.documentId, document.id));
+
         return {
           ...document,
           text: {
@@ -110,10 +122,15 @@ export const DocumentsRouter = createTRPCRouter({
             annotations: document.text.annotations.map((a) => ({
               ...a,
               embedding: undefined,
+              value:
+                annotationIdMapping.find((m) => a.id == m.id)?.value ?? a.value,
+              color:
+                annotationIdMapping.find((m) => a.id == m.id)?.color ?? "SLATE",
             })),
           },
         };
-      } catch {
+      } catch (e) {
+        console.log(e);
         throw new TRPCError({ code: "NOT_FOUND" });
       }
     }),

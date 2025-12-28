@@ -11,13 +11,10 @@ import Link from "next/link";
 import React, { memo } from "react";
 
 const isEventive = (type: string) => {
-  return (
-    type === "event" ||
-    type == "process" ||
-    type == "relation" ||
-    type == "state"
-  );
+  return !isEntity(type);
 };
+
+const isEntity = (type: string) => type.startsWith("ALL.Entity");
 
 const getGroupName = (
   annotation: Lang3sTextAnnotation | null,
@@ -27,7 +24,7 @@ const getGroupName = (
   if (annotation == null) {
     return groupName;
   }
-  if (annotation.type === "entity") {
+  if (isEntity(annotation.type)) {
     groupName = isEvent ? annotation.id : annotation.COREF().id;
   } else if (isEventive(annotation.type)) {
     groupName = annotation.id;
@@ -108,18 +105,14 @@ const unblurSentence = () => {
 };
 
 export const TextAnnotation = memo(
-  ({
-    annotation,
-    color,
-  }: {
-    annotation: Lang3sTextAnnotation;
-    color: string;
-  }) => {
+  ({ annotation }: { annotation: Lang3sTextAnnotation }) => {
     return (
       <div className={cn("relative", annotation.type != "token" && "group")}>
         <div
           data-annotation-type={
-            annotation.type != "token" ? annotation.value : ""
+            annotation.type != "token"
+              ? annotation.value.split(".").slice(-1)[0]
+              : ""
           }
           data-annotation={true}
           data-entity={getGroupName(annotation)}
@@ -195,7 +188,7 @@ export const TextAnnotation = memo(
               : "pt-0.5",
             annotation.type === "token"
               ? "text-foreground"
-              : AnnotationColors[color],
+              : AnnotationColors[annotation.color],
           )}
         >
           {annotation.text}
@@ -215,7 +208,8 @@ export const TextAnnotation = memo(
                 stype: "annotation",
                 semantic: true,
                 atype: annotation.type,
-                q: annotation.text,
+                q: `"${annotation.text}"`,
+                isStrict: false,
               })}
             >
               <SearchIcon className="size-3" />

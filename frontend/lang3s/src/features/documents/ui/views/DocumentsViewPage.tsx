@@ -34,7 +34,7 @@ export const DocumentsViewPage = () => {
       />
       <ScrollableBox.ScrollArea
         ref={scrollRef}
-        onScroll={(e) => {
+        onScroll={() => {
           if (scrollRef.current) {
             const container = scrollRef.current;
             const scrollPosition = container.scrollTop + container.clientHeight;

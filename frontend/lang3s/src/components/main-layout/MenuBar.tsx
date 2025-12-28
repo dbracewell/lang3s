@@ -18,6 +18,7 @@ import { DynamicIcon } from "@/components/DynamicIcon";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import { SearchBar } from "@/features/search/ui/components/SearchBar";
+import { UserButton } from "@/components/UserButton";
 
 type MenuBarProps = {
   setIsMenuOpen: (value: boolean) => void;
@@ -47,8 +48,8 @@ export const MenuBar = ({ setIsMenuOpen }: MenuBarProps) => {
       <Suspense>
         <SearchBar />
       </Suspense>
-      <div className="flex flex-1 items-center justify-end pr-2">
-        <ThemeToggle />
+      <div className="flex flex-1 items-center justify-end pr-3">
+        <UserButton />
       </div>
     </div>
   );

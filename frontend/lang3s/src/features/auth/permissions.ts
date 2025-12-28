@@ -39,6 +39,8 @@ export const Permissions = [
   "jobs:view",
   "jobs:delete",
   "jobs:create",
+  "metadata:edit",
+  "ontology:edit",
 ] as const;
 
 export type UserRole = (typeof UserRoles)[number];
@@ -66,6 +68,8 @@ export const RolePermissions: Record<UserRole, Permission[]> = {
     "jobs:view",
     "jobs:create",
     "jobs:delete",
+    "ontology:edit",
+    "metadata:edit",
   ],
   dataLoader: [
     "project:create",
@@ -78,6 +82,8 @@ export const RolePermissions: Record<UserRole, Permission[]> = {
     "jobs:view",
     "jobs:create",
     "jobs:delete",
+    "ontology:edit",
+    "metadata:edit",
   ],
 };
 
@@ -132,10 +138,4 @@ export const roleHasPermissions = (
     return pSet.size === intersection.size;
   }
   return intersection.size > 0;
-};
-
-export const PagePermissions: Record<string, Permission[]> = {
-  "/system/jobs": ["jobs:view"],
-  "/system/ontology/editor": ["model:create", "data:update", "data:load"],
-  "/system/metadata": ["model:create", "data:update", "data:load"],
 };

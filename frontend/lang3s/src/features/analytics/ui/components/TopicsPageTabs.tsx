@@ -1,8 +1,9 @@
+"use client";
 import { Button } from "@/components/ui/button";
 import React from "react";
 import { parseAsStringEnum, useQueryState } from "nuqs";
 
-export const Tabs = () => {
+export const TopicsPageTabs = () => {
   const [tab, setTab] = useQueryState(
     "tab",
     parseAsStringEnum(["list", "chart"])

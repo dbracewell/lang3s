@@ -67,10 +67,10 @@ const getBreadCrumbPart = (
   );
 };
 
-type OntologyNode = RouterOutputs["ontology"]["getTopLevel"][number];
+type OntologyNode = RouterOutputs["ontology"]["getOntology"][number];
 
 type OntologyInfo = {
-  ontology: RouterOutputs["ontology"]["getTopLevel"];
+  ontology: RouterOutputs["ontology"]["getOntology"];
   breadcrumbs: string[];
   rootNode: string;
   current: string;
@@ -78,7 +78,7 @@ type OntologyInfo = {
   checkedNodes?: string[];
   setCheckedNodes?: Dispatch<React.SetStateAction<string[]>>;
   setCurrent: (value: string) => void;
-  sections: (RouterOutputs["ontology"]["getTopLevel"][number] & {
+  sections: (RouterOutputs["ontology"]["getOntology"][number] & {
     hasChildren: boolean;
   })[][];
 };
@@ -115,7 +115,7 @@ export const OntologyProvider = ({
   setCheckedNodes?: Dispatch<React.SetStateAction<string[]>>;
 }) => {
   const { data: ontology, isPending } = useTRPCQuery((trpc) =>
-    trpc.ontology.getTopLevel.queryOptions(undefined, {
+    trpc.ontology.getOntology.queryOptions(undefined, {
       staleTime: 5 * 60 * 1000,
     }),
   );
@@ -143,7 +143,8 @@ export const OntologyProvider = ({
       .map((o) => ({
         ...o,
         hasChildren: ontology.filter((c) => c.parentId === o.id).length > 0,
-      }));
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path));
 
     const sections = [firstSection];
 
@@ -167,7 +168,7 @@ export const OntologyProvider = ({
           hasChildren: ontology.filter((c) => c.parentId === o.id).length > 0,
         }));
       if (children.length > 0) {
-        sections.push(children);
+        sections.push(children.sort((a, b) => a.path.localeCompare(b.path)));
       }
     }
     return sections;
@@ -266,7 +267,7 @@ const SelectorBreadCrumbs = ({
 const SelectorSectionEntryCheckbox = ({
   o,
 }: {
-  o: RouterOutputs["ontology"]["getTopLevel"][number] & {
+  o: RouterOutputs["ontology"]["getOntology"][number] & {
     hasChildren: boolean;
   };
 }) => {
@@ -557,12 +558,14 @@ const SelectedInformation = ({
           {showPath && (
             <div className="flex w-full items-center gap-1 truncate text-sm">
               <h4 className="font-medium">Path</h4>
-              <p>{currentNode.path.split(".").join(" > ")}</p>
+              <p className="truncate">
+                {currentNode.path.split(".").join(" > ")}
+              </p>
             </div>
           )}
-          <div className="flex w-full items-center gap-1 truncate text-sm">
+          <div className="flex w-full items-center gap-1 text-sm">
             <h4 className="font-medium">Description:</h4>
-            <p>
+            <p className="truncate">
               {!!currentNode.description
                 ? currentNode.description
                 : "Not defined"}

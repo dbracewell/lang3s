@@ -36,6 +36,7 @@ export const FilterDialog = <T extends object>({
       <DialogTrigger asChild>
         <Button
           variant="listButton"
+          size="sm"
           className={cn(
             "transition-all",
             hasFilter &&

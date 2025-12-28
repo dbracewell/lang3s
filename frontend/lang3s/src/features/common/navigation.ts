@@ -1,5 +1,4 @@
 import {
-  PagePermissions,
   Permission,
   roleHasPermissions,
   UserRole,
@@ -82,7 +81,7 @@ export const NAVIGATION_LINKS: NavigationGroup[] = [
         title: "Jobs",
         exact: false,
         icon: "HardHatIcon",
-        permissions: PagePermissions["/system/jobs"],
+        permissions: ["jobs:view"],
       },
       { separator: true },
       {
@@ -90,14 +89,14 @@ export const NAVIGATION_LINKS: NavigationGroup[] = [
         title: "Metadata Editor",
         exact: false,
         icon: "FileBracesCornerIcon",
-        permissions: PagePermissions["/system/metadata"],
+        permissions: ["metadata:edit"],
       },
       {
         href: "/system/ontology/editor",
         title: "Ontology Editor",
         exact: false,
         icon: "NetworkIcon",
-        permissions: PagePermissions["/system/ontology/editor"],
+        permissions: ["ontology:edit"],
       },
     ],
   },

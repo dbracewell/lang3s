@@ -38,7 +38,7 @@ export const getUser = cache(async (): Promise<BasicUserInfo> => {
 });
 
 export const getUserByApiKey = cache(async (apiKey: string) => {
-  const [user] = await logAndRethrow(
+  const [user] = await logAndRethrow(() =>
     db
       .select({
         role: UserTable.role,
@@ -96,7 +96,7 @@ export const createAdminAccount = async (values: AdminAccountSchemaType) => {
 };
 
 export const getUserApiKeys = async (userId: string) => {
-  return await logAndRethrow(
+  return await logAndRethrow(() =>
     db
       .select({
         id: ApiKeyTable.id,

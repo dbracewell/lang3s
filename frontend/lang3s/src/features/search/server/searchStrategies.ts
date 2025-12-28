@@ -20,13 +20,15 @@ import {
 } from "drizzle-orm";
 
 import {
+  coalesce,
   cosineSimilarity,
   generateNextPage,
-  jsonAgg,
-  jsonBuildObject,
   orderDesc,
+  upper,
   withPagination,
 } from "@/lib/db/funcs";
+import { randomAlphaUnderscore } from "@/lib/utils/random";
+import { jsonAgg, jsonBuildObject, jsonValue } from "@/lib/db/helpers/json";
 
 export const createPaginatedSearchResults = async ({
   sub,
@@ -49,7 +51,13 @@ export const createPaginatedSearchResults = async ({
       ),
       db
         .select({
-          entity: sql<string>`LOWER(COALESCE(${TextAnnotationTable.metadata}->>'coref_text', ${TextAnnotationTable.content}))`,
+          entity: upper(
+            coalesce(
+              jsonValue<string>(TextAnnotationTable.metadata, "coref_text"),
+              jsonValue<string>(TextAnnotationTable.metadata, "lemma"),
+              TextAnnotationTable.content,
+            ),
+          ).as(randomAlphaUnderscore()),
           count: countDistinct(TextAnnotationTable.documentId),
         })
         .from(TextAnnotationTable)
@@ -89,8 +97,11 @@ export const annotationSearch = async ({
   const strictSearch = db
     .select({
       documentId: TextAnnotationTable.documentId,
-      text: sql<string>`COALESCE(${TextAnnotationTable.metadata}->>'coref_text',
-      ${TextAnnotationTable.content})`.as("strict_text"),
+      text: coalesce(
+        jsonValue<string>(TextAnnotationTable.metadata, "coref_text"),
+        jsonValue<string>(TextAnnotationTable.metadata, "lemma"),
+        TextAnnotationTable.content,
+      ).as("strict_text"),
       a0: sql<string[]>`${TextAnnotationTable.metadata}->'A0_TEXT'`.as("A0"),
       a1: sql<string[]>`${TextAnnotationTable.metadata}->'A1_TEXT'`.as("A1"),
       time: sql<string>`${TextAnnotationTable.metadata}->'TIME_TEXT'`.as(
@@ -120,8 +131,11 @@ export const annotationSearch = async ({
   const semanticSearch = db
     .select({
       documentId: TextAnnotationTable.documentId,
-      text: sql<string>`COALESCE(${TextAnnotationTable.metadata}->>'coref_text',
-      ${TextAnnotationTable.content})`.as("semantic_text"),
+      text: coalesce(
+        jsonValue<string>(TextAnnotationTable.metadata, "coref_text"),
+        jsonValue<string>(TextAnnotationTable.metadata, "lemma"),
+        TextAnnotationTable.content,
+      ).as("semantic_text"),
       a0: sql<string[]>`${TextAnnotationTable.metadata}->'A0_TEXT'`.as(
         "semantic_A0",
       ),

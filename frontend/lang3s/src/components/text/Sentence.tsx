@@ -2,18 +2,15 @@ import { TextAnnotation } from "@/components/text/TextAnnotation";
 import { cn } from "@/lib/utils/cn";
 import { Lang3sTextAnnotation } from "@/features/common/classes";
 import { memo } from "react";
-import { useOntologyColors } from "@/features/ontology/hooks";
 
 type SentenceProps = {
   sentence: Lang3sTextAnnotation;
-  targetAnnotation: string;
+  annotations: string[];
   index: number;
 };
 
 export const Sentence = memo(
-  ({ sentence, targetAnnotation, index }: SentenceProps) => {
-    const { getOntologyColor } = useOntologyColors();
-
+  ({ sentence, annotations, index }: SentenceProps) => {
     return (
       <div className="flex items-center justify-between gap-2">
         <div
@@ -25,21 +22,9 @@ export const Sentence = memo(
               : "bg-gray-100 dark:bg-zinc-800",
           )}
         >
-          {sentence
-            .interleave([
-              targetAnnotation,
-              "event",
-              "relation",
-              "process",
-              "state",
-            ])
-            .map((t, z) => (
-              <TextAnnotation
-                key={z}
-                annotation={t}
-                color={getOntologyColor(t.value)}
-              />
-            ))}
+          {sentence.interleave(annotations).map((t, z) => (
+            <TextAnnotation key={z} annotation={t} />
+          ))}
         </div>
       </div>
     );

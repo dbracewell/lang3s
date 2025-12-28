@@ -19,19 +19,20 @@ import { parseAsBoolean } from "nuqs/server";
 import { formatNumber, formatURL } from "@/lib/utils/formatters";
 import { PageNumbers } from "@/components/PageNumbers";
 import { useRouter } from "next/navigation";
-import { defaultValues } from "@/features/analytics/ui/views/EntitiesPageView/index";
+import { defaultValues, useTagSearchParams } from "@/features/analytics/hooks";
 
 export const TopEntitiesList = ({
-  values,
   sortBy,
   page,
   filter,
+  allValues,
 }: {
   page: number;
   sortBy: string;
   filter?: string;
-  values: string[];
+  allValues: string[];
 }) => {
+  const [values] = useTagSearchParams(allValues);
   const [newFilter, setNewFilter] = useState(filter);
   let finalSortBy = sortBy.toLowerCase();
   if (!["mentions", "docs", "mentionsperdoc"].includes(sortBy.toLowerCase())) {
@@ -55,9 +56,8 @@ export const TopEntitiesList = ({
     setNewFilter(filter);
   }, [filter]);
 
-  const { data, isLoading } = useTRPCQuery((trpc) =>
+  const { data, isLoading, error } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationCounts.queryOptions({
-      annotationType: "entity",
       values,
       page,
       sortBy: finalSortBy,
@@ -65,6 +65,9 @@ export const TopEntitiesList = ({
     }),
   );
 
+  if (error != null) {
+    throw error;
+  }
   if (isLoading || data == null) {
     return <Spinner />;
   }
@@ -186,9 +189,12 @@ export const TopEntitiesList = ({
                 className="hover:bg-dodger-blue-200 dark:hover:bg-dodger-blue-800 even:bg-alternate-row bg-row grid h-10 grid-cols-5 divide-x text-sm hover:font-bold"
               >
                 <div className="group flex items-center justify-between border-r px-4">
-                  <div className="mr-4 truncate">{r.text}</div>
+                  <div className="mr-4 truncate">{r.content}</div>
                   <div className="hidden items-center gap-2 group-hover:flex">
-                    <Hint asChild hint={`Search for ${r.text} in documents.`}>
+                    <Hint
+                      asChild
+                      hint={`Search for ${r.content} in documents.`}
+                    >
                       <Button
                         asChild
                         variant="ghost"
@@ -196,7 +202,7 @@ export const TopEntitiesList = ({
                         className="hover:bg-dodger-blue-500 hover:text-white"
                       >
                         <Link
-                          href={`/search?q=${encodeURIComponent(`"${r.text}"`)}`}
+                          href={`/search?q=${encodeURIComponent(`"${r.content}"`)}`}
                         >
                           <SearchIcon />
                         </Link>
@@ -204,15 +210,15 @@ export const TopEntitiesList = ({
                     </Hint>
                     <Hint
                       asChild
-                      hint={`Examine entities mentioned with ${r.text}.`}
+                      hint={`Examine entities mentioned with ${r.content}.`}
                     >
                       <Button
                         variant="ghost"
                         size="icon-sm"
                         className="hover:bg-dodger-blue-500 hover:text-white"
                         onClick={() => {
-                          setEntityText(r.text);
-                          setEntityType(r.value);
+                          setEntityText(r.content);
+                          setEntityType(r.path);
                         }}
                       >
                         <SquareActivityIcon />
@@ -220,7 +226,7 @@ export const TopEntitiesList = ({
                     </Hint>
                     <Hint
                       asChild
-                      hint={`Examine the events involving ${r.text}.`}
+                      hint={`Examine the events involving ${r.content}.`}
                     >
                       <Button
                         variant="ghost"
@@ -228,8 +234,8 @@ export const TopEntitiesList = ({
                         className="hover:bg-dodger-blue-500 hover:text-white"
                         onClick={() => {
                           setShowEvents(true);
-                          setEntityText(r.text);
-                          setEntityType(r.value);
+                          setEntityText(r.content);
+                          setEntityType(r.path);
                         }}
                       >
                         <ChartNetworkIcon />

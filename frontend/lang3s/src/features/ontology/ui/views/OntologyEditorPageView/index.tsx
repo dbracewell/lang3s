@@ -74,5 +74,6 @@ const entryAddButton = (item: Section[number]) => (
 );
 
 const entryDeleteButton = (item: Section[number]) => {
+  if (item.path.split(".").length == 2) return null;
   return <DeleteConceptButton path={item.path} />;
 };

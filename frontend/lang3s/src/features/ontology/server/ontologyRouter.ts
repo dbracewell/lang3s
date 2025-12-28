@@ -1,14 +1,14 @@
 import { db } from "@/lib/db";
 import { AnnotationToOntology, OntologyTable } from "@/lib/db/schema";
 import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { logAndRethrow } from "@/lib/utils/try-catch";
-import { jsonAgg } from "@/lib/db/funcs";
 import { AnnotationColors } from "@/features/common/constants";
 import { roleHasPermissions } from "@/features/auth/permissions";
 import { TRPCError } from "@trpc/server";
 import { OntologyConceptSchema } from "@/features/ontology/schemas";
+import { jsonAgg } from "@/lib/db/helpers/json";
 
 export const ontologyRouter = createTRPCRouter({
   conceptNameExists: protectedProcedure
@@ -69,6 +69,7 @@ export const ontologyRouter = createTRPCRouter({
       const { user } = ctx;
       const { id, values } = input;
       const { mapping, ...ontTableProps } = values;
+
       if (
         !roleHasPermissions(user.role, [
           "model:create",
@@ -100,20 +101,23 @@ export const ontologyRouter = createTRPCRouter({
       }
 
       if (mapping)
-        await db.transaction(async (tx) => {
-          await tx
-            .delete(AnnotationToOntology)
-            .where(eq(AnnotationToOntology.ontologyId, id));
-          if (mapping.length > 0) {
-            await tx.insert(AnnotationToOntology).values(
-              mapping.map((m) => ({
-                ontologyId: id,
-                annotation: m,
-              })),
-            );
-          }
-        });
+        await logAndRethrow(() =>
+          db.transaction(async (tx) => {
+            await tx
+              .delete(AnnotationToOntology)
+              .where(eq(AnnotationToOntology.ontologyId, id));
+            if (mapping.length > 0) {
+              await tx.insert(AnnotationToOntology).values(
+                mapping.map((m) => ({
+                  ontologyId: id,
+                  annotation: m,
+                })),
+              );
+            }
+          }),
+        );
     }),
+
   getColorMapping: protectedProcedure.query(async () => {
     const rows = await logAndRethrow(() =>
       db
@@ -131,6 +135,7 @@ export const ontologyRouter = createTRPCRouter({
     rows.forEach((r) => (colors[r.mapping] = r.color));
     return colors;
   }),
+
   addConcept: protectedProcedure
     .input(OntologyConceptSchema)
     .mutation(async ({ input, ctx }) => {
@@ -142,9 +147,11 @@ export const ontologyRouter = createTRPCRouter({
       }
 
       const parent = parentId
-        ? await db.query.OntologyTable.findFirst({
-            where: (c, { eq }) => eq(c.id, parentId),
-          })
+        ? await logAndRethrow(() =>
+            db.query.OntologyTable.findFirst({
+              where: (c, { eq }) => eq(c.id, parentId),
+            }),
+          )
         : undefined;
 
       if (!parent) {
@@ -165,7 +172,8 @@ export const ontologyRouter = createTRPCRouter({
           .returning(),
       );
     }),
-  getTopLevel: protectedProcedure.query(async () => {
+
+  getOntology: protectedProcedure.query(async () => {
     const [result, mapping] = await logAndRethrow(() =>
       Promise.all([
         db.execute(sql`
@@ -189,7 +197,6 @@ export const ontologyRouter = createTRPCRouter({
           .groupBy((t) => t.id),
       ]),
     );
-    console.log(result.rows[0]);
     return result.rows.map((r) => ({
       id: r.id as number,
       name: r.name as string,
@@ -202,25 +209,23 @@ export const ontologyRouter = createTRPCRouter({
       properties: r.properties as Record<string, string>,
     }));
   }),
+
+  getFullPath: protectedProcedure
+    .input(
+      z.object({
+        path: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { path } = input;
+      return (
+        await logAndRethrow(() =>
+          db
+            .select({ path: OntologyTable.path })
+            .from(OntologyTable)
+            .where(sql`${OntologyTable.path} <@ ${path.trim()}::ltree`)
+            .orderBy((t) => asc(t.path)),
+        )
+      ).map((v) => v.path);
+    }),
 });
-
-async function insertConcept(
-  name: string,
-  parentName: string | null | undefined,
-  props: Record<string, any> = {},
-) {
-  const parent = parentName
-    ? await db.query.OntologyTable.findFirst({
-        where: (c, { eq }) => eq(c.name, parentName),
-      })
-    : undefined;
-
-  const path = parent ? `${parent.path}.${name}` : name;
-
-  await db.insert(OntologyTable).values({
-    name,
-    parentId: parent?.id ?? null,
-    path,
-    properties: props,
-  });
-}

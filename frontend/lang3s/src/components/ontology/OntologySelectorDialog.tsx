@@ -7,17 +7,22 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { OntologySelector } from "@/components/ontology/OntologySelector";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { NetworkIcon } from "lucide-react";
+import type { VariantProps } from "class-variance-authority";
 
 type OntologySelectorDialogProps = {
   open?: boolean;
   onOpenChange?: (value: boolean) => void;
   rootNode?: string;
   trigger?: React.ReactNode;
+  defaultCheckedNodes?: string[];
+  className?: string;
   onSelect?: (values: string[]) => void;
-};
+} & VariantProps<typeof buttonVariants> & {
+    asChild?: boolean;
+  };
 
 export const DefaultOntologyTrigger = () => {
   return (
@@ -33,13 +38,28 @@ export const OntologySelectorDialog = ({
   rootNode,
   trigger,
   onSelect,
+  defaultCheckedNodes,
+  variant,
+  className,
+  size,
+  asChild,
 }: OntologySelectorDialogProps) => {
   const [isOpen, setIsOpen] = useState(open ?? false);
-  const [checkedNodes, setCheckedNodes] = useState<string[]>([]);
+  const [checkedNodes, setCheckedNodes] = useState<string[]>(
+    defaultCheckedNodes ?? [],
+  );
+  useEffect(() => {
+    setCheckedNodes(defaultCheckedNodes ?? []);
+  }, [defaultCheckedNodes]);
   return (
     <Dialog open={open ?? isOpen} onOpenChange={onOpenChange ?? setIsOpen}>
       {trigger && (
-        <DialogTrigger className={buttonVariants()}>{trigger}</DialogTrigger>
+        <DialogTrigger
+          className={buttonVariants({ variant, size, className })}
+          asChild={asChild}
+        >
+          {trigger}
+        </DialogTrigger>
       )}
       <DialogContent className="scrollable flex h-full w-full max-w-full! flex-col sm:h-[90%] lg:max-w-[770px]!">
         <DialogHeader>

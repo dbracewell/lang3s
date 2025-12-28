@@ -37,11 +37,17 @@ export const EntityEvents = () => {
     parseAsBoolean.withDefault(false).withOptions({ clearOnDefault: true }),
   );
 
+  const entityTypeName = entityType.split(".").slice(-1)[0];
   const { data, isPending } = useTRPCQuery((trpc) =>
-    trpc.analytics.getEventsForEntity.queryOptions({
-      entity: entityText,
-      value: entityType,
-    }),
+    trpc.analytics.getEventsForEntity.queryOptions(
+      {
+        entity: entityText,
+        value: entityType,
+      },
+      {
+        enabled: !!entityText && !!entityType,
+      },
+    ),
   );
 
   const sections: { value: string; count: number }[] = useMemo(() => {
@@ -69,11 +75,15 @@ export const EntityEvents = () => {
         <CardTitle className="text-2xl">
           Events involving{" "}
           <span className="text-dodger-blue-500 font-black">
-            {entityText} ({entityType})
+            {entityText} ({entityTypeName})
           </span>
         </CardTitle>
         <CardDescription>
-          Displays the events that the {entityText} has participated in.
+          Displays the events that{" "}
+          <span className="font-bold">
+            {entityText} ({entityTypeName})
+          </span>{" "}
+          has participated in.
         </CardDescription>
         <CardAction>
           <Button

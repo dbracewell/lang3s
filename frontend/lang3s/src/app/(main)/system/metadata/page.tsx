@@ -1,95 +1,14 @@
-import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { caller } from "@/lib/trpc/server";
-import { Fragment } from "react";
-import { MetadataDialog } from "@/features/metadata/ui/components/MetadataDialog";
-import { buttonVariants } from "@/components/ui/button";
-import { PencilIcon, PlusIcon } from "lucide-react";
-import Link from "next/link";
-import { formatURL } from "@/lib/utils/formatters";
 import { getUser } from "@/features/auth/server/actions";
-import {
-  PagePermissions,
-  roleHasPermissions,
-} from "@/features/auth/permissions";
+import { roleHasPermissions } from "@/features/auth/permissions";
 import { redirect } from "next/navigation";
+import { MetadataPageView } from "@/features/metadata/ui/views/MetadataPageView";
 
 const Page = async () => {
   const user = await getUser();
-  if (!roleHasPermissions(user.role, PagePermissions["/system/metadata"])) {
+  if (!roleHasPermissions(user.role, ["metadata:edit"])) {
     redirect("/");
   }
-
-  const [metadata, possibleMetadata] = await Promise.all([
-    caller.system.getMetadata(),
-    caller.system.getPossibleMetadata(),
-  ]);
-  return (
-    <>
-      <MetadataDialog possibleMetadata={possibleMetadata} />
-      <ScrollableBox.Container>
-        <ScrollableBox.Header>
-          <h1>Metadata Configuration</h1>
-          <p className="pageSubheading">Something</p>
-        </ScrollableBox.Header>
-        <Link
-          href="?edit=true"
-          className={buttonVariants({
-            variant: "listButton",
-            className: "mb-3 w-fit",
-          })}
-        >
-          <PlusIcon /> Add Metadata
-        </Link>
-        <ScrollableBox.ScrollArea outerClassName="p-0!">
-          <table>
-            <thead>
-              <tr className="bg-heading text-white">
-                <th className="p-1 text-left">Source</th>
-                <th className="p-1 text-left">Name</th>
-                <th className="p-1 text-left">Data Type</th>
-                <th className="p-1 text-left">Formatter</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(metadata).map(([source, items]) => (
-                <Fragment key={source}>
-                  {Object.entries(items).map(([name, data]) => (
-                    <tr
-                      key={`${source}-${name}`}
-                      className="bg-row odd:bg-alternate-row"
-                    >
-                      <td className="p-2">{source}</td>
-                      <td className="p-2">{name}</td>
-                      <td className="p-2">{data.dataType}</td>
-                      <td className="p-2">{data.formatter}</td>
-                      <td className="p-2">
-                        <Link
-                          href={formatURL("/system/metadata", {
-                            edit: true,
-                            id: data.id,
-                            source,
-                            name,
-                            dataType: data.dataType,
-                            formatter: data.formatter,
-                          })}
-                          className={buttonVariants({
-                            variant: "ghost",
-                          })}
-                        >
-                          <PencilIcon />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </ScrollableBox.ScrollArea>
-      </ScrollableBox.Container>
-    </>
-  );
+  return <MetadataPageView />;
 };
 
 export default Page;

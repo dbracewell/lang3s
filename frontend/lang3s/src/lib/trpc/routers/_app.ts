@@ -5,7 +5,6 @@ import { jobsRouter } from "@/features/jobs/server/jobsRouter";
 import { ontologyRouter } from "@/features/ontology/server/ontologyRouter";
 import { SearchRouter } from "@/features/search/server/searchRouter";
 import { createTRPCRouter } from "@/lib/trpc/init";
-import { TopicsRouter } from "@/features/topics/server/router";
 import { reportsRouter } from "@/features/reports/server/reportsRouter";
 import { systemRouter } from "@/features/common/server/systemRouter";
 
@@ -13,7 +12,6 @@ export const appRouter = createTRPCRouter({
   documents: DocumentsRouter,
   search: SearchRouter,
   analytics: AnalyticsRouter,
-  topics: TopicsRouter,
   jobs: jobsRouter,
   ontology: ontologyRouter,
   auth: authRouter,

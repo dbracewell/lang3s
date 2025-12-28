@@ -56,6 +56,9 @@ export async function logAndRethrow<T>(
       console.error(error);
     }
     options?.onError?.(error as Error);
+    if (error instanceof TRPCError) {
+      throw error;
+    }
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", cause: error });
   }
 }

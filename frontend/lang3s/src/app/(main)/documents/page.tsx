@@ -11,9 +11,9 @@ const DocumentsPage = () => {
   return (
     <ScrollableBox.Container className="gap-3">
       <ScrollableBox.Header>
-        <h1>Documents View</h1>
+        <h1>Documents</h1>
         <p className="pageSubheading">
-          Access to all processed documents in the system.
+          Access to all processed documents in the system
         </p>
       </ScrollableBox.Header>
       <HydrateClient fallback={<DocumentsViewPageSkeleton />}>

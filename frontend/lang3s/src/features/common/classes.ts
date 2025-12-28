@@ -7,6 +7,7 @@ export type TextAnnotationProps = {
   end: number;
   type: string;
   value: string;
+  color?: string;
   metadata: Record<string, unknown>;
 };
 
@@ -25,6 +26,7 @@ export class Lang3sTextAnnotation {
   end: number;
   type: string;
   value: string;
+  color: string;
   metadata: Record<string, unknown> = {};
   textObject: Lang3sText | undefined = undefined;
 
@@ -36,6 +38,7 @@ export class Lang3sTextAnnotation {
     type,
     value,
     metadata,
+    color,
   }: TextAnnotationProps) {
     this.id = id;
     this.text = text;
@@ -44,6 +47,7 @@ export class Lang3sTextAnnotation {
     this.type = type;
     this.value = value;
     this.metadata = metadata;
+    this.color = color ?? "SLATE";
   }
 
   protected setTextObject = (textObject: Lang3sText) => {
@@ -97,7 +101,9 @@ export class Lang3sTextAnnotation {
 
   annotations(type: string): Lang3sTextAnnotation[] {
     return this.textObject!.annotations.filter(
-      (s) => s.type === type && s.overlaps(this),
+      (s) =>
+        (type.startsWith("ALL") ? s.value.startsWith(type) : s.type === type) &&
+        s.overlaps(this),
     );
   }
 
@@ -160,6 +166,7 @@ export class Lang3sTextAnnotation {
     value,
     metadata,
     textObject,
+    color,
   }: TextAnnotationProps & {
     textObject: Lang3sText;
   }): Lang3sTextAnnotation => {
@@ -171,6 +178,7 @@ export class Lang3sTextAnnotation {
       type,
       value,
       metadata,
+      color,
     });
     annotation.setTextObject(textObject);
     return annotation;

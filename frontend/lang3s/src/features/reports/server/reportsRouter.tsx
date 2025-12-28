@@ -16,7 +16,7 @@ import {
 } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { TopicsTable } from "@/lib/db/schemas/topics";
-import { jsonValue } from "@/lib/db/funcs";
+import { upper } from "@/lib/db/funcs";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import {
@@ -30,6 +30,7 @@ import {
   getBaseAnnotationQuery,
   getMetadata,
 } from "@/features/common/server/queries";
+import { jsonValue } from "@/lib/db/helpers/json";
 
 const LIMIT = 35;
 
@@ -193,6 +194,7 @@ const getTopNAnnotations = ({
   const base = getBaseAnnotationQuery({
     isSentence: false,
     requireOntology: true,
+    contentTransform: (v) => upper(v),
   }).as(randomAlphaUnderscore());
 
   const ontologyWildCards = sql.join(
@@ -252,6 +254,7 @@ const getBaseQuery = ({
       const base = getBaseAnnotationQuery({
         isSentence: false,
         requireOntology: true,
+        contentTransform: (v) => upper(v),
       }).as(randomAlphaUnderscore());
       return db
         .select({

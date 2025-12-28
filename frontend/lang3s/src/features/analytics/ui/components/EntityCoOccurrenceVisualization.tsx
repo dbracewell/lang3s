@@ -31,8 +31,12 @@ const COLORS = [
   "oklch(87.1% 0.006 286.286)", //zinc-300
 ];
 
-export const EntityNetwork = ({ values }: { values: string[] }) => {
-  const [selectedValues] = useTagSearchParams(values);
+export const EntityCoOccurrenceVisualization = ({
+  allValues,
+}: {
+  allValues: string[];
+}) => {
+  const [selectedValues] = useTagSearchParams(allValues);
   const [entityText, setEntityText] = useQueryState(
     "entity",
     parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
@@ -46,13 +50,12 @@ export const EntityNetwork = ({ values }: { values: string[] }) => {
     parseAsBoolean.withDefault(false).withOptions({ clearOnDefault: true }),
   );
 
+  const entityTypeName = entityType.split(".").slice(-1)[0];
   const { data, isLoading } = useTRPCQuery((trpc) =>
-    trpc.analytics.getCoocurrence.queryOptions(
+    trpc.analytics.getAnnotationCoOccurrence.queryOptions(
       {
-        leftType: "entity",
         leftValue: entityType,
         leftText: entityText,
-        rightType: "entity",
         rightValues: selectedValues,
       },
       {
@@ -71,14 +74,14 @@ export const EntityNetwork = ({ values }: { values: string[] }) => {
         <CardTitle className="text-2xl">
           Other entities mentioned with{" "}
           <span className="text-dodger-blue-500 font-black">
-            {entityText} ({entityType})
+            {entityText} ({entityTypeName})
           </span>
         </CardTitle>
         <CardDescription>
           Displays the number of times each entity was mentioned in the same
           sentence as{" "}
           <span className="font-bold">
-            {entityText} ({entityType})
+            {entityText} ({entityTypeName})
           </span>
           .
         </CardDescription>

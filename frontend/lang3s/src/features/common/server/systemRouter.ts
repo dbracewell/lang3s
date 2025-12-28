@@ -115,7 +115,7 @@ export const systemRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const { user } = ctx;
-      if (!roleHasPermissions(user.role, ["model:create", "data:load"])) {
+      if (!roleHasPermissions(user.role, ["metadata:edit"])) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
@@ -137,7 +137,7 @@ export const systemRouter = createTRPCRouter({
     .input(MetadataSchema)
     .mutation(async ({ input, ctx }) => {
       const { user } = ctx;
-      if (!roleHasPermissions(user.role, ["model:create", "data:load"])) {
+      if (!roleHasPermissions(user.role, ["metadata:edit"])) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
@@ -152,5 +152,27 @@ export const systemRouter = createTRPCRouter({
           })
           .returning(),
       );
+    }),
+
+  deleteMetadata: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { user } = ctx;
+      if (!roleHasPermissions(user.role, ["metadata:edit"])) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const [result] = await logAndRethrow(() =>
+        db
+          .delete(MetadataTable)
+          .where(eq(MetadataTable.id, input.id))
+          .returning(),
+      );
+
+      if (result == null) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      return result;
     }),
 });

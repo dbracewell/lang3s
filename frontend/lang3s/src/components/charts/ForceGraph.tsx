@@ -70,7 +70,7 @@ export interface BubbleSimilarityChartProps {
 
 // ---------------- Component ----------------
 
-export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
+export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
   data,
   showLabels = true,
   splitLabels,
@@ -177,6 +177,7 @@ export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
             : nodeFill,
       )
       .attr("stroke", nodeStroke)
+      .style("cursor", onNodeClick ? "pointer" : "default")
       .attr("stroke-width", nodeStrokeWidth)
       .on("mouseover", (event: any, d: Point) => {
         tooltip.style("visibility", "visible").text(`${d.name} (${d.support})`);
@@ -280,33 +281,9 @@ export const BubbleChart: React.FC<BubbleSimilarityChartProps> = ({
         );
 
       zoomBehaviorRef.current?.scaleBy(
-        svg.transition().duration(0) as any,
+        svg.transition().duration(500) as any,
         0.5,
       );
-      // const xExtent = extent(nodes, (d) => d.x!) as [number, number];
-      // const yExtent = extent(nodes, (d) => d.y!) as [number, number];
-      //
-      // const graphWidth = xExtent[1] - xExtent[0];
-      // const graphHeight = yExtent[1] - yExtent[0];
-      //
-      // const scale = Math.min(
-      //   dimensions.width / (graphWidth * 1.5),
-      //   dimensions.height / (graphHeight * 1.5),
-      // );
-      //
-      // const translateX =
-      //   dimensions.width / 2 - scale * (xExtent[0] + graphWidth / 2);
-      // const translateY =
-      //   dimensions.height / 2 - scale * (yExtent[0] + graphHeight / 2);
-      //
-      // const initialTransform = zoomIdentity
-      //   .translate(translateX, translateY)
-      //   .scale(scale);
-      //
-      // svg
-      //   .transition()
-      //   .duration(50)
-      //   .call(zoomBehavior.transform as any, initialTransform);
     });
 
     // --- Zoom & Pan ---
