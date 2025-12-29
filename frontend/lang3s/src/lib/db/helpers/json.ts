@@ -41,6 +41,24 @@ export function jsonAgg<T>(
   return sql<InferValue<T>[]>`json_agg(${valSql} order by ${orderExpr})`;
 }
 
+export function jsonStrictAgg<T>(
+  value: T,
+  orderExpr?: SQL<unknown>,
+  jsonb: boolean = false,
+): SQL<InferValue<T>[]> {
+  const valSql = asSQL(value);
+  if (orderExpr == null) {
+    if (jsonb) {
+      return sql<InferValue<T>[]>`jsonb_agg_strict(${valSql})`;
+    }
+    return sql<InferValue<T>[]>`json_agg_strict(${valSql})`;
+  }
+  if (jsonb) {
+    sql<InferValue<T>[]>`jsonb_agg_strict(${valSql} order by ${orderExpr})`;
+  }
+  return sql<InferValue<T>[]>`json_agg_strict(${valSql} order by ${orderExpr})`;
+}
+
 export function jsonbBuildObject<T extends Record<string, any>>(
   obj: T,
 ): SQL<{ [K in keyof T]: InferValue<T[K]> }> {

@@ -1,14 +1,20 @@
 import { db } from "@/lib/db";
-import { AnnotationToOntology, OntologyTable } from "@/lib/db/schema";
+import {
+  AnnotationToOntology,
+  OntologyProperties,
+  OntologyPropertySchema,
+  OntologyTable,
+} from "@/lib/db/schema";
 import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, ne, sql } from "drizzle-orm";
 import z from "zod";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { AnnotationColors } from "@/features/common/constants";
 import { roleHasPermissions } from "@/features/auth/permissions";
 import { TRPCError } from "@trpc/server";
 import { OntologyConceptSchema } from "@/features/ontology/schemas";
-import { jsonAgg } from "@/lib/db/helpers/json";
+import { jsonAgg, jsonBuildObject, jsonStrictAgg } from "@/lib/db/helpers/json";
+import { randomAlphaUnderscore } from "@/lib/utils/random";
 
 export const ontologyRouter = createTRPCRouter({
   conceptNameExists: protectedProcedure
@@ -60,7 +66,7 @@ export const ontologyRouter = createTRPCRouter({
         values: z.object({
           color: z.enum(Object.keys(AnnotationColors)).optional(),
           description: z.string().min(1).optional(),
-          properties: z.record(z.string(), z.string()).optional(),
+          properties: OntologyPropertySchema.optional(),
           mapping: z.array(z.string()).optional(),
         }),
       }),
@@ -174,20 +180,44 @@ export const ontologyRouter = createTRPCRouter({
     }),
 
   getOntology: protectedProcedure.query(async () => {
-    const [result, mapping] = await logAndRethrow(() =>
-      Promise.all([
-        db.execute(sql`
-        WITH RECURSIVE ontology_tree AS (
-          SELECT id, name, description, path, parent_id, color, properties
-          FROM ${OntologyTable}
-          WHERE parent_id is null
-          UNION ALL
-          SELECT c.id, c.name, c.description, c.path, c.parent_id, c.color, c.properties
-          FROM ontology c
-          JOIN ontology_tree ct ON c.parent_id = ct.id
-        )
-        SELECT * FROM ontology_tree;
-      `),
+    const [result, mapping] = await logAndRethrow(() => {
+      const iprops = db
+        .select({
+          ...getTableColumns(OntologyTable),
+          properties: sql<OntologyProperties>`(
+        SELECT jsonb_object_agg(key, value)
+        FROM jsonb_each(${OntologyTable.properties})
+        WHERE (value ->> 'inherit')::boolean = true
+    )`.as(randomAlphaUnderscore()),
+        })
+        .from(OntologyTable)
+        .where(sql`${OntologyTable.properties} != '{}'::jsonb`)
+        .as(randomAlphaUnderscore());
+      return Promise.all([
+        db
+          .select({
+            ...getTableColumns(OntologyTable),
+            iprops: jsonStrictAgg(
+              jsonBuildObject({ path: iprops.path, props: iprops.properties }),
+              sql`LENGTH(${iprops.path}::text)`,
+            ),
+          })
+          .from(OntologyTable)
+          .leftJoin(
+            iprops,
+            and(
+              sql`${iprops.path} @> ${OntologyTable.path}`,
+              ne(OntologyTable.id, iprops.id),
+            ),
+          )
+          .groupBy(
+            OntologyTable.path,
+            OntologyTable.id,
+            OntologyTable.isAttribute,
+            OntologyTable.color,
+            OntologyTable.name,
+            OntologyTable.properties,
+          ),
         db
           .select({
             id: AnnotationToOntology.ontologyId,
@@ -195,18 +225,15 @@ export const ontologyRouter = createTRPCRouter({
           })
           .from(AnnotationToOntology)
           .groupBy((t) => t.id),
-      ]),
-    );
-    return result.rows.map((r) => ({
-      id: r.id as number,
-      name: r.name as string,
+      ]);
+    });
+
+    return result.map((r) => ({
+      ...r,
       mappings: (mapping.find((m) => m.id === r.id)?.mappings ??
         []) as string[],
-      description: r.description as string,
-      path: r.path as string,
-      parentId: r.parent_id as number,
-      color: r.color as string,
-      properties: r.properties as Record<string, string>,
+      properties: mergeProps(r.properties, r.iprops),
+      iprops: undefined,
     }));
   }),
 
@@ -229,3 +256,23 @@ export const ontologyRouter = createTRPCRouter({
       ).map((v) => v.path);
     }),
 });
+
+const mergeProps = (
+  props: OntologyProperties | null,
+  iprops: { path: string; props: OntologyProperties }[],
+) => {
+  const out = props ?? {};
+  for (const prop of iprops) {
+    if (prop.props == null) continue;
+    const definedBy = prop.path;
+    const entries = Object.entries(prop.props as object).reduce(
+      (agg, [k, v]) => {
+        agg[k] = { ...v, definedBy };
+        return agg;
+      },
+      {} as OntologyProperties,
+    );
+    Object.assign(out, entries);
+  }
+  return out;
+};

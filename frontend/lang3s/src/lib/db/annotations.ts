@@ -248,7 +248,7 @@ export const Annotations = {
   getAnnotationsWithOntology: _getAnnotationsWithOntology,
   getFullTextSnippet: function (query: string, text: SQLWrapper) {
     return sql`array_to_string(pgroonga_snippet_html (${text},
-    								 pgroonga_query_extract_keywords(${query})), '\n') != ''`;
+    								 pgroonga_query_extract_keywords(${query})), '\n')`;
   },
   fullTextScore: FULL_TEXT_SCORE,
   fullTextRank: FULL_TEXT_RANK,

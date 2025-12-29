@@ -6,7 +6,7 @@ Uses:
     - sql.SQL
     - sql.Identifier
     - sql.Placeholder
-Every dynamic identifier (tables, columns) is escaped.
+Every dynamic identifier (tables, userListColumns) is escaped.
 
 Supports:
     - COPY ingestion
@@ -24,7 +24,7 @@ from psycopg import sql
 
 from lang3s import config
 from lang3s.db import Database
-from lang3s.db.models import TextTable, TextAnnotationsTable, TopicsTable
+from lang3s.db.models import TextAnnotationsTable, TextTable, TopicsTable
 
 
 class SearchTable(enum.Enum):
@@ -54,7 +54,9 @@ class VectorOperator(enum.Enum):
                 query=sql.Placeholder("vec"),
             )
         elif self is VectorOperator.HammingDistance:
-            return sql.SQL("1 - ({vector_col} <~> {query}::float / {dimension})").format(
+            return sql.SQL(
+                "1 - ({vector_col} <~> {query}::float / {dimension})"
+            ).format(
                 vector_col=sql.Identifier(VECTOR_COLUMN),
                 dimension=sql.Identifier(str(config.TOKEN_EMBEDDING_DIMENSION)),
                 query=sql.Placeholder("vec"),
@@ -78,9 +80,7 @@ class VectorOperator(enum.Enum):
         raise ValueError("Unknown vector operator")
 
 
-def _make_similarity_query(table: str,
-                           return_cols: List[str],
-                           op: VectorOperator):
+def _make_similarity_query(table: str, return_cols: List[str], op: VectorOperator):
     op_sql = op.sql()
     return sql.SQL("""
                    SELECT {cols}, {op} as score
@@ -104,16 +104,13 @@ def vector_search(
     query_vector: List[float] | str,
     cursor: Optional[psycopg.Cursor] = None,
     op: VectorOperator = VectorOperator.Cosine,
-    limit: int = 10
+    limit: int = 10,
 ):
     def _perform_search(
         cur: psycopg.Cursor,
     ):
         stmt = _make_similarity_query(table.value, columns, op)
-        cur.execute(
-            stmt,
-            {"vec": query_vector, "limit": limit}
-        )
+        cur.execute(stmt, {"vec": query_vector, "limit": limit})
         return cur.fetchall()
 
     if cursor is None:

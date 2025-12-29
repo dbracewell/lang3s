@@ -1,34 +1,14 @@
 import "server-only";
 import { db } from "@/lib/db";
-import {
-  DocumentsTable,
-  TextAnnotationTable,
-  TextTable,
-} from "@/lib/db/schema";
+import { DocumentsTable, TextAnnotationTable, TextTable } from "@/lib/db/schema";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { SearchResults } from "@/features/search/types";
-import {
-  and,
-  asc,
-  countDistinct,
-  desc,
-  eq,
-  gte,
-  isNull,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, asc, countDistinct, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
 
-import {
-  coalesce,
-  cosineSimilarity,
-  generateNextPage,
-  orderDesc,
-  upper,
-  withPagination,
-} from "@/lib/db/funcs";
+import { coalesce, cosineSimilarity, generateNextPage, orderDesc, upper, withPagination } from "@/lib/db/funcs";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { jsonAgg, jsonBuildObject, jsonValue } from "@/lib/db/helpers/json";
+import { Annotations } from "@/lib/db/annotations";
 
 export const createPaginatedSearchResults = async ({
   sub,
@@ -284,6 +264,7 @@ export const documentSearch = async ({
   isStrict: boolean;
   page: number;
 }) => {
+  console.log(">>>>", query);
   const strictSearch = db
     .select({
       documentId: TextTable.documentId,
@@ -293,7 +274,7 @@ export const documentSearch = async ({
       ),
     })
     .from(TextTable)
-    .where((t) => sql`${TextTable.content} &@~  (${query})`);
+    .where((t) => sql`${TextTable.content} &@~  ${query}`);
 
   const semanticSearch = db
     .select({
@@ -311,13 +292,17 @@ export const documentSearch = async ({
 
   let rankedSearch;
 
-  if (embedding == null) {
+  if (embedding == null || isStrict) {
     const aliased = strictSearch.as("aliased");
     rankedSearch = db
       .select({
         documentId: aliased.documentId,
-        text: sql<string>`array_to_string(pgroonga_snippet_html (${aliased.text},
-										 pgroonga_query_extract_keywords(${query})), '\n')`.as("highlight"),
+        text: sql<string>`
+            CASE 
+                WHEN LENGTH(${Annotations.getFullTextSnippet(query, aliased.text)}) <= 0 THEN CONCAT(SUBSTRING(${aliased.text},0,512), '...')
+                ELSE ${Annotations.getFullTextSnippet(query, aliased.text)} 
+            END
+        `.as(randomAlphaUnderscore()),
         rank: sql<number>`1.0 / (60.0 + ${aliased.rank})`.as("rank"),
       })
       .from(aliased)

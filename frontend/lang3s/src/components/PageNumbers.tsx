@@ -4,7 +4,7 @@ import Link from "next/link";
 type PageNumbersProps = {
   totalPages: number;
   currentPage: number;
-  pageLink: (page: number) => string;
+  pageLink: (page: number) => void;
   maxDisplay?: number;
 };
 
@@ -40,12 +40,16 @@ export const PageNumbers = ({
 
   return (
     <div className="flex items-center justify-end gap-1 text-lg">
-      {start == 1 ? (
+      {currentPage - 1 < 0 ? (
         <ChevronLeftIcon />
       ) : (
-        <Link href={pageLink(start)} className="link">
+        <button
+          type="button"
+          className="link"
+          onClick={() => pageLink(currentPage - 1)}
+        >
           <ChevronLeftIcon />
-        </Link>
+        </button>
       )}
       {pages.map((page) => {
         if (page === currentPage) {
@@ -56,22 +60,26 @@ export const PageNumbers = ({
           );
         }
         return (
-          <Link
+          <button
             key={page}
-            href={pageLink(page)}
-            prefetch={true}
+            type="button"
             className="link no-underline!"
+            onClick={() => pageLink(page)}
           >
             {page}
-          </Link>
+          </button>
         );
       })}
-      {end === totalPages ? (
+      {currentPage + 1 > totalPages ? (
         <ChevronRightIcon />
       ) : (
-        <Link href={pageLink(end)} className="link">
+        <button
+          type="button"
+          className="link"
+          onClick={() => pageLink(currentPage + 1)}
+        >
           <ChevronRightIcon />
-        </Link>
+        </button>
       )}
     </div>
   );

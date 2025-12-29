@@ -13,7 +13,7 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { columns, type JobType } from "./columns";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { useUser } from "@/features/auth/UserContext";
+import { useUser } from "@/features/auth/contexts/UserContext";
 import { roleHasPermissions } from "@/features/auth/permissions";
 import { redirect } from "next/navigation";
 

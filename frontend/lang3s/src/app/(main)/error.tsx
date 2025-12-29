@@ -9,8 +9,8 @@ const ErrorPage = ({ error }: { error: unknown }) => {
   let message = null;
   if (error instanceof TRPCError) {
     message = error.code;
-  } else if (error instanceof Error) {
-    message = error.message;
+  } else {
+    message = "Something went wrong";
   }
   const router = useRouter();
   return (
@@ -23,7 +23,9 @@ const ErrorPage = ({ error }: { error: unknown }) => {
         {!!message && (
           <p className="text-muted-foreground text-sm">Error: {message}</p>
         )}
-        <Button onClick={() => router.refresh()}>Try Again</Button>
+        <Button onClick={() => router.back()} variant="outline">
+          Go Back
+        </Button>
       </div>
     </div>
   );

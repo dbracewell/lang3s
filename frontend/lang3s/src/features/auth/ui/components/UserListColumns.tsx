@@ -2,15 +2,15 @@ import { ColumnDef } from "@/components/data-table/data-table-types";
 import { StringSort } from "@/components/data-table/SortFunctions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { user } from "@/lib/db/schema";
-import { DeleteUser } from "@/features/auth/ui/views/AdminUsersPageView/DeleteUser";
-import { EditUserDialog } from "@/features/auth/ui/views/AdminUsersPageView/EditUserDialog";
+import { DeleteUser } from "@/features/auth/ui/components/DeleteUser";
+import { EditUserDialog } from "@/features/auth/ui/components/EditUserDialog";
 import { UserRole } from "@/features/auth/permissions";
 
 export type UserType = typeof user.$inferSelect & {
   role: UserRole;
 };
 
-export const columns: ColumnDef<UserType>[] = [
+export const userListColumns: ColumnDef<UserType>[] = [
   {
     name: "name",
     cell: ({ row }) => <>{row.name}</>,

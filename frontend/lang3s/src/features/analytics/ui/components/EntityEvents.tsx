@@ -9,8 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { XIcon } from "lucide-react";
-import { parseAsString, useQueryState } from "nuqs";
-import { parseAsBoolean } from "nuqs/server";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Spinner } from "@/components/Spinner";
 import { Fragment, useMemo } from "react";
@@ -22,33 +20,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
+import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
 
 export const EntityEvents = () => {
-  const [entityText, setEntityText] = useQueryState(
-    "entity",
-    parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
-  );
-  const [entityType, setEntityType] = useQueryState(
-    "entityType",
-    parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
-  );
-  const [showEvents, setShowEvents] = useQueryState(
-    "showEvents",
-    parseAsBoolean.withDefault(false).withOptions({ clearOnDefault: true }),
-  );
-
-  const entityTypeName = entityType.split(".").slice(-1)[0];
+  const [params, setParams] = useEntitySearchParams();
   const { data, isPending } = useTRPCQuery((trpc) =>
     trpc.analytics.getEventsForEntity.queryOptions(
       {
-        entity: entityText,
-        value: entityType,
+        entity: params.entity,
+        value: params.entityType,
       },
       {
-        enabled: !!entityText && !!entityType,
+        enabled: !!params.entity && !!params.entityType && params.showEvents,
       },
     ),
   );
+
+  const entityTypeName = params.entityType.split(".").slice(-1)[0];
 
   const sections: { value: string; count: number }[] = useMemo(() => {
     if (data == null) {
@@ -57,7 +45,7 @@ export const EntityEvents = () => {
     return data.map((s) => ({ value: s.value, count: s.count }));
   }, [data]);
 
-  if (!entityType || !entityText || !showEvents) {
+  if (!params.entityType || !params.entity || !params.showEvents) {
     return null;
   }
 
@@ -75,13 +63,13 @@ export const EntityEvents = () => {
         <CardTitle className="text-2xl">
           Events involving{" "}
           <span className="text-dodger-blue-500 font-black">
-            {entityText} ({entityTypeName})
+            {params.entity} ({entityTypeName})
           </span>
         </CardTitle>
         <CardDescription>
           Displays the events that{" "}
           <span className="font-bold">
-            {entityText} ({entityTypeName})
+            {params.entity} ({entityTypeName})
           </span>{" "}
           has participated in.
         </CardDescription>
@@ -89,9 +77,11 @@ export const EntityEvents = () => {
           <Button
             variant="ghost"
             onClick={() => {
-              setEntityText("");
-              setEntityType("");
-              setShowEvents(false);
+              setParams({
+                entity: "",
+                entityType: "",
+                showEvents: false,
+              });
             }}
           >
             <XIcon />
@@ -151,7 +141,7 @@ export const EntityEvents = () => {
                             {event.A0?.map((a0, k) => (
                               <p key={k}>
                                 {a0.toUpperCase() ===
-                                entityText.toUpperCase() ? (
+                                params.entity.toUpperCase() ? (
                                   <b className="text-blue-700 dark:text-blue-500">
                                     {a0}
                                   </b>
@@ -166,7 +156,7 @@ export const EntityEvents = () => {
                             {event.A1?.map((a1, k) => (
                               <p key={k}>
                                 {a1.toUpperCase() ===
-                                entityText.toUpperCase() ? (
+                                params.entity.toUpperCase() ? (
                                   <b className="text-blue-700 dark:text-blue-500">
                                     {a1}
                                   </b>
@@ -180,7 +170,7 @@ export const EntityEvents = () => {
                             {event.TIME == null ? (
                               "-"
                             ) : event.TIME.toUpperCase() ===
-                              entityText.toUpperCase() ? (
+                              params.entity.toUpperCase() ? (
                               <b className="text-blue-700 dark:text-blue-500">
                                 {event.TIME}
                               </b>
@@ -192,7 +182,7 @@ export const EntityEvents = () => {
                             {event.LOC == null ? (
                               "-"
                             ) : event.LOC.toUpperCase() ===
-                              entityText.toUpperCase() ? (
+                              params.entity.toUpperCase() ? (
                               <b className="text-blue-700 dark:text-blue-500">
                                 {event.LOC}
                               </b>

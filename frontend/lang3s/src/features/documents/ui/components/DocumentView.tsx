@@ -1,11 +1,13 @@
 "use client";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { Sentence } from "@/components/text/Sentence";
+import { Sentence } from "@/features/documents/ui/components/Sentence";
 import { Lan3gsDocument } from "@/features/common/classes";
 import { memo, useState } from "react";
 import { OntologySelectorDialog } from "@/features/ontology/ui/components/OntologySelectorDialog";
 import { PaletteIcon } from "lucide-react";
 import { RouterOutputs } from "@/lib/trpc/types";
+import { ONTOLOGY_ENTITY_ROOT } from "@/features/common/constants";
+import { useTags } from "@/features/documents/hooks/useTags";
 
 type DocumentViewProps = {
   documentData: RouterOutputs["documents"]["getOne"];
@@ -13,7 +15,7 @@ type DocumentViewProps = {
 
 export const DocumentView = memo(({ documentData }: DocumentViewProps) => {
   const document = new Lan3gsDocument({ ...documentData });
-  const [checkedNodes, setCheckedNodes] = useState<string[]>(["ALL.Entity"]);
+  const [checkedNodes, setCheckedNodes] = useTags();
   return (
     <ScrollableBox.Container className="bg-background gap-3 py-2 inset-shadow-sm">
       <ScrollableBox.ScrollArea className="gap-2">

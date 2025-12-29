@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { apikey as ApiKeyTable, user as UserTable } from "@/lib/db/schema";
 import { auth } from "@/lib/auth/auth";
 import { logAndRethrow } from "@/lib/utils/try-catch";
-import { UserType } from "@/features/auth/ui/views/AdminUsersPageView/columns";
+import { UserType } from "@/features/auth/ui/components/UserListColumns";
 import { UserRole } from "@/features/auth/permissions";
 import { getUserApiKeys } from "@/features/auth/server/actions";
 import {
@@ -11,17 +11,13 @@ import {
   protectedProcedure,
   requirePermissions,
 } from "@/lib/trpc/init";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import z from "zod";
 import { UserAccountSchema } from "@/features/auth/schemas";
+import { jsonAgg, jsonBuildObject } from "@/lib/db/helpers/json";
 
 export const authRouter = createTRPCRouter({
-  getCurrentUser: protectedProcedure.query(async ({ ctx }) => {
-    const { user } = ctx;
-    return user;
-  }),
-
   getUsers: adminProcedure.query(async () => {
     const { users } = await auth.api.listUsers({
       headers: await headers(),
@@ -96,6 +92,7 @@ export const authRouter = createTRPCRouter({
         });
         return { code: 200, userId: user.id };
       } catch (error) {
+        console.error(error);
         if (error instanceof Error) {
           return { code: 400, message: error.message, path: "email" };
         }
@@ -117,12 +114,12 @@ export const authRouter = createTRPCRouter({
 
   createApiKey: protectedProcedure.mutation(async ({ ctx }) => {
     const { user } = ctx;
-    await requirePermissions(user, undefined, ["data:load", "data:update"]);
+    await requirePermissions(user, undefined, ["data:load"]);
     const headersList = await headers();
 
-    try {
+    const data = await logAndRethrow(() => {
       const randId = crypto.randomUUID().slice(0, 4);
-      const data = await auth.api.createApiKey({
+      return auth.api.createApiKey({
         headers: headersList,
         body: {
           name: `${user.username}-api-key-${randId}`,
@@ -130,11 +127,8 @@ export const authRouter = createTRPCRouter({
           prefix: "lang3s",
         },
       });
-      return data.key;
-    } catch (error) {
-      console.error(error);
-      throw error as Error;
-    }
+    });
+    return data.key;
   }),
 
   deleteApiKey: protectedProcedure
@@ -165,15 +159,13 @@ export const authRouter = createTRPCRouter({
     const apiKeys = db
       .select({
         userId: ApiKeyTable.userId,
-        keys: sql<
-          {
-            id: string;
-            name: string;
-            key: string;
-          }[]
-        >`json_agg(json_build_object('id', ${ApiKeyTable.id}, 'name',${ApiKeyTable.name}, 'key', ${ApiKeyTable.key}))`.as(
-          "key",
-        ),
+        keys: jsonAgg(
+          jsonBuildObject({
+            id: ApiKeyTable.id,
+            name: ApiKeyTable.name,
+            key: ApiKeyTable.key,
+          }),
+        ).as("keys"),
       })
       .from(ApiKeyTable)
       .groupBy((t) => t.userId)
@@ -196,6 +188,7 @@ export const authRouter = createTRPCRouter({
 
     return {
       ...u,
+      username: u.username ?? u.email,
       role: u.role as UserRole,
       keys: (u.keys ?? []).map((k) => ({
         id: k.id,

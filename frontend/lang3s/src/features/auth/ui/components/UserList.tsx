@@ -1,14 +1,14 @@
 "use client";
 import { useDataTable } from "@/components/data-table/use-data-table";
-import { columns, UserType } from "./columns";
+import { userListColumns, UserType } from "./UserListColumns";
 import React from "react";
 import DataTableProvider from "@/components/data-table/DataTableContext";
-import { AddUserDialog } from "@/features/auth/ui/views/AdminUsersPageView/AddUserDialog";
+import { AddUserDialog } from "@/features/auth/ui/components/AddUserDialog";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 
 export const UserList = ({ users }: { users: UserType[] }) => {
   const { DataTable } = useDataTable({
-    columns,
+    columns: userListColumns,
     data: users,
     appearance: {
       container: "flex-1 border bg-card rounded-xl shadow",
@@ -29,7 +29,7 @@ export const UserList = ({ users }: { users: UserType[] }) => {
       <div className="flex items-center justify-between px-1">
         <AddUserDialog />
       </div>
-      <DataTableProvider columns={columns}>
+      <DataTableProvider columns={userListColumns}>
         <DataTable />
       </DataTableProvider>
     </ScrollableBox.Container>

@@ -9,6 +9,7 @@ import {
   text,
   unique,
 } from "drizzle-orm/pg-core";
+import z from "zod";
 
 ////////////////////////////////////////////////////////////////////////////////
 // Ontology Table
@@ -20,6 +21,31 @@ const ltree = customType<{ data: string }>({
   },
 });
 
+export const OntologyPropertyValueDataTypes = [
+  "string",
+  "boolean",
+  "number",
+  "metadata",
+] as const;
+
+export type OntologyPropertyValueDataType =
+  (typeof OntologyPropertyValueDataTypes)[number];
+
+export const OntologyPropertyValueSchema = z.object({
+  value: z.string().min(1, "Value is required"),
+  dataType: z.enum(OntologyPropertyValueDataTypes),
+  inherit: z.boolean(),
+  display: z.boolean(),
+  definedBy: z.string().optional(),
+});
+
+export type OntologyPropertyValue = z.infer<typeof OntologyPropertyValueSchema>;
+export const OntologyPropertySchema = z.record(
+  z.string(),
+  OntologyPropertyValueSchema,
+);
+export type OntologyProperties = z.infer<typeof OntologyPropertySchema>;
+
 export const OntologyTable = pgTable(
   "ontology",
   {
@@ -30,7 +56,7 @@ export const OntologyTable = pgTable(
     color: text("color").default("SLATE").notNull(),
     isAttribute: boolean("is_attribute").default(false).notNull(),
     path: ltree("path").notNull(), // ltree type (custom)
-    properties: jsonb("properties").$type<Record<string, any>>().default({}),
+    properties: jsonb("properties").$type<OntologyProperties>().default({}),
   },
   (table) => [
     index("idx_ontology_parent_id").on(table.parentId),

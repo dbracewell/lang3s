@@ -7,6 +7,7 @@ import { CircleQuestionMarkIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { parseAsStringEnum, useQueryState } from "nuqs";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
+import { useTopicsTab } from "@/features/analytics/hooks/useTopicsTab";
 
 type DataProps = {
   points: { id: string; name: string; support: number }[];
@@ -17,12 +18,7 @@ export const TopicsListView = ({ points }: DataProps) => {
     () => Math.max(...points.map((p) => p.support)),
     [points],
   );
-  const [tab] = useQueryState(
-    "tab",
-    parseAsStringEnum(["list", "chart"])
-      .withDefault("list")
-      .withOptions({ clearOnDefault: true }),
-  );
+  const [tab] = useTopicsTab();
   if (tab === "chart") {
     return null;
   }
@@ -42,39 +38,58 @@ export const TopicsListView = ({ points }: DataProps) => {
           {points
             .sort((a, b) => b.support - a.support)
             .map((topic, index) => (
-              <Fragment key={topic.id}>
-                <div
-                  className={cn(
-                    "bg-row flex items-center gap-2 px-3 py-1",
-                    index % 2 === 0 && "bg-alternate-row",
-                  )}
-                >
-                  <Hint hint="Search the corpus for this topic" asChild>
-                    <Button size="icon-xs" variant="ghost">
-                      <SearchIcon />
-                    </Button>
-                  </Hint>
-                  <Link href={`/analytics/topics/${topic.id}`} className="link">
-                    {topic.name}
-                  </Link>
-                </div>
-                <div
-                  className={cn(
-                    "bg-row hidden items-center px-3 py-1 md:flex",
-                    index % 2 === 0 && "bg-alternate-row",
-                  )}
-                >
-                  <div
-                    className="bg-dodger-blue-500 h-1 justify-self-center"
-                    style={{
-                      width: `${Math.max(5, (topic.support / total) * 350)}px`,
-                    }}
-                  />
-                </div>
-              </Fragment>
+              <TopicRow
+                key={topic.id}
+                topic={topic}
+                normalizer={total}
+                index={index}
+              />
             ))}
         </div>
       </ScrollableBox.ScrollArea>
     </div>
+  );
+};
+
+const TopicRow = ({
+  topic,
+  normalizer,
+  index,
+}: {
+  topic: { name: string; id: string; support: number };
+  normalizer: number;
+  index: number;
+}) => {
+  return (
+    <>
+      <div
+        className={cn(
+          "bg-row flex items-center gap-2 px-3 py-1",
+          index % 2 === 0 && "bg-alternate-row",
+        )}
+      >
+        <Hint hint="Search the corpus for this topic" asChild>
+          <Button size="icon-xs" variant="ghost">
+            <SearchIcon />
+          </Button>
+        </Hint>
+        <Link href={`/analytics/topics/${topic.id}`} className="link">
+          {topic.name}
+        </Link>
+      </div>
+      <div
+        className={cn(
+          "bg-row hidden items-center px-3 py-1 md:flex",
+          index % 2 === 0 && "bg-alternate-row",
+        )}
+      >
+        <div
+          className="bg-dodger-blue-500 h-1 justify-self-center"
+          style={{
+            width: `${Math.max(5, (topic.support / normalizer) * 350)}px`,
+          }}
+        />
+      </div>
+    </>
   );
 };

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NotebookTextIcon, XIcon } from "lucide-react";
-import { DocumentView } from "@/components/text/DocumentView";
+import { DocumentView } from "@/features/documents/ui/components/DocumentView";
 import { GoBackButton } from "@/components/buttons/GoBackButton";
 
 const DocumentIdPage = async (props: PageProps<"/documents/[id]">) => {

@@ -26,25 +26,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 SCHEMA_JSON_PATH = REPO_ROOT / "drizzle-schema.json"
 
-PY_MODELS_PATH = (
-    REPO_ROOT
-    / "backend"
-    / "nlp"
-    / "src"
-    / "lang3s"
-    / "db"
-    / "models.py"
-)
+PY_MODELS_PATH = REPO_ROOT / "backend" / "nlp" / "src" / "lang3s" / "db" / "models.py"
 
-PY_SCHEMAS_PATH = (
-    REPO_ROOT
-    / "backend"
-    / "nlp"
-    / "src"
-    / "lang3s"
-    / "db"
-    / "schemas.py"
-)
+PY_SCHEMAS_PATH = REPO_ROOT / "backend" / "nlp" / "src" / "lang3s" / "db" / "schemas.py"
 
 # Drizzle constructor name -> SQLAlchemy type
 DRIZZLE_TO_SQLALCHEMY: Dict[str, str] = {
@@ -62,13 +46,10 @@ DRIZZLE_TO_SQLALCHEMY: Dict[str, str] = {
     "doublePrecision": "Float",
     "double": "Float",
     "float": "Float",
-
     "json": "JSON",
     "jsonb": "JSONB",
-
     # treat ltree as text unless wired to custom type
     "ltree": "Text",
-
     # pgvector-related
     "vector": "Vector",
     "halfvec": "HALFVEC",
@@ -93,7 +74,6 @@ DRIZZLE_TO_PYDANTIC: Dict[str, str] = {
     "json": "dict",
     "jsonb": "dict",
     "ltree": "str",
-
     "vector": "list[float]",
     "halfvec": "list[float]",
     "bit": "list[int]",  # adjust if you prefer
@@ -105,6 +85,7 @@ RESERVED_SQLA_ATTRS = {"metadata", "type", "class", "global", "lambda"}
 # -------------------------------------------------------------------
 # DATA STRUCTURES
 # -------------------------------------------------------------------
+
 
 @dataclass
 class EnumSpec:
@@ -143,6 +124,7 @@ class TableSpec:
 # -------------------------------------------------------------------
 # UTILS
 # -------------------------------------------------------------------
+
 
 def camel_case(name: str) -> str:
     parts = [p for p in name.replace("-", "_").split("_") if p]
@@ -202,7 +184,7 @@ def load_schema() -> tuple[List[EnumSpec], List[TableSpec]]:
         table_name = t.get("tableName")
         cols: List[ColumnSpec] = []
 
-        for c in t.get("columns", []):
+        for c in t.get("userListColumns", []):
             fk_spec = None
             fk_json = c.get("fk")
             if fk_json:
@@ -235,6 +217,7 @@ def load_schema() -> tuple[List[EnumSpec], List[TableSpec]]:
 # SQLALCHEMY GENERATION (WITH RELATIONSHIPS)
 # -------------------------------------------------------------------
 
+
 def render_sqlalchemy(enums: List[EnumSpec], tables: List[TableSpec]) -> str:
     lines: List[str] = []
 
@@ -257,8 +240,7 @@ def render_sqlalchemy(enums: List[EnumSpec], tables: List[TableSpec]) -> str:
     enum_by_var: Dict[str, EnumSpec] = {e.var_name: e for e in enums if e.var_name}
 
     table_name_to_class: Dict[str, str] = {
-        t.name: camel_case(t.name) + "Table"
-        for t in tables
+        t.name: camel_case(t.name) + "Table" for t in tables
     }
     # Build parent→children relationship map:
     # { parent_table_name: [(child_table_name, child_fk_attr_name)] }
@@ -268,7 +250,9 @@ def render_sqlalchemy(enums: List[EnumSpec], tables: List[TableSpec]) -> str:
         for col in t.columns:
             if col.fk and col.fk.table_var:
                 parent_table = guess_parent_table_name(col.fk.table_var, tables)
-                parent_to_children.setdefault(parent_table, []).append((t.name, col.name))
+                parent_to_children.setdefault(parent_table, []).append(
+                    (t.name, col.name)
+                )
 
     for table in tables:
         class_name = table_name_to_class[table.name]
@@ -276,7 +260,7 @@ def render_sqlalchemy(enums: List[EnumSpec], tables: List[TableSpec]) -> str:
         lines.append(f"    __tablename__ = '{table.name}'")
         lines.append("")
 
-        # columns
+        # userListColumns
         for col in table.columns:
             # type expression
             if col.enum_var and col.enum_var in enum_by_var:
@@ -325,9 +309,7 @@ def render_sqlalchemy(enums: List[EnumSpec], tables: List[TableSpec]) -> str:
                 col_kwargs.append("unique=True")
 
             args_str = ", ".join(col_args + col_kwargs)
-            lines.append(
-                f"    {attr_name} = Column({col.db_name!r}, {args_str})"
-            )
+            lines.append(f"    {attr_name} = Column({col.db_name!r}, {args_str})")
 
         lines.append("")
 
@@ -335,7 +317,9 @@ def render_sqlalchemy(enums: List[EnumSpec], tables: List[TableSpec]) -> str:
         for col in table.columns:
             if col.fk and col.fk.table_var:
                 parent_table_name = guess_parent_table_name(col.fk.table_var, tables)
-                parent_class = table_name_to_class.get(parent_table_name, camel_case(parent_table_name))
+                parent_class = table_name_to_class.get(
+                    parent_table_name, camel_case(parent_table_name)
+                )
 
                 # e.g. documentId -> document
                 attr_name = col.name
@@ -353,9 +337,10 @@ def render_sqlalchemy(enums: List[EnumSpec], tables: List[TableSpec]) -> str:
 
         if table.name in parent_to_children:
             for child_table_name, fk_attr in parent_to_children[table.name]:
-
                 # Class name with Table suffix
-                child_class = table_name_to_class.get(child_table_name, camel_case(child_table_name) + "Table")
+                child_class = table_name_to_class.get(
+                    child_table_name, camel_case(child_table_name) + "Table"
+                )
 
                 # Collection relationship name
                 collection_name = f"{child_table_name}_collection"
@@ -375,7 +360,9 @@ def render_sqlalchemy(enums: List[EnumSpec], tables: List[TableSpec]) -> str:
         lines.append("")
         lines.append("    def __repr__(self) -> str:  # pragma: no cover")
         if any(c.name == "id" for c in table.columns):
-            lines.append('        return f"<%s id={self.id}>" % self.__class__.__name__')
+            lines.append(
+                '        return f"<%s id={self.id}>" % self.__class__.__name__'
+            )
         else:
             lines.append('        return f"<%s>" % self.__class__.__name__')
         lines.append("")
@@ -386,6 +373,7 @@ def render_sqlalchemy(enums: List[EnumSpec], tables: List[TableSpec]) -> str:
 # -------------------------------------------------------------------
 # PYDANTIC GENERATION
 # -------------------------------------------------------------------
+
 
 def render_pydantic(enums: List[EnumSpec], tables: List[TableSpec]) -> str:
     lines: List[str] = []
@@ -432,6 +420,7 @@ def render_pydantic(enums: List[EnumSpec], tables: List[TableSpec]) -> str:
 # -------------------------------------------------------------------
 # MAIN
 # -------------------------------------------------------------------
+
 
 def main() -> None:
     print(f"[drizzle_codegen] Loading schema from {SCHEMA_JSON_PATH}")

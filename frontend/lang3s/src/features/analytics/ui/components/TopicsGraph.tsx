@@ -2,8 +2,8 @@
 import { ForceGraph } from "@/components/charts/ForceGraph";
 import React from "react";
 import { useTheme } from "next-themes";
-import { parseAsStringEnum, useQueryState } from "nuqs";
 import { useRouter } from "next/navigation";
+import { useTopicsTab } from "@/features/analytics/hooks/useTopicsTab";
 
 type DataProps = {
   data: {
@@ -14,12 +14,7 @@ type DataProps = {
 
 export const TopicsGraph = ({ data }: DataProps) => {
   const theme = useTheme();
-  const [tab] = useQueryState(
-    "tab",
-    parseAsStringEnum(["list", "chart"])
-      .withDefault("list")
-      .withOptions({ clearOnDefault: true }),
-  );
+  const [tab] = useTopicsTab();
   const router = useRouter();
   if (tab === "list") {
     return null;

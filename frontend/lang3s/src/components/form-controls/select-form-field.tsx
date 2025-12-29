@@ -99,8 +99,8 @@ export const SelectFormField = <T extends FieldValues>({
             </FormLabel>
           )}
           <Select
-            defaultValue={field.value ?? defaultValue}
-            value={field.value}
+            defaultValue={defaultValue}
+            value={field.value ?? defaultValue}
             onValueChange={(value) => {
               field.onChange(handleValueChange(value));
               onValueChange?.(value);

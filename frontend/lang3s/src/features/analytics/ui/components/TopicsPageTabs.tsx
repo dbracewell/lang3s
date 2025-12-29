@@ -2,14 +2,10 @@
 import { Button } from "@/components/ui/button";
 import React from "react";
 import { parseAsStringEnum, useQueryState } from "nuqs";
+import { useTopicsTab } from "@/features/analytics/hooks/useTopicsTab";
 
 export const TopicsPageTabs = () => {
-  const [tab, setTab] = useQueryState(
-    "tab",
-    parseAsStringEnum(["list", "chart"])
-      .withDefault("list")
-      .withOptions({ clearOnDefault: true }),
-  );
+  const [tab, setTab] = useTopicsTab();
   return (
     <div className="flex w-full items-center justify-start p-2">
       <Button

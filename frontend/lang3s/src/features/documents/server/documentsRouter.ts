@@ -3,6 +3,8 @@ import {
   DocumentsTable,
   TextAnnotationTable,
   TextTable,
+  TopicDocuments,
+  TopicsTable,
 } from "@/lib/db/schema";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
@@ -29,34 +31,48 @@ export const DocumentsRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const { cursor } = input;
       const page = Math.max(1, cursor ?? 1);
-      const [totalDocs, docs] = await logAndRethrow(() => {
+      const [totalDocs, docs] = await logAndRethrow(async () => {
         const entities = db
           .select({
             ...Annotations.getColumns({
               options: {
                 normalize: true,
               },
-              fields: ["textId"],
+              fields: ["documentId"],
             }),
             count: count().as("count"),
           })
           .from(TextAnnotationTable)
           .where(eq(TextAnnotationTable.type, "entity"))
-          .groupBy((t) => [t.content, t.textId])
+          .groupBy((t) => [t.content, t.documentId])
           .orderBy((t) => [desc(t.count), asc(t.content)])
           .as("entities");
 
         const sub = db
           .select({
-            textId: entities.textId,
+            documentId: entities.documentId,
             entities: sql<string[]>`ARRAY_AGG(${entities.content} || 
                      ' (<b>' || ${entities.count} || '</b>)' )`.as(
               "entity_array",
             ),
           })
           .from(entities)
-          .groupBy(entities.textId)
+          .groupBy(entities.documentId)
           .as("sub");
+
+        const topics = db
+          .select({
+            textId: TopicDocuments.textId,
+            topic: sql<
+              string[]
+            >`ARRAY_AGG(${TopicsTable.name} order by ${TopicDocuments.score} desc)`.as(
+              randomAlphaUnderscore(),
+            ),
+          })
+          .from(TopicsTable)
+          .innerJoin(TopicDocuments, eq(TopicDocuments.topicId, TopicsTable.id))
+          .groupBy((t) => [t.textId])
+          .as(randomAlphaUnderscore());
 
         return Promise.all([
           db.select({ count: count(DocumentsTable.id) }).from(DocumentsTable),
@@ -66,14 +82,16 @@ export const DocumentsRouter = createTRPCRouter({
                 id: DocumentsTable.id,
                 title: DocumentsTable.title,
                 metadata: DocumentsTable.metadata,
+                topics: topics.topic,
                 text: sql<string>`SUBSTRING(${TextTable.content},0,512) || '...'`.as(
                   "text",
                 ),
                 entities: sub.entities,
               })
               .from(DocumentsTable)
-              .leftJoin(TextTable, eq(DocumentsTable.id, TextTable.documentId))
-              .innerJoin(sub, eq(TextTable.id, sub.textId))
+              .innerJoin(TextTable, eq(DocumentsTable.id, TextTable.documentId))
+              .leftJoin(topics, eq(TextTable.id, topics.textId))
+              .innerJoin(sub, eq(DocumentsTable.id, sub.documentId))
               .orderBy((t) => asc(t.id)),
             { page: cursor },
           ),

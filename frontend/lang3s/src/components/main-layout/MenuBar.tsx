@@ -13,7 +13,7 @@ import * as React from "react";
 import { Suspense, useMemo } from "react";
 import Link from "next/link";
 import { filterLinks, NavigationGroup } from "@/features/common/navigation";
-import { useUser } from "@/features/auth/UserContext";
+import { useUser } from "@/features/auth/contexts/UserContext";
 import { DynamicIcon } from "@/components/DynamicIcon";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";

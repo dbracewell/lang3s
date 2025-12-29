@@ -4,26 +4,20 @@ import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { authClient } from "@/lib/auth/auth-client";
 import { AuthPageCard } from "@/features/auth/ui/components/AuthPageCard";
-import { useTRPC } from "@/lib/trpc/client";
-import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export const SignInPageView = ({ redirect }: { redirect?: string }) => {
   const [isPending, setIsPending] = useState(false);
-  const queryClient = useQueryClient();
-  const trpc = useTRPC();
   const router = useRouter();
 
   const onSubmit = async (formData: FormData) => {
     const username = formData.get("username") as string;
     const password = formData.get("password") as string;
-    queryClient.invalidateQueries(trpc.auth.getCurrentUser.queryOptions());
     const { error } = await authClient.signIn.username({
       username,
       password,
-      callbackURL: "/",
       fetchOptions: {
         onRequest: () => setIsPending(true),
         onResponse: () => setIsPending(false),

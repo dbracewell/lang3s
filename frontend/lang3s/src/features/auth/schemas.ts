@@ -27,7 +27,7 @@ export const UserAccountSchema = z.object({
     )
     .refine((data) => /\d/i.test(data), "Must contain at least 1 digit")
     .refine(
-      (data) => /[!@#\$%\^&*]/i.test(data),
+      (data) => /[!@#$%^&*]/i.test(data),
       "Must contain at least 1 special character !@#$%^&*",
     ),
   role: z.enum(UserRoles),

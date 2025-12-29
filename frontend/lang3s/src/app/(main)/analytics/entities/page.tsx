@@ -1,31 +1,15 @@
-import {
-  createLoader,
-  parseAsInteger,
-  parseAsString,
-  parseAsStringEnum,
-} from "nuqs/server";
 import { caller } from "@/lib/trpc/server";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { EntityTypeSelector } from "@/features/analytics/ui/components/EntityTypeSelector";
 import { TopEntitiesList } from "@/features/analytics/ui/components/TopEntitiesList";
 import { EntityEvents } from "@/features/analytics/ui/components/EntityEvents";
 import { EntityCoOccurrenceVisualization } from "@/features/analytics/ui/components/EntityCoOccurrenceVisualization";
+import { ONTOLOGY_ENTITY_ROOT } from "@/features/common/constants";
 
-const EntitiesPage = async (props: PageProps<"/analytics/entities">) => {
+const EntitiesPage = async () => {
   const values = await caller.ontology.getFullPath({
-    path: "ALL.Entity",
+    path: ONTOLOGY_ENTITY_ROOT,
   });
-  const loader = createLoader({
-    page: parseAsInteger.withDefault(1).withOptions({ clearOnDefault: true }),
-    sortBy: parseAsStringEnum([
-      "mentions",
-      "docs",
-      "mentionsPerDoc",
-    ]).withDefault("mentions"),
-    filter: parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
-  });
-
-  const { page, sortBy, filter } = await loader(props.searchParams);
   return (
     <ScrollableBox.Container className="relative">
       <ScrollableBox.Header className="flex flex-col items-start gap-y-2 lg:flex-row">
@@ -40,12 +24,7 @@ const EntitiesPage = async (props: PageProps<"/analytics/entities">) => {
           <EntityTypeSelector values={values} />
         </div>
       </ScrollableBox.Header>
-      <TopEntitiesList
-        allValues={values}
-        page={page}
-        filter={filter}
-        sortBy={sortBy}
-      />
+      <TopEntitiesList allValues={values} />
       <EntityEvents />
       <EntityCoOccurrenceVisualization allValues={values} />
     </ScrollableBox.Container>

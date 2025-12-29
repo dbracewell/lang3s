@@ -25,6 +25,18 @@ export const DocumentResult = ({
             />
           ))}
         </div>
+        {doc.topics && doc.topics.length > 0 && (
+          <>
+            <h2 className="mt-1 text-sm font-semibold">Topics</h2>
+            <div className="flex items-center gap-3 overflow-x-auto">
+              {doc.topics?.slice(0, 3).map((topic, i) => (
+                <div key={`${doc.id}-${topic}-${i}`} className="text-xs">
+                  {topic}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

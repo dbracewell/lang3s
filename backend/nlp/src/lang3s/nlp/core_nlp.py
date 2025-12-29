@@ -16,11 +16,11 @@ from spacy.tokens import Token
 from spacy.util import filter_spans
 from spacy_download import load_spacy
 
+from lang3s import config
 from lang3s.shared_types import AnnotationTypes, Metadata
 from lang3s.shared_types.text import Text
 from lang3s.shared_types.text_annotation import TextAnnotation
 from lang3s.utils import decorators, filter_none
-from lang3s import config
 
 test = spacy_component
 
@@ -40,8 +40,8 @@ class CoreLanguageProcessor:
 
         with (
             importlib.resources.files("lang3s.nlp")
-                .joinpath("mwe.json.gz")
-                .open("rb") as f_in
+            .joinpath("mwe.json.gz")
+            .open("rb") as f_in
         ):
             with gzip.open(f_in, "rt") as f_gz:
                 mwe_dict = json.load(f_gz)
@@ -184,7 +184,7 @@ def core_nlp(language: str, texts: List[Text]):
                 text=entity.text,
                 sentence_id=sentences[entity.sent.start],
                 type=AnnotationTypes.ENTITY.value,
-                source="core",
+                source="coref",
                 value=entity.label_,
                 metadata={Metadata.LEMMA.value: entity.lemma_},
             )
@@ -197,7 +197,7 @@ def core_nlp(language: str, texts: List[Text]):
                 coref_annotation = entity_map[coref.start]
                 if coref_annotation.id != annotation.id:
                     annotation["coref"] = coref_annotation.id
-                    annotation["coref_text"] = coref_annotation.text
+                    annotation["coref_text"] = coref_annotation.lemma
 
         try:
             for chunk in doc.noun_chunks:
@@ -206,7 +206,7 @@ def core_nlp(language: str, texts: List[Text]):
                     end=chunk.end,
                     sentence_id=sentences[chunk.sent.start],
                     text=chunk.text,
-                    source="core",
+                    source="coref",
                     type=AnnotationTypes.NOUN_CHUNK.value,
                     value=chunk.label_,
                     metadata={Metadata.LEMMA.value: chunk.lemma_},
@@ -221,8 +221,7 @@ def handle_coreference(language, doc, coref_map):
             spans: List[spacy.tokens.Span] = []
 
             for span in filter_none(
-                doc.char_span(start, end, label="UNKNOWN")
-                for start, end in cluster
+                doc.char_span(start, end, label="UNKNOWN") for start, end in cluster
             ):
                 span_ents = list(span.ents)
                 if len(span_ents) == 0:
@@ -296,9 +295,7 @@ def is_sentence_junk(sentence: spacy.tokens.span.Span) -> bool:
     if not has_verb:
         return True
 
-    stopwords = sum(
-        [1 for t in sentence if is_token_stopword(t) and t.pos_ != "VERB"]
-    )
+    stopwords = sum([1 for t in sentence if is_token_stopword(t) and t.pos_ != "VERB"])
     if stopwords / len(sentence) >= 0.90 or (len(sentence) - stopwords <= 3):
         return True
 

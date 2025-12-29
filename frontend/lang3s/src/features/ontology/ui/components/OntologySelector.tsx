@@ -373,17 +373,7 @@ const SelectionSummary = () => {
   );
 };
 
-export type Section = {
-  id: number;
-  name: string;
-  mappings: string[];
-  description: string;
-  path: string;
-  parentId: number;
-  color: string;
-  properties: Record<string, string>;
-  hasChildren: boolean;
-}[];
+export type Section = RouterOutputs["ontology"]["getOntology"];
 
 const Sections = ({
   className,

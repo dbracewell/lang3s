@@ -1,4 +1,4 @@
-import UserProvider from "@/features/auth/UserContext";
+import UserProvider from "@/features/auth/contexts/UserContext";
 import { Wrapper } from "@/components/main-layout/Wrapper";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";

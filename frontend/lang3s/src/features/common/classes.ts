@@ -54,6 +54,16 @@ export class Lang3sTextAnnotation {
     this.textObject = textObject;
   };
 
+  getCorefChain = () => {
+    const id = this.COREF().id;
+    return (
+      this.textObject?.annotations.filter(
+        (annotation: Lang3sTextAnnotation) =>
+          annotation.COREF().id === id && annotation.id !== this.id,
+      ) ?? []
+    );
+  };
+
   A0 = () => {
     return ((this.metadata["A0"] as string[]) ?? []).map(
       (a) => this.textObject!.id2Annotation[a],

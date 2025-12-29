@@ -1,31 +1,11 @@
 import { db } from "@/lib/db";
-import { TextAnnotationTable, TopicsTable } from "@/lib/db/schema";
+import { TextAnnotationTable, TopicSentences, TopicsTable } from "@/lib/db/schema";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
-import {
-  and,
-  asc,
-  count,
-  countDistinct,
-  desc,
-  eq,
-  gt,
-  gte,
-  ilike,
-  lt,
-  ne,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, gt, gte, ilike, lt, ne, or, sql } from "drizzle-orm";
 import z from "zod";
-import {
-  cosineSimilarity,
-  generateNextPage,
-  jsonAgg,
-  jsonBuildObject,
-  withPagination,
-} from "@/lib/db/funcs";
-import { MIN_TOPIC_SIMILARITY, PAGE_LIMIT } from "@/features/common/constants";
+import { generateNextPage, jsonAgg, jsonBuildObject, withPagination } from "@/lib/db/funcs";
+import { PAGE_LIMIT } from "@/features/common/constants";
 import { Annotations } from "@/lib/db/annotations";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { TRPCError } from "@trpc/server";
@@ -342,10 +322,7 @@ export const AnalyticsRouter = createTRPCRouter({
 
       const [topic] = await logAndRethrow(() =>
         db
-          .select({
-            embedding: TopicsTable.embedding,
-            name: TopicsTable.name,
-          })
+          .select({ name: TopicsTable.name })
           .from(TopicsTable)
           .where(eq(TopicsTable.id, id)),
       );
@@ -356,35 +333,27 @@ export const AnalyticsRouter = createTRPCRouter({
 
       const [[totalData], sentencesData, entitiesData] = await logAndRethrow(
         () => {
-          const sentences = db
+          const topicSentences = db
             .select({
-              documentId: TextAnnotationTable.documentId,
+              documentId: TopicSentences.documentId,
+              sentenceAid: TopicSentences.sentenceAid,
               content: TextAnnotationTable.content,
-              sentenceId: TextAnnotationTable.sentenceId,
-              similarity: cosineSimilarity(
-                TextAnnotationTable.embedding,
-                topic.embedding,
-              ).as("similarity"),
+              similarity: TopicSentences.similarity,
             })
-            .from(TextAnnotationTable)
-            .where((t) =>
-              and(
-                gte(t.similarity, MIN_TOPIC_SIMILARITY),
-                eq(TextAnnotationTable.type, "sentence"),
-                Annotations.isNotStopword,
-              ),
+            .from(TopicSentences)
+            .innerJoin(
+              TextAnnotationTable,
+              eq(TextAnnotationTable.id, TopicSentences.sentenceAid),
             )
-            .as("sentence");
+            .where(eq(TopicSentences.topicId, id))
+            .orderBy(desc(TopicSentences.similarity))
+            .as(randomAlphaUnderscore());
 
           const sentenceSearch = db
-            .select({
-              documentId: sentences.documentId,
-              sentenceId: sentences.sentenceId,
-              content: sentences.content,
-              similarity: sentences.similarity,
+            .selectDistinct({
+              content: topicSentences.content,
             })
-            .from(sentences)
-            .orderBy((t) => desc(t.similarity))
+            .from(topicSentences)
             .limit(20);
 
           const baseEntityQuery = Annotations.getAnnotationsWithOntology({
@@ -393,24 +362,22 @@ export const AnalyticsRouter = createTRPCRouter({
               "ALL.Entity.Physical",
               "ALL.Entity.Abstract.Social_And_Collective",
             ],
-            annotationFields: ["documentId", "sentenceId"],
+            annotationFields: ["sentenceAid"],
             computedColumns: (o) => ({
               value: sql<string>`${o.name}`.as(randomAlphaUnderscore()),
             }),
           }).as("base_entities");
+
           const entities = db
             .select({
               entity: baseEntityQuery.content,
               type: baseEntityQuery.value,
               count: count().as(randomAlphaUnderscore()),
             })
-            .from(sentences)
+            .from(topicSentences)
             .innerJoin(
               baseEntityQuery,
-              and(
-                eq(sentences.documentId, baseEntityQuery.documentId),
-                eq(sentences.sentenceId, baseEntityQuery.sentenceId),
-              ),
+              eq(topicSentences.sentenceAid, baseEntityQuery.sentenceAid),
             )
             .groupBy((t) => [t.entity, t.type])
             .orderBy((t) => [desc(t.count), asc(t.entity)])
@@ -419,9 +386,9 @@ export const AnalyticsRouter = createTRPCRouter({
           const totalCount = db
             .select({
               count: count(),
-              docs: countDistinct(sentences.documentId),
+              docs: countDistinct(topicSentences.documentId),
             })
-            .from(sentences);
+            .from(topicSentences);
 
           return Promise.all([totalCount, sentenceSearch, entities]);
         },

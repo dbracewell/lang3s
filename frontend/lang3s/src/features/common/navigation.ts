@@ -50,12 +50,12 @@ export const NAVIGATION_LINKS: NavigationGroup[] = [
         exact: false,
       },
       { separator: true },
-      {
-        href: "/kb",
-        title: "Knowledge Base",
-        icon: "DatabaseIcon",
-        exact: false,
-      },
+      // {
+      //   href: "/kb",
+      //   title: "Knowledge Base",
+      //   icon: "DatabaseIcon",
+      //   exact: false,
+      // },
 
       {
         href: "/system/ontology/viewer",
@@ -104,12 +104,12 @@ export const NAVIGATION_LINKS: NavigationGroup[] = [
     title: "Report",
     icon: "NotebookPenIcon",
     links: [
-      {
-        href: "/notes",
-        title: "Notes",
-        exact: false,
-        icon: "NotebookTextIcon",
-      },
+      // {
+      //   href: "/notes",
+      //   title: "Notes",
+      //   exact: false,
+      //   icon: "NotebookTextIcon",
+      // },
       {
         href: "/reports/charts",
         title: "Charts",

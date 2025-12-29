@@ -1,23 +1,22 @@
 "use client";
 
-import { useUser } from "@/features/auth/UserContext";
+import { useUser } from "@/features/auth/contexts/UserContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogOutIcon, Moon, Sun, User2Icon } from "lucide-react";
 import * as React from "react";
+import { useState } from "react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { authClient } from "@/lib/auth/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useState } from "react";
 
 export const UserButton = () => {
   const user = useUser();
@@ -28,13 +27,13 @@ export const UserButton = () => {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger className="outline-0">
-        <div className="bg-dodger-blue-500 border-dodger-blue-600 dark:border-dodger-blue-900 flex size-6 items-center justify-center rounded-full border-2 text-sm text-white">
+        <div className="bg-dodger-blue-500 border-dodger-blue-600 dark:border-dodger-blue-900 flex size-6 items-center justify-center rounded-full border-2 text-sm text-white hover:outline-2">
           {user.username[0].toUpperCase()}
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuGroup>
-          <div className="dropdown-arrow left-[85%]!"></div>
+          <div className="dropdown-arrow left-[82%]!"></div>
           <DropdownMenuItem asChild>
             <Link href={"/account"}>
               <User2Icon /> Account

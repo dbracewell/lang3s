@@ -118,7 +118,7 @@ export const SearchBar = () => {
       >
         <InputGroup
           className={cn(
-            "text-foreground bg-sidebar-dark/50 dark:border-border hover:shadow-shadow dark:hover:shadow-dodger-blue-900 dark:hover:bg-background h-8 w-full rounded-full hover:shadow-xs",
+            "text-foreground dark:bg-sidebar-dark/50 dark:border-border hover:shadow-shadow dark:hover:shadow-dodger-blue-900 dark:hover:bg-background h-8 w-full rounded-full bg-zinc-100 hover:shadow-xs",
             !!query && "bg-background! dark:bg-background!",
             isOptionsOpen
               ? "bg-background dark:bg-background hover:bg-background dark:hover:bg-background rounded-none rounded-t-lg border border-b-0 border-slate-800 dark:border-slate-500"

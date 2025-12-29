@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useTagSearchParams } from "@/features/analytics/hooks/useTagSearch";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { XIcon } from "lucide-react";
 import Link from "next/link";
@@ -17,7 +16,7 @@ import { parseAsString, useQueryState } from "nuqs";
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
 import { parseAsBoolean } from "nuqs/server";
 import { TreemapNode } from "recharts/types/util/types";
-import { JSXElementConstructor, ReactElement, useCallback } from "react";
+import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
 
 const COLORS = [
   "#84bff5", //dodger-blue-300
@@ -36,52 +35,40 @@ export const EntityCoOccurrenceVisualization = ({
 }: {
   allValues: string[];
 }) => {
-  const [selectedValues] = useTagSearchParams(allValues);
-  const [entityText, setEntityText] = useQueryState(
-    "entity",
-    parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
-  );
-  const [entityType, setEntityType] = useQueryState(
-    "entityType",
-    parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
-  );
-  const [showEvents] = useQueryState(
-    "showEvents",
-    parseAsBoolean.withDefault(false).withOptions({ clearOnDefault: true }),
-  );
+  const [params, setParams] = useEntitySearchParams(allValues);
 
-  const entityTypeName = entityType.split(".").slice(-1)[0];
   const { data, isLoading } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationCoOccurrence.queryOptions(
       {
-        leftValue: entityType,
-        leftText: entityText,
-        rightValues: selectedValues,
+        leftValue: params.entityType,
+        leftText: params.entity,
+        rightValues: params.tags,
       },
       {
-        enabled: !!entityText && !!entityType,
+        enabled: !!params.entity && !!params.entityType && !params.showEvents,
       },
     ),
   );
 
-  if (showEvents || !entityText || !entityType) {
+  if (params.showEvents || !params.entity || !params.entityType) {
     return null;
   }
 
+  const entityTypeName = params.entityType.split(".").slice(-1)[0];
   return (
     <Card className="absolute top-0 left-0 z-10 h-full w-full">
       <CardHeader>
         <CardTitle className="text-2xl">
           Other entities mentioned with{" "}
           <span className="text-dodger-blue-500 font-black">
-            {entityText} ({entityTypeName})
+            {params.entity} ({entityTypeName})
           </span>
         </CardTitle>
         <CardDescription>
           Displays the number of times each entity was mentioned in the same
           sentence as{" "}
           <span className="font-bold">
-            {entityText} ({entityTypeName})
+            {params.entity} ({entityTypeName})
           </span>
           .
         </CardDescription>
@@ -89,7 +76,10 @@ export const EntityCoOccurrenceVisualization = ({
           <Button
             variant="ghost"
             onClick={() => {
-              (setEntityText(""), setEntityType(""));
+              setParams({
+                entity: "",
+                entityType: "",
+              });
             }}
           >
             <XIcon />
@@ -114,7 +104,7 @@ export const EntityCoOccurrenceVisualization = ({
               fill="#8884d8"
               //@ts-ignore
               content={(props) => (
-                <CustomizedContent source={entityText} {...props} />
+                <CustomizedContent source={params.entity} {...props} />
               )}
             >
               <Tooltip content={<CustomTooltip />} />

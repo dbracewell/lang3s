@@ -5,6 +5,7 @@ import { Lang3sTextAnnotation } from "@/features/common/classes";
 import {
   AnnotationColors,
   DEFAULT_MIN_SIMILARITY,
+  ONTOLOGY_ENTITY_ROOT,
 } from "@/features/common/constants";
 import { SearchIcon } from "lucide-react";
 import Link from "next/link";
@@ -14,7 +15,7 @@ const isEventive = (type: string) => {
   return !isEntity(type);
 };
 
-const isEntity = (type: string) => type.startsWith("ALL.Entity");
+const isEntity = (type: string) => type.startsWith(ONTOLOGY_ENTITY_ROOT);
 
 const getGroupName = (
   annotation: Lang3sTextAnnotation | null,
@@ -24,9 +25,9 @@ const getGroupName = (
   if (annotation == null) {
     return groupName;
   }
-  if (isEntity(annotation.type)) {
+  if (isEntity(annotation.value)) {
     groupName = isEvent ? annotation.id : annotation.COREF().id;
-  } else if (isEventive(annotation.type)) {
+  } else if (isEventive(annotation.value)) {
     groupName = annotation.id;
   } else {
     groupName = annotation.value;
@@ -110,9 +111,7 @@ export const TextAnnotation = memo(
       <div className={cn("relative", annotation.type != "token" && "group")}>
         <div
           data-annotation-type={
-            annotation.type != "token"
-              ? annotation.value.split(".").slice(-1)[0]
-              : ""
+            annotation.type != "token" ? annotation.type : ""
           }
           data-annotation={true}
           data-entity={getGroupName(annotation)}
@@ -121,30 +120,30 @@ export const TextAnnotation = memo(
             if (annotation.type === "token") return;
             blurSentence();
             highlightGroup(
-              isEventive(annotation.type) ? "event" : "entity",
-              getGroupName(annotation, isEventive(annotation.type)),
+              isEventive(annotation.value) ? "event" : "entity",
+              getGroupName(annotation, isEventive(annotation.value)),
             );
             annotation.A0().map((a) => {
               highlightGroup(
-                isEventive(annotation.type) ? "event" : "entity",
+                isEventive(annotation.value) ? "event" : "entity",
                 getGroupName(a, true),
                 "A0",
               );
             });
             annotation.A1().map((a) => {
               highlightGroup(
-                isEventive(annotation.type) ? "event" : "entity",
+                isEventive(annotation.value) ? "event" : "entity",
                 getGroupName(a, true),
                 "A1",
               );
             });
             highlightGroup(
-              isEventive(annotation.type) ? "event" : "entity",
+              isEventive(annotation.value) ? "event" : "entity",
               getGroupName(annotation.TIME(), true),
               "TIME",
             );
             highlightGroup(
-              isEventive(annotation.type) ? "event" : "entity",
+              isEventive(annotation.value) ? "event" : "entity",
               getGroupName(annotation.LOC(), true),
               "LOC",
             );
@@ -153,38 +152,38 @@ export const TextAnnotation = memo(
             if (annotation.type === "token") return;
             unblurSentence();
             unhighlightGroup(
-              isEventive(annotation.type) ? "event" : "entity",
+              isEventive(annotation.value) ? "event" : "entity",
               getGroupName(annotation, isEventive(annotation.type)),
             );
             annotation.A0().map((a) => {
               unhighlightGroup(
-                isEventive(annotation.type) ? "event" : "entity",
+                isEventive(annotation.value) ? "event" : "entity",
                 getGroupName(a, true),
                 annotation.type,
               );
             });
             annotation.A1().map((a) => {
               unhighlightGroup(
-                isEventive(annotation.type) ? "event" : "entity",
+                isEventive(annotation.value) ? "event" : "entity",
                 getGroupName(a, true),
                 annotation.type,
               );
             });
             unhighlightGroup(
-              isEventive(annotation.type) ? "event" : "entity",
+              isEventive(annotation.value) ? "event" : "entity",
               getGroupName(annotation.TIME(), true),
               annotation.type,
             );
             unhighlightGroup(
-              isEventive(annotation.type) ? "event" : "entity",
+              isEventive(annotation.value) ? "event" : "entity",
               getGroupName(annotation.LOC(), true),
               annotation.type,
             );
           }}
           className={cn(
             "entity flex flex-col text-black",
-            annotation.type != "token"
-              ? "cursor-pointer overflow-clip rounded-md border border-amber-500 bg-amber-100 px-2 text-center after:-mx-2 after:bg-amber-500 after:p-[1px] after:text-center after:text-[10px] after:text-white after:uppercase"
+            annotation.type !== "token"
+              ? "cursor-pointer overflow-clip rounded-md border border-amber-500 bg-amber-100 px-2 text-center after:-mx-2 after:bg-amber-500 after:p-px after:text-center after:text-[10px] after:text-white after:uppercase"
               : "pt-0.5",
             annotation.type === "token"
               ? "text-foreground"
