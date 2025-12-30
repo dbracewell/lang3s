@@ -11,7 +11,7 @@ import {
 import { XIcon } from "lucide-react";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Spinner } from "@/components/Spinner";
-import { Fragment, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -45,6 +45,18 @@ export const EntityEvents = () => {
     return data.map((s) => ({ value: s.value, count: s.count }));
   }, [data]);
 
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    const i = setInterval(
+      () =>
+        setIsMounted(
+          params.showEvents && !!params.entity && !!params.entityType,
+        ),
+      100,
+    );
+    return () => clearInterval(i);
+  }, [params.showEvents, params.entity, params.entityType]);
+
   if (!params.entityType || !params.entity || !params.showEvents) {
     return null;
   }
@@ -58,7 +70,12 @@ export const EntityEvents = () => {
   };
 
   return (
-    <Card className="absolute top-0 left-0 z-10 h-full w-full">
+    <Card
+      className={cn(
+        "absolute top-0 left-0 z-10 h-full w-full scale-0 overflow-hidden",
+        isMounted && "scale-100 transition-all duration-300",
+      )}
+    >
       <CardHeader>
         <CardTitle className="text-2xl">
           Events involving{" "}

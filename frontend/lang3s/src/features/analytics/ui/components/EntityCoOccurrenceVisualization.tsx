@@ -15,6 +15,8 @@ import Link from "next/link";
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
 import { TreemapNode } from "recharts/types/util/types";
 import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
+import { cn } from "@/lib/utils/cn";
+import { useEffect, useState } from "react";
 
 const COLORS = [
   "#84bff5", //dodger-blue-300
@@ -44,13 +46,31 @@ export const EntityCoOccurrenceVisualization = () => {
     ),
   );
 
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    const i = setInterval(
+      () =>
+        setIsMounted(
+          !params.showEvents && !!params.entity && !!params.entityType,
+        ),
+      100,
+    );
+    return () => clearInterval(i);
+  }, [params.showEvents, params.entity, params.entityType]);
+
   if (params.showEvents || !params.entity || !params.entityType) {
     return null;
   }
 
   const entityTypeName = params.entityType.split(".").slice(-1)[0];
   return (
-    <Card className="absolute top-0 left-0 z-10 h-full w-full">
+    <Card
+      className={cn(
+        "absolute top-0 left-0 z-10 h-full w-full scale-0 overflow-hidden",
+        isMounted && "scale-100 transition-all duration-300",
+      )}
+      // className="absolute top-0 left-0 z-10 h-full w-full"
+    >
       <CardHeader>
         <CardTitle className="text-2xl">
           Other entities mentioned with{" "}

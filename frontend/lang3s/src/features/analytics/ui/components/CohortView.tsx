@@ -13,28 +13,40 @@ import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Spinner } from "@/components/Spinner";
+import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils/cn";
 
 export const CohortView = ({
   cohort,
 }: {
   cohort: { id: string; name: string; type: string }[];
 }) => {
-  const [, setSelectedCohort] = useQueryState(
+  const [c, setSelectedCohort] = useQueryState(
     "c",
     parseAsInteger.withDefault(-1).withOptions({ clearOnDefault: true }),
   );
+  const [isMounted, setIsMounted] = useState(false);
   const { data, isPending, isError, error } = useTRPCQuery((trpc) =>
     trpc.analytics.getCohortInformation.queryOptions({
       cohort: cohort.map((c) => c.id),
     }),
   );
 
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   if (isError) {
     throw error;
   }
 
   return (
-    <Card className="absolute top-0 left-0 h-full w-full overflow-hidden">
+    <Card
+      className={cn(
+        "absolute top-0 left-0 z-10 h-full w-full scale-0 overflow-hidden",
+        isMounted && "scale-100 transition-all duration-300",
+      )}
+    >
       <CardHeader>
         <CardTitle className="text-2xl">
           Cohort View{" "}

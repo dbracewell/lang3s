@@ -2,11 +2,10 @@
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { Sentence } from "@/features/documents/ui/components/Sentence";
 import { Lan3gsDocument } from "@/features/common/classes";
-import { memo, useState } from "react";
+import { memo } from "react";
 import { OntologySelectorDialog } from "@/features/ontology/ui/components/OntologySelectorDialog";
 import { PaletteIcon } from "lucide-react";
 import { RouterOutputs } from "@/lib/trpc/types";
-import { ONTOLOGY_ENTITY_ROOT } from "@/features/common/constants";
 import { useTags } from "@/features/documents/hooks/useTags";
 
 type DocumentViewProps = {
