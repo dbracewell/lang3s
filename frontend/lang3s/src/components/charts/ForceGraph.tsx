@@ -1,3 +1,4 @@
+"use client";
 import { cn } from "@/lib/utils/cn";
 import {
   forceCenter,
@@ -31,6 +32,7 @@ export interface Point extends SimulationNodeDatum {
   y?: number;
   fx?: number | null;
   fy?: number | null;
+  color?: string;
 }
 
 export interface Similarity extends SimulationLinkDatum<Point> {
@@ -62,10 +64,14 @@ export interface BubbleSimilarityChartProps {
   };
   splitLabels?: string;
   showLabels?: boolean;
+  minSupportToShowLabel?: number;
   onNodeClick?: (node: Point) => void;
   styles?: BubbleChartStyles;
   className?: string;
   style?: React.CSSProperties;
+  minNodeSize?: number;
+  maxNodeSize?: number;
+  linkScaleFactor?: number;
 }
 
 // ---------------- Component ----------------
@@ -77,6 +83,10 @@ export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
   onNodeClick,
   styles = {},
   className,
+  minNodeSize = 8,
+  minSupportToShowLabel = 100,
+  maxNodeSize = 70,
+  linkScaleFactor = 2,
   style,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -127,7 +137,7 @@ export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
     const supports = data.points.map((p) => p.support);
     const radiusScale = scaleSqrt()
       .domain([Math.min(...supports), Math.max(...supports)])
-      .range([8, 70]);
+      .range([minNodeSize, maxNodeSize]);
 
     const centralNode = data.points.reduce((a, b) =>
       a.support > b.support ? a : b,
@@ -135,7 +145,7 @@ export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
 
     const nodes: Point[] = data.points.map((p) => ({
       ...p,
-      r: radiusScale(p.support),
+      r: p.r ? p.r : radiusScale(p.support),
       x: dimensions.width / 2 + Math.random() * 10,
       y: dimensions.height / 2 + Math.random() * 10,
     }));
@@ -161,7 +171,7 @@ export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
       .selectAll<SVGLineElement, Similarity>("line")
       .data(links)
       .join("line")
-      .attr("stroke-width", (d: Similarity) => d.similarity * 2);
+      .attr("stroke-width", (d: Similarity) => d.similarity * linkScaleFactor);
 
     const node = g
       .append("g")
@@ -170,17 +180,19 @@ export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
       .join("circle")
       .attr("r", (d: Point) => d.r ?? 10)
       .attr("fill", (d: Point) =>
-        d.id === centralNode.id
-          ? centerNodeColor
-          : typeof nodeFill === "function"
-            ? nodeFill(d)
-            : nodeFill,
+        d.color
+          ? d.color
+          : d.id === centralNode.id
+            ? centerNodeColor
+            : typeof nodeFill === "function"
+              ? nodeFill(d)
+              : nodeFill,
       )
       .attr("stroke", nodeStroke)
       .style("cursor", onNodeClick ? "pointer" : "default")
       .attr("stroke-width", nodeStrokeWidth)
       .on("mouseover", (event: any, d: Point) => {
-        tooltip.style("visibility", "visible").text(`${d.name} (${d.support})`);
+        tooltip.style("visibility", "visible").text(`${d.name} (${d.color})`);
       })
       .on("mousemove", (event: { pageY: number; pageX: number }) => {
         const bounds = (
@@ -202,7 +214,7 @@ export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
       labels = g
         .append("g")
         .selectAll<SVGTextElement, Point>("text")
-        .data(nodes.filter((n) => n.support > 100))
+        .data(nodes.filter((n) => n.support > minSupportToShowLabel))
         .join("text")
         .attr("text-anchor", "middle")
         .attr("dy", 4)

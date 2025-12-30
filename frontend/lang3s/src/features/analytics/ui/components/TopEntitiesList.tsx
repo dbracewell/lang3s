@@ -25,8 +25,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { RouterOutputs } from "@/lib/trpc/types";
 
-export const TopEntitiesList = ({ allValues }: { allValues: string[] }) => {
-  const [params, setParams] = useEntitySearchParams(allValues);
+export const TopEntitiesList = () => {
+  const [params, setParams] = useEntitySearchParams();
   const { data, isLoading, error } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationCounts.queryOptions({
       page: params.page,
@@ -47,7 +47,7 @@ export const TopEntitiesList = ({ allValues }: { allValues: string[] }) => {
   return (
     <div className="mx-auto flex min-h-0 w-full flex-1 flex-col gap-2 p-3">
       <div className="flex items-center gap-5">
-        <Filter values={allValues} />
+        <Filter />
         <div className="hidden flex-1 text-lg font-semibold md:block">
           {formatNumber(data.total)} total Entities
         </div>
@@ -57,19 +57,16 @@ export const TopEntitiesList = ({ allValues }: { allValues: string[] }) => {
           <div className="text-center">Entity</div>
           <div className="text-center">Entity Type</div>
           <SortableHeaderColumn
-            values={allValues}
             sortBy={"mentions"}
             text={"Mention Count"}
             hint={`Number of times this entity is mentioned\n(Includes multiple mentions per document.)`}
           />
           <SortableHeaderColumn
-            values={allValues}
             sortBy={"docs"}
             text={"Document Count"}
             hint={"Number of documents in which this entity appears"}
           />
           <SortableHeaderColumn
-            values={allValues}
             sortBy={"mentionsPerDoc"}
             text={"Mentions Per Document"}
             hint={
@@ -79,13 +76,7 @@ export const TopEntitiesList = ({ allValues }: { allValues: string[] }) => {
         </div>
         <div className="scrollable flex-1">
           {data.results.map((r) => {
-            return (
-              <EntityRow
-                values={allValues}
-                entity={r}
-                key={`${r.content}-${r.value}`}
-              />
-            );
+            return <EntityRow entity={r} key={`${r.content}-${r.value}`} />;
           })}
         </div>
       </div>
@@ -99,13 +90,11 @@ export const TopEntitiesList = ({ allValues }: { allValues: string[] }) => {
 };
 
 const EntityRow = ({
-  values,
   entity,
 }: {
-  values: string[];
   entity: RouterOutputs["analytics"]["getAnnotationCounts"]["results"][number];
 }) => {
-  const [, setParams] = useEntitySearchParams(values);
+  const [, setParams] = useEntitySearchParams();
   return (
     <div className="hover:bg-dodger-blue-200 dark:hover:bg-dodger-blue-800 even:bg-alternate-row bg-row grid h-10 grid-cols-5 divide-x text-sm hover:font-bold">
       <div className="group flex items-center justify-between border-r px-4">
@@ -177,17 +166,15 @@ const EntityRow = ({
 };
 
 const SortableHeaderColumn = ({
-  values,
   sortBy,
   text,
   hint,
 }: {
-  values: string[];
   sortBy: "mentionsPerDoc" | "mentions" | "docs";
   text: string;
   hint: string;
 }) => {
-  const [params, setParams] = useEntitySearchParams(values);
+  const [params, setParams] = useEntitySearchParams();
   return (
     <div className="flex items-center justify-center gap-2">
       {params.sortBy === sortBy ? (
@@ -212,8 +199,8 @@ const SortableHeaderColumn = ({
   );
 };
 
-const Filter = ({ values }: { values: string[] }) => {
-  const [params, setParams] = useEntitySearchParams(values);
+const Filter = () => {
+  const [params, setParams] = useEntitySearchParams();
   const [filter, setFilter] = useState<string>("");
   useEffect(() => {
     setFilter(params.filter);
@@ -222,7 +209,7 @@ const Filter = ({ values }: { values: string[] }) => {
   return (
     <InputGroup className="max-w-md">
       <InputGroupInput
-        placeholder="Filter by Entity (Press enter to search)..."
+        placeholder="Filter by entity (Press enter to search)..."
         value={filter ?? ""}
         onKeyDown={(e) => {
           if (e.key === "Enter") {

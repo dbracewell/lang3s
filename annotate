@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/t3env bash
 
 if [ ! "$CONDA_DEFAULT_ENV" = "nlp" ]; then
   conda activate nlp

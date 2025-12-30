@@ -40,6 +40,7 @@ is_updating_task = False
 
 def worker():
     global is_updating_task
+    global topic_model
     while True:
         if is_updating_task:
             time.sleep(5)

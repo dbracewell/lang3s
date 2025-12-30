@@ -1,5 +1,9 @@
 import { db } from "@/lib/db";
-import { AnnotationToOntology, OntologyTable } from "@/lib/db/schemas/ontology";
+import {
+  AnnotationToOntology,
+  OntologyProperties,
+  OntologyTable,
+} from "@/lib/db/schemas/ontology";
 import verb_ontology from "./verb_ontology.json";
 import entity_ontology from "./entity_ontology.json";
 import { AnnotationColors } from "@/features/common/constants";
@@ -10,7 +14,7 @@ type Node = {
   description: string;
   children: Node[];
   mappings: string[];
-  properties?: Record<string, string>;
+  properties?: OntologyProperties;
 };
 
 const COLORS = [...Object.keys(AnnotationColors)];
@@ -27,7 +31,6 @@ const getColorName = (name: string) => {
 
 const create_node = async (node: Node, parent?: Node) => {
   try {
-    console.log(parent ? `${parent.name}.${node.name}` : node.name);
     const [r] = await db
       .insert(OntologyTable)
       .values({
@@ -58,35 +61,37 @@ const create_node = async (node: Node, parent?: Node) => {
   }
 };
 
-const ALL: Node = {
-  name: "ALL",
-  description: "Root of all entities and concepts in the ontology",
-  children: [],
-  mappings: [],
-};
-
-const process_node = (parent: Node, entry: Record<string, any>) => {
-  if (entry["description"] == null) {
-    console.log(entry);
-  }
-  const newNode = {
-    name: entry.name,
-    description: !!entry.description.trim() ? entry.description : "",
+export const seed_ontology = async () => {
+  const ALL: Node = {
+    name: "ALL",
+    description: "Root of all entities and concepts in the ontology",
     children: [],
-    mappings: !!entry.mappings ? entry.mappings : [],
-    properties: entry["properties"] ?? {},
-  } as Node;
-  parent.children.push(newNode);
-  (entry.children ?? []).forEach((child: Record<string, any>) =>
-    process_node(newNode, child),
-  );
+    mappings: [],
+  };
+
+  const process_node = (parent: Node, entry: Record<string, any>) => {
+    if (entry["description"] == null) {
+      console.log(entry);
+    }
+    const newNode = {
+      name: entry.name,
+      description: !!entry.description.trim() ? entry.description : "",
+      children: [],
+      mappings: !!entry.mappings ? entry.mappings : [],
+      properties: entry["properties"] ?? {},
+    } as Node;
+    parent.children.push(newNode);
+    (entry.children ?? []).forEach((child: Record<string, any>) =>
+      process_node(newNode, child),
+    );
+  };
+
+  Object.entries(verb_ontology).forEach(([root, entry]) => {
+    process_node(ALL, entry);
+  });
+  Object.entries(entity_ontology).forEach(([root, entry]) => {
+    process_node(ALL, entry);
+  });
+
+  await create_node(ALL);
 };
-
-Object.entries(verb_ontology).forEach(([root, entry]) => {
-  process_node(ALL, entry);
-});
-Object.entries(entity_ontology).forEach(([root, entry]) => {
-  process_node(ALL, entry);
-});
-
-create_node(ALL);

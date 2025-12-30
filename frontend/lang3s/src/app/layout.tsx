@@ -45,7 +45,7 @@ export default function RootLayout({
               <SSEProvider>{children}</SSEProvider>
             </NuqsAdapter>
           </TRPCReactProvider>
-          <Toaster richColors />
+          <Toaster richColors position="top-center" />
         </ThemeProvider>
       </body>
     </html>

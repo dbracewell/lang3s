@@ -1,4 +1,3 @@
-import { AdminUsersPageView } from "@/features/auth/ui/views/AdminUsersPageView";
 import { requireAdmin } from "@/features/auth/server/actions";
 import { caller } from "@/lib/trpc/server";
 import { UserList } from "@/features/auth/ui/components/UserList";

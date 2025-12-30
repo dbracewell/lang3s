@@ -19,6 +19,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import { SearchBar } from "@/features/search/ui/components/SearchBar";
 import { UserButton } from "@/components/buttons/UserButton";
+import { useAnalyticsUpdate } from "@/hooks/events/useAnalyticsUpdate";
 
 type MenuBarProps = {
   setIsMenuOpen: (value: boolean) => void;
@@ -27,7 +28,7 @@ type MenuBarProps = {
 export const MenuBar = ({ setIsMenuOpen }: MenuBarProps) => {
   const user = useUser();
   const navigationLinks = useMemo(() => filterLinks(user.role), [user.role]);
-
+  useAnalyticsUpdate();
   return (
     <div className="flex h-10 items-center gap-2 py-1 pl-2">
       <Button variant="menu" size="icon-xs" onClick={() => setIsMenuOpen(true)}>

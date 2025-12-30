@@ -1,5 +1,5 @@
 import { createClient, RedisClientType } from "redis";
-import { env } from "@/lib/env/env";
+import { t3env } from "@/lib/t3env";
 
 export const ANNOTATION_QUEUE = "doc_queue";
 
@@ -7,7 +7,7 @@ const globalForRedis = global as unknown as { redis: RedisClientType };
 
 export const createDisconnectedClient = () => {
   return createClient({
-    url: `redis://${env.REDIS_HOST}:${env.REDIS_PORT}/${env.REDIS_DB}`,
+    url: `redis://${t3env.REDIS_HOST}:${t3env.REDIS_PORT}/${t3env.REDIS_DB}`,
   }).on("error", (err) => console.log(err));
 };
 
@@ -21,7 +21,7 @@ export const getGlobalConnection = async (): Promise<RedisClientType> => {
     return globalForRedis.redis;
   }
   const client = await createRedisClient();
-  if (env.NODE_ENV !== "production")
+  if (t3env.NODE_ENV !== "production")
     globalForRedis.redis = client as RedisClientType;
   return client as RedisClientType;
 };

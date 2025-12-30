@@ -6,7 +6,7 @@ export default function Home() {
   const isMobile = useIsMobile();
   return (
     <div className="flex h-full flex-1 flex-col items-center justify-center gap-2">
-      <div className="shadow-shadow flex aspect-square size-fit flex-col items-center justify-center gap-3 rounded-full border-2 bg-slate-200 p-20 shadow-xl md:p-40 dark:bg-slate-800">
+      <div className="shadow-shadow flex aspect-square size-fit flex-col items-center justify-center gap-3 rounded-full border-2 bg-slate-200 p-20 shadow-sm md:p-40 dark:bg-slate-800">
         {isMobile ? (
           <Logo
             height={300}

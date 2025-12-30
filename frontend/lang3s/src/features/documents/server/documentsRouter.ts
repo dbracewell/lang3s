@@ -14,7 +14,7 @@ import z from "zod";
 import { promises as fs } from "fs";
 import path from "path";
 import { DocumentSchema } from "@/features/common/schemas";
-import { env } from "@/lib/env/env";
+import { t3env } from "@/lib/t3env";
 import * as zlib from "node:zlib";
 import { generateNextPage, withPagination } from "@/lib/db/funcs";
 import { Annotations, OntologyMappings } from "@/lib/db/annotations";
@@ -109,7 +109,7 @@ export const DocumentsRouter = createTRPCRouter({
   getOne: protectedProcedure
     .input(z.object({ id: z.string().min(1) }))
     .query(async ({ input }) => {
-      const filePath = path.join(env.DOCUMENTS_DIR, `${input.id}.json.gz`);
+      const filePath = path.join(t3env.DOCUMENTS_DIR, `${input.id}.json.gz`);
       try {
         const jsonData = zlib
           .gunzipSync(await fs.readFile(filePath))

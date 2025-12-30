@@ -7,6 +7,10 @@ export const EventSchemas = {
     status: z.enum(["queued", "running", "done", "failed"]),
   }),
 
+  analytics_update: z.object({
+    completed: z.boolean(),
+  }),
+
   "job:log": z.object({
     jobId: z.string(),
     message: z.string(),

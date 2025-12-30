@@ -46,9 +46,7 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class JobService:
-    def __init__(
-        self, api_key: str, api_host: str = "http://localhost:3001"
-    ) -> None:
+    def __init__(self, api_key: str, api_host: str = "http://localhost:3001") -> None:
         self.api_key = api_key
         self._api_root = f"{api_host}/api/trpc"
 
@@ -121,9 +119,7 @@ class JobService:
 
         raise Exception(f"Invalid method {method}")
 
-    def create_job(
-        self, name: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> Job:
+    def create_job(self, name: str, metadata: Optional[Dict[str, Any]] = None) -> Job:
         job = self._call_api_obj(
             "jobs.create",
             {"name": name, "metadata": metadata or {}},
@@ -134,9 +130,7 @@ class JobService:
         return job
 
     def get_job(self, job_id: int) -> Job:
-        return self._call_api_obj(
-            "jobs.get", {"job_id": job_id}, return_type=Job
-        )
+        return self._call_api_obj("jobs.get", {"job_id": job_id}, return_type=Job)
 
     def update_job(
         self,
@@ -179,7 +173,9 @@ class JobService:
                     "jobs.annotate",
                     {
                         "job_id": job.id,
-                        "files": [files[i].__dict__ for i in range(i, i + 20)],
+                        "files": [
+                            files[i].__dict__ for i in range(i, min(i + 20, len(files)))
+                        ],
                     },
                     return_type=Job,
                     method="POST",

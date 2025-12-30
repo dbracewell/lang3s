@@ -24,7 +24,7 @@ import {
   Project,
   PropertyAssignment,
   SyntaxKind,
-  VariableDeclaration,
+  VariableDeclaration
 } from "ts-morph";
 import path from "path";
 import fs from "fs";
@@ -262,7 +262,7 @@ function extractColumn(
   const rootCall = chain[chain.length - 1]; // the innermost call
   const rootCtorName = getConstructorNameFromRoot(rootCall);
 
-  // db column name: first arg of root constructor, or fallback to prop name
+  // init column name: first arg of root constructor, or fallback to prop name
   const rootArgs = rootCall.getArguments();
   let dbName: string = name;
   if (rootArgs.length > 0) {

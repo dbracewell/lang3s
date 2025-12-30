@@ -1,5 +1,5 @@
 "use client";
-import { ChevronRightIcon, NetworkIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, NetworkIcon } from "lucide-react";
 import React, {
   createContext,
   Dispatch,
@@ -28,6 +28,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { ONTOLOGY_ROOT } from "@/features/common/constants";
 
 const getBreadCrumbPart = (
   value: string,
@@ -86,7 +87,7 @@ type OntologyInfo = {
 
 export const OntologyContext = createContext<OntologyInfo>({
   breadcrumbs: [],
-  rootNode: "ALL",
+  rootNode: ONTOLOGY_ROOT,
   ontology: [],
   current: "",
   setCurrent: () => {},
@@ -102,7 +103,7 @@ export const useOntology = (): OntologyInfo => {
 };
 
 const Provider = ({
-  rootNode = "ALL",
+  rootNode = ONTOLOGY_ROOT,
   selectedNode,
   children,
   checkedNodes,
@@ -121,9 +122,25 @@ const Provider = ({
     }),
   );
   const [current, setCurrent] = useState(selectedNode ?? rootNode);
-  const [currentNode, setCurrentNode] = useState<OntologyNode | undefined>(
-    undefined,
-  );
+
+  useEffect(() => {
+    if (!ontology || !checkedNodes || !setCheckedNodes) return;
+
+    const validPaths = new Set(ontology.map((o) => o.path));
+    const filteredNodes = checkedNodes.filter((path) => validPaths.has(path));
+
+    if (filteredNodes.length !== checkedNodes.length) {
+      setCheckedNodes(filteredNodes);
+    }
+  }, [ontology, checkedNodes, setCheckedNodes]);
+
+  const currentNode = useMemo(() => {
+    if (ontology == null) return undefined;
+    if (current === rootNode) {
+      return ontology.find((o) => o.path === rootNode);
+    }
+    return ontology.find((o) => o.path === current);
+  }, [current, ontology, rootNode]);
 
   const breadcrumbs = useMemo(() => {
     if (ontology == null) return [];
@@ -138,7 +155,7 @@ const Provider = ({
       return [];
     }
 
-    const ALL_NODE = ontology.filter((o) => o.name === rootNode)[0].id;
+    const ALL_NODE = ontology.filter((o) => o.path === rootNode)[0].id;
     const firstSection = ontology
       .filter((o) => o.parentId === ALL_NODE)
       .map((o) => ({
@@ -175,16 +192,6 @@ const Provider = ({
     return sections;
   }, [current, ontology, rootNode]);
 
-  useEffect(() => {
-    if (ontology == null) return;
-    if (current === rootNode) {
-      const ALL_NODE = ontology.filter((o) => o.name === rootNode)[0];
-      setCurrentNode(ALL_NODE);
-    } else {
-      setCurrentNode(ontology.find((o) => o.path === current));
-    }
-  }, [current, ontology, rootNode]);
-
   const value: OntologyInfo = useMemo(
     () => ({
       current,
@@ -204,7 +211,6 @@ const Provider = ({
       checkedNodes,
       sections,
       setCheckedNodes,
-      currentNode,
       rootNode,
     ],
   );
@@ -250,7 +256,6 @@ const BreadCrumbs = ({ maxBreadcrumbs = 4 }: { maxBreadcrumbs?: number }) => {
   const { breadcrumbs, setCurrent } = useOntology();
   return (
     <div className="bg-muted text-muted-foreground scrollable flex min-w-full items-center gap-2 overflow-x-auto rounded border p-2 text-xs">
-      {/*<NetworkIcon className="size-3" />*/}
       <SelectorSearch />
       {breadcrumbs.map((c, i) => (
         <Fragment key={i}>
@@ -455,7 +460,7 @@ const Sections = ({
 };
 
 const SelectorSearch = () => {
-  const { ontology, setCurrent } = useOntology();
+  const { ontology, setCurrent, rootNode, checkedNodes } = useOntology();
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -477,19 +482,26 @@ const SelectorSearch = () => {
             <CommandEmpty>Nothing found.</CommandEmpty>
             <CommandGroup>
               {ontology
-                .filter((o) => o.path !== "ALL")
+                .filter(
+                  (o) => o.path.startsWith(rootNode) && o.path !== rootNode,
+                )
                 .map((o) => (
                   <CommandItem
                     key={o.path}
                     value={o.path}
+                    className="flex items-center justify-between gap-2"
                     onSelect={() => {
                       setCurrent(o.path);
                       setOpen(false);
                     }}
                   >
-                    <span className="truncate">
+                    <div className="flex-1 truncate">
                       {o.path.split(".").slice(1).join(" > ")}
-                    </span>
+                    </div>
+                    {checkedNodes &&
+                      checkedNodes.find((n) => o.path.startsWith(n)) && (
+                        <CheckIcon />
+                      )}
                   </CommandItem>
                 ))}
             </CommandGroup>

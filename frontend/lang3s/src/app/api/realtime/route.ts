@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
           if (user.role != "admin" && event.userid !== user.id) return;
           send(`event: message\n`);
           send(`data: ${message}\n\n`);
+          console.log("Sending >", message);
         } catch (e) {
           console.error(e);
         }

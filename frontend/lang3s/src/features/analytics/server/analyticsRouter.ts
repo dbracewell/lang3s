@@ -1,14 +1,44 @@
 import { db } from "@/lib/db";
-import { TextAnnotationTable, TopicSentences, TopicsTable } from "@/lib/db/schema";
-import { logAndRethrow } from "@/lib/utils/try-catch";
+import {
+  AnnotationCoOccurrence,
+  AnnotationCounts,
+  TextAnnotationTable,
+  TopicSentences,
+  TopicsTable,
+} from "@/lib/db/schema";
+import { logAndRethrow, tryCatch } from "@/lib/utils/try-catch";
 import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
-import { and, asc, count, countDistinct, desc, eq, gt, gte, ilike, lt, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  lt,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import z from "zod";
-import { generateNextPage, jsonAgg, jsonBuildObject, withPagination } from "@/lib/db/funcs";
+import {
+  generateNextPage,
+  jsonAgg,
+  jsonBuildObject,
+  withPagination,
+} from "@/lib/db/funcs";
 import { PAGE_LIMIT } from "@/features/common/constants";
 import { Annotations } from "@/lib/db/annotations";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { TRPCError } from "@trpc/server";
+import { alias } from "drizzle-orm/pg-core";
+import { Point } from "@/components/charts/ForceGraph";
+import { getColorName } from "@/lib/utils/colors";
+import { roleHasPermissions } from "@/features/auth/permissions";
+import { createRedisClient } from "@/lib/redis";
 
 export const AnalyticsRouter = createTRPCRouter({
   getAnnotationTypes: protectedProcedure.query(async () => {
@@ -402,4 +432,230 @@ export const AnalyticsRouter = createTRPCRouter({
         entities: entitiesData,
       };
     }),
+
+  getCohorts: protectedProcedure.query(async () => {
+    const [similarities, pointsRaw] = await logAndRethrow(() => {
+      const s1 = alias(AnnotationCounts, "s1");
+      const s2 = alias(AnnotationCounts, "s2");
+      const similarityQuery = db
+        .select({
+          id1: sql<string>`CONCAT(${s1.content},'-',${s1.type})`.as("id1"),
+          id2: sql<string>`CONCAT(${s2.content},'-',${s2.type})`.as("id2"),
+          similarity: sql<number>`
+       ${AnnotationCoOccurrence.documentCount}::float /
+       NULLIF( (${s1.documentCount} + ${s2.documentCount}  -${AnnotationCoOccurrence.documentCount}),0)
+      `.as("similarity"),
+        })
+        .from(AnnotationCoOccurrence)
+        .innerJoin(
+          s1,
+          and(
+            eq(AnnotationCoOccurrence.source, sql`${s1.content}`),
+            eq(AnnotationCoOccurrence.sourceType, s1.type),
+          ),
+        )
+        .innerJoin(
+          s2,
+          and(
+            eq(AnnotationCoOccurrence.target, sql`${s2.content}`),
+            eq(AnnotationCoOccurrence.targetType, s2.type),
+          ),
+        )
+        .where((t) =>
+          and(
+            gte(t.similarity, 0.25),
+            sql`${s1.type} <@ 'ALL.Entity'`,
+            sql`${s2.type} <@ 'ALL.Entity'`,
+            gt(s1.documentCount, 5),
+            gt(s2.documentCount, 5),
+          ),
+        );
+
+      return Promise.all([
+        similarityQuery,
+        db
+          .select({
+            id: sql<string>`CONCAT(${AnnotationCounts.content},'-',${AnnotationCounts.type})`.as(
+              "id",
+            ),
+            name: AnnotationCounts.content,
+            support: AnnotationCounts.documentCount,
+            r: sql<number>`20`,
+          })
+          .from(AnnotationCounts)
+          .where(
+            and(
+              gt(AnnotationCounts.documentCount, 5),
+              sql`${AnnotationCounts.type} <@ 'ALL.Entity'`,
+            ),
+          ),
+      ]);
+    });
+
+    const points = pointsRaw.filter((p) =>
+      similarities.find((s) => s.id1 === p.id || s.id2 === p.id),
+    );
+
+    const clusters: Record<string, string> = {};
+    points.forEach((p) => {
+      clusters[p.id] = p.id;
+    });
+
+    for (let i = 0; i < 50; i++) {
+      Object.keys(clusters).forEach((p) => {
+        clusters[p] =
+          similarities
+            .map((s) => {
+              if (s.id2 === p && clusters[s.id1] < clusters[p]) {
+                return clusters[s.id1];
+              }
+              if (s.id1 === p && clusters[s.id2] < clusters[p]) {
+                return clusters[s.id2];
+              }
+              return null;
+            })
+            .filter(Boolean)[0] ?? clusters[p];
+      });
+    }
+
+    const groups: Record<string, string[]> = {};
+    Object.entries(clusters).forEach(([id, name]) => {
+      if (groups[name] == null) {
+        groups[name] = [];
+      }
+      groups[name].push(id);
+    });
+
+    const finalClusters = Object.entries(groups)
+      .sort((a, b) => b[1].length - a[1].length)
+      .map(([id, points]) =>
+        points.map((p) => {
+          const parts = p.split("-");
+          return {
+            id: p,
+            name: parts.slice(0, -1).join("-"),
+            type: parts[parts.length - 1],
+          };
+        }),
+      );
+
+    const colored = points.map(
+      (p) =>
+        ({
+          ...p,
+          color: `var(--color-${getColorName(clusters[p.id]).toLowerCase()}-500)`,
+        }) as Point,
+    );
+
+    return {
+      clusters: finalClusters,
+      points: colored,
+      similarities,
+    };
+  }),
+
+  getCohortInformation: protectedProcedure
+    .input(
+      z.object({
+        cohort: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input }) => {
+      const array = sql.join(
+        input.cohort.map((c) => sql`${c}`),
+        sql`, `,
+      );
+
+      const edges = await logAndRethrow(() =>
+        db
+          .select({
+            source: AnnotationCoOccurrence.source,
+            sourceId:
+              sql<string>`CONCAT(${AnnotationCoOccurrence.source},'-',${AnnotationCoOccurrence.sourceType})`.as(
+                "source_id",
+              ),
+            target: AnnotationCoOccurrence.target,
+            targetId:
+              sql<string>`CONCAT(${AnnotationCoOccurrence.target},'-',${AnnotationCoOccurrence.targetType})`.as(
+                "target_id",
+              ),
+            documentCount: AnnotationCoOccurrence.documentCount,
+            sentenceCount: AnnotationCoOccurrence.sentenceCount,
+          })
+          .from(AnnotationCoOccurrence)
+          .where(
+            and(
+              or(
+                sql`CONCAT(${AnnotationCoOccurrence.source},'-',${AnnotationCoOccurrence.sourceType}) in (${array})`,
+                sql`CONCAT(${AnnotationCoOccurrence.target},'-',${AnnotationCoOccurrence.targetType}) in (${array})`,
+              ),
+              gt(AnnotationCoOccurrence.documentCount, 5),
+            ),
+          )
+          .orderBy((t) => [t.sourceId, t.targetId]),
+      );
+
+      const grouped: Record<string, string[]> = {};
+      edges.forEach((e) => {
+        const s1Id = e.sourceId;
+        const s2Id = e.targetId;
+        if (grouped[s2Id] == null) {
+          grouped[s2Id] = [];
+        }
+        grouped[s2Id].push(s1Id);
+        if (grouped[s1Id] == null) {
+          grouped[s1Id] = [];
+        }
+        grouped[s1Id].push(s2Id);
+      });
+      const ranked = Object.entries(grouped)
+        .sort((a, b) => b[1].length - a[1].length)
+        .map(([a, b]) => ({
+          id: a,
+          support: b.length,
+        }));
+
+      return { edges, ranked };
+    }),
+
+  updateAnalyticsTables: protectedProcedure.mutation(async ({ ctx }) => {
+    const { user } = ctx;
+
+    if (
+      !roleHasPermissions(user.role, [
+        "ontology:edit",
+        "data:load",
+        "data:update",
+        "model:create",
+      ])
+    ) {
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+
+    const { isError } = await tryCatch(
+      (async () => {
+        await db.refreshMaterializedView(AnnotationCounts).concurrently();
+        await db.refreshMaterializedView(AnnotationCoOccurrence).concurrently();
+        return true;
+      })(),
+    );
+
+    const client = await createRedisClient();
+    try {
+      await client.publish(
+        "events",
+        JSON.stringify({
+          type: "analytics_update",
+          userid: user.id,
+          payload: { completed: !isError },
+        }),
+      );
+    } catch (e) {
+      console.error(e);
+    } finally {
+      await client.close();
+    }
+
+    return { code: 200 };
+  }),
 });

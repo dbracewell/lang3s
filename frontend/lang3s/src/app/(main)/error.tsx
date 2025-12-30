@@ -9,8 +9,8 @@ const ErrorPage = ({ error }: { error: unknown }) => {
   let message = null;
   if (error instanceof TRPCError) {
     message = error.code;
-  } else {
-    message = "Something went wrong";
+  } else if (error instanceof Error) {
+    message = error.message;
   }
   const router = useRouter();
   return (

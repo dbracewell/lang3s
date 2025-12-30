@@ -8,11 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "check_redis": "tsx --conditions=react-server --env-file=.env ./scripts/check_redis.ts",
-    "seed": "tsx --conditions=react-server --env-file=.env ./scripts/seed_ontology.ts",
+    "seed": "tsx --conditions=react-server --env-file=.env scripts/init/seed_ontology.ts",
     "drizzle:json": "tsx --conditions=react-server --env-file=.env ./scripts/extract_schema.ts",
     "auth:generate": "@better-auth/cli generate --config src/lib/auth/auth.ts",
     "drizzle:push": "drizzle-kit push",
-    "drizzle:studio": "drizzle-kit studio"
+    "drizzle:studio": "drizzle-kit studio",
+    "tsx-server": "tsx --conditions=react-server --env-file=.env"
   },
   "prettier": {
     "plugins": [

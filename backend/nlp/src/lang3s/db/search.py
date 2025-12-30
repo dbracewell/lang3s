@@ -1,9 +1,9 @@
-# backend/nlp/src/lang3s/db/search.py
+# backend/nlp/src/lang3s/init/search.py
 """
 High-level semantic search utilities for Lang3s.
 
 Builds on top of:
-    - db/vector.py  (raw pgvector ops)
+    - init/vector.py  (raw pgvector ops)
     - SQLAlchemy engine
     - pgvector <-> / <#> operators
 

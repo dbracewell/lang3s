@@ -13,13 +13,13 @@ from numpy.typing import NDArray
 from pgvector import HalfVector
 from sklearn.decomposition import IncrementalPCA
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sqlalchemy import select, cast, Boolean, Select, distinct, delete
+from sqlalchemy import Boolean, Select, cast, delete, distinct, not_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from lang3s import config
 from lang3s.db import Database
-from lang3s.db.models import TopicsTable, TextAnnotationsTable
+from lang3s.db.models import TextAnnotationsTable, TopicsTable
 from lang3s.maths import cosine, normalize, weighted_average
 from lang3s.shared_types import Document
 from lang3s.utils import flatten
@@ -104,13 +104,13 @@ class Topic:
     def doc_count(self) -> int:
         db = Database()
         with db.session() as session:  # type: Session
-            stmt = (
-                select(sqlalchemy.func.count(distinct(TextAnnotationsTable.documentId)))
-                .where(
-                    TextAnnotationsTable.type_ == "sentence",
-                    (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding)) >= FULL_EMBEDDING_THRESHOLD,
-                    cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False
-                )
+            stmt = select(
+                sqlalchemy.func.count(distinct(TextAnnotationsTable.documentId))
+            ).where(
+                TextAnnotationsTable.type_ == "sentence",
+                (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding))
+                >= FULL_EMBEDDING_THRESHOLD,
+                cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False,
             )
             return session.scalar(stmt)
 
@@ -118,13 +118,13 @@ class Topic:
     def sentence_count(self) -> int:
         db = Database()
         with db.session() as session:  # type: Session
-            stmt = (
-                select(sqlalchemy.func.count(distinct(TextAnnotationsTable.id)))
-                .where(
-                    TextAnnotationsTable.type_ == "sentence",
-                    (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding)) >= FULL_EMBEDDING_THRESHOLD,
-                    cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False
-                )
+            stmt = select(
+                sqlalchemy.func.count(distinct(TextAnnotationsTable.id))
+            ).where(
+                TextAnnotationsTable.type_ == "sentence",
+                (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding))
+                >= FULL_EMBEDDING_THRESHOLD,
+                cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False,
             )
             return session.scalar(stmt)
 
@@ -156,7 +156,9 @@ class Topic:
     def get_sentences(self, limit: int = 1000):
         db = Database()
         with db.session() as session:  # type: Session
-            similarity_score = (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding))
+            similarity_score = 1 - TextAnnotationsTable.embedding.cosine_distance(
+                self.embedding
+            )
             stmt = (
                 select(
                     TextAnnotationsTable.documentId,
@@ -165,25 +167,17 @@ class Topic:
                     TextAnnotationsTable.content,
                     TextAnnotationsTable.embedding,
                     TextAnnotationsTable.cleaned,
-                    similarity_score.label("cosine_similarity")
+                    similarity_score.label("cosine_similarity"),
                 )
                 .where(
                     TextAnnotationsTable.type_ == "sentence",
                     similarity_score >= FULL_EMBEDDING_THRESHOLD,
-                    cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False
+                    not_(cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean)),
                 )
                 .order_by(similarity_score.desc())
                 .limit(limit)
             )
             sentences: Sequence[SearchResult] = session.execute(stmt).all()  # type:ignore
-            reduced = normalize(
-                self.reducer.transform(
-                    [row.embedding.to_numpy().astype(np.float32) for row in sentences]
-                )
-            )
-            similarities = [
-                cosine(self.centroid, embedding) for embedding in reduced  # type: ignore
-            ]
             return [
                 TopicSentence(
                     text=row.content,
@@ -191,10 +185,9 @@ class Topic:
                     doc_id=row.documentId,
                     text_id=row.textId,
                     sentence_id=row.sentenceId,
-                    similarity=similarity.item(),
+                    similarity=row.cosine_similarity,
                 )
-                for row, similarity in zip(sentences, similarities)
-                if similarity >= self.min_sim_threshold
+                for (row) in sentences
             ]
 
 
@@ -229,9 +222,7 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
             "topics_min_document_count", 4
         )
         self.batch_size: int = db.get_config_value("topics_batch_size", 100)
-        self.merge_frequency: int = db.get_config_value(
-            "topics_merge_frequency", 400
-        )
+        self.merge_frequency: int = db.get_config_value("topics_merge_frequency", 400)
         self.docs_added: int = 0
         self.sentences_added: int = 0
         self.total_time = 0
@@ -266,7 +257,8 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                     select(TextAnnotationsTable)
                     .where(
                         TextAnnotationsTable.type_ == "sentence",
-                        cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False
+                        cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean)
+                        == False,
                     )
                     .order_by(sqlalchemy.func.random())
                     .limit(5000)
@@ -466,9 +458,39 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
 
         if len(topics_to_delete) > 0:
             with db.session() as session:  # type: Session
-                session.execute(delete(TopicsTable).where(TopicsTable.id.in_(topics_to_delete)))
-            self._topics = [topic for topic in self._topics if topic.id not in topics_to_delete]
+                session.execute(
+                    delete(TopicsTable).where(TopicsTable.id.in_(topics_to_delete))
+                )
+            self._topics = [
+                topic for topic in self._topics if topic.id not in topics_to_delete
+            ]
         self.reducer.save()
+        with db.cursor() as cursor:
+            cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_sentences;")
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS topic_sentences_sentence_aid ON topic_sentences (sentence_aid);"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS topic_sentences_topic_id ON topic_sentences (topic_id);"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS topic_sentences_text_id ON topic_sentences (text_id);"
+            )
+            cursor.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS topic_sentences_sentence_topic_id ON topic_sentences (sentence_aid,topic_id);"
+            )
+            cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY topic_documents ;")
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS topic_documents_topic_id ON topic_documents (topic_id);"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS topic_documents_text_id ON topic_documents (text_id);"
+            )
+            cursor.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS topic_documents_topic_text ON topic_documents (topic_id,text_id);"
+            )
+
+        logger.info(f"Saved {len(self._topics)} topics")
 
     def get_topic(self, topic_id: int | str) -> Topic:
         if isinstance(topic_id, int):
@@ -482,9 +504,7 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
     def label_topics(self):
         logger.info("Labelling Topics...")
         vectorizer = TfidfVectorizer()
-        text = [
-            [s.clean for s in topic.get_sentences()] for topic in self.topics
-        ]
+        text = [[s.clean for s in topic.get_sentences()] for topic in self.topics]
         vectorizer.fit(flatten(text))
         for sentences, topic in zip(text, self._topics):
             if topic.is_fixed:

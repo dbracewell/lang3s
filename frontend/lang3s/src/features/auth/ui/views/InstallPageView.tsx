@@ -20,6 +20,14 @@ export const InstallPageView = () => {
   const [isPending, startTransition] = useTransition();
   const form = useForm<AdminAccountSchemaType>({
     resolver: zodResolver(AdminAccountSchema),
+    defaultValues: {
+      email: "",
+      name: "",
+      password: "",
+      passphrase: "",
+      role: "admin",
+      username: "",
+    },
   });
 
   const onSubmit = (values: AdminAccountSchemaType) => {
@@ -54,6 +62,7 @@ export const InstallPageView = () => {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="cols mb-5 gap-6">
+            <InputFormField reactHookForm={form} name="role" type="hidden" />
             <InputFormField
               reactHookForm={form}
               label="Name"
@@ -89,6 +98,7 @@ export const InstallPageView = () => {
           </CardContent>
           <CardFooter>
             <LoadingButton
+              onClick={() => form.handleSubmit(onSubmit)}
               isLoading={isPending}
               className="w-full"
               disabled={isPending}

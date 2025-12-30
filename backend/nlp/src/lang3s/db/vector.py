@@ -1,4 +1,4 @@
-# backend/nlp/src/lang3s/db/vector.py
+# backend/nlp/src/lang3s/init/vector.py
 """
 Fully SQL-safe pgvector utilities for Lang3s using psycopg.sql.
 

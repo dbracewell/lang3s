@@ -2,7 +2,7 @@
 import { useOntology } from "@/features/ontology/ui/components/OntologySelector";
 import { AnnotationColors, ONTOLOGY_ROOT } from "@/features/common/constants";
 import { cn } from "@/lib/utils/cn";
-import { RouteIcon, TablePropertiesIcon } from "lucide-react";
+import { ArrowUpFromLine, RouteIcon, TablePropertiesIcon } from "lucide-react";
 import React, { useEffect } from "react";
 import { ColorPickerDialog } from "@/components/dialogs/ColorPickerDialog";
 import { AnnotationTypeValueFormDialog } from "@/components/dialogs/AnnotationTypeValueFormDialog";
@@ -10,6 +10,8 @@ import { parseAsString, useQueryState } from "nuqs";
 import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { AddPropertyDialog } from "@/features/ontology/ui/components/AddPropertyDialog";
 import { OntologyProperties } from "@/lib/db/schemas/ontology";
+import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
 
 export const OntologyEditorInformationPanel = () => {
   const { currentNode, rootNode } = useOntology();
@@ -36,6 +38,14 @@ export const OntologyEditorInformationPanel = () => {
   return (
     <div className="flex flex-1 flex-col gap-3 pt-3">
       <div className="flex flex-col gap-1 border-b pb-2">
+        <div className="mb-2 flex flex-col gap-1">
+          <PublishChangesButton />
+          <span className="text-muted-foreground px-2 text-xs">
+            * Perform if the mappings are modified or concepts are moved or
+            renamed. <br />
+            (This operation can take some time. You may close the page.)
+          </span>
+        </div>
         <h4 className="truncate text-xs font-medium">Visualization Color</h4>
         <div className="flex items-center justify-between gap-2 pb-2">
           <div className="flex items-center gap-2">
@@ -180,5 +190,26 @@ export const OntologyEditorInformationPanel = () => {
         )}
       </div>
     </div>
+  );
+};
+
+const PublishChangesButton = () => {
+  const updateTables = useTRPCMutation((trpc) => ({
+    mutation: trpc.analytics.updateAnalyticsTables.mutationOptions(),
+    errorToast: "Failed to publish changes and update analytics",
+  }));
+  return (
+    <LoadingButton
+      isLoading={updateTables.isPending}
+      disabled={updateTables.isPending}
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={() => updateTables.mutate()}
+    >
+      <div className="flex items-center gap-2">
+        <ArrowUpFromLine /> Publish changes to analytics
+      </div>
+    </LoadingButton>
   );
 };

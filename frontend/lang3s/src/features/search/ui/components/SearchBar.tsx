@@ -51,9 +51,9 @@ export const SearchBar = () => {
   const [isOptionsOpen, setOptionsOpen] = useState(false);
 
   const searchBarRef = useRef<HTMLFormElement>(null);
-  const sTypeRef = useRef<HTMLDivElement | null>(null);
-  const aTypeRef = useRef<HTMLDivElement | null>(null);
-  const openRef = useRef<HTMLDivElement | null>(null);
+  const sTypeRef = useRef<HTMLDivElement>(null);
+  const aTypeRef = useRef<HTMLDivElement>(null);
+  const openRef = useRef<HTMLDivElement>(null);
 
   const closeSearchOptions = (doingSearch: boolean) => {
     setOptionsOpen(false);

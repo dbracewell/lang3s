@@ -12,9 +12,7 @@ import {
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { XIcon } from "lucide-react";
 import Link from "next/link";
-import { parseAsString, useQueryState } from "nuqs";
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
-import { parseAsBoolean } from "nuqs/server";
 import { TreemapNode } from "recharts/types/util/types";
 import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
 
@@ -30,12 +28,8 @@ const COLORS = [
   "oklch(87.1% 0.006 286.286)", //zinc-300
 ];
 
-export const EntityCoOccurrenceVisualization = ({
-  allValues,
-}: {
-  allValues: string[];
-}) => {
-  const [params, setParams] = useEntitySearchParams(allValues);
+export const EntityCoOccurrenceVisualization = () => {
+  const [params, setParams] = useEntitySearchParams();
 
   const { data, isLoading } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationCoOccurrence.queryOptions(

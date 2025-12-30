@@ -111,7 +111,9 @@ export const TextAnnotation = memo(
       <div className={cn("relative", annotation.type != "token" && "group")}>
         <div
           data-annotation-type={
-            annotation.type != "token" ? annotation.type : ""
+            annotation.type != "token"
+              ? annotation.value.split(".").slice(-1)[0]
+              : ""
           }
           data-annotation={true}
           data-entity={getGroupName(annotation)}

@@ -1,6 +1,6 @@
 import { parseAsStringEnum, useQueryState } from "nuqs";
 
-export const useTopicsTab = () => {
+export const useTabParams = () => {
   return useQueryState(
     "tab",
     parseAsStringEnum(["list", "chart"])

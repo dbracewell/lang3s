@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { TextAnnotationTable } from "@/lib/db/schema";
-import { env } from "@/lib/env/env";
+import { t3env } from "@/lib/t3env";
 import { logAndRethrow, tryCatch } from "@/lib/utils/try-catch";
 import { SearchParamSchema } from "@/features/search/params";
 import {
@@ -49,7 +49,7 @@ export const SearchRouter = createTRPCRouter({
       } else if (!!q?.trim()) {
         finalQuery = q.trim();
         const { data: res, isError } = await tryCatch(
-          fetch(`${env.EMBEDDING_SERVER}/embed`, {
+          fetch(`${t3env.EMBEDDING_SERVER}/embed`, {
             method: "POST",
             headers: {
               Accept: "application/json",

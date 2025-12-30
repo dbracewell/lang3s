@@ -1,7 +1,7 @@
 "use server";
 import { db } from "@/lib/db";
 import { apikey as ApiKeyTable, user as UserTable } from "@/lib/db/schema";
-import { env } from "@/lib/env/env";
+import { t3env } from "@/lib/t3env";
 import { auth } from "@/lib/auth/auth";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { UserRole } from "@/features/auth/permissions";
@@ -47,7 +47,7 @@ export const getUserByApiKey = cache(async (apiKey: string) => {
       .innerJoin(UserTable, eq(ApiKeyTable.userId, UserTable.id))
       .where(eq(ApiKeyTable.key, apiKey)),
   );
-  return user.role as UserRole | null;
+  return user ? (user.role as UserRole | null) : null;
 });
 
 export const getUserCount = async () => {
@@ -65,7 +65,7 @@ export const createAdminAccount = async (values: AdminAccountSchemaType) => {
       status: 400,
     };
   }
-  if (safeValues.data.passphrase != env.ADMIN_PASSPHRASE) {
+  if (safeValues.data.passphrase != t3env.ADMIN_PASSPHRASE) {
     return {
       status: 401,
     };

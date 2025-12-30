@@ -3,7 +3,7 @@ import { ForceGraph } from "@/components/charts/ForceGraph";
 import React from "react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { useTopicsTab } from "@/features/analytics/hooks/useTopicsTab";
+import { useTabParams } from "@/features/analytics/hooks/useTabParams";
 
 type DataProps = {
   data: {
@@ -14,7 +14,7 @@ type DataProps = {
 
 export const TopicsGraph = ({ data }: DataProps) => {
   const theme = useTheme();
-  const [tab] = useTopicsTab();
+  const [tab] = useTabParams();
   const router = useRouter();
   if (tab === "list") {
     return null;

@@ -1,18 +1,32 @@
 "use client";
 import { OntologySelectorDialog } from "@/features/ontology/ui/components/OntologySelectorDialog";
 import { ChevronDownIcon, ChevronUpIcon, NetworkIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
+import useClickOutside from "@/hooks/useClickOutside";
+import { ONTOLOGY_ENTITY_ROOT } from "@/features/common/constants";
 
 export const EntityTypeSelector = ({ values }: { values: string[] }) => {
-  const [params, setParams] = useEntitySearchParams(values);
+  const [params, setParams] = useEntitySearchParams();
   const [open, setOpen] = useState(false);
+  const goodTags = useMemo(() => {
+    return params.tags.filter((tag) => values.includes(tag));
+  }, [values, params.tags]);
   const router = useRouter();
+  const divRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside([divRef], () => {
+    setOpen(false);
+  });
+
   return (
-    <div className="relative flex max-h-[300px] min-h-0 flex-col p-2">
+    <div
+      className="relative flex max-h-[300px] min-h-0 flex-col p-2"
+      ref={divRef}
+    >
       <Button
         variant="ghost"
         className={cn(
@@ -24,7 +38,7 @@ export const EntityTypeSelector = ({ values }: { values: string[] }) => {
         type="button"
         onClick={() => setOpen((prev) => !prev)}
       >
-        {params.tags.length} Selected Type(s)
+        {goodTags.length} Selected Type(s)
         {open ? <ChevronUpIcon /> : <ChevronDownIcon />}
       </Button>
       <div
@@ -36,7 +50,7 @@ export const EntityTypeSelector = ({ values }: { values: string[] }) => {
         )}
       >
         <OntologySelectorDialog
-          rootNode="Entity"
+          rootNode={ONTOLOGY_ENTITY_ROOT}
           onSelect={(nodes) => {
             setParams({
               tags: nodes,
@@ -57,7 +71,7 @@ export const EntityTypeSelector = ({ values }: { values: string[] }) => {
         />
         <div className="scrollable h-full min-h-0 min-w-full flex-1 flex-col gap-1">
           <div className="flex min-h-0 w-fit min-w-full flex-col">
-            {params.tags.map((tag) => (
+            {goodTags.map((tag) => (
               <div
                 key={tag}
                 className="bg-row odd:bg-alternate-row p-1 text-sm"

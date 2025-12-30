@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/t3env bash
 
 cd frontend/lang3s
 pnpm run drizzle:json

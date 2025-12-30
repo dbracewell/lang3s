@@ -1,4 +1,4 @@
-import { env } from "@/lib/env/env";
+import { t3env } from "@/lib/t3env";
 import { auth } from "@/lib/auth/auth";
 import {
   Permission,
@@ -117,7 +117,7 @@ export const requirePermissions = async (
 };
 
 export const isSystemApiKey = (apiKey: string | undefined) => {
-  return !!apiKey && apiKey === env.SYSTEM_KEY;
+  return !!apiKey && apiKey === t3env.SYSTEM_KEY;
 };
 
 // Base router and procedure helpers

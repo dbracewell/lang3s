@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/t3env bash
 
 if [ $# -eq 0 ]; then
   echo "Error: No argument provided."

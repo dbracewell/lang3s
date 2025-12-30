@@ -5,9 +5,9 @@ Generate SQLAlchemy + Pydantic models from drizzle-schema.json.
 Assumes:
   - drizzle-schema.json lives at repo root
   - SQLAlchemy models go to:
-        backend/nlp/src/lang3s/db/models.py
+        backend/nlp/src/lang3s/init/models.py
   - Pydantic models go to:
-        backend/nlp/src/lang3s/db/schemas.py
+        backend/nlp/src/lang3s/init/schemas.py
 
 Run:
     python drizzle_codegen.py
@@ -26,9 +26,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 SCHEMA_JSON_PATH = REPO_ROOT / "drizzle-schema.json"
 
-PY_MODELS_PATH = REPO_ROOT / "backend" / "nlp" / "src" / "lang3s" / "db" / "models.py"
+PY_MODELS_PATH = REPO_ROOT / "backend" / "nlp" / "src" / "lang3s" / "init" / "models.py"
 
-PY_SCHEMAS_PATH = REPO_ROOT / "backend" / "nlp" / "src" / "lang3s" / "db" / "schemas.py"
+PY_SCHEMAS_PATH = REPO_ROOT / "backend" / "nlp" / "src" / "lang3s" / "init" / "schemas.py"
 
 # Drizzle constructor name -> SQLAlchemy type
 DRIZZLE_TO_SQLALCHEMY: Dict[str, str] = {

@@ -15,7 +15,7 @@ export const MetadataTable = ({
     <table>
       <thead>
         <tr className="bg-heading text-white">
-          <th className="p-1 text-left">Source</th>
+          <th className="p-1 pl-4 text-left">Source</th>
           <th className="p-1 text-left">Name</th>
           <th className="p-1 text-left">Data Type</th>
           <th className="p-1 text-left">Formatter</th>
@@ -51,11 +51,11 @@ const Row = ({
 }) => {
   return (
     <tr key={`${source}-${name}`} className="bg-row odd:bg-alternate-row">
-      <td className="p-1">{source}</td>
+      <td className="p-1 pl-4">{source}</td>
       <td className="p-1">{name}</td>
       <td className="p-1">{data.dataType}</td>
       <td className="p-1">{data.formatter}</td>
-      <td className="w-10 p-1">
+      <td className="w-10 p-1 pr-4">
         <div className="flex items-center gap-2">
           <DeleteMetadataButton name={name} id={data.id} />
           <Link

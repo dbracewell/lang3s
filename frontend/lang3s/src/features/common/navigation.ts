@@ -44,6 +44,12 @@ export const NAVIGATION_LINKS: NavigationGroup[] = [
         exact: false,
       },
       {
+        href: "/analytics/cohorts",
+        title: "Cohorts",
+        icon: "UsersRoundIcon",
+        exact: false,
+      },
+      {
         href: "/analytics/topics",
         title: "Topics",
         icon: "ChartNoAxesGanttIcon",

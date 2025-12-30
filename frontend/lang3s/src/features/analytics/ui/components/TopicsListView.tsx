@@ -5,9 +5,8 @@ import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { CircleQuestionMarkIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
-import { parseAsStringEnum, useQueryState } from "nuqs";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { useTopicsTab } from "@/features/analytics/hooks/useTopicsTab";
+import { useTabParams } from "@/features/analytics/hooks/useTabParams";
 
 type DataProps = {
   points: { id: string; name: string; support: number }[];
@@ -18,7 +17,7 @@ export const TopicsListView = ({ points }: DataProps) => {
     () => Math.max(...points.map((p) => p.support)),
     [points],
   );
-  const [tab] = useTopicsTab();
+  const [tab] = useTabParams();
   if (tab === "chart") {
     return null;
   }

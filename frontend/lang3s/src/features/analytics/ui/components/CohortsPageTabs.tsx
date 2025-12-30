@@ -1,10 +1,9 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import React from "react";
-import { parseAsStringEnum, useQueryState } from "nuqs";
 import { useTabParams } from "@/features/analytics/hooks/useTabParams";
 
-export const TopicsPageTabs = () => {
+export const CohortsPageTabs = () => {
   const [tab, setTab] = useTabParams();
   return (
     <div className="flex w-full items-center justify-start p-2">
@@ -20,7 +19,7 @@ export const TopicsPageTabs = () => {
         className="rounded-l-none"
         variant={tab === "chart" ? "default" : "outline"}
       >
-        Similarity Graph
+        Cohort Graph
       </Button>
     </div>
   );

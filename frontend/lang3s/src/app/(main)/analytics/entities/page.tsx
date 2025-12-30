@@ -6,7 +6,7 @@ import { EntityEvents } from "@/features/analytics/ui/components/EntityEvents";
 import { EntityCoOccurrenceVisualization } from "@/features/analytics/ui/components/EntityCoOccurrenceVisualization";
 import { ONTOLOGY_ENTITY_ROOT } from "@/features/common/constants";
 
-const EntitiesPage = async () => {
+const EntitiesPage = async (props: PageProps<"/analytics/entities">) => {
   const values = await caller.ontology.getFullPath({
     path: ONTOLOGY_ENTITY_ROOT,
   });
@@ -24,9 +24,9 @@ const EntitiesPage = async () => {
           <EntityTypeSelector values={values} />
         </div>
       </ScrollableBox.Header>
-      <TopEntitiesList allValues={values} />
+      <TopEntitiesList />
       <EntityEvents />
-      <EntityCoOccurrenceVisualization allValues={values} />
+      <EntityCoOccurrenceVisualization />
     </ScrollableBox.Container>
   );
 };

@@ -25,12 +25,12 @@ class InputType(str, enum.Enum):
 
 
 class BaseSchema(BaseModel):
-
     def to_file(self, index: int, row: Dict[str, Any]):
         if "metadata" not in row:
             row["metadata"] = dict()
-        row["metadata"]["published_date"] = (datetime.now() - timedelta(days=random.randint(0, 10))).strftime(
-            "%Y-%m-%d")
+        row["metadata"]["published_date"] = (
+            datetime.now() - timedelta(days=random.randint(0, 10))
+        ).strftime("%Y-%m-%d")
         row["metadata"]["trust_score"] = random.random()
         row["metadata"]["trust_code"] = random.randint(0, 100)
         return File.model_validate(row)
@@ -191,9 +191,7 @@ def read_directory(file: str, ext: str | None) -> List[File]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--source", help="The source of your documents", required=True
-    )
+    parser.add_argument("--source", help="The source of your documents", required=True)
     parser.add_argument(
         "--ext", help="The file extension to limit sources to", required=False
     )
@@ -217,13 +215,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     job_service = JobService(
-        api_key="lang3skUMvPskpvXQvKVIbsbrQEJFTGvNLjkjGpfIOZmpsMeKVfjWUobFwwmCCUcFeOzxX",
+        api_key="lang3sxPnhpmccrXzlRWBVzUTfAlbxVFkYXSYydpdphIneYXibELdOTobKQPGxRxNLxXqr",
         api_host="http://localhost:3000",
     )
 
     files: List[File] = []
 
-    if args.type in [InputType.csv, InputType.json, InputType.jsonl, InputType.filejsonl]:
+    if args.type in [
+        InputType.csv,
+        InputType.json,
+        InputType.jsonl,
+        InputType.filejsonl,
+    ]:
         files = read_structured_files(args.source, args.schema, args.type)
         print(f"Generated {len(files)} and read in {rows_read} rows")
 

@@ -6,7 +6,7 @@ import React from "react";
 export const OntologyViewer = ({ path }: { path?: string }) => {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-3">
-      <OntologySelector.Provider rootNode="ALL" selectedNode={path}>
+      <OntologySelector.Provider selectedNode={path}>
         <OntologySelector.SelectedInformation className="scrollable hidden h-full min-h-0 sm:block sm:w-[300px] lg:w-[500px]">
           <OntologyViewerInformationPanel />
         </OntologySelector.SelectedInformation>

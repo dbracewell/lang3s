@@ -12,7 +12,7 @@ import { DeleteConceptButton } from "@/features/ontology/ui/components/DeleteCon
 export const OntologyEditor = ({ selectedNode }: { selectedNode?: string }) => {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-3">
-      <OntologySelector.Provider rootNode="ALL" selectedNode={selectedNode}>
+      <OntologySelector.Provider selectedNode={selectedNode}>
         <OntologySelector.SelectedInformation className="scrollable hidden h-full min-h-0 sm:block sm:w-[300px] lg:w-[500px]">
           <OntologyEditorInformationPanel />
         </OntologySelector.SelectedInformation>
@@ -39,7 +39,7 @@ const sectionFooter = (section: Section) => {
   return (
     <div className="px-2 py-2">
       <AddConceptDialog
-        parentId={section[0].parentId}
+        parentId={section[0].parentId ?? -1}
         parentPath={parentPath}
         triggerClassName={buttonVariants({
           variant: "outline",
