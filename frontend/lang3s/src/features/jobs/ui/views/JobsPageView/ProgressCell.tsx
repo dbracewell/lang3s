@@ -1,16 +1,23 @@
+"use client";
 import { Progress } from "@/components/ui/progress";
 import { RouterOutputs } from "@/lib/trpc/types";
 import React from "react";
+import { jobStatusByIdAtom } from "@/features/jobs/stores/jobStatus";
+import { useAtomValue } from "jotai";
 
 export const ProgressCell = ({
   row,
 }: {
   row: RouterOutputs["jobs"]["getAll"][number];
 }) => {
-  const pct = Math.floor((row.total > 0 ? row.completed / row.total : 0) * 100);
+  const job = useAtomValue(jobStatusByIdAtom(row.id));
+  const pct = (
+    job?.progress ??
+    Math.floor((row.total > 0 ? row.completed / row.total : 0) * 100)
+  ).toFixed(0);
   return (
     <div className="relative flex w-full items-center">
-      <Progress value={pct} />
+      <Progress value={Number(pct)} />
       <div
         className="border-dodger-blue-600 bg-dodger-blue-600 absolute top-1/2 w-10 -translate-y-1/2 rounded-sm border p-0.5 text-center text-xs text-white shadow"
         style={{

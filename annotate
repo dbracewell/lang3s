@@ -1,7 +1,7 @@
-#!/usr/bin/t3env bash
+#!/usr/bin/env bash
 
 if [ ! "$CONDA_DEFAULT_ENV" = "nlp" ]; then
   conda activate nlp
 fi
 
-python -m backend.jobs_service.src.lang3s_job_service.annotate $@
+python -m backend.jobs_service.src.lang3s_job_service.annotate "$@"

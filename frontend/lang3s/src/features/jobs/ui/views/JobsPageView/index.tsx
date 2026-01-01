@@ -16,18 +16,20 @@ import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { useUser } from "@/features/auth/contexts/UserContext";
 import { roleHasPermissions } from "@/features/auth/permissions";
 import { redirect } from "next/navigation";
+import { useJobStatusSync } from "@/features/jobs/hooks/jobStatusSync";
 
 export const JobPageView = () => {
   const user = useUser();
   const hasPermissions = roleHasPermissions(user.role, ["jobs:view"]);
-
   const { data, refetch } = useTRPCQuery((trpc) =>
     trpc.jobs.getAll.queryOptions(),
   );
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  useJobStatusSync(data, refetch);
 
   useEffect(() => {
-    const intervalId = setInterval(() => refetch(), 5000);
-    return () => clearInterval(intervalId);
+    const i = setInterval(() => setCurrentTime(Date.now), 1000);
+    return () => clearInterval(i);
   }, []);
 
   const [toDelete, setToDelete] = useState<number[]>([]);
@@ -55,6 +57,7 @@ export const JobPageView = () => {
 
   const { DataTable, setFilter, getFilter, rows } = useDataTable({
     columns,
+    getRowId: (row) => String(row.id),
     data: data ?? ([] as JobType[]),
     initialSortColumn: "id",
     appearance: {
@@ -131,7 +134,7 @@ export const JobPageView = () => {
         columns={columns}
         context={{ toDelete, setToDelete, isDeleting }}
       >
-        <DataTable />
+        {DataTable}
       </DataTableProvider>
     </ScrollableBox.Container>
   );

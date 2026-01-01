@@ -31,12 +31,17 @@ export const formatDuration = (milliseconds: number): string => {
 
 export const formatURL = (
   path: string,
-  searchParams: Record<string, string | number | boolean | null | undefined>,
+  searchParams: Record<
+    string,
+    string | number | boolean | null | undefined | string[]
+  >,
 ) => {
   const paramBuilder = new URLSearchParams();
   Object.entries(searchParams).forEach(([k, v]) => {
     if (v != null) {
-      const strValue = String(v);
+      const strValue = Array.isArray(v)
+        ? v.map((e) => String(e)).join(",")
+        : String(v);
       if (!!strValue.trim()) {
         paramBuilder.set(k, strValue.trim());
       }
@@ -51,4 +56,14 @@ export const formatNumber = (num: number) => {
     compactDisplay: "long",
     style: "decimal",
   }).format(num);
+};
+
+export const formatCount = (
+  count: number,
+  { single, plural }: { single: string; plural: string },
+) => {
+  if (count === 1) {
+    return `${count} ${single}`;
+  }
+  return `${count} ${plural}`;
 };

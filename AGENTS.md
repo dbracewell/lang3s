@@ -41,10 +41,10 @@
 - Commits stay short and imperative (“Refactor types to shared_types”), optionally scoped (`frontend:`, `nlp:`).
 - PRs should link issues, summarize schema/data impacts, and attach screenshots or CLI output for UX- or
   ingestion-facing behavior.
-- Highlight new t3env vars, Docker args, or migrations in a checklist to speed reviewer setup.
+- Highlight new env vars, Docker args, or migrations in a checklist to speed reviewer setup.
 
 ## Environment & Data Notes
 
-- Copy `.t3env.example` to `.t3env`, avoid committing secrets, and use direnv or `pnpm t3env` for overrides.
-- Large corpora in `documents/` are unsynced; mention additions in PRs and set the `DEVICE` t3env so
+- Copy `.env.example` to `.env`, avoid committing secrets, and use direnv or `pnpm env` for overrides.
+- Large corpora in `documents/` are unsynced; mention additions in PRs and set the `DEVICE` env so
   `backend/Dockerfile` selects the correct ARM or NVIDIA build profile.

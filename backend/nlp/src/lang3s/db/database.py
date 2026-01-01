@@ -1,12 +1,11 @@
 import json
 from contextlib import contextmanager
-from typing import Any, List, Optional, Tuple, Dict, Generator, ContextManager
+from typing import Any, ContextManager, Dict, Generator, List, Optional, Tuple
 
 from pgvector.psycopg import register_vector
 from psycopg import sql
-from sqlalchemy import create_engine
-from sqlalchemy import event
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
 
 from lang3s import config
 from lang3s.db.models import Base, ConfigurationTable
@@ -37,14 +36,33 @@ MAX_INSERT_SIZE = 60000
 
 
 class Database(metaclass=SingletonMeta):
-
     def __init__(self) -> None:
         self.engine = create_engine(config.DB_URL, echo=False, future=True)
-        self.SessionLocal = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, future=True)
+        self.SessionLocal = sessionmaker(
+            bind=self.engine, autoflush=False, autocommit=False, future=True
+        )
 
         @event.listens_for(self.engine, "connect")
         def connect(dbapi_connection, connection_record):
             register_vector(dbapi_connection)
+
+    def refresh_views(self):
+        with psy_raw(self.engine) as conn:
+            register_vector(conn)
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_sentences;"
+                )
+                cursor.execute(
+                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_documents;"
+                )
+                cursor.execute(
+                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  annotation_counts;"
+                )
+                cursor.execute(
+                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  annotation_co_occurrence;"
+                )
+            conn.commit()
 
     @contextmanager
     def cursor(self):
@@ -156,7 +174,11 @@ class Database(metaclass=SingletonMeta):
         self, config_name: str, default_value: Optional[Any] = None
     ) -> Any:
         with self.SessionLocal() as session:
-            result = session.query(ConfigurationTable).filter(ConfigurationTable.name == config_name).one_or_none()
+            result = (
+                session.query(ConfigurationTable)
+                .filter(ConfigurationTable.name == config_name)
+                .one_or_none()
+            )
             if result:
                 return result.value
             return default_value

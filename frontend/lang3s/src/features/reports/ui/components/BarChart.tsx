@@ -42,7 +42,6 @@ const BarChart = ({
 }: BarChartProps) => {
   const { theme } = useTheme();
   const countDataKey = Chart.getCountDataKey(countType);
-  data.forEach((d) => console.log(d));
   return (
     <ChartContainer config={chartConfig} className={cn("min-h-0", className)}>
       <RechartBarChart

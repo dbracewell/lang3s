@@ -1,10 +1,4 @@
-import {
-  customType,
-  integer,
-  pgMaterializedView,
-  pgView,
-  text,
-} from "drizzle-orm/pg-core";
+import { integer, pgMaterializedView, pgView, text } from "drizzle-orm/pg-core";
 import { TextAnnotationTable } from "@/lib/db/schemas/text";
 import { TopicsTable } from "@/lib/db/schemas/topics";
 import { countDistinct, eq, gt, gte, sql } from "drizzle-orm";
@@ -14,6 +8,7 @@ import { AnnotationToOntology, OntologyTable } from "@/lib/db/schemas/ontology";
 import { upper } from "@/lib/db/helpers/string";
 import { coalesce, jsonValue } from "@/lib/db/funcs";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
+import { ltree } from "@/lib/db/custom_types";
 
 export const TopicSentences = pgMaterializedView("topic_sentences").as((qb) =>
   qb
@@ -102,34 +97,8 @@ export const AnnotationWithOntologyView = pgView("annotation_with_ontology").as(
   },
 );
 
-// export const AnnotationCounts = pgMaterializedView("annotation_counts").as(
-//   (qb) =>
-//     qb
-//       .select({
-//         content: sql<string>`${AnnotationWithOntologyView.normalized}`.as(
-//           "content",
-//         ),
-//         type: AnnotationWithOntologyView.path,
-//         documentCount: countDistinct(AnnotationWithOntologyView.documentId).as(
-//           "document_count",
-//         ),
-//         sentenceCount: countDistinct(AnnotationWithOntologyView.sentenceAid).as(
-//           "sentence_count",
-//         ),
-//         mentionCount: count().as("mention_count"),
-//       })
-//       .from(AnnotationWithOntologyView)
-//       .groupBy((t) => [t.content, t.type]),
-// );
-
-const ltree = customType<{ data: string }>({
-  dataType() {
-    return "ltree";
-  },
-});
-
 export const AnnotationCounts = pgMaterializedView("annotation_counts", {
-  content: text("content").notNull(),
+  content: text("normalized").notNull(),
   type: ltree("path").notNull(),
   documentCount: integer("document_count").notNull(),
   sentenceCount: integer("sentence_count").notNull(),

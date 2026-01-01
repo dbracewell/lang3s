@@ -10,6 +10,12 @@ async function reset_db() {
   await db.execute(sql`
   DROP MATERIALIZED VIEW IF EXISTS topic_sentences;
   `);
+  await db.execute(sql`
+  DROP MATERIALIZED VIEW IF EXISTS annotation_co_occurrence;
+  `);
+  await db.execute(sql`
+  DROP MATERIALIZED VIEW IF EXISTS annotation_counts;
+  `);
   await db.execute(sql`DROP TABLE IF EXISTS "drizzle"."__drizzle_migrations";`);
 }
 reset_db().then((db) => {

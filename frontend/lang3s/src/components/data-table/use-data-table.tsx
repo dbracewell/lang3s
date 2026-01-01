@@ -9,11 +9,13 @@ import { DataTable } from "@/components/data-table/DataTable";
 import { useData } from "@/components/data-table/use-data";
 import { useFilters } from "@/components/data-table/use-filters";
 import { useSorting } from "@/components/data-table/use-sorting";
-import { useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
+import { redirect } from "next/navigation";
 
 export function useDataTable<T extends object>({
   columns,
   data,
+  getRowId,
   secondaryRowRenderer,
   groupBy,
   groupByRenderer,
@@ -24,6 +26,7 @@ export function useDataTable<T extends object>({
   appearance?: StyleOptions;
   columns: ColumnDef<T>[];
   data: T[];
+  getRowId: (row: T) => string;
   groupBy?: keyof T;
   groupByRenderer?: GroupByRenderer<T>;
   secondaryRowRenderer?: SecondaryRowRenderer<T>;
@@ -43,10 +46,9 @@ export function useDataTable<T extends object>({
       );
     }
     return undefined;
-  }, [initialSortColumn]);
+  }, [initialSortColumn, columns]);
 
-  const { sortColumn, toggleSort, getSortDirection } =
-    useSorting<T>(initialSortInfo);
+  const { sortColumn, toggleSort } = useSorting<T>(initialSortInfo);
 
   const { rows, groupedByData } = useData({
     data,
@@ -56,7 +58,64 @@ export function useDataTable<T extends object>({
     groupBy,
   });
 
-  const DataTableElement = () => (
+  return {
+    toggleSort,
+    setFilter,
+    DataTable: (
+      <DataTableElement
+        appearance={appearance}
+        columns={columns}
+        rows={rows}
+        getRowId={getRowId}
+        groupedByData={groupedByData}
+        renderFooter={renderFooter}
+        groupByRenderer={groupByRenderer}
+        initialSortColumn={initialSortColumn}
+        secondaryRowRenderer={secondaryRowRenderer}
+      />
+    ),
+    getFilter,
+    rows,
+  };
+}
+
+const DataTableElement = <T extends Object>({
+  columns,
+  rows,
+  groupedByData,
+  getRowId,
+  secondaryRowRenderer,
+  groupByRenderer,
+  appearance,
+  renderFooter = false,
+  initialSortColumn,
+}: {
+  appearance?: StyleOptions;
+  columns: ColumnDef<T>[];
+  rows: T[];
+  groupedByData: [string, T[]][] | undefined;
+  getRowId: (row: T) => string;
+  groupByRenderer?: GroupByRenderer<T>;
+  secondaryRowRenderer?: SecondaryRowRenderer<T>;
+  renderFooter?: boolean;
+  initialSortColumn?: string;
+}) => {
+  const initialSortInfo = useMemo(() => {
+    if (initialSortColumn) {
+      return (
+        columns
+          .filter((c) => c.name === initialSortColumn && c.sortFn != null)
+          .map((c) => ({
+            column: c.name as string,
+            sortFn: c.sortFn as SortFnType<T>,
+          }))?.[0] ?? undefined
+      );
+    }
+    return undefined;
+  }, [initialSortColumn, columns]);
+  const { sortColumn, toggleSort, getSortDirection } =
+    useSorting<T>(initialSortInfo);
+  return (
     <DataTable.Container className={appearance?.container}>
       <DataTable.Header
         columns={columns}
@@ -91,10 +150,10 @@ export function useDataTable<T extends object>({
                 ))}
               </div>
             ))
-          : rows.map((row, index) => (
+          : rows.map((row) => (
               <DataTable.Row
                 row={row}
-                key={index}
+                key={getRowId(row)}
                 columns={columns}
                 commonCellClassName={appearance?.bodyCell}
                 className={appearance?.bodyRow}
@@ -114,12 +173,4 @@ export function useDataTable<T extends object>({
       )}
     </DataTable.Container>
   );
-
-  return {
-    toggleSort,
-    setFilter,
-    DataTable: DataTableElement,
-    getFilter,
-    rows,
-  };
-}
+};

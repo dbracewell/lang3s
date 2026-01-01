@@ -60,7 +60,6 @@ onconnect = (event) => {
 
   port.onmessage = (msgEvent) => {
     const msg = msgEvent.data;
-
     if (msg?.kind === "start") {
       ensureSSE(msg.url);
     }

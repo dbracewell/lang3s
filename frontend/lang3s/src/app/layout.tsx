@@ -2,12 +2,9 @@ import "@/app/globals.css";
 
 import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
-import { Toaster } from "@/components/ui/sonner";
-import { TRPCReactProvider } from "@/lib/trpc/client";
-import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { ThemeProvider } from "@/components/ui/theme-provider";
 import React from "react";
-import { SSEProvider } from "@/lib/events/SSEProvider";
+import { Providers } from "@/components/main-layout/providers";
+import { EventListeners } from "@/components/main-layout/EventListeners";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,20 +30,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} ${poppins.variable} antialiased`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <TRPCReactProvider>
-            <NuqsAdapter>
-              <SSEProvider>{children}</SSEProvider>
-            </NuqsAdapter>
-          </TRPCReactProvider>
-          <Toaster richColors position="top-center" />
-        </ThemeProvider>
+      <body
+        className={`${inter.className} ${poppins.variable} antialiased`}
+        style={{
+          overflowAnchor: "none",
+        }}
+      >
+        <Providers>
+          <EventListeners>{children}</EventListeners>
+        </Providers>
       </body>
     </html>
   );

@@ -10,6 +10,7 @@ export const UserList = ({ users }: { users: UserType[] }) => {
   const { DataTable } = useDataTable({
     columns: userListColumns,
     data: users,
+    getRowId: (row) => row.id,
     appearance: {
       container: "flex-1 border bg-card rounded-xl shadow",
       sortButton: "text-white bg-white/30",
@@ -30,7 +31,7 @@ export const UserList = ({ users }: { users: UserType[] }) => {
         <AddUserDialog />
       </div>
       <DataTableProvider columns={userListColumns}>
-        <DataTable />
+        {DataTable}
       </DataTableProvider>
     </ScrollableBox.Container>
   );

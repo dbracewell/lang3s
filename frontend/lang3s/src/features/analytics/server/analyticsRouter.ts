@@ -340,7 +340,6 @@ export const AnalyticsRouter = createTRPCRouter({
       similarities: sims,
     };
   }),
-
   getTopic: protectedProcedure
     .input(
       z.object({

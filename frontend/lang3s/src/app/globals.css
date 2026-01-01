@@ -78,6 +78,15 @@
             opacity: 50%;
         }
     }
+    --animate-zoomin: zoomin 200ms ease-in-out;
+    @keyframes zoomin {
+        from {
+            scale: 0;
+        }
+        to {
+            scale: 1;
+        }
+    }
 }
 
 :root {
@@ -176,6 +185,7 @@
 
     body {
         @apply bg-background text-foreground flex h-screen w-screen;
+        overflow-anchor: none;
     }
 
     h1 {

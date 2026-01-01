@@ -1,4 +1,4 @@
-export type Highlight = {
+export type DocumentHighlight = {
   rank: number;
   text: string;
   a0?: string[];
@@ -7,17 +7,47 @@ export type Highlight = {
   location?: string;
 };
 
-export type SearchResult = {
+export type DocumentSearchResult = {
   documentTitle: string;
   documentId: string;
-  highlights: Highlight[];
+  highlights: DocumentHighlight[];
   rank: number;
 };
 
-export type SearchResults = {
-  type: "annotation" | "document" | "sentence";
+export type AnnotationHighlight = {
+  documentTitle: string;
+  documentId: string;
+  annotationId: string;
+  rank: number;
+};
+
+export type AnnotationSearchResult = {
+  text: string;
+  value: string;
+  a0: string[] | null;
+  a1: string[] | null;
+  time: string | null;
+  location: string | null;
+  highlights: AnnotationHighlight[];
+  rank: number;
+};
+
+export type TopicHighlight = {
+  sentence: string;
+  documentId: string;
+  sentenceAid: string;
+  rank: number;
+};
+
+export type TopicSearchResult = {
+  name: string;
+  id: string;
+  highlights: TopicHighlight[];
+  rank: number;
+};
+
+export type SearchResults<T> = {
   total: number;
-  results: SearchResult[];
-  entities: { entity: string; count: number }[];
+  results: T[];
   nextCursor: number | undefined;
 };

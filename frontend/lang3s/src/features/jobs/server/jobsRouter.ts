@@ -2,7 +2,11 @@ import { db } from "@/lib/db";
 import { JobsTable, jobStatuses } from "@/lib/db/schema";
 import { ANNOTATION_QUEUE, getGlobalConnection } from "@/lib/redis";
 import { logAndRethrow } from "@/lib/utils/try-catch";
-import { getUserApiKeys } from "@/features/auth/server/actions";
+import {
+  getAdminAccount,
+  getUserApiKeys,
+  getUserByApiKey,
+} from "@/features/auth/server/actions";
 import { Lang3sFile } from "@/features/common/classes";
 import { BasicUserInfo } from "@/features/common/types";
 import {
@@ -14,6 +18,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { and, AnyColumn, desc, eq, or, sql } from "drizzle-orm";
 import z from "zod";
+import { publishMessage } from "@/lib/events/publish";
 
 const increment = (
   column: AnyColumn,
@@ -86,14 +91,27 @@ export const jobsRouter = createTRPCRouter({
     .input(
       z.object({
         name: z.string().min(1).max(255),
+        total: z.number().min(0).optional(),
+        status: z.enum(jobStatuses).optional(),
         metadata: z.record(z.string(), z.unknown()),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const { user, apiKey } = ctx;
-      const { name, metadata } = input;
+      const { name, metadata, total, status } = input;
 
       await requirePermissions(user, apiKey, ["jobs:create"]);
+      let effectiveUser = user;
+      if (effectiveUser == null) {
+        if (isSystemApiKey(apiKey)) {
+          effectiveUser = await getAdminAccount();
+        } else if (apiKey != null) {
+          effectiveUser = await getUserByApiKey(apiKey);
+        }
+      }
+      if (effectiveUser == null) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
 
       const [job] = await logAndRethrow(() =>
         db
@@ -101,8 +119,10 @@ export const jobsRouter = createTRPCRouter({
           .values({
             name,
             metadata,
-            userId: user?.id,
-            apiKey: apiKey,
+            total,
+            status,
+            userId: effectiveUser?.id,
+            apiKey: isSystemApiKey(apiKey) ? undefined : apiKey,
           })
           .returning(),
       );
@@ -110,6 +130,8 @@ export const jobsRouter = createTRPCRouter({
       if (!job) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       }
+
+      await publishJobStatus(job);
 
       return job;
     }),
@@ -176,6 +198,7 @@ export const jobsRouter = createTRPCRouter({
           .returning(),
       );
 
+      await publishJobStatus(updatedJob);
       return updatedJob;
     }),
   delete: apiProcedure
@@ -257,6 +280,8 @@ export const jobsRouter = createTRPCRouter({
           .returning(),
       );
 
+      await publishJobStatus(updatedJob);
+
       return updatedJob;
     }),
 
@@ -273,3 +298,21 @@ export const jobsRouter = createTRPCRouter({
     );
   }),
 });
+
+const publishJobStatus = async (job: typeof JobsTable.$inferSelect) => {
+  try {
+    await publishMessage({
+      messageType: "job:update",
+      payload: {
+        jobId: job.id,
+        progress: Number.isNaN(job.completed / job.total)
+          ? 0
+          : (job.completed / job.total) * 100,
+        status: job.status,
+      },
+      userId: job.userId,
+    });
+  } catch (e) {
+    console.error(e);
+  }
+};

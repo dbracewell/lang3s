@@ -1,9 +1,5 @@
 "use client";
 import { CheckboxFormField } from "@/components/form-controls/checkbox-form-field";
-import {
-  SelectFormField,
-  SelectOptionItem,
-} from "@/components/form-controls/select-form-field";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -17,15 +13,13 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import { capitalize, formatURL } from "@/lib/utils/formatters";
+import { formatURL } from "@/lib/utils/formatters";
 import { cn } from "@/lib/utils/cn";
 import {
   Lang3sSearchParams,
   ParsedSearchParams,
-  QueryTypes,
   SearchParamSchema,
 } from "@/features/search/params";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SearchIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -33,17 +27,6 @@ import { useQueryStates } from "nuqs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useClickOutside } from "@/hooks/useClickOutside";
-
-const QueryTypeSelectData = [
-  ...QueryTypes.keys().map(
-    (v) =>
-      ({
-        type: "item",
-        value: QueryTypes[v],
-        node: capitalize(QueryTypes[v]),
-      }) as SelectOptionItem,
-  ),
-];
 
 export const SearchBar = () => {
   const router = useRouter();
@@ -66,10 +49,6 @@ export const SearchBar = () => {
     closeSearchOptions(false);
   });
 
-  const { data: annotationTypes } = useTRPCQuery((trpc) =>
-    trpc.analytics.getAnnotationTypes.queryOptions(),
-  );
-
   const form = useForm<ParsedSearchParams>({
     resolver: zodResolver(SearchParamSchema),
     defaultValues: {
@@ -77,29 +56,18 @@ export const SearchBar = () => {
     },
   });
 
-  const queryType = form.watch("stype");
-
   const onSubmit = (values: ParsedSearchParams) => {
-    router.push(formatURL("/search", { ...values, cursor: 1 }));
+    router.push(
+      formatURL("/search", { ...values, tab: searchParams.tab, cursor: 1 }),
+    );
     closeSearchOptions(true);
   };
 
   const setFormValues = useCallback(() => {
-    form.setValue("q", searchParams.q ?? undefined);
-    form.setValue("atype", searchParams.atype);
-    form.setValue("stype", searchParams.stype);
-    form.setValue("aid", searchParams.aid);
-    form.setValue("cursor", searchParams.cursor);
-    form.setValue("isStrict", searchParams.isStrict);
-  }, [
-    form,
-    searchParams.q,
-    searchParams.atype,
-    searchParams.stype,
-    searchParams.aid,
-    searchParams.cursor,
-    searchParams.isStrict,
-  ]);
+    form.reset({
+      ...searchParams,
+    });
+  }, [form, searchParams]);
 
   useEffect(() => {
     setFormValues();
@@ -133,7 +101,7 @@ export const SearchBar = () => {
                 <FormItem className="flex-1">
                   <FormControl>
                     <InputGroupInput
-                      placeholder="Search..."
+                      placeholder={searchParams.placeholder ?? "Search..."}
                       value={field.value ?? ""}
                       onChange={(e) => {
                         field.onChange(e);
@@ -183,26 +151,6 @@ export const SearchBar = () => {
             formDescriptionClassName="text-xs"
             description="Requires keyword matches to be present in the search results"
           />
-          <SelectFormField
-            reactHookForm={form}
-            name="stype"
-            label="Search Result Type"
-            ref={sTypeRef}
-            options={QueryTypeSelectData}
-          />
-          {queryType === "annotation" && (
-            <SelectFormField
-              reactHookForm={form}
-              name="atype"
-              ref={aTypeRef}
-              label="Annotation Type"
-              options={(annotationTypes ?? []).map((type) => ({
-                type: "item",
-                value: type,
-                node: capitalize(type, true),
-              }))}
-            />
-          )}
           <Button type="submit" form="searchBarForm">
             Search
           </Button>

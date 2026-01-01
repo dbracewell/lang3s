@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from lang3s.agent.llm import tool
 from lang3s.app import Application
 from lang3s.clients.topic_model_client import TopicModelClient
+from lang3s.db import Database
 from lang3s.maths import binarize
 from lang3s.models import Embedder
 
@@ -21,8 +22,11 @@ class Sentence(BaseModel):
 
 class Test(Application):
     def run(self):
-        client = TopicModelClient()
-        client.finalize()
+        # client = TopicModelClient()
+        # client.finalize()
+        db = Database()
+        db.refresh_views()
+        print("Finished refreshing views")
         # Load model directly
 
 

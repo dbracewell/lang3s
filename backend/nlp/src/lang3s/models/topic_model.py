@@ -465,31 +465,6 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                 topic for topic in self._topics if topic.id not in topics_to_delete
             ]
         self.reducer.save()
-        with db.cursor() as cursor:
-            cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_sentences;")
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS topic_sentences_sentence_aid ON topic_sentences (sentence_aid);"
-            )
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS topic_sentences_topic_id ON topic_sentences (topic_id);"
-            )
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS topic_sentences_text_id ON topic_sentences (text_id);"
-            )
-            cursor.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS topic_sentences_sentence_topic_id ON topic_sentences (sentence_aid,topic_id);"
-            )
-            cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY topic_documents ;")
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS topic_documents_topic_id ON topic_documents (topic_id);"
-            )
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS topic_documents_text_id ON topic_documents (text_id);"
-            )
-            cursor.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS topic_documents_topic_text ON topic_documents (topic_id,text_id);"
-            )
-
         logger.info(f"Saved {len(self._topics)} topics")
 
     def get_topic(self, topic_id: int | str) -> Topic:

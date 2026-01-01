@@ -9,24 +9,23 @@ type DocumentScrollHeaderProps = {
   scrollRef: RefObject<HTMLDivElement | null>;
   isScrolled: boolean;
   isSearch?: boolean;
+  header?: string;
 };
 export const DocumentScrollHeader = ({
   count,
   scrollRef,
+  header = "Total Documents",
   isScrolled,
   isSearch = false,
 }: DocumentScrollHeaderProps) => {
   return (
-    <div className="bg-heading flex h-10 items-center justify-between rounded-lg border p-2 text-lg font-bold text-white">
+    <div className="flex h-10 items-center justify-between p-2 text-lg font-bold">
       {isSearch && "Search Resulted in "}
-      {formatNumber(count)} Total Documents{" "}
+      {formatNumber(count)} {header}{" "}
       <Button
-        className={cn(
-          "hover:bg-white/50! dark:hover:bg-white/30!",
-          isScrolled ? "visible" : "hidden",
-        )}
-        variant="ghost"
-        size="icon-xs"
+        className={cn("rounded-full", isScrolled ? "visible" : "hidden")}
+        variant="listButton"
+        size="icon-sm"
         onClick={() => {
           scrollRef.current?.scrollTo({
             top: 0,

@@ -18,7 +18,7 @@ const DocumentIdPage = async (props: PageProps<"/documents/[id]">) => {
   const documentData = await caller.documents.getOne({ id });
 
   return (
-    <div className="flex h-full flex-1 overflow-hidden">
+    <div className="animate-zoomin flex h-full flex-1 overflow-hidden">
       <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <CardTitle>{documentData.title}</CardTitle>

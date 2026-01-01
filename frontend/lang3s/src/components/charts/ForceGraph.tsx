@@ -192,7 +192,7 @@ export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
       .style("cursor", onNodeClick ? "pointer" : "default")
       .attr("stroke-width", nodeStrokeWidth)
       .on("mouseover", (event: any, d: Point) => {
-        tooltip.style("visibility", "visible").text(`${d.name} (${d.color})`);
+        tooltip.style("visibility", "visible").text(`${d.name} (${d.support})`);
       })
       .on("mousemove", (event: { pageY: number; pageX: number }) => {
         const bounds = (

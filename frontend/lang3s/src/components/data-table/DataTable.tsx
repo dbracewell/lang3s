@@ -7,19 +7,18 @@ import { useDataTableContext } from "@/components/data-table/DataTableContext";
 import { capitalize } from "@/lib/utils/formatters";
 import { cn } from "@/lib/utils/cn";
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
-import React, { useEffect } from "react";
+import React, { ComponentProps, useEffect, useRef } from "react";
 
-type DataTableContainerProps = {
-  className?: string;
-  children: React.ReactNode;
-};
+type DataTableContainerProps = ComponentProps<"div">;
 
 const DataTableContainer = ({
   children,
   className,
+  ...props
 }: DataTableContainerProps) => {
   return (
     <div
+      {...props}
       className={cn(
         "flex min-h-0 flex-1 flex-col overflow-y-hidden",
         className,
@@ -108,12 +107,14 @@ type DataTableBodyProps = {
 
 const DataTableBody = ({ className, children }: DataTableBodyProps) => {
   const { bodyRef, scrollPosition, headerRef } = useDataTableContext();
+  const savedScrollPosition = useRef<number>(0);
 
   useEffect(() => {
     const el = bodyRef?.current;
     if (!el) return;
     if (!scrollPosition) return;
     el.scrollTop = scrollPosition.current;
+    el.scrollLeft = savedScrollPosition.current;
     if (headerRef?.current) {
       headerRef.current.scrollLeft = el.scrollLeft;
     }
@@ -128,6 +129,7 @@ const DataTableBody = ({ className, children }: DataTableBodyProps) => {
         if (!el) return;
         if (!scrollPosition) return;
         scrollPosition.current = el.scrollTop;
+        savedScrollPosition.current = el.scrollLeft;
         if (headerRef?.current) {
           headerRef.current.scrollLeft = el.scrollLeft;
         }

@@ -212,6 +212,12 @@ if __name__ == "__main__":
         choices=list(InputType),
         required=True,
     )
+    parser.add_argument(
+        "--wait",
+        help="Wait for the job to complete",
+        action="store_true",
+        default=False,
+    )
     args = parser.parse_args()
 
     job_service = JobService(
@@ -236,6 +242,6 @@ if __name__ == "__main__":
     if len(files) > 0:
         if args.limit is not None:
             files = files[: args.limit]
-        job_service.annotate_documents(files, wait_for_completion=True)
+        job_service.annotate_documents(files, wait_for_completion=args.wait)
 
     print(f"Processing {len(files)} files")

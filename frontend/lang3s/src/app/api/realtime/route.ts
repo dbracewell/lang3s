@@ -51,10 +51,14 @@ export async function GET(req: NextRequest) {
         try {
           const data = JSON.parse(message);
           const event = EventMessageSchema.parse(data);
-          if (user.role != "admin" && event.userid !== user.id) return;
-          send(`event: message\n`);
-          send(`data: ${message}\n\n`);
-          console.log("Sending >", message);
+          if (
+            (user.role === "admin" && event.type.startsWith("job")) ||
+            event.userid === user.id
+          ) {
+            send(`event: message\n`);
+            send(`data: ${message}\n\n`);
+            console.log("Sending >", message);
+          }
         } catch (e) {
           console.error(e);
         }

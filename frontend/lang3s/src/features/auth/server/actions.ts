@@ -37,17 +37,30 @@ export const getUser = cache(async (): Promise<BasicUserInfo> => {
   };
 });
 
+export const getUserRoleByApiKey = cache(async (apiKey: string) => {
+  const user = await getUserByApiKey(apiKey);
+  return user ? (user.role as UserRole | null) : null;
+});
+
 export const getUserByApiKey = cache(async (apiKey: string) => {
   const [user] = await logAndRethrow(() =>
     db
-      .select({
-        role: UserTable.role,
-      })
+      .select()
       .from(ApiKeyTable)
       .innerJoin(UserTable, eq(ApiKeyTable.userId, UserTable.id))
       .where(eq(ApiKeyTable.key, apiKey)),
   );
-  return user ? (user.role as UserRole | null) : null;
+  return user?.user as BasicUserInfo;
+});
+
+export const getAdminAccount = cache(async () => {
+  const [admin] = await logAndRethrow(() =>
+    db.select().from(UserTable).where(eq(UserTable.role, "admin")),
+  );
+  if (!admin) {
+    throw new Error("Admin account not found");
+  }
+  return admin as BasicUserInfo;
 });
 
 export const getUserCount = async () => {

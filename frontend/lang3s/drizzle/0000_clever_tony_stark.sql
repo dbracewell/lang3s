@@ -3,6 +3,9 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pgroonga;
 CREATE EXTENSION IF NOT EXISTS ltree;
 
+DROP TYPE IF EXISTS "public"."job_status" CASCADE;
+DROP TYPE IF EXISTS "public"."metadata_data_type" CASCADE;
+DROP TYPE IF EXISTS "public"."metadata_sources" CASCADE;
 CREATE TYPE "public"."job_status" AS ENUM ('waiting', 'processing', 'complete', 'failed');
 CREATE TYPE "public"."metadata_data_type" AS ENUM ('string', 'int', 'float', 'boolean', 'date', 'datetime');
 CREATE TYPE "public"."metadata_sources" AS ENUM ('document', 'annotation', 'sentence');
@@ -158,7 +161,7 @@ CREATE TABLE IF NOT EXISTS "jobs"
     "id"           serial PRIMARY KEY              NOT NULL,
     "name"         varchar(255)                    NOT NULL,
     "apiKey"       text,
-    "user_id"      text,
+    "user_id"      text                            NOT NULL,
     "status"       "job_status" DEFAULT 'waiting'  NOT NULL,
     "total"        integer      DEFAULT 0          NOT NULL,
     "completed"    integer      DEFAULT 0          NOT NULL,
@@ -259,7 +262,7 @@ CREATE INDEX IF NOT EXISTS "idx_ontology_name" ON "ontology" USING btree ("name"
 CREATE INDEX IF NOT EXISTS "idx_ontology_path_gist" ON "ontology" USING GIST ("path");
 CREATE INDEX IF NOT EXISTS "topics_embeddingIndex" ON "topics" USING hnsw ("embedding" halfvec_cosine_ops);
 
-DROP VIEW IF EXISTS "public"."annotation_with_ontology";
+DROP VIEW IF EXISTS "public"."annotation_with_ontology" CASCADE;
 CREATE VIEW "public"."annotation_with_ontology" AS
 (
 select "text_annotations"."text",
@@ -332,7 +335,7 @@ GROUP BY 1, 2, 3, 4)
 WITH DATA;
 
 
-CREATE UNIQUE INDEX IF NOT EXISTS annotation_counts_unique_idx ON annotation_counts (content, path);
+CREATE UNIQUE INDEX IF NOT EXISTS annotation_counts_unique_idx ON annotation_counts (normalized, path);
 CREATE UNIQUE INDEX IF NOT EXISTS annotation_co_occurrence_unique_idx ON annotation_co_occurrence (source, source_type, target, target_type);
 CREATE INDEX IF NOT EXISTS topic_sentences_sentence_aid ON topic_sentences (sentence_aid);
 CREATE INDEX IF NOT EXISTS topic_sentences_topic_id ON topic_sentences (topic_id);

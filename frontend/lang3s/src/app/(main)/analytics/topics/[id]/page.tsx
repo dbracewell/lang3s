@@ -16,7 +16,7 @@ const Page = async (props: PageProps<"/analytics/topics/[id]">) => {
   const { id } = await props.params;
   const data = await caller.analytics.getTopic({ id });
   return (
-    <Card className="flex flex-1 flex-col gap-2 overflow-hidden">
+    <Card className="animate-zoomin flex flex-1 flex-col gap-2 overflow-hidden">
       <CardHeader>
         <CardTitle>
           <h1 className="">

@@ -1,4 +1,5 @@
-import type { EventType, SSEEventMap } from "./events";
+import type { SSEEventMap } from "./events";
+import { EventType } from "@/lib/events/eventSchemas";
 
 type AnyHandler = (payload: unknown) => void;
 

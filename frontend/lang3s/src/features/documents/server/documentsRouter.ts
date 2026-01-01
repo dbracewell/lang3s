@@ -150,7 +150,7 @@ export const DocumentsRouter = createTRPCRouter({
           },
         };
       } catch (e) {
-        console.log(e);
+        console.error(e);
         throw new TRPCError({ code: "NOT_FOUND" });
       }
     }),

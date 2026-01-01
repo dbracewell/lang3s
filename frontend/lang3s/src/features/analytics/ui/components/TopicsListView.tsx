@@ -2,11 +2,12 @@
 import React, { Fragment, useMemo } from "react";
 import { cn } from "@/lib/utils/cn";
 import { Hint } from "@/components/hint";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { CircleQuestionMarkIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { useTabParams } from "@/features/analytics/hooks/useTabParams";
+import { formatURL } from "@/lib/utils/formatters";
 
 type DataProps = {
   points: { id: string; name: string; support: number }[];
@@ -68,9 +69,16 @@ const TopicRow = ({
         )}
       >
         <Hint hint="Search the corpus for this topic" asChild>
-          <Button size="icon-xs" variant="ghost">
+          <Link
+            href={formatURL("/search", {
+              tid: topic.id,
+              placeholder: `TOPIC: ${topic.name}`,
+              isStrict: false,
+            })}
+            className={buttonVariants({ size: "icon-xs", variant: "ghost" })}
+          >
             <SearchIcon />
-          </Button>
+          </Link>
         </Hint>
         <Link href={`/analytics/topics/${topic.id}`} className="link">
           {topic.name}

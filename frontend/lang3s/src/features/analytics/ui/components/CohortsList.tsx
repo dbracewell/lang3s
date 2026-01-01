@@ -14,6 +14,7 @@ import { parseAsString, useQueryState } from "nuqs";
 import { useDebounce } from "@/hooks/useDebounce";
 import { parseAsInteger } from "nuqs/server";
 import { CohortView } from "@/features/analytics/ui/components/CohortView";
+import { cn } from "@/lib/utils/cn";
 
 export const CohortsList = ({
   clusters,
@@ -49,7 +50,7 @@ export const CohortsList = ({
         {!!searchQuery.trim() && (
           <InputGroupAddon align="inline-end">
             <InputGroupButton
-              variant="destructiveOutline"
+              variant="destructiveGhost"
               className="border-0!"
               size="icon-xs"
               type="button"
@@ -73,21 +74,45 @@ export const CohortsList = ({
           if (filtered.length === 0) {
             return null;
           }
+          const sorted = [...ids];
+          sorted.sort((a, b) => {
+            if (!!debouncedQuery.trim()) {
+              if (
+                a.id
+                  .toLowerCase()
+                  .startsWith(debouncedQuery.trim().toLocaleLowerCase())
+              ) {
+                return -1;
+              }
+              if (
+                b.id
+                  .toLowerCase()
+                  .startsWith(debouncedQuery.trim().toLocaleLowerCase())
+              ) {
+                return -1;
+              }
+            }
+            return a.id.localeCompare(b.id);
+          });
 
           return (
             <div
-              key={name}
+              key={ids[0].id}
               style={{
                 backgroundColor: `var(--color-${getColorName(ids[0].id).toLowerCase()}-500)`,
                 opacity: filtered.length > 0 ? `100%` : `20%`,
               }}
-              className="shadow-shadow flex h-[300px] flex-col overflow-hidden rounded-lg border text-sm text-gray-50 shadow-sm hover:bg-zinc-300/80 dark:hover:bg-white/10"
+              className={cn(
+                "shadow-shadow flex h-[300px] flex-col overflow-hidden rounded-lg border text-sm text-gray-50 shadow-sm hover:bg-zinc-300/80 dark:hover:bg-white/10",
+                ["YELLOW"].includes(getColorName(ids[0].id)) &&
+                  "text-stone-900",
+              )}
             >
               <div className="bg-card text-md text-card-foreground flex items-center justify-between border-b p-1 font-bold">
                 <h2 className="truncate">
                   {ids[0].name}{" "}
                   <span className="text-muted-foreground text-xs">
-                    ({filtered.length} entities)
+                    ({ids.length} entities)
                   </span>
                 </h2>
                 <button type="button" onClick={() => setSelectedCohort(name)}>
@@ -95,7 +120,7 @@ export const CohortsList = ({
                 </button>
               </div>
               <div className="scrollable flex-1 p-2 pt-0">
-                {filtered.map((p) => (
+                {sorted.map((p) => (
                   <Link
                     href={formatURL("/search", {
                       q: `"${p.name}"`,

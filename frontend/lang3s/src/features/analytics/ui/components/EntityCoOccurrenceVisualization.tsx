@@ -46,31 +46,13 @@ export const EntityCoOccurrenceVisualization = () => {
     ),
   );
 
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => {
-    const i = setInterval(
-      () =>
-        setIsMounted(
-          !params.showEvents && !!params.entity && !!params.entityType,
-        ),
-      100,
-    );
-    return () => clearInterval(i);
-  }, [params.showEvents, params.entity, params.entityType]);
-
   if (params.showEvents || !params.entity || !params.entityType) {
     return null;
   }
 
   const entityTypeName = params.entityType.split(".").slice(-1)[0];
   return (
-    <Card
-      className={cn(
-        "absolute top-0 left-0 z-10 h-full w-full scale-0 overflow-hidden",
-        isMounted && "scale-100 transition-all duration-300",
-      )}
-      // className="absolute top-0 left-0 z-10 h-full w-full"
-    >
+    <Card className="animate-zoomin absolute top-0 left-0 z-10 h-full w-full overflow-hidden">
       <CardHeader>
         <CardTitle className="text-2xl">
           Other entities mentioned with{" "}

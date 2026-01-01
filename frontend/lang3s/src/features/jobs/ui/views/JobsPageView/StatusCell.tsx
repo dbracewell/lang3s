@@ -1,3 +1,4 @@
+"use client";
 import { cn } from "@/lib/utils/cn";
 import { RouterOutputs } from "@/lib/trpc/types";
 import {
@@ -7,6 +8,8 @@ import {
   LoaderCircleIcon,
 } from "lucide-react";
 import React from "react";
+import { useAtomValue } from "jotai";
+import { jobStatusByIdAtom } from "@/features/jobs/stores/jobStatus";
 
 const getIcon = (status: string) => {
   if (status === "processing") {
@@ -27,6 +30,8 @@ export const StatusCell = ({
 }: {
   row: RouterOutputs["jobs"]["getAll"][number];
 }) => {
+  const job = useAtomValue(jobStatusByIdAtom(row.id));
+  const jobStatus = job?.status ?? row.status;
   return (
     <div
       className={cn(
@@ -38,8 +43,8 @@ export const StatusCell = ({
         row.status === "waiting" && "bg-gray-500 text-white",
       )}
     >
-      {getIcon(row.status)}
-      {row.status}
+      {getIcon(jobStatus)}
+      {jobStatus}
     </div>
   );
 };

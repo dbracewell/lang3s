@@ -27,7 +27,9 @@ export const JobsTable = pgTable("jobs", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   apiKey: text("apiKey"),
-  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .references(() => user.id, { onDelete: "cascade" })
+    .notNull(),
   status: jobStatusEnum("status").notNull().default("waiting"),
   total: integer("total").notNull().default(0),
   completed: integer("completed").notNull().default(0),

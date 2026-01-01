@@ -1,28 +1,5 @@
 import { z } from "zod";
-
-export const EventSchemas = {
-  "job:update": z.object({
-    jobId: z.string(),
-    progress: z.number().min(0).max(100),
-    status: z.enum(["queued", "running", "done", "failed"]),
-  }),
-
-  analytics_update: z.object({
-    completed: z.boolean(),
-  }),
-
-  "job:log": z.object({
-    jobId: z.string(),
-    message: z.string(),
-    level: z.enum(["info", "warn", "error"]),
-  }),
-
-  "system:heartbeat": z.object({
-    ts: z.number(),
-  }),
-} as const;
-
-export type EventType = keyof typeof EventSchemas;
+import { EventSchemas, EventType } from "@/lib/events/eventSchemas";
 
 export type SSEEventMap = {
   [K in EventType]: z.infer<(typeof EventSchemas)[K]>;

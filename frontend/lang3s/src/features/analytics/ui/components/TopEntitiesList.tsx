@@ -221,7 +221,7 @@ const Filter = () => {
       {!!filter.trim() && (
         <InputGroupAddon align="inline-end">
           <InputGroupButton
-            variant="destructiveOutline"
+            variant="destructiveGhost"
             className="border-0!"
             size="icon-xs"
             type="button"

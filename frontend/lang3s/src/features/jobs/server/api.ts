@@ -1,6 +1,6 @@
 import { t3env } from "@/lib/t3env";
 import { Permission, roleHasPermissions } from "@/features/auth/permissions";
-import { getUserByApiKey } from "@/features/auth/server/actions";
+import { getUserRoleByApiKey } from "@/features/auth/server/actions";
 import { cache } from "react";
 import "server-only";
 
@@ -16,7 +16,7 @@ export const apiKeyHasPermission = cache(
     if (apiKey === t3env.SYSTEM_KEY) {
       return true;
     }
-    const userRole = await getUserByApiKey(apiKey);
+    const userRole = await getUserRoleByApiKey(apiKey);
     if (userRole == null) {
       return false;
     }

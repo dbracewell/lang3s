@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
+import { useOnMount } from "@/hooks/useOnMount";
 
 export const EntityEvents = () => {
   const [params, setParams] = useEntitySearchParams();
@@ -45,18 +46,6 @@ export const EntityEvents = () => {
     return data.map((s) => ({ value: s.value, count: s.count }));
   }, [data]);
 
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => {
-    const i = setInterval(
-      () =>
-        setIsMounted(
-          params.showEvents && !!params.entity && !!params.entityType,
-        ),
-      100,
-    );
-    return () => clearInterval(i);
-  }, [params.showEvents, params.entity, params.entityType]);
-
   if (!params.entityType || !params.entity || !params.showEvents) {
     return null;
   }
@@ -70,12 +59,7 @@ export const EntityEvents = () => {
   };
 
   return (
-    <Card
-      className={cn(
-        "absolute top-0 left-0 z-10 h-full w-full scale-0 overflow-hidden",
-        isMounted && "scale-100 transition-all duration-300",
-      )}
-    >
+    <Card className="animate-zoomin absolute top-0 left-0 z-10 h-full w-full overflow-hidden">
       <CardHeader>
         <CardTitle className="text-2xl">
           Events involving{" "}

@@ -1,6 +1,5 @@
 import {
   boolean,
-  customType,
   index,
   integer,
   jsonb,
@@ -10,16 +9,11 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import z from "zod";
+import { ltree } from "@/lib/db/custom_types";
 
 ////////////////////////////////////////////////////////////////////////////////
 // Ontology Table
 ////////////////////////////////////////////////////////////////////////////////
-
-const ltree = customType<{ data: string }>({
-  dataType() {
-    return "ltree";
-  },
-});
 
 export const OntologyPropertyValueDataTypes = [
   "string",

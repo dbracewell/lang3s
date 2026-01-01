@@ -27,7 +27,6 @@ export function initSharedWorker() {
       const msg = evt.data;
 
       if (msg?.kind === "status") {
-        console.log("[SharedWorker SSE]", msg.state);
         return;
       }
 

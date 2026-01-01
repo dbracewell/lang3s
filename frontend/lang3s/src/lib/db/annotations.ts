@@ -3,6 +3,7 @@ import {
   Column,
   eq,
   getTableColumns,
+  ne,
   not,
   SQL,
   sql,
@@ -13,6 +14,7 @@ import { coalesce, cosineSimilarity, jsonValue, upper } from "@/lib/db/funcs";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { AnnotationToOntology, OntologyTable } from "@/lib/db/schemas/ontology";
 import { db } from "@/lib/db/index";
+import { CoalesceArgument } from "@/lib/db/helpers/typing";
 
 const EVENT_ARGS = {
   a0: sql<string[]>`${TextAnnotationTable.metadata}->'A0_TEXT'`.as("A0"),
@@ -23,7 +25,8 @@ const EVENT_ARGS = {
   ),
 };
 
-const FULL_TEXT_RANK = sql<number>`ROW_NUMBER() OVER (ORDER BY pgroonga_score(tableoid,ctid) DESC)`;
+// const FULL_TEXT_RANK = sql<number>`ROW_NUMBER() OVER (ORDER BY pgroonga_score(tableoid,ctid) DESC)`;
+const FULL_TEXT_RANK = sql<number>`DENSE_RANK() OVER (ORDER BY pgroonga_score(tableoid,ctid) DESC)`;
 const FULL_TEXT_SCORE = sql<number>`pgroonga_score(tableoid,ctid)`;
 const BASE_ONTOLOGY_QUERY = db
   .select({
@@ -89,14 +92,15 @@ function _getDefaultColumns<
     includeFullTextScore = false,
     similarTo,
   } = options;
-  let content = coalesce(
-    jsonValue<string>(TextAnnotationTable.metadata, "coref_text"),
-    jsonValue<string>(TextAnnotationTable.metadata, "lemma"),
-    TextAnnotationTable.content,
-  );
-
+  let content = sql`${TextAnnotationTable.content}`;
   if (normalize) {
-    content = upper(content);
+    content = upper(
+      coalesce(
+        jsonValue<string>(TextAnnotationTable.metadata, "coref_text"),
+        jsonValue<string>(TextAnnotationTable.metadata, "lemma"),
+        TextAnnotationTable.content,
+      ),
+    );
   }
 
   const allTableCols = getTableColumns(TextAnnotationTable);
@@ -178,9 +182,9 @@ function _getAnnotationsWithOntology<
   computedColumns?: (mappingTable: OntologyMappingColumns) => A;
   limitTo?: string[];
 }) {
-  const ontologyMapping = OntologyMappings.getOntologyMappings(
-    limitTo ?? [],
-  ).as(randomAlphaUnderscore());
+  const ontologyMapping = OntologyMappings.getOntologyMappings(limitTo).as(
+    randomAlphaUnderscore(),
+  );
 
   const ontologyColumns: any = {};
   for (const f of ontologyFields ?? []) {
@@ -247,11 +251,21 @@ export const Annotations = {
   getSentences: () => GET_SENTENCES,
   getAnnotationsWithOntology: _getAnnotationsWithOntology,
   getFullTextSnippet: function (query: string, text: SQLWrapper) {
-    return sql`array_to_string(pgroonga_snippet_html (${text},
+    return sql<string>`array_to_string(pgroonga_snippet_html (${text},
     								 pgroonga_query_extract_keywords(${query})), '\n')`;
   },
   fullTextScore: FULL_TEXT_SCORE,
   fullTextRank: FULL_TEXT_RANK,
+  eventArgs: EVENT_ARGS,
+  getFullTextMatch: (query: string, text: SQLWrapper) =>
+    sql`${text} &@~  (${query})`,
+  getSemanticRank: (
+    embedding1: CoalesceArgument<number[]>,
+    embedding2: number[] | string[] | Column | SQL.Aliased<number[]>,
+  ) =>
+    sql<number>`DENSE_RANK() OVER (ORDER BY ${cosineSimilarity(embedding1, embedding2)} DESC)`,
+  isSentence: eq(TextAnnotationTable.type, "sentence"),
+  isNotSentence: ne(TextAnnotationTable.type, "sentence"),
   isNotStopword: not(
     sql<boolean>`COALESCE((${TextAnnotationTable.metadata}->>'is_stopword')::boolean,false)`,
   ),
