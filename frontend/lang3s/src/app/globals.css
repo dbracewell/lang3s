@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@plugin "@tailwindcss/typography";
+
 @custom-variant dark (&:is(.dark *));
 
 @source "../features/";
@@ -19,6 +21,8 @@
     --color-dodger-blue-950: #0b2546;
     --breakpoint-mobile: 768px;
     --color-background: var(--background);
+    --color-background-darker: color-mix(in srgb, var(--color-background) 80%, var(--color-zinc-950));
+    --color-background-lighter: color-mix(in srgb, var(--color-background) 95%, white);
     --color-foreground: var(--foreground);
     --font-sans: var(--font-inter);
     --font-poppins: var(--font-poppins);
@@ -63,6 +67,7 @@
     --shadow-sm: 0 4px 6px -1px var(--color-shadow), 0 2px 4px -2px var(--color-shadow);
     --color-shadow: var(--shadow-color);
     --color-insert-shadow-border: var(--insert-shadow-border);
+
 }
 
 @theme {
@@ -142,18 +147,16 @@
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(0.205 0 0);
     --popover-foreground: oklch(0.985 0 0);
-    /*--primary: oklch(0.922 0 0);*/
     --primary: var(--color-dodger-blue-500);
     --primary-foreground: var(--foreground);
-    /*--secondary: oklch(0.269 0 0);*/
     --secondary: var(--color-slate-500);
     --secondary-foreground: oklch(0.985 0 0);
     --muted: oklch(0.269 0 0);
     --muted-foreground: oklch(0.708 0 0);
-    --accent: var(--color-dodger-blue-800);
+    --accent: var(--color-dodger-blue-700);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
-    --border: var(--color-zinc-700);
+    --border: color-mix(in srgb, var(--color-background) 80%, var(--color-zinc-200));
     --input: var(--color-zinc-800);
     --ring: var(--color-dodger-blue-500);
     --chart-1: oklch(0.488 0.243 264.376);
@@ -171,10 +174,12 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(0.274 0.006 286.033);
     --sidebar-ring: oklch(0.442 0.017 285.786);
-    --heading: var(--color-dodger-blue-800);
+    --heading: var(--color-dodger-blue-900);
     --shadow-color: var(--color-gray-800);
-    --alternate-row: var(--color-slate-900);
-    --row: var(--color-gray-950);
+    /*--alternate-row: var(--color-slate-900);*/
+    /*--row: var(--color-gray-950);*/
+    --row: var(--color-background);
+    --alternate-row: color-mix(in srgb, var(--color-background) 95%, var(--color-zinc-200));;
     --insert-shadow-border: var(--color-zinc-900);
 }
 

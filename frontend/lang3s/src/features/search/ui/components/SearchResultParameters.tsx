@@ -1,10 +1,9 @@
 "use client";
-import { useQueryStates } from "nuqs";
-import { Lang3sSearchParams } from "@/features/search/params";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
+import { useGlobalSearchParams } from "@/features/search/hooks/useSearchParams";
 
 export const SearchResultParameters = () => {
-  const [searchParams] = useQueryStates(Lang3sSearchParams);
+  const [searchParams] = useGlobalSearchParams();
   const { data, isPending } = useTRPCQuery((trpc) =>
     trpc.search.searchParameters.queryOptions({
       q: searchParams.q,

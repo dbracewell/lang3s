@@ -3,9 +3,7 @@ import os
 #####################################################################################
 # PYTHON SERVICES PORT
 #####################################################################################
-FASTAPI_PORT = int(os.environ.get(
-    "FAST_API_PORT", "8003"
-))
+FASTAPI_PORT = int(os.environ.get("FAST_API_PORT", "8003"))
 
 #####################################################################################
 # NODEJS BACKEND AND SYSTEM KEY
@@ -33,7 +31,8 @@ REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 # LLM SERVER
 #####################################################################################
 LLM_HOST = os.environ.get("LLM_HOST", "http://localhost:1234")
-LLM_MODEL = os.environ.get("LLM_MODEL", "qwen/qwen3-4b-2507")
+LLM_MODEL = os.environ.get("LLM_MODEL", "openai/gpt-oss-20b")
+# "qwen/qwen3-4b-2507")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 
 #####################################################################################
@@ -54,9 +53,7 @@ USE_COREFERENCE = True
 #####################################################################################
 __DEFAULT_MODELS_DIR = "/app"
 __DEFAULT_DOCUMENTS_DIR = "/Users/ik/prj/Lang3s/documents"
-DOCUMENTS_DIR: str = os.environ.get(
-    "DOCUMENTS_DIR", __DEFAULT_DOCUMENTS_DIR
-)
+DOCUMENTS_DIR: str = os.environ.get("DOCUMENTS_DIR", __DEFAULT_DOCUMENTS_DIR)
 MODELS_DIR: str = os.environ.get("MODELS_DIR", __DEFAULT_MODELS_DIR)
 ADAPTERS_DIR: str = os.path.join(MODELS_DIR, "adapters")
 ADAPTER_CONFIG_FILE: str = os.path.join(ADAPTERS_DIR, "adapters.json")
@@ -67,6 +64,7 @@ ADAPTER_CONFIG_FILE: str = os.path.join(ADAPTERS_DIR, "adapters.json")
 #####################################################################################
 def get_best_device():
     import torch
+
     if torch.cuda.is_available():
         return torch.device("cuda").type
     elif torch.backends.mps.is_available():
@@ -77,6 +75,4 @@ def get_best_device():
 
 TRAINING_DEVICE: str = os.environ.get("TRAINING_DEVICE", get_best_device())
 INFERENCE_DEVICE: str = os.environ.get("INFERENCE_DEVICE", get_best_device())
-INFERENCE_BATCH_SIZE: int = int(
-    os.environ.get("INFERENCE_BATCH_SIZE", 32)
-)
+INFERENCE_BATCH_SIZE: int = int(os.environ.get("INFERENCE_BATCH_SIZE", 32))

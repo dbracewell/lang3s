@@ -13,18 +13,13 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { columns, type JobType } from "./columns";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { useUser } from "@/features/auth/contexts/UserContext";
-import { roleHasPermissions } from "@/features/auth/permissions";
-import { redirect } from "next/navigation";
 import { useJobStatusSync } from "@/features/jobs/hooks/jobStatusSync";
 
 export const JobPageView = () => {
-  const user = useUser();
-  const hasPermissions = roleHasPermissions(user.role, ["jobs:view"]);
   const { data, refetch } = useTRPCQuery((trpc) =>
     trpc.jobs.getAll.queryOptions(),
   );
-  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [, setCurrentTime] = useState<number>(0);
   useJobStatusSync(data, refetch);
 
   useEffect(() => {
@@ -69,11 +64,6 @@ export const JobPageView = () => {
       bodyRow: "border-b divide-x even:bg-alternate-row bg-row",
     },
   });
-
-  if (!hasPermissions) {
-    redirect("/");
-    return null;
-  }
 
   return (
     <ScrollableBox.Container className="gap-2">

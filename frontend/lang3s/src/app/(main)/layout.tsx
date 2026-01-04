@@ -4,7 +4,8 @@ import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import "../globals.css";
-import { UserRole } from "@/features/auth/permissions";
+import { UserRole } from "@/lib/auth/permissions";
+import { Suspense } from "react";
 
 const MainLayout = async (props: LayoutProps<"/">) => {
   const session = await auth.api.getSession({
@@ -20,6 +21,7 @@ const MainLayout = async (props: LayoutProps<"/">) => {
         id: user.id,
         role: user.role as UserRole,
         username: user.username ?? user.email,
+        name: user.name,
       }}
     >
       <Wrapper>{props.children}</Wrapper>

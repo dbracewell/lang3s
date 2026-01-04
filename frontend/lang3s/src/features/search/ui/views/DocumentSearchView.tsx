@@ -1,18 +1,17 @@
 "use client";
 import React, { Fragment } from "react";
 import { useTRPCInfiniteQuery } from "@/lib/trpc/use-queries";
-import { Lang3sSearchParams } from "@/features/search/params";
 import { FileTextIcon } from "lucide-react";
 import Link from "next/link";
 import { formatURL } from "@/lib/utils/formatters";
 import { InfiniteScroll } from "@/components/scrolling/InfiniteScroll";
-import { useQueryStates } from "nuqs";
 import { SearchSpinner } from "@/features/search/ui/components/SearchSpinner";
 import { ResultsWrapper } from "@/features/search/ui/components/ResultsWrapper";
 import { DocumentHighlight } from "@/features/search/types";
+import { useGlobalSearchParams } from "@/features/search/hooks/useSearchParams";
 
 export const DocumentSearchView = () => {
-  const [searchParams] = useQueryStates(Lang3sSearchParams);
+  const [searchParams] = useGlobalSearchParams();
   const {
     data: results,
     isLoading,

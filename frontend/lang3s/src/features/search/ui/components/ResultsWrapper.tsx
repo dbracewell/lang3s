@@ -25,7 +25,7 @@ export const ResultsWrapper = ({
       />
       <div className="flex min-h-0 flex-1 flex-col">
         <div
-          className="scrollable bg-alternate-row/50 dark:bg-row/20 flex flex-1 flex-col rounded-lg border pr-2"
+          className="scrollable bg-card flex flex-1 flex-col rounded-lg border pr-2"
           ref={scrollRef}
           onScroll={onScroll}
         >

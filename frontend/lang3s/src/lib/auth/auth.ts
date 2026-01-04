@@ -6,7 +6,7 @@ import {
   dataLoader,
   modeller,
   user,
-} from "@/features/auth/permissions";
+} from "@/lib/auth/permissions";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin as adminPlugin, apiKey, username } from "better-auth/plugins";

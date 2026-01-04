@@ -1,5 +1,5 @@
 import z from "zod";
-import { UserRoles } from "@/features/auth/permissions";
+import { UserRoles } from "@/lib/auth/permissions";
 
 export const UserAccountSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),

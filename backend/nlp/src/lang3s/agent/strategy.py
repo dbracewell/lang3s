@@ -1,5 +1,6 @@
+import traceback
 from textwrap import dedent
-from typing import Callable, Counter, Dict, Optional, TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING, Callable, Counter, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel
 
@@ -33,9 +34,7 @@ class Strategy:
     def set_middleware(self, middleware: List[Middleware]):
         self._middleware = middleware
 
-    async def async_run(self,
-                        agent: "Agent",
-                        state: AgentState) -> AgentResult:
+    async def async_run(self, agent: "Agent", state: AgentState) -> AgentResult:
         """
         Runs the agent asynchronously with a specified task and optional persona mode.
 
@@ -53,9 +52,7 @@ class Strategy:
         """
         raise NotImplementedError()
 
-    def run(self,
-            agent: "Agent",
-            state: AgentState) -> AgentResult:
+    def run(self, agent: "Agent", state: AgentState) -> AgentResult:
         """
         Runs the agent synchronously with a specified task and optional persona mode.
 
@@ -73,20 +70,24 @@ class Strategy:
         """
         return run_sync(self.async_run(agent=agent, state=state))
 
-    async def _async_run_tools(self,
-                               agent: "Agent",
-                               state: "AgentState",
-                               progress: AgentResult,
-                               response: ChatModelResponse,
-                               priority: Optional[int] = None,
-                               include_no_results: bool = True) -> bool:
+    async def _async_run_tools(
+        self,
+        agent: "Agent",
+        state: "AgentState",
+        progress: AgentResult,
+        response: ChatModelResponse,
+        priority: Optional[int] = None,
+        include_no_results: bool = True,
+    ) -> bool:
         state.max_progress += len(response.tool_calls or [])
         for tool_call in response.tool_calls or []:
-            if self._run_middleware("before_tool_call",
-                                    agent=agent,
-                                    state=state,
-                                    tool=tool_call,
-                                    progress=progress):
+            if self._run_middleware(
+                "before_tool_call",
+                agent=agent,
+                state=state,
+                tool=tool_call,
+                progress=progress,
+            ):
                 return True
 
             tool_response = await tool_call.async_invoke()
@@ -96,12 +97,14 @@ class Strategy:
                 state.update(tool_response)
             state.progress += 1
 
-            if self._run_middleware("after_tool_call",
-                                    agent=agent,
-                                    state=state,
-                                    tool=tool_call,
-                                    tool_result=tool_response,
-                                    progress=progress):
+            if self._run_middleware(
+                "after_tool_call",
+                agent=agent,
+                state=state,
+                tool=tool_call,
+                tool_result=tool_response,
+                progress=progress,
+            ):
                 return True
 
         return False
@@ -114,104 +117,108 @@ class Strategy:
             method(**kwargs)
         return kwargs["state"].terminated
 
-    async def _async_chat(self,
-                          agent: "Agent",
-                          state: AgentState,
-                          progress: AgentResult,
-                          force_tool_call: bool = False,
-                          use_tools: bool = False,
-                          ignore_content: Optional[Callable[[str], bool]] = None
-                          ) -> Tuple[bool, Optional[ChatModelResponse]]:
-
-        if self._run_middleware("before_model",
-                                agent=agent,
-                                state=state,
-                                progress=progress):
+    async def _async_chat(
+        self,
+        agent: "Agent",
+        state: AgentState,
+        progress: AgentResult,
+        force_tool_call: bool = False,
+        use_tools: bool = False,
+        ignore_content: Optional[Callable[[str], bool]] = None,
+    ) -> Tuple[bool, Optional[ChatModelResponse]]:
+        if self._run_middleware(
+            "before_model", agent=agent, state=state, progress=progress
+        ):
             return True, None
 
-        result = await agent.model.async_chat(messages=state.messages,
-                                              tools=state.tools if use_tools else None,
-                                              response_model=state.output_format if not use_tools else None,
-                                              max_tokens=state.max_output_tokens,
-                                              force_tool_call=force_tool_call,
-                                              temperature=state.temperature)
+        result = await agent.model.async_chat(
+            messages=state.messages,
+            tools=state.tools if use_tools else None,
+            response_model=state.output_format if not use_tools else None,
+            max_tokens=state.max_output_tokens,
+            force_tool_call=force_tool_call,
+            temperature=state.temperature,
+        )
         if result.content:
             state.update({"role": "assistant", "content": result.content})
         state.progress += 1
 
-        if self._run_middleware("after_model",
-                                agent=agent,
-                                state=state,
-                                result=result,
-                                progress=progress):
+        if self._run_middleware(
+            "after_model", agent=agent, state=state, result=result, progress=progress
+        ):
             return True, None
 
         if result.tool_calls:
             progress.update(chat_model_response=result, messages=state.messages)
-        if result.content and (not ignore_content or not ignore_content(result.content.strip())):
+        if result.content and (
+            not ignore_content or not ignore_content(result.content.strip())
+        ):
             progress.update(chat_model_response=result, messages=state.messages)
 
-        if self._run_middleware("on_progress_update",
-                                agent=agent,
-                                state=state,
-                                progress=progress):
+        if self._run_middleware(
+            "on_progress_update", agent=agent, state=state, progress=progress
+        ):
             return True, None
 
         return False, result
 
-    def _chat(self,
-              agent: "Agent",
-              state: AgentState,
-              progress: AgentResult,
-              force_tool_call: bool = False,
-              use_tools: bool = False,
-              ignore_content: Optional[Callable[[str], bool]] = None
-              ) -> Tuple[bool, Optional[ChatModelResponse]]:
-
-        if self._run_middleware("before_model",
-                                agent=agent,
-                                state=state,
-                                progress=progress):
+    def _chat(
+        self,
+        agent: "Agent",
+        state: AgentState,
+        progress: AgentResult,
+        force_tool_call: bool = False,
+        use_tools: bool = False,
+        ignore_content: Optional[Callable[[str], bool]] = None,
+    ) -> Tuple[bool, Optional[ChatModelResponse]]:
+        if self._run_middleware(
+            "before_model", agent=agent, state=state, progress=progress
+        ):
             return True, None
 
-        result = agent.model.chat(messages=state.messages,
-                                  tools=state.tools if use_tools else None,
-                                  response_model=state.output_format if not use_tools else None,
-                                  max_tokens=state.max_output_tokens,
-                                  force_tool_call=force_tool_call,
-                                  temperature=state.temperature)
+        result = agent.model.chat(
+            messages=state.messages,
+            tools=state.tools if use_tools else None,
+            response_model=state.output_format if not use_tools else None,
+            max_tokens=state.max_output_tokens,
+            force_tool_call=force_tool_call,
+            temperature=state.temperature,
+        )
 
         if result.content:
             state.update({"role": "assistant", "content": result.content})
         state.progress += 1
 
-        if self._run_middleware("after_model",
-                                agent=agent,
-                                state=state,
-                                result=result,
-                                progress=progress):
+        if self._run_middleware(
+            "after_model", agent=agent, state=state, result=result, progress=progress
+        ):
             return True, None
 
         if result.tool_calls:
             progress.update(chat_model_response=result, messages=state.messages)
-        if result.content and (not ignore_content or not ignore_content(result.content.strip())):
+        if result.content and (
+            not ignore_content or not ignore_content(result.content.strip())
+        ):
             progress.update(chat_model_response=result, messages=state.messages)
 
-        if self._run_middleware("on_progress_update",
-                                agent=agent,
-                                state=state,
-                                progress=progress):
+        if self._run_middleware(
+            "on_progress_update", agent=agent, state=state, progress=progress
+        ):
             return True, None
 
         return False, result
 
     @staticmethod
-    def _add_task_prompt(agent: "Agent",
-                         state: AgentState,
-                         task: str):
+    def _add_task_prompt(agent: "Agent", state: AgentState, task: str):
         if state.persona and state.persona_mode:
-            state.update({"role": "user",
-                          "content": state.persona.build_prompt(mode=state.persona_mode, task=task)})
+            state.update(
+                {
+                    "role": "user",
+                    "content": state.persona.build_prompt(
+                        mode=state.persona_mode, task=task
+                    ),
+                }
+            )
         else:
             state.update({"role": "user", "content": task})
 
@@ -265,50 +272,63 @@ class PlanningStrategy(Strategy):
 
     """
 
-    def __init__(self,
-                 custom_prompt: Optional[str] = None,
-                 no_tool_call_response: Optional[str] = None):
+    def __init__(
+        self,
+        custom_prompt: Optional[str] = None,
+        no_tool_call_response: Optional[str] = None,
+    ):
         super().__init__()
         self.custom_prompt: str = custom_prompt or DEFAULT_PLANNING_PROMPT
         self.no_tool_call_response: str = no_tool_call_response or "NO TOOL CALL NEEDED"
 
-    async def async_run(self,
-                        agent: "Agent",
-                        state: AgentState) -> AgentResult:
+    async def async_run(self, agent: "Agent", state: AgentState) -> AgentResult:
         try:
             state.max_progress += 2
 
             result = AgentResult()
-            planning_prompt = self.custom_prompt.format(planning=DEFAULT_PLANNING_PROMPT).format(
-                task=state.task).strip()
+            planning_prompt = self.custom_prompt.format(task=state.task).strip()
             state.update(
-                {"role": "user",
-                 "content": planning_prompt,
-                 "is_plan": True},
+                {"role": "user", "content": planning_prompt, "is_plan": True},
             )
 
-            is_terminated, response = await self._async_chat(agent, state, use_tools=True, progress=result)
+            is_terminated, response = await self._async_chat(
+                agent, state, use_tools=True, progress=result
+            )
             if is_terminated or not response:
                 return result
 
             if response.tool_calls:
-                if await self._async_run_tools(agent=agent, state=state, progress=result, response=response):
+                if await self._async_run_tools(
+                    agent=agent, state=state, progress=result, response=response
+                ):
                     return result
 
                 if state.persona and state.persona_mode:
-                    state.update({"role": "user",
-                                  "content": state.persona.build_prompt(mode=state.persona_mode,
-                                                                        task=state.task)})
+                    state.update(
+                        {
+                            "role": "user",
+                            "content": state.persona.build_prompt(
+                                mode=state.persona_mode, task=state.task
+                            ),
+                        }
+                    )
+                else:
+                    state.update(
+                        {
+                            "role": "user",
+                            "content": f"With the given results, now please answer {state.task}",
+                        }
+                    )
 
                 state.remove_messages_if(lambda msg: msg.get("is_plan", False))
                 await self._async_chat(agent, state, use_tools=False, progress=result)
                 return result
 
-            elif response.content is not None and response.content.startswith(self.no_tool_call_response):
-
+            elif response.content is not None and response.content.startswith(
+                self.no_tool_call_response
+            ):
                 state.remove_messages_if(lambda msg: msg.get("is_plan", False))
                 Strategy._add_task_prompt(agent, state, task=state.task)
-
                 await self._async_chat(agent, state, use_tools=False, progress=result)
                 return result
 
@@ -317,7 +337,7 @@ class PlanningStrategy(Strategy):
                 return result
 
         except Exception as e:
-
+            traceback.print_exc()
             return AgentResult(success=False, exception=e)
 
 
@@ -329,9 +349,7 @@ class OneShotStrategy(Strategy):
     sufficient, without advanced error handling or retry logic.
     """
 
-    async def async_run(self,
-                        agent: "Agent",
-                        state: AgentState) -> AgentResult:
+    async def async_run(self, agent: "Agent", state: AgentState) -> AgentResult:
         try:
             result = AgentResult()
             state.max_progress += 1
@@ -348,10 +366,12 @@ class IterativeStrategy(Strategy):
     Useful for generating many items when you can only emit one per call.
     """
 
-    def __init__(self,
-                 iterations: int,
-                 iteration_task: str = "",
-                 substrategy: Optional[Strategy] = None):
+    def __init__(
+        self,
+        iterations: int,
+        iteration_task: str = "",
+        substrategy: Optional[Strategy] = None,
+    ):
         super().__init__()
         self.iterations: int = iterations
         self.substrategy: Optional[Strategy] = substrategy
@@ -362,11 +382,7 @@ class IterativeStrategy(Strategy):
         if self.substrategy is not None:
             self.substrategy.set_middleware(middleware)
 
-    async def async_run(
-        self,
-        agent: "Agent",
-        state: AgentState
-    ) -> AgentResult:
+    async def async_run(self, agent: "Agent", state: AgentState) -> AgentResult:
         try:
             results: AgentResult = AgentResult()
             state.max_progress += self.iterations
@@ -382,16 +398,14 @@ class IterativeStrategy(Strategy):
                 ]
 
                 if self.iteration_task_supplement:
-                    iteration_task_parts.extend([
-                        "Iteration Task:",
-                        self.iteration_task_supplement,
-                        ""])
+                    iteration_task_parts.extend(
+                        ["Iteration Task:", self.iteration_task_supplement, ""]
+                    )
 
                 if len(results.content) > 0:
-                    iteration_task_parts.extend([
-                        "Previous Output:",
-                        "\n".join(results.content),
-                        ""])
+                    iteration_task_parts.extend(
+                        ["Previous Output:", "\n".join(results.content), ""]
+                    )
 
                 iteration_task = "\n".join(iteration_task_parts).strip()
 
@@ -403,16 +417,17 @@ class IterativeStrategy(Strategy):
                     results.merge(result)
                     if state.terminated:
                         return results
-                    if self._run_middleware("on_progress_update",
-                                            agent=agent,
-                                            state=state,
-                                            progress=results):
+                    if self._run_middleware(
+                        "on_progress_update", agent=agent, state=state, progress=results
+                    ):
                         return results
 
                 else:
                     state.remove_messages_if(lambda msg: msg.get("is_plan", False))
                     self._add_task_prompt(agent, state, task=iteration_task)
-                    is_terminated, response = await self._async_chat(agent, state, use_tools=False, progress=results)
+                    is_terminated, response = await self._async_chat(
+                        agent, state, use_tools=False, progress=results
+                    )
                     if is_terminated or not response:
                         return results
 
@@ -424,7 +439,6 @@ class IterativeStrategy(Strategy):
 
 
 class PipelineStrategy(Strategy):
-
     def __init__(self, steps: List[Strategy | str]):
         super().__init__()
         self.steps: List[Strategy | str] = steps
@@ -435,8 +449,7 @@ class PipelineStrategy(Strategy):
             if isinstance(step, Strategy):
                 step.set_middleware(middleware)
 
-    async def async_run(self, agent: "Agent",
-                        state: AgentState) -> AgentResult:
+    async def async_run(self, agent: "Agent", state: AgentState) -> AgentResult:
         try:
             results: AgentResult = AgentResult()
             state.max_progress += len(self.steps)
@@ -448,13 +461,14 @@ class PipelineStrategy(Strategy):
                 ]
 
                 if isinstance(step, str):
-                    step_task.extend([
-                        "Current Task:",
-                        step
-                    ])
+                    step_task.extend(["Current Task:", step])
                     state.remove_messages_if(lambda msg: msg.get("is_plan", False))
-                    self._add_task_prompt(agent, state, task="\n".join(step_task).strip())
-                    is_terminated, response = await self._async_chat(agent, state, use_tools=False, progress=results)
+                    self._add_task_prompt(
+                        agent, state, task="\n".join(step_task).strip()
+                    )
+                    is_terminated, response = await self._async_chat(
+                        agent, state, use_tools=False, progress=results
+                    )
                     if is_terminated or not response:
                         return results
 
@@ -466,10 +480,9 @@ class PipelineStrategy(Strategy):
                     results.merge(result)
                     if state.terminated:
                         return results
-                    if self._run_middleware("on_progress_update",
-                                            agent=agent,
-                                            state=state,
-                                            progress=results):
+                    if self._run_middleware(
+                        "on_progress_update", agent=agent, state=state, progress=results
+                    ):
                         return results
 
                 state.truncate(agent.token_estimator)
@@ -480,7 +493,6 @@ class PipelineStrategy(Strategy):
 
 
 class ReACTStrategy(Strategy):
-
     def __init__(self, max_steps: int):
         super().__init__()
         self.max_steps = max_steps
@@ -520,42 +532,61 @@ class ReACTStrategy(Strategy):
         for step in range(self.max_steps):
             if step < self.max_steps - 1:
                 step_prompt = dedent(
-                    react_step_prompt.format(task=state.task, step=step + 1, max_steps=self.max_steps + 1).strip())
+                    react_step_prompt.format(
+                        task=state.task, step=step + 1, max_steps=self.max_steps + 1
+                    ).strip()
+                )
             else:
                 step_prompt = dedent(react_final_prompt.format(task=state.task).strip())
 
             state.update({"role": "user", "content": step_prompt})
-            is_terminated, response = await self._async_chat(agent,
-                                                             state,
-                                                             use_tools=step < self.max_steps - 1,
-                                                             progress=results,
-                                                             ignore_content=lambda x: x.startswith(
-                                                                 "Thought:") or x.startswith(
-                                                                 "1. Thought:") or x.startswith("1.Thought:"))
+            is_terminated, response = await self._async_chat(
+                agent,
+                state,
+                use_tools=step < self.max_steps - 1,
+                progress=results,
+                ignore_content=lambda x: x.startswith("Thought:")
+                or x.startswith("1. Thought:")
+                or x.startswith("1.Thought:"),
+            )
             if is_terminated or response is None:
                 return results
 
             if response.tool_calls:
-                if await self._async_run_tools(agent=agent, state=state, progress=results, response=response):
+                if await self._async_run_tools(
+                    agent=agent, state=state, progress=results, response=response
+                ):
                     return results
                 continue
 
-            elif response.content and response.content.strip().startswith("Final Answer:"):
+            elif response.content and response.content.strip().startswith(
+                "Final Answer:"
+            ):
                 if state.output_format:
                     state.max_progress += 1
                     last_content = results.content[-1].strip()
                     results.content = results.content[:-1]
                     state.task = "Now convert the output into the given schema."
-                    self._add_task_prompt(agent, state,
-                                          task=f"Now convert the output into the given schema.\nOUTPUT:\n{last_content}")
-                    await self._async_chat(agent, state, use_tools=False, progress=results)
+                    self._add_task_prompt(
+                        agent,
+                        state,
+                        task=f"Now convert the output into the given schema.\nOUTPUT:\n{last_content}",
+                    )
+                    await self._async_chat(
+                        agent, state, use_tools=False, progress=results
+                    )
                 elif state.persona and state.persona_mode:
                     state.max_progress += 1
                     last_content = results.content[-1].strip()
                     results.content = results.content[:-1]
-                    self._add_task_prompt(agent, state,
-                                          task=f"Rewrite the given content using the tone of the persona and omit the 'Final Answer:' text.\nCONTENT:\n{last_content}")
-                    await self._async_chat(agent, state, use_tools=False, progress=results)
+                    self._add_task_prompt(
+                        agent,
+                        state,
+                        task=f"Rewrite the given content using the tone of the persona and omit the 'Final Answer:' text.\nCONTENT:\n{last_content}",
+                    )
+                    await self._async_chat(
+                        agent, state, use_tools=False, progress=results
+                    )
 
                 return results
 
@@ -577,7 +608,6 @@ REVISION_PROMPT: str = (
 
 
 class ReflectionStrategy(Strategy):
-
     def __init__(self, max_reflections: int):
         super().__init__()
         self.max_reflections = max_reflections
@@ -588,22 +618,26 @@ class ReflectionStrategy(Strategy):
 
             self._add_task_prompt(agent, state, task=state.task)
             last_messages = state.messages
-            is_terminated, last_response = await self._async_chat(agent=agent,
-                                                                  state=state,
-                                                                  progress=results,
-                                                                  use_tools=False,
-                                                                  ignore_content=lambda x: True)
+            is_terminated, last_response = await self._async_chat(
+                agent=agent,
+                state=state,
+                progress=results,
+                use_tools=False,
+                ignore_content=lambda x: True,
+            )
             if is_terminated or last_response is None:
                 return results
 
             state.max_progress += self.max_reflections * 2
             for i in range(self.max_reflections):
                 self._add_task_prompt(agent, state, task=CRITIQUE_PROMPT)
-                is_terminated, response = await self._async_chat(agent=agent,
-                                                                 state=state,
-                                                                 progress=results,
-                                                                 use_tools=False,
-                                                                 ignore_content=lambda x: True)
+                is_terminated, response = await self._async_chat(
+                    agent=agent,
+                    state=state,
+                    progress=results,
+                    use_tools=False,
+                    ignore_content=lambda x: True,
+                )
                 if is_terminated or not response:
                     return results
 
@@ -612,11 +646,13 @@ class ReflectionStrategy(Strategy):
 
                 self._add_task_prompt(agent, state, task=REVISION_PROMPT)
                 last_messages = state.messages
-                is_terminated, last_response = await self._async_chat(agent=agent,
-                                                                      state=state,
-                                                                      progress=results,
-                                                                      use_tools=False,
-                                                                      ignore_content=lambda x: True)
+                is_terminated, last_response = await self._async_chat(
+                    agent=agent,
+                    state=state,
+                    progress=results,
+                    use_tools=False,
+                    ignore_content=lambda x: True,
+                )
                 if is_terminated or not last_response:
                     return results
 
@@ -627,8 +663,11 @@ class ReflectionStrategy(Strategy):
                 last_content = results.content[-1].strip()
                 results.content = results.content[:-1]
                 state.task = "Now convert the output into the given schema."
-                self._add_task_prompt(agent, state,
-                                      task=f"Now convert the output into the given schema.\nOUTPUT:\n{last_content}")
+                self._add_task_prompt(
+                    agent,
+                    state,
+                    task=f"Now convert the output into the given schema.\nOUTPUT:\n{last_content}",
+                )
                 await self._async_chat(agent, state, use_tools=False, progress=results)
 
             return results
@@ -641,7 +680,6 @@ class QueryFormat(BaseModel):
 
 
 class SearchStrategy(Strategy):
-
     def __init__(self, search_tool_names: List[str]):
         super().__init__()
         self.search_tool_names = set(search_tool_names)
@@ -654,8 +692,11 @@ class SearchStrategy(Strategy):
         state.persona_mode = None
         tool_definitions: Dict[str, LLMTool] = dict()
         for func in state.tools:
-            if not isinstance(func, Callable) or not hasattr(func, 'tool'):
-                return AgentResult(success=False, exception=Exception(f"Tool {func.__name__} is not valid."))
+            if not isinstance(func, Callable) or not hasattr(func, "tool"):
+                return AgentResult(
+                    success=False,
+                    exception=Exception(f"Tool {func.__name__} is not valid."),
+                )
             elif func.tool.name in self.search_tool_names:  # type:ignore
                 tool_definitions[func.tool.name] = func.tool  # type: ignore
 
@@ -672,8 +713,12 @@ class SearchStrategy(Strategy):
             self._add_task_prompt(agent, state, task=search_task)
             output_format = state.output_format
             state.output_format = QueryFormat
-            is_terminated, response = await self._async_chat(agent=agent, state=state, progress=results,
-                                                             ignore_content=lambda x: True)
+            is_terminated, response = await self._async_chat(
+                agent=agent,
+                state=state,
+                progress=results,
+                ignore_content=lambda x: True,
+            )
             state.output_format = output_format
             if is_terminated or not response or not response.parsed:
                 return results
@@ -682,18 +727,24 @@ class SearchStrategy(Strategy):
             tool_id = 0
             for tool in tool_definitions.values():
                 for query in response.parsed.queries:
-                    tool_calls.append(ToolCall(
-                        is_async=tool.is_async,
-                        arguments={"query": query},
-                        name=tool.name,
-                        arguments_type=tool.arg_validator,
-                        tool_call_id=str(tool_id),
-                        function=tool.function,
-                    ))
+                    tool_calls.append(
+                        ToolCall(
+                            is_async=tool.is_async,
+                            arguments={"query": query},
+                            name=tool.name,
+                            arguments_type=tool.arg_validator,
+                            tool_call_id=str(tool_id),
+                            function=tool.function,
+                        )
+                    )
                     tool_id += 1
             state.messages = state.messages[:-1]
-            dummy_message = ChatModelResponse(tool_calls=tool_calls, parsed=None, content=None, audio=None)
-            await self._async_run_tools(agent=agent, state=state, progress=results, response=dummy_message)
+            dummy_message = ChatModelResponse(
+                tool_calls=tool_calls, parsed=None, content=None, audio=None
+            )
+            await self._async_run_tools(
+                agent=agent, state=state, progress=results, response=dummy_message
+            )
 
             summarize_task = f"""
             User task: {state.task}
@@ -716,12 +767,13 @@ class SearchStrategy(Strategy):
 
 
 class DiscoveryStrategy(Strategy):
-
-    def __init__(self,
-                 search_tool: str,
-                 allow_random_search: bool = True,
-                 rounds: int = 5,
-                 queries_per_round: int = 5):
+    def __init__(
+        self,
+        search_tool: str,
+        allow_random_search: bool = True,
+        rounds: int = 5,
+        queries_per_round: int = 5,
+    ):
         super().__init__()
         self.search_tool = search_tool
         self.rounds = rounds
@@ -737,26 +789,34 @@ class DiscoveryStrategy(Strategy):
         tool_definitions: LLMTool = None  # type: ignore
 
         for func in state.tools:
-            if not isinstance(func, Callable) or not hasattr(func, 'tool'):
-                return AgentResult(success=False, exception=Exception(f"Tool {func.__name__} is not valid."))
+            if not isinstance(func, Callable) or not hasattr(func, "tool"):
+                return AgentResult(
+                    success=False,
+                    exception=Exception(f"Tool {func.__name__} is not valid."),
+                )
             elif func.tool.name == self.search_tool:  # type:ignore
                 tool_definitions = func.tool  # type: ignore
                 break
 
         if tool_definitions is None:
-            return AgentResult(success=False, exception=Exception(f"Tool {self.search_tool} not found."))
+            return AgentResult(
+                success=False,
+                exception=Exception(f"Tool {self.search_tool} not found."),
+            )
 
         discovered_terms = Counter()
         tool_id = 0
         try:
             results = AgentResult()
-            state.update({
-                "role": "user",
-                "content": (
-                    f"You must explore the corpus using only the search tool. "
-                    f"No prior knowledge is available. Begin generating probe queries."
-                )
-            })
+            state.update(
+                {
+                    "role": "user",
+                    "content": (
+                        f"You must explore the corpus using only the search tool. "
+                        f"No prior knowledge is available. Begin generating probe queries."
+                    ),
+                }
+            )
             state.max_progress += self.rounds * 3 + 1
 
             for round_idx in range(self.rounds):
@@ -778,32 +838,45 @@ class DiscoveryStrategy(Strategy):
                 self._add_task_prompt(agent, state, task=probe_prompt)
                 output_format = state.output_format
                 state.output_format = QueryFormat
-                is_terminated, response = await self._async_chat(agent=agent,
-                                                                 state=state,
-                                                                 progress=results,
-                                                                 ignore_content=lambda x: True)
+                is_terminated, response = await self._async_chat(
+                    agent=agent,
+                    state=state,
+                    progress=results,
+                    ignore_content=lambda x: True,
+                )
                 state.output_format = output_format
                 if is_terminated or not response or not response.parsed:
                     return results
 
-                discovered_terms.update(response.parsed.queries[:self.queries_per_round])
+                discovered_terms.update(
+                    response.parsed.queries[: self.queries_per_round]
+                )
                 state.messages.pop(-1)
 
                 tool_calls: List[ToolCall] = []
 
-                for query in response.parsed.queries[:self.queries_per_round]:
-                    tool_calls.append(ToolCall(
-                        is_async=tool_definitions.is_async,
-                        arguments={"query": query},
-                        name=tool_definitions.name,
-                        arguments_type=tool_definitions.arg_validator,
-                        tool_call_id=str(tool_id),
-                        function=tool_definitions.function,
-                    ))
+                for query in response.parsed.queries[: self.queries_per_round]:
+                    tool_calls.append(
+                        ToolCall(
+                            is_async=tool_definitions.is_async,
+                            arguments={"query": query},
+                            name=tool_definitions.name,
+                            arguments_type=tool_definitions.arg_validator,
+                            tool_call_id=str(tool_id),
+                            function=tool_definitions.function,
+                        )
+                    )
                     tool_id += 1
-                dummy_message = ChatModelResponse(tool_calls=tool_calls, parsed=None, content=None, audio=None)
-                if await self._async_run_tools(agent=agent, state=state, progress=results, response=dummy_message,
-                                               include_no_results=False):
+                dummy_message = ChatModelResponse(
+                    tool_calls=tool_calls, parsed=None, content=None, audio=None
+                )
+                if await self._async_run_tools(
+                    agent=agent,
+                    state=state,
+                    progress=results,
+                    response=dummy_message,
+                    include_no_results=False,
+                ):
                     return results
 
                 summary_prompt = (
@@ -814,8 +887,12 @@ class DiscoveryStrategy(Strategy):
                 self._add_task_prompt(agent, state, task=summary_prompt)
                 temperature = state.temperature
                 state.temperature = 0.3
-                is_terminated, response = await self._async_chat(agent=agent, state=state, progress=results,
-                                                                 ignore_content=lambda x: True)
+                is_terminated, response = await self._async_chat(
+                    agent=agent,
+                    state=state,
+                    progress=results,
+                    ignore_content=lambda x: True,
+                )
                 state.temperature = temperature
                 if is_terminated or not response:
                     return results
@@ -855,6 +932,7 @@ class DiscoveryStrategy(Strategy):
         sdoc = nlp(doc)
         keywords = []
         import re
+
         try:
             for chunk in sdoc.noun_chunks:
                 t = ""

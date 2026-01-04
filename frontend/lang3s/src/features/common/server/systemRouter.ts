@@ -11,10 +11,10 @@ import { db } from "@/lib/db";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
 import { MetadataSchema } from "@/features/common/schemas";
-import { roleHasPermissions } from "@/features/auth/permissions";
 import { TRPCError } from "@trpc/server";
 import { getMetadata } from "@/features/common/server/queries";
 import z from "zod";
+import { requirePermissions } from "@/features/auth/server/actions";
 
 const formatableDataTypes = new Set(["float", "date", "datetime"]);
 
@@ -115,9 +115,7 @@ export const systemRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const { user } = ctx;
-      if (!roleHasPermissions(user.role, ["metadata:edit"])) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
+      await requirePermissions(user, undefined, ["metadata:edit"]);
 
       return await logAndRethrow(() =>
         db
@@ -137,9 +135,8 @@ export const systemRouter = createTRPCRouter({
     .input(MetadataSchema)
     .mutation(async ({ input, ctx }) => {
       const { user } = ctx;
-      if (!roleHasPermissions(user.role, ["metadata:edit"])) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
+
+      await requirePermissions(user, undefined, ["metadata:edit"]);
 
       return await logAndRethrow(() =>
         db
@@ -158,9 +155,7 @@ export const systemRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { user } = ctx;
-      if (!roleHasPermissions(user.role, ["metadata:edit"])) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
+      await requirePermissions(user, undefined, ["metadata:edit"]);
 
       const [result] = await logAndRethrow(() =>
         db

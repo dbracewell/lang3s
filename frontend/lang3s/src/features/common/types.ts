@@ -1,8 +1,9 @@
-import { UserRole } from "@/features/auth/permissions";
+import { UserRole } from "@/lib/auth/permissions";
 
 export type BasicUserInfo = {
   id: string;
   role: UserRole;
+  name: string;
   username: string;
 };
 

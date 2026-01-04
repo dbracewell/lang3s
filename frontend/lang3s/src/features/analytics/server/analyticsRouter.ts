@@ -20,6 +20,7 @@ import {
   ilike,
   lt,
   ne,
+  not,
   or,
   sql,
 } from "drizzle-orm";
@@ -37,8 +38,8 @@ import { TRPCError } from "@trpc/server";
 import { alias } from "drizzle-orm/pg-core";
 import { Point } from "@/components/charts/ForceGraph";
 import { getColorName } from "@/lib/utils/colors";
-import { roleHasPermissions } from "@/features/auth/permissions";
 import { createRedisClient } from "@/lib/redis";
+import { requirePermissions } from "@/features/auth/server/actions";
 
 export const AnalyticsRouter = createTRPCRouter({
   getAnnotationTypes: protectedProcedure.query(async () => {
@@ -237,7 +238,7 @@ export const AnalyticsRouter = createTRPCRouter({
               ),
           }),
         })
-          .where((t) =>
+          .where(
             and(
               or(
                 sql`exists (
@@ -464,7 +465,19 @@ export const AnalyticsRouter = createTRPCRouter({
           and(
             gte(t.similarity, 0.25),
             sql`${s1.type} <@ 'ALL.Entity'`,
+            not(
+              sql`${s1.type} <@ 'ALL.Entity.Abstract.Temporal_And_Occurrence'`,
+            ),
+            not(
+              sql`${s1.type} <@ 'ALL.Entity.Abstract.Value_And_Quantification'`,
+            ),
             sql`${s2.type} <@ 'ALL.Entity'`,
+            not(
+              sql`${s2.type} <@ 'ALL.Entity.Abstract.Temporal_And_Occurrence'`,
+            ),
+            not(
+              sql`${s2.type} <@ 'ALL.Entity.Abstract.Value_And_Quantification'`,
+            ),
             gt(s1.documentCount, 5),
             gt(s2.documentCount, 5),
           ),
@@ -486,6 +499,12 @@ export const AnalyticsRouter = createTRPCRouter({
             and(
               gt(AnnotationCounts.documentCount, 5),
               sql`${AnnotationCounts.type} <@ 'ALL.Entity'`,
+              not(
+                sql`${AnnotationCounts.type} <@ 'ALL.Entity.Abstract.Temporal_And_Occurrence'`,
+              ),
+              not(
+                sql`${AnnotationCounts.type} <@ 'ALL.Entity.Abstract.Value_And_Quantification'`,
+              ),
             ),
           ),
       ]);
@@ -527,7 +546,7 @@ export const AnalyticsRouter = createTRPCRouter({
 
     const finalClusters = Object.entries(groups)
       .sort((a, b) => b[1].length - a[1].length)
-      .map(([id, points]) =>
+      .map(([_, points]) =>
         points.map((p) => {
           const parts = p.split("-");
           return {
@@ -565,6 +584,8 @@ export const AnalyticsRouter = createTRPCRouter({
         sql`, `,
       );
 
+      console.log(input.cohort);
+
       const edges = await logAndRethrow(() =>
         db
           .select({
@@ -584,11 +605,8 @@ export const AnalyticsRouter = createTRPCRouter({
           .from(AnnotationCoOccurrence)
           .where(
             and(
-              or(
-                sql`CONCAT(${AnnotationCoOccurrence.source},'-',${AnnotationCoOccurrence.sourceType}) in (${array})`,
-                sql`CONCAT(${AnnotationCoOccurrence.target},'-',${AnnotationCoOccurrence.targetType}) in (${array})`,
-              ),
-              gt(AnnotationCoOccurrence.documentCount, 5),
+              sql`CONCAT(${AnnotationCoOccurrence.source},'-',${AnnotationCoOccurrence.sourceType}) in (${array})`,
+              sql`CONCAT(${AnnotationCoOccurrence.target},'-',${AnnotationCoOccurrence.targetType}) in (${array})`,
             ),
           )
           .orderBy((t) => [t.sourceId, t.targetId]),
@@ -620,16 +638,12 @@ export const AnalyticsRouter = createTRPCRouter({
   updateAnalyticsTables: protectedProcedure.mutation(async ({ ctx }) => {
     const { user } = ctx;
 
-    if (
-      !roleHasPermissions(user.role, [
-        "ontology:edit",
-        "data:load",
-        "data:update",
-        "model:create",
-      ])
-    ) {
-      throw new TRPCError({ code: "UNAUTHORIZED" });
-    }
+    await requirePermissions(user, undefined, [
+      "ontology:edit",
+      "data:load",
+      "data:update",
+      "model:create",
+    ]);
 
     const { isError } = await tryCatch(
       (async () => {

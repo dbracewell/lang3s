@@ -15,8 +15,8 @@ import Link from "next/link";
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
 import { TreemapNode } from "recharts/types/util/types";
 import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
-import { cn } from "@/lib/utils/cn";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useChatContext } from "@/features/chat/hooks/useChatContext";
 
 const COLORS = [
   "#84bff5", //dodger-blue-300
@@ -32,7 +32,7 @@ const COLORS = [
 
 export const EntityCoOccurrenceVisualization = () => {
   const [params, setParams] = useEntitySearchParams();
-
+  const { setContext } = useChatContext();
   const { data, isLoading } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationCoOccurrence.queryOptions(
       {
@@ -45,6 +45,17 @@ export const EntityCoOccurrenceVisualization = () => {
       },
     ),
   );
+
+  useEffect(() => {
+    if (params.showEvents || !params.entity || !params.entityType) {
+      return;
+    }
+    if (data == null) {
+      setContext("");
+    } else {
+      setContext(data.map((row) => `${row.e2}/${row.e2Type}`).join("\n"));
+    }
+  }, [data, params]);
 
   if (params.showEvents || !params.entity || !params.entityType) {
     return null;

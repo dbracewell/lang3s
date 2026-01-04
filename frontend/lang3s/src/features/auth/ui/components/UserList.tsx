@@ -5,8 +5,19 @@ import React from "react";
 import DataTableProvider from "@/components/data-table/DataTableContext";
 import { AddUserDialog } from "@/features/auth/ui/components/AddUserDialog";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
+import { PageNumbers } from "@/components/PageNumbers";
+import { useRouter } from "next/navigation";
 
-export const UserList = ({ users }: { users: UserType[] }) => {
+export const UserList = ({
+  users,
+  page,
+  totalPages,
+}: {
+  users: UserType[];
+  page: number;
+  totalPages: number;
+}) => {
+  const router = useRouter();
   const { DataTable } = useDataTable({
     columns: userListColumns,
     data: users,
@@ -33,6 +44,11 @@ export const UserList = ({ users }: { users: UserType[] }) => {
       <DataTableProvider columns={userListColumns}>
         {DataTable}
       </DataTableProvider>
+      <PageNumbers
+        totalPages={totalPages}
+        currentPage={page}
+        pageLink={(to) => router.push(`?page${to}`)}
+      />
     </ScrollableBox.Container>
   );
 };

@@ -11,6 +11,13 @@ export const EventSchemas = {
     completed: z.boolean(),
   }),
 
+  "agent:update": z.object({
+    progress: z.number().min(0).max(100),
+    prompt: z.string(),
+    id: z.string(),
+    response: z.string().optional(),
+  }),
+
   "system:heartbeat": z.object({
     ts: z.number(),
   }),

@@ -1,9 +1,10 @@
 "use client";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { useTabParams } from "@/features/analytics/hooks/useTabParams";
+import { useTopicsTabParams } from "@/features/analytics/hooks/useTopicsTabParams";
 import { ForceGraph, Point, Similarity } from "@/components/charts/ForceGraph";
 import React from "react";
 import { parseAsString, useQueryState } from "nuqs";
+import { useCohortsParams } from "@/features/analytics/hooks/useCohortsParams";
 
 export const CohortsGraph = ({
   data,
@@ -13,12 +14,8 @@ export const CohortsGraph = ({
     similarities: Omit<Similarity, "source" | "target">[];
   };
 }) => {
-  const [tabs, setTabs] = useTabParams();
-  const [, setSearchQuery] = useQueryState(
-    "q",
-    parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
-  );
-  if (tabs !== "chart") {
+  const [params, setParams] = useCohortsParams();
+  if (params.tab !== "chart") {
     return null;
   }
   return (
@@ -28,11 +25,10 @@ export const CohortsGraph = ({
       showLabels={true}
       minSupportToShowLabel={5}
       onNodeClick={async (node) => {
-        await setSearchQuery(node.name);
-        setTabs("list");
+        await setParams({ q: node.name, tab: "list" });
       }}
       styles={{
-        labelFontSize: 12,
+        labelFontSize: 10,
         labelColor: "var(--color-foreground)",
         backgroundColor: "transparent",
         linkOpacity: 1,

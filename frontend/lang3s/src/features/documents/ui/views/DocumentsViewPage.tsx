@@ -1,18 +1,17 @@
 "use client";
 import { InfiniteScroll } from "@/components/scrolling/InfiniteScroll";
 import { useTRPCSuspenseInfiniteQuery } from "@/lib/trpc/use-queries";
-import Link from "next/link";
-import { useRef, useState } from "react";
 import { DocumentScrollHeader } from "@/components/scrolling/DocumentScrollHeader";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { DocumentResult } from "@/features/documents/ui/components/DocumentResult";
-import { formatNumber } from "@/lib/utils/formatters";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useScrollToTop } from "@/hooks/useScrollToTop";
+import { useContext, useEffect } from "react";
+import { useChatContext } from "@/features/chat/hooks/useChatContext";
 
 export const DocumentsViewPage = () => {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [isScrolled, setIsScrolled] = useState(false);
-
+  const { isScrolled, onScroll, scrollRef } = useScrollToTop();
+  const { setContext } = useChatContext();
   const {
     data: docs,
     isFetchingNextPage,
@@ -25,6 +24,16 @@ export const DocumentsViewPage = () => {
     ),
   );
 
+  useEffect(() => {
+    if (docs != null) {
+      const ctxt = docs.pages
+        .flatMap((p) => p.posts)
+        .map((p) => `DocumentId: ${p.id} Content:${p.text}`)
+        .join("\n");
+      setContext(ctxt);
+    }
+  }, [docs]);
+
   return (
     <>
       <DocumentScrollHeader
@@ -34,18 +43,9 @@ export const DocumentsViewPage = () => {
       />
       <ScrollableBox.ScrollArea
         ref={scrollRef}
-        onScroll={() => {
-          if (scrollRef.current) {
-            const container = scrollRef.current;
-            const scrollPosition = container.scrollTop + container.clientHeight;
-            const scrollPercentage =
-              (container.scrollHeight - scrollPosition) /
-              container.scrollHeight;
-            setIsScrolled(scrollPercentage < 0.8);
-          }
-        }}
+        onScroll={onScroll}
         outerClassName="p-0!"
-        className="bg-alternate-row/50 dark:bg-row/20 min-h-full flex-1"
+        className="bg-card min-h-full flex-1"
       >
         {docs.pages
           .flatMap((page) => page.posts)

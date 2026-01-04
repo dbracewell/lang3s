@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Form } from "@/components/ui/form";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { UserRoleDescriptions, UserRoles } from "@/features/auth/permissions";
+import { UserRoles } from "@/lib/auth/permissions";
 import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { UserRoundPlusIcon } from "lucide-react";
@@ -26,6 +26,7 @@ import {
   UserAccountSchema,
   UserAccountSchemaType,
 } from "@/features/auth/schemas";
+import { UserRoleDescriptions } from "@/features/auth/constants";
 
 export const AddUserDialog = () => {
   const router = useRouter();

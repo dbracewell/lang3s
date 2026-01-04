@@ -4,20 +4,24 @@ import json
 import os
 from collections.abc import Generator
 from threading import Thread
-from typing import Iterable, List
+from typing import Dict, Iterable, List
 
 import numpy as np
 import sqlalchemy as db
 from numpy.typing import NDArray
 from psycopg import sql
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import noload
 
 from lang3s import config
 from lang3s.db.database import Database
 from lang3s.db.models import DocumentsTable, TextAnnotationsTable
-from lang3s.maths import binarize
-from lang3s.shared_types import DOCUMENT_COLUMNS, TEXT_ANNOTATION_COLUMNS, TEXT_COLUMNS, Document
+from lang3s.shared_types import (
+    DOCUMENT_COLUMNS,
+    TEXT_ANNOTATION_COLUMNS,
+    TEXT_COLUMNS,
+    Document,
+)
 from lang3s.utils.meta import SingletonMeta
 
 
@@ -57,7 +61,13 @@ class TextDatabase(metaclass=SingletonMeta):
             )
             all_annotations = list(
                 a.insert_values()
-                for a in itertools.chain(*[doc.text.all_annotations for doc in documents if doc.text is not None])
+                for a in itertools.chain(
+                    *[
+                        doc.text.all_annotations
+                        for doc in documents
+                        if doc.text is not None
+                    ]
+                )
                 if a.type != "token"
             )
             self.__database.copy_from(
@@ -74,10 +84,17 @@ class TextDatabase(metaclass=SingletonMeta):
 
     def random_sentences(self, count: int) -> List[str]:
         with self.__database.session() as session:
-            annotations: List[TextAnnotationsTable] = session.query(TextAnnotationsTable) \
-                .options(noload("*")) \
-                .filter(TextAnnotationsTable.type_ == "sentence" and TextAnnotationsTable.metadata_[
-                "is_stopword"] is False).order_by(func.random()).limit(count).all()  # type:ignore
+            annotations: List[TextAnnotationsTable] = (
+                session.query(TextAnnotationsTable)
+                .options(noload("*"))
+                .filter(
+                    TextAnnotationsTable.type_ == "sentence"
+                    and TextAnnotationsTable.metadata_["is_stopword"] is False
+                )
+                .order_by(func.random())
+                .limit(count)
+                .all()
+            )  # type:ignore
 
             return [a.text for a in annotations]  # type: ignore
 
@@ -98,41 +115,80 @@ class TextDatabase(metaclass=SingletonMeta):
                     print(e)
                     continue
 
-    def search(self,
-               query: str,
-               limit: int = 3) -> List[str]:
-
+    def search_topics(self, query: str, limit: int = 3) -> List[Dict[str, str]]:
         query = " OR ".join(query.split())
         sql_query = sql.SQL("""
-                            SELECT distinct text, pgroonga_score(tableoid, ctid) as rank
-                            FROM text_annotations
+                            WITH search_results AS (SELECT distinct sentence_aid,
+                                                                    text,
+                                                                    pgroonga_score(tableoid,ctid) as rank
+                                                    FROM text_annotations
                             WHERE type = 'sentence'
-                              and text &@~ (%s, ARRAY [1], ARRAY ['scorer_tf_idf($index)'], 'ml_text_search_index')::pgroonga_full_text_search_condition_with_scorers
+                              and text &@~ (%s, ARRAY [1], ARRAY ['scorer_tf_idf($index)'], 'ml_text_annotation_search_index')::pgroonga_full_text_search_condition_with_scorers
+                            )
+                            SELECT text, title, name as topic, topic_id, doc_id, rank
+                            FROM search_results
+                            INNER JOIN topic_sentences ON topic_sentences.sentence_aid = search_results.sentence_aid
+                                INNER JOIN documents ON documents.id = topic_sentences.doc_id
+                                INNER JOIN topics ON topics.id = topic_sentences.topic_id
                             ORDER BY rank desc
                             LIMIT %s
                             """)
 
         with self.__database.cursor() as cursor:
-            cursor.execute(sql_query,
-                           (query, limit))
+            cursor.execute(sql_query, (query, limit))
             result = cursor.fetchall()
-            return [sentence[0] for sentence in result]
+            return [
+                {
+                    "content": sentence[0],
+                    "title": sentence[1],
+                    "topic": sentence[2],
+                    "topicId": sentence[3],
+                    "documentId": sentence[4],
+                }
+                for sentence in result
+            ]
 
-    def sentence_search(self,
-                        embedding: NDArray[np.floating], min_similarity: float, limit: int = 3) -> List[str]:
-        binarized_embedding = binarize(embedding)
-        max_difference = np.shape(embedding)[0] - min_similarity * np.shape(embedding)[0]
-        query = sql.SQL("""
-                        SELECT distinct text, (embedding <~> %s) as distance
-                        FROM text_annotations
-                        WHERE type = 'sentence'
-                          and (embedding <~> %s) <= %s
-                          and (metadata ->> 'is_stopword')::boolean = false
-                        ORDER BY distance
-                        LIMIT %s
-                        """)
+    def search(self, query: str, limit: int = 3) -> List[Dict[str, str]]:
+        query = " OR ".join(query.split())
+        sql_query = sql.SQL("""
+                            WITH search_results AS (SELECT distinct text,
+                                                                    doc_id,
+                                                                    pgroonga_score(tableoid,ctid) as rank
+                                                    FROM text_annotations
+                            WHERE type = 'sentence'
+                              and text &@~ (%s, ARRAY [1], ARRAY ['scorer_tf_idf($index)'], 'ml_text_annotation_search_index')::pgroonga_full_text_search_condition_with_scorers
+                            )
+                            SELECT text, title, doc_id, rank
+                            FROM search_results
+                            INNER JOIN documents ON documents.id = doc_id
+                            ORDER BY rank desc
+                            LIMIT %s
+                            """)
+
         with self.__database.cursor() as cursor:
-            cursor.execute(query,
-                           (binarized_embedding, binarized_embedding, max_difference, limit))
+            cursor.execute(sql_query, (query, limit))
             result = cursor.fetchall()
-            return [sentence[0] for sentence in result]
+            return [
+                {
+                    "content": sentence[0],
+                    "title": sentence[1],
+                    "documentId": str(sentence[2]),
+                }
+                for sentence in result
+            ]
+
+    def sentence_search(
+        self, embedding: NDArray[np.floating], min_similarity: float, limit: int = 3
+    ) -> List[str]:
+        stmt = (
+            select(TextAnnotationsTable)
+            .filter(
+                (1 - TextAnnotationsTable.embedding.cosine_distance(embedding))
+                >= min_similarity
+            )
+            .limit(limit)
+        )
+
+        with self.__database.session() as session:
+            results = session.scalars(stmt).all()
+            return [r.content for r in results]

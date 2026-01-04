@@ -3,39 +3,98 @@ import { apikey as ApiKeyTable, user as UserTable } from "@/lib/db/schema";
 import { auth } from "@/lib/auth/auth";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { UserType } from "@/features/auth/ui/components/UserListColumns";
-import { UserRole } from "@/features/auth/permissions";
-import { getUserApiKeys } from "@/features/auth/server/actions";
+import { Permissions, UserRole } from "@/lib/auth/permissions";
+import {
+  getUserApiKeys,
+  requirePermissions,
+  roleHasPermissions,
+} from "@/features/auth/server/actions";
 import {
   adminProcedure,
   createTRPCRouter,
   protectedProcedure,
-  requirePermissions,
 } from "@/lib/trpc/init";
 import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import z from "zod";
 import { UserAccountSchema } from "@/features/auth/schemas";
 import { jsonAgg, jsonBuildObject } from "@/lib/db/helpers/json";
+import {
+  NAVIGATION_LINKS,
+  NavigationGroup,
+  NavigationItem,
+} from "@/features/common/navigation";
+import { PAGE_LIMIT } from "@/features/common/constants";
 
 export const authRouter = createTRPCRouter({
-  getUsers: adminProcedure.query(async () => {
-    const { users } = await auth.api.listUsers({
-      headers: await headers(),
-      query: {
-        limit: 100,
-        offset: 0,
-        sortBy: "name",
-        filterField: "role",
-        filterValue: "admin",
-        filterOperator: "ne",
-      },
-    });
-
-    return users.map((u) => ({
-      ...u,
-      role: u.role as UserRole,
-    })) as UserType[];
+  hasPermission: protectedProcedure
+    .input(
+      z.object({
+        permissions: z.array(z.enum(Permissions)),
+        requireAll: z.boolean().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const user = ctx.user;
+      const { permissions, requireAll } = input;
+      return await roleHasPermissions(user.role, permissions, requireAll);
+    }),
+  getNavigation: protectedProcedure.query(async ({ ctx }) => {
+    const {
+      user: { role },
+    } = ctx;
+    const links: NavigationGroup[] = [];
+    for (const section of NAVIGATION_LINKS) {
+      const hasSectionPermission =
+        section.permissions == null ||
+        (await roleHasPermissions(role, section.permissions));
+      if (hasSectionPermission) {
+        const trimmed: NavigationItem[] = [];
+        for (const link of section.links) {
+          if (link.separator) {
+            trimmed.push(link);
+          } else {
+            const hasLinkPermission =
+              link.permissions == null ||
+              (await roleHasPermissions(role, link.permissions));
+            if (hasLinkPermission) {
+              trimmed.push(link);
+            }
+          }
+        }
+        section.links = trimmed;
+        links.push(section);
+      }
+    }
+    return links;
   }),
+
+  getUsers: adminProcedure
+    .input(
+      z.object({
+        page: z.int(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { page } = input;
+      const actualPage = Number.isNaN(page) || page < 1 ? 1 : page;
+      const { users } = await auth.api.listUsers({
+        headers: await headers(),
+        query: {
+          limit: PAGE_LIMIT,
+          offset: actualPage - 1,
+          sortBy: "name",
+          filterField: "role",
+          filterValue: "admin",
+          filterOperator: "ne",
+        },
+      });
+
+      return users.map((u) => ({
+        ...u,
+        role: u.role as UserRole,
+      })) as UserType[];
+    }),
 
   updateUser: adminProcedure
     .input(

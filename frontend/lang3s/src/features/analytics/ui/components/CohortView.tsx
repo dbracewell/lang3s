@@ -13,8 +13,8 @@ import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Spinner } from "@/components/Spinner";
-import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils/cn";
+import { useEffect } from "react";
+import { useChatContext } from "@/features/chat/hooks/useChatContext";
 
 export const CohortView = ({
   cohort,
@@ -25,11 +25,22 @@ export const CohortView = ({
     "c",
     parseAsInteger.withDefault(-1).withOptions({ clearOnDefault: true }),
   );
+  const { setContext } = useChatContext();
   const { data, isPending, isError, error } = useTRPCQuery((trpc) =>
     trpc.analytics.getCohortInformation.queryOptions({
       cohort: cohort.map((c) => c.id),
     }),
   );
+
+  useEffect(() => {
+    if (data != null) {
+      setContext(
+        data.ranked
+          .map((r) => r.id.split("-").slice(0, -1).join("-"))
+          .join("\n"),
+      );
+    }
+  }, [data]);
 
   if (isError) {
     throw error;

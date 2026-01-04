@@ -1,7 +1,6 @@
 import React from "react";
-import { roleHasPermissions } from "@/features/auth/permissions";
 import { redirect } from "next/navigation";
-import { getUser } from "@/features/auth/server/actions";
+import { getUser, roleHasPermissions } from "@/features/auth/server/actions";
 import { OntologyEditor } from "@/features/ontology/ui/components/OntologyEditor";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 
@@ -11,7 +10,7 @@ const OntologyEditorPage = async (
   const user = await getUser();
   const searchParams = await props.searchParams;
   const selectedNode = searchParams["path"] as string;
-  if (!roleHasPermissions(user.role, ["ontology:edit"])) {
+  if (!(await roleHasPermissions(user.role, ["ontology:edit"]))) {
     redirect(
       `/system/ontology/viewer${selectedNode ? `?path=${selectedNode}` : ""}`,
     );

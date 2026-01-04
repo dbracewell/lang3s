@@ -11,38 +11,45 @@ import { GoBackButton } from "@/components/buttons/GoBackButton";
 import { CircleQuestionMarkIcon, XIcon } from "lucide-react";
 import { Hint } from "@/components/hint";
 import React from "react";
+import { TopicIdContext } from "@/features/analytics/ui/components/TopicIdContext";
 
 const Page = async (props: PageProps<"/analytics/topics/[id]">) => {
   const { id } = await props.params;
   const data = await caller.analytics.getTopic({ id });
   return (
-    <Card className="animate-zoomin flex flex-1 flex-col gap-2 overflow-hidden">
-      <CardHeader>
-        <CardTitle>
-          <h1 className="">
-            Topic <span className="text-dodger-blue-500">{data.name}</span>
-          </h1>
-        </CardTitle>
-        <CardDescription>
-          <h2 className="text-muted-foreground text-md pb-5">
-            {new Intl.NumberFormat().format(data.sentenceCount)} sentences
-            across {new Intl.NumberFormat().format(data.documentCount)}{" "}
-            documents.
-          </h2>
-        </CardDescription>
-        <CardAction>
-          <GoBackButton variant="ghost">
-            <XIcon />
-          </GoBackButton>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex min-h-0 flex-col overflow-hidden p-2!">
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 text-sm md:grid-cols-[2fr_0.5fr]">
-          <SentenceSection sentences={data.sentences} />
-          <EntitySection entities={data.entities} />
-        </div>
-      </CardContent>
-    </Card>
+    <>
+      <TopicIdContext
+        sentences={data.sentences.map((s) => s.content)}
+        entities={data.entities}
+      />
+      <Card className="animate-zoomin flex flex-1 flex-col gap-2 overflow-hidden">
+        <CardHeader>
+          <CardTitle>
+            <h1 className="">
+              Topic <span className="text-dodger-blue-500">{data.name}</span>
+            </h1>
+          </CardTitle>
+          <CardDescription>
+            <h2 className="text-muted-foreground text-md pb-5">
+              {new Intl.NumberFormat().format(data.sentenceCount)} sentences
+              across {new Intl.NumberFormat().format(data.documentCount)}{" "}
+              documents.
+            </h2>
+          </CardDescription>
+          <CardAction>
+            <GoBackButton variant="ghost">
+              <XIcon />
+            </GoBackButton>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="flex min-h-0 flex-col overflow-hidden p-2!">
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 text-sm md:grid-cols-[2fr_0.5fr]">
+            <SentenceSection sentences={data.sentences} />
+            <EntitySection entities={data.entities} />
+          </div>
+        </CardContent>
+      </Card>
+    </>
   );
 };
 export default Page;

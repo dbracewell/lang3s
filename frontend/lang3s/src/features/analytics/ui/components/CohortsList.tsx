@@ -1,5 +1,4 @@
 "use client";
-import { useTabParams } from "@/features/analytics/hooks/useTabParams";
 import Link from "next/link";
 import { formatURL } from "@/lib/utils/formatters";
 import { getColorName } from "@/lib/utils/colors";
@@ -10,58 +9,55 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { SquareArrowUpRightIcon, XIcon } from "lucide-react";
-import { parseAsString, useQueryState } from "nuqs";
 import { useDebounce } from "@/hooks/useDebounce";
-import { parseAsInteger } from "nuqs/server";
 import { CohortView } from "@/features/analytics/ui/components/CohortView";
 import { cn } from "@/lib/utils/cn";
+import { useEffect } from "react";
+import { useChatContext } from "@/features/chat/hooks/useChatContext";
+import { useCohortsParams } from "@/features/analytics/hooks/useCohortsParams";
 
 export const CohortsList = ({
   clusters,
 }: {
   clusters: { id: string; name: string; type: string }[][];
 }) => {
-  const [tabs] = useTabParams();
-  const [searchQuery, setSearchQuery] = useQueryState(
-    "q",
-    parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
-  );
-  const [selectedCohort, setSelectedCohort] = useQueryState(
-    "c",
-    parseAsInteger.withDefault(-1).withOptions({ clearOnDefault: true }),
-  );
-  const debouncedQuery = useDebounce(searchQuery, 500);
-  if (tabs !== "list") {
+  const [params, setParams] = useCohortsParams();
+  const { setContext } = useChatContext();
+
+  useEffect(() => setContext(""), [params.c]);
+
+  const debouncedQuery = useDebounce(params.q, 500);
+  if (params.tab !== "list") {
     return null;
   }
 
-  if (selectedCohort >= 0 && selectedCohort <= clusters.length) {
-    return <CohortView cohort={clusters[selectedCohort]} />;
+  if (params.c >= 0 && params.c <= clusters.length) {
+    return <CohortView cohort={clusters[params.c]} />;
   }
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col gap-2">
       <InputGroup className="max-w-md">
         <InputGroupInput
-          value={searchQuery}
+          value={params.q}
           placeholder={`Search for an entity in the cohorts list`}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => setParams({ q: e.target.value })}
         />
-        {!!searchQuery.trim() && (
+        {!!params.q.trim() && (
           <InputGroupAddon align="inline-end">
             <InputGroupButton
               variant="destructiveGhost"
               className="border-0!"
               size="icon-xs"
               type="button"
-              onClick={() => setSearchQuery("")}
+              onClick={() => setParams({ q: "" })}
             >
               <XIcon />
             </InputGroupButton>
           </InputGroupAddon>
         )}
       </InputGroup>
-      <div className="scrollable grid flex-1 grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      <div className="scrollable grid flex-1 grid-cols-1 gap-3 @xl:grid-cols-2 @3xl:grid-cols-3 @5xl:grid-cols-4 @7xl:grid-cols-5">
         {clusters.map((ids, name) => {
           const filtered = !!debouncedQuery.trim()
             ? ids.filter((p) =>
@@ -115,7 +111,7 @@ export const CohortsList = ({
                     ({ids.length} entities)
                   </span>
                 </h2>
-                <button type="button" onClick={() => setSelectedCohort(name)}>
+                <button type="button" onClick={() => setParams({ c: name })}>
                   <SquareArrowUpRightIcon className="hover:text-dodger-blue-500 size-4" />
                 </button>
               </div>

@@ -1,13 +1,14 @@
 "use client";
-import React, { Fragment, useMemo } from "react";
+import React, { Fragment, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils/cn";
 import { Hint } from "@/components/hint";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CircleQuestionMarkIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { useTabParams } from "@/features/analytics/hooks/useTabParams";
+import { useTopicsTabParams } from "@/features/analytics/hooks/useTopicsTabParams";
 import { formatURL } from "@/lib/utils/formatters";
+import { useChatContext } from "@/features/chat/hooks/useChatContext";
 
 type DataProps = {
   points: { id: string; name: string; support: number }[];
@@ -18,7 +19,15 @@ export const TopicsListView = ({ points }: DataProps) => {
     () => Math.max(...points.map((p) => p.support)),
     [points],
   );
-  const [tab] = useTabParams();
+  const [tab] = useTopicsTabParams();
+  const { setContext } = useChatContext();
+  useEffect(() => {
+    const context = points
+      .map((p) => `TopicId: ${p.id} TopicName: ${p.name}`)
+      .join("\n");
+    setContext(context);
+  }, [points]);
+
   if (tab === "chart") {
     return null;
   }

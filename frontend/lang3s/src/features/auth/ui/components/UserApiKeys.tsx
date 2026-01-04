@@ -2,7 +2,6 @@
 import { CopyButton } from "@/components/buttons/CopyButton";
 import { DeleteButton } from "@/components/buttons/DeleteButton";
 import { Button } from "@/components/ui/button";
-import { roleHasPermissions } from "@/features/auth/permissions";
 import { FullUserInfo } from "@/features/common/types";
 import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { KeyIcon } from "lucide-react";
@@ -10,9 +9,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export const UserApiKeys = ({ user }: { user: FullUserInfo }) => {
-  if (!roleHasPermissions(user.role, ["data:load", "model:create"])) {
-    return null;
-  }
   const [apiKeyDeleting, setApiKeyDeleting] = useState("");
   const router = useRouter();
   const deleteApiKey = useTRPCMutation((trpc) => ({

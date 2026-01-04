@@ -1,11 +1,5 @@
-import { t3env } from "@/lib/t3env";
 import { auth } from "@/lib/auth/auth";
-import {
-  Permission,
-  roleHasPermissions,
-  UserRole,
-} from "@/features/auth/permissions";
-import { apiKeyHasPermission } from "@/features/jobs/server/api";
+import { UserRole } from "@/lib/auth/permissions";
 import { BasicUserInfo } from "@/features/common/types";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { headers } from "next/headers";
@@ -89,36 +83,6 @@ export const apiMiddleWare = t.middleware(async ({ next, ctx }) => {
     },
   });
 });
-
-export const requirePermissions = async (
-  user: BasicUserInfo | undefined,
-  apiKey: string | undefined,
-  permissions: Permission[],
-  requireAll: boolean = false,
-) => {
-  const hasApiPermission = await apiKeyHasPermission(
-    apiKey,
-    permissions,
-    requireAll,
-  );
-  if (!hasApiPermission) {
-    if (!user) {
-      throw new TRPCError({ code: "UNAUTHORIZED" });
-    }
-    const hasUserPermissions = roleHasPermissions(
-      user.role,
-      permissions,
-      requireAll,
-    );
-    if (!hasUserPermissions) {
-      throw new TRPCError({ code: "UNAUTHORIZED" });
-    }
-  }
-};
-
-export const isSystemApiKey = (apiKey: string | undefined) => {
-  return !!apiKey && apiKey === t3env.SYSTEM_KEY;
-};
 
 // Base router and procedure helpers
 export const createTRPCRouter = t.router;

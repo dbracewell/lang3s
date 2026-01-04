@@ -27,8 +27,6 @@ export const TextAnnotationSchema = z.object({
   sentence_id: z.int(),
 });
 
-export type TextAnnotationSchemaType = z.infer<typeof TextAnnotationSchema>;
-
 export const TextSchema = z.object({
   id: z.string(),
   text: z.string(),
@@ -37,13 +35,9 @@ export const TextSchema = z.object({
   annotations: z.array(TextAnnotationSchema),
 });
 
-export type TextSchemaType = z.infer<typeof TextSchema>;
-
 export const DocumentSchema = z.object({
   id: z.string(),
   title: z.string(),
   metadata: z.record(z.string(), z.any()),
   text: TextSchema,
 });
-
-export type DocumentSchemaType = z.infer<typeof DocumentSchema>;

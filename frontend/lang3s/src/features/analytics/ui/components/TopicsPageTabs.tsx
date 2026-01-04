@@ -2,10 +2,10 @@
 import { Button } from "@/components/ui/button";
 import React from "react";
 import { parseAsStringEnum, useQueryState } from "nuqs";
-import { useTabParams } from "@/features/analytics/hooks/useTabParams";
+import { useTopicsTabParams } from "@/features/analytics/hooks/useTopicsTabParams";
 
 export const TopicsPageTabs = () => {
-  const [tab, setTab] = useTabParams();
+  const [tab, setTab] = useTopicsTabParams();
   return (
     <div className="flex w-full items-center justify-start p-2">
       <Button

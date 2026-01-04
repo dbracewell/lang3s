@@ -1,5 +1,4 @@
-import { getUser } from "@/features/auth/server/actions";
-import { roleHasPermissions } from "@/features/auth/permissions";
+import { getUser, roleHasPermissions } from "@/features/auth/server/actions";
 import { redirect } from "next/navigation";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import Link from "next/link";
@@ -11,7 +10,7 @@ import { caller } from "@/lib/trpc/server";
 
 const Page = async () => {
   const user = await getUser();
-  if (!roleHasPermissions(user.role, ["metadata:edit"])) {
+  if (!(await roleHasPermissions(user.role, ["metadata:edit"]))) {
     redirect("/");
   }
   const [metadata, possibleMetadata] = await Promise.all([
@@ -38,7 +37,7 @@ const Page = async () => {
         >
           <PlusIcon /> Add Metadata
         </Link>
-        <ScrollableBox.ScrollArea outerClassName="p-0!">
+        <ScrollableBox.ScrollArea outerClassName="p-0! bg-card">
           <MetadataTable metadata={metadata} />
         </ScrollableBox.ScrollArea>
       </ScrollableBox.Container>

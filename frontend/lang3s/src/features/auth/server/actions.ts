@@ -4,7 +4,6 @@ import { apikey as ApiKeyTable, user as UserTable } from "@/lib/db/schema";
 import { t3env } from "@/lib/t3env";
 import { auth } from "@/lib/auth/auth";
 import { logAndRethrow } from "@/lib/utils/try-catch";
-import { UserRole } from "@/features/auth/permissions";
 import { BasicUserInfo } from "@/features/common/types";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -14,6 +13,9 @@ import {
   AdminAccountSchema,
   AdminAccountSchemaType,
 } from "@/features/auth/schemas";
+import { Permission, UserRole } from "@/lib/auth/permissions";
+import { RolePermissions } from "@/lib/auth/role-permissions";
+import { TRPCError } from "@trpc/server";
 
 export const requireAdmin = cache(async () => {
   const user = await getUser();
@@ -34,6 +36,7 @@ export const getUser = cache(async (): Promise<BasicUserInfo> => {
     id: session.user.id,
     username: session.user.username as string,
     role: session.user.role as UserRole,
+    name: session.user.name,
   };
 });
 
@@ -119,4 +122,74 @@ export const getUserApiKeys = async (userId: string) => {
       .from(ApiKeyTable)
       .where(eq(ApiKeyTable.userId, userId)),
   );
+};
+
+export const roleHasPermissions = cache(
+  async (
+    role: UserRole,
+    permissions: Permission[],
+    requireAll: boolean = false,
+  ) => {
+    if (role === "admin") return true;
+    const pSet = new Set(permissions);
+    const rSet = new Set(RolePermissions[role]);
+    if (rSet.size === 0) return false;
+    const intersection = pSet.intersection(rSet);
+    if (requireAll) {
+      return pSet.size === intersection.size;
+    }
+    return intersection.size > 0;
+  },
+);
+
+export const requirePermissions = cache(
+  async (
+    user: BasicUserInfo | undefined,
+    apiKey: string | undefined,
+    permissions: Permission[],
+    requireAll: boolean = false,
+  ) => {
+    const hasApiPermission = await apiKeyHasPermission(
+      apiKey,
+      permissions,
+      requireAll,
+    );
+    if (!hasApiPermission) {
+      if (!user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+      const hasUserPermissions = await roleHasPermissions(
+        user.role,
+        permissions,
+        requireAll,
+      );
+      if (!hasUserPermissions) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+    }
+  },
+);
+
+export const apiKeyHasPermission = cache(
+  async (
+    apiKey: string | undefined | null,
+    permissions: Permission[],
+    requireAll: boolean = false,
+  ) => {
+    if (apiKey == null) {
+      return false;
+    }
+    if (apiKey === t3env.SYSTEM_KEY) {
+      return true;
+    }
+    const userRole = await getUserRoleByApiKey(apiKey);
+    if (userRole == null) {
+      return false;
+    }
+    return roleHasPermissions(userRole, permissions, requireAll);
+  },
+);
+
+export const isSystemApiKey = async (apiKey: string | undefined) => {
+  return !!apiKey && apiKey === t3env.SYSTEM_KEY;
 };

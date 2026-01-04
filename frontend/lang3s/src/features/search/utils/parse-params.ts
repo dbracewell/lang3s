@@ -1,4 +1,4 @@
-import { ParsedSearchParams } from "@/features/search/params";
+import { ParsedSearchParams } from "@/features/search/schemas";
 
 export const toSearchParams = (searchParams: ParsedSearchParams) => {
   const params = new URLSearchParams();

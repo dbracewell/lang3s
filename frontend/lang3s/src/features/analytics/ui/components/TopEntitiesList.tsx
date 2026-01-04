@@ -24,9 +24,11 @@ import {
 } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RouterOutputs } from "@/lib/trpc/types";
+import { useChatContext } from "@/features/chat/hooks/useChatContext";
 
 export const TopEntitiesList = () => {
   const [params, setParams] = useEntitySearchParams();
+  const { setContext } = useChatContext();
   const { data, isLoading, error } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationCounts.queryOptions({
       page: params.page,
@@ -35,6 +37,19 @@ export const TopEntitiesList = () => {
       values: params.tags,
     }),
   );
+
+  useEffect(() => {
+    if (params.entityType && params.entity) {
+      return;
+    }
+    if (data == null) {
+      setContext("");
+    } else {
+      setContext(
+        data.results.map((row) => `${row.content}/${row.value}`).join("\n"),
+      );
+    }
+  }, [data, params]);
 
   if (error != null) {
     throw error;
@@ -96,7 +111,7 @@ const EntityRow = ({
 }) => {
   const [, setParams] = useEntitySearchParams();
   return (
-    <div className="hover:bg-dodger-blue-200 dark:hover:bg-dodger-blue-800 even:bg-alternate-row bg-row grid h-10 grid-cols-5 divide-x text-sm hover:font-bold">
+    <div className="hover:bg-accent even:bg-alternate-row bg-row grid h-10 grid-cols-5 divide-x text-sm hover:font-bold">
       <div className="group flex items-center justify-between border-r px-4">
         <div className="mr-4 truncate">{entity.content}</div>
         <div className="hidden items-center gap-2 group-hover:flex">

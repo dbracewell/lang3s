@@ -1,30 +1,33 @@
-from typing import Any, Callable, List, Optional, Type
+import traceback
+from typing import Any, Callable, Dict, List, Optional, Type
 
 from pydantic import BaseModel
 
 from lang3s import config
 from lang3s.agent.middleware import Middleware
 from lang3s.agent.token_estimator import TokenEstimator
+
 from .llm import ChatModel
-from .shared_types import AgentState, Persona, PersonaMode, AgentResult
-from .strategy import Strategy, OneShotStrategy, PlanningStrategy
+from .shared_types import AgentResult, AgentState, Persona, PersonaMode
+from .strategy import OneShotStrategy, PlanningStrategy, Strategy
 
 
 class Agent:
-
-    def __init__(self, *,
-                 strategy: Optional[Strategy] = None,
-                 model: Optional[ChatModel] = None,
-                 system_message: Optional[str] = None,
-                 temperature: Optional[float] = None,
-                 max_output_tokens: Optional[int] = None,
-                 max_input_tokens: Optional[int] = None,
-                 max_history: int = 50,
-                 tools: Optional[List[Callable[..., Any]]] = None,
-                 output_format: Optional[Type[BaseModel]] = None,
-                 persona: Optional[Persona] = None,
-                 middleware: Optional[List[Middleware]] = None,
-                 ):
+    def __init__(
+        self,
+        *,
+        strategy: Optional[Strategy] = None,
+        model: Optional[ChatModel] = None,
+        system_message: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_output_tokens: Optional[int] = None,
+        max_input_tokens: Optional[int] = None,
+        max_history: int = 50,
+        tools: Optional[List[Callable[..., Any]]] = None,
+        output_format: Optional[Type[BaseModel]] = None,
+        persona: Optional[Persona] = None,
+        middleware: Optional[List[Middleware]] = None,
+    ):
         self.__starting_state = AgentState(
             system_message=system_message,
             temperature=temperature,
@@ -49,14 +52,21 @@ class Agent:
             self.strategy = strategy
         self.strategy.set_middleware(self.middleware)
 
-    def invoke(self,
-               prompt: str,
-               *,
-               persona_mode: Optional[PersonaMode] = None) -> AgentResult:
-        state = AgentState.from_existing(self.__starting_state,
-                                         task=prompt,
-                                         persona_mode=persona_mode)
+    def invoke(
+        self,
+        prompt: str,
+        *,
+        messages: Optional[List[Dict[str, Any]]] = None,
+        persona_mode: Optional[PersonaMode] = None,
+    ) -> AgentResult:
+        state = AgentState.from_existing(
+            self.__starting_state, task=prompt, persona_mode=persona_mode
+        )
         state.begin_agent()
+        if messages is not None:
+            state.messages.extend(messages)
+            state.truncate(self.token_estimator)
+
         for middleware in self.middleware:
             middleware.before_agent(self, state)
         try:
@@ -66,15 +76,24 @@ class Agent:
             return result
         except Exception as e:
             print(e)
+            traceback.print_exc()
+            return AgentResult(exception=e)
 
-    async def async_invoke(self,
-                           prompt: str,
-                           *,
-                           persona_mode: Optional[PersonaMode] = None) -> AgentResult:
-        state = AgentState.from_existing(self.__starting_state,
-                                         task=prompt,
-                                         persona_mode=persona_mode)
+    async def async_invoke(
+        self,
+        prompt: str,
+        *,
+        messages: Optional[List[Dict[str, Any]]] = None,
+        persona_mode: Optional[PersonaMode] = None,
+    ) -> AgentResult:
+        state = AgentState.from_existing(
+            self.__starting_state, task=prompt, persona_mode=persona_mode
+        )
         state.begin_agent()
+        if messages is not None:
+            state.messages.extend(messages)
+            state.truncate(self.token_estimator)
+
         for middleware in self.middleware:
             middleware.before_agent(self, state)
         try:
@@ -84,3 +103,5 @@ class Agent:
             return result
         except Exception as e:
             print(e)
+            traceback.print_exc()
+            return AgentResult(exception=e)

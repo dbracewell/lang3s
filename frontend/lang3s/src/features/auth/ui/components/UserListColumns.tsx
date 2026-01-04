@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { user } from "@/lib/db/schema";
 import { DeleteUser } from "@/features/auth/ui/components/DeleteUser";
 import { EditUserDialog } from "@/features/auth/ui/components/EditUserDialog";
-import { UserRole } from "@/features/auth/permissions";
+import { UserRole } from "@/lib/auth/permissions";
 
 export type UserType = typeof user.$inferSelect & {
   role: UserRole;

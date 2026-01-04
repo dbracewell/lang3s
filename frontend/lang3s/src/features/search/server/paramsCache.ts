@@ -1,6 +1,6 @@
 // src/server/services/global-embedding-cache.ts
 import { LRUCache } from "lru-cache";
-import { ParsedSearchParams } from "@/features/search/params";
+import { ParsedSearchParams } from "@/features/search/schemas";
 import { SearchParams } from "@/features/search/server/searchStrategies";
 import { logAndRethrow, tryCatch } from "@/lib/utils/try-catch";
 import { db } from "@/lib/db";

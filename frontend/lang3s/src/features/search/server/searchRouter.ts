@@ -1,9 +1,5 @@
-import { SearchParamSchema } from "@/features/search/params";
-import {
-  annotationSearch,
-  docSearch,
-  topicSearch,
-} from "@/features/search/server/searchStrategies";
+import { SearchParamSchema } from "@/features/search/schemas";
+import { annotationSearch, docSearch, topicSearch } from "@/features/search/server/searchStrategies";
 import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
 import {
   SEARCH_ANNOTATION_CASED_THRESHOLD,
@@ -11,13 +7,13 @@ import {
   SEARCH_DOCUMENT_CASED_THRESHOLD,
   SEARCH_DOCUMENT_UNCASED_THRESHOLD,
   SEARCH_TOPIC_CASED_THRESHOLD,
-  SEARCH_TOPIC_UNCASED_THRESHOLD,
+  SEARCH_TOPIC_UNCASED_THRESHOLD
 } from "@/features/common/constants";
 import {
   AnnotationSearchResult,
   DocumentSearchResult,
   SearchResults,
-  TopicSearchResult,
+  TopicSearchResult
 } from "@/features/search/types";
 import { getCachedSearchParams } from "@/features/search/server/paramsCache";
 import { logAndRethrow } from "@/lib/utils/try-catch";

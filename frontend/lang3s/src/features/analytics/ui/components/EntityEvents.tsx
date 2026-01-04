@@ -11,7 +11,7 @@ import {
 import { XIcon } from "lucide-react";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Spinner } from "@/components/Spinner";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo } from "react";
 import {
   Select,
   SelectContent,
@@ -21,10 +21,11 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
-import { useOnMount } from "@/hooks/useOnMount";
+import { useChatContext } from "@/features/chat/hooks/useChatContext";
 
 export const EntityEvents = () => {
   const [params, setParams] = useEntitySearchParams();
+  const { setContext } = useChatContext();
   const { data, isPending } = useTRPCQuery((trpc) =>
     trpc.analytics.getEventsForEntity.queryOptions(
       {
@@ -36,6 +37,20 @@ export const EntityEvents = () => {
       },
     ),
   );
+
+  useEffect(() => {
+    if (!params.entityType || !params.entity || !params.showEvents) {
+      return;
+    }
+    if (data != null) {
+      setContext(
+        data
+          .flatMap((s) => s.events)
+          .map((d) => d.sentence)
+          .join("\n"),
+      );
+    }
+  }, [data, params]);
 
   const entityTypeName = params.entityType.split(".").slice(-1)[0];
 

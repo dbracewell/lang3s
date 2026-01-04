@@ -7,10 +7,13 @@ import { AuthPageCard } from "@/features/auth/ui/components/AuthPageCard";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { CHAT_HISTORY_STORAGE_KEY } from "@/features/chat/constants";
 
 export const SignInPageView = ({ redirect }: { redirect?: string }) => {
   const [isPending, setIsPending] = useState(false);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const onSubmit = async (formData: FormData) => {
     const username = formData.get("username") as string;
@@ -22,6 +25,8 @@ export const SignInPageView = ({ redirect }: { redirect?: string }) => {
         onRequest: () => setIsPending(true),
         onResponse: () => setIsPending(false),
         onSuccess: async () => {
+          localStorage.removeItem(CHAT_HISTORY_STORAGE_KEY);
+          await queryClient.invalidateQueries({});
           router.push(redirect ?? "/");
         },
       },

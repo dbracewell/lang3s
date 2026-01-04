@@ -15,7 +15,7 @@ import {
 import { Form } from "@/components/ui/form";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { UserType } from "@/features/auth/ui/components/UserListColumns";
-import { UserRoleDescriptions, UserRoles } from "@/features/auth/permissions";
+import { UserRoles } from "@/lib/auth/permissions";
 import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PencilIcon } from "lucide-react";
@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
+import { UserRoleDescriptions } from "@/features/auth/constants";
 
 export const UserRoleSchema = z.object({
   role: z.enum(UserRoles),

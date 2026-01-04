@@ -46,7 +46,8 @@ def _resolve_tokenizer(model_id: str):
     if "gemma" in mid:
         return "google/gemma-2-9b-it"
 
-    raise RuntimeError(f"Cannot determine tokenizer family for {model_id}")
+    return "Qwen/Qwen2.5-7B-Instruct"
+    # raise RuntimeError(f"Cannot determine tokenizer family for {model_id}")
 
 
 class TokenEstimator:
@@ -57,15 +58,10 @@ class TokenEstimator:
         # Convert OpenAI-style messages into model-native chat format
         chat = []
         for m in messages:
-            chat.append({
-                "role": m["role"],
-                "content": m["content"]
-            })
+            chat.append({"role": m["role"], "content": m["content"]})
 
         # Use apply_chat_template() because this builds the *actual* tokens used
         encoded = self.tokenizer.apply_chat_template(
-            chat,
-            tokenize=True,
-            add_generation_prompt=False
+            chat, tokenize=True, add_generation_prompt=False
         )
         return len(encoded)

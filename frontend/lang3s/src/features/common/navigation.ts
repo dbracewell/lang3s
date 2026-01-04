@@ -1,8 +1,5 @@
-import {
-  Permission,
-  roleHasPermissions,
-  UserRole,
-} from "@/features/auth/permissions";
+import { Permission } from "@/lib/auth/permissions";
+import { useTRPCQuery } from "@/lib/trpc/use-queries";
 
 export type NavigationLink = {
   href: string;
@@ -144,16 +141,17 @@ export const NAVIGATION_LINKS: NavigationGroup[] = [
   },
 ];
 
-export const filterLinks = (role: UserRole) => {
-  return NAVIGATION_LINKS.filter(
-    (g) => g.permissions == null || roleHasPermissions(role, g.permissions),
-  ).map((g) => ({
-    ...g,
-    links: g.links.filter(
-      (l) =>
-        l.separator ||
-        l.permissions == null ||
-        roleHasPermissions(role, l.permissions),
-    ),
-  })) as NavigationGroup[];
+export const useNavigation = () => {
+  const { data, isPending } = useTRPCQuery((trpc) =>
+    trpc.auth.getNavigation.queryOptions(),
+  );
+
+  if (isPending || data == null) {
+    return NAVIGATION_LINKS.filter((g) => g.permissions == null).map((g) => ({
+      ...g,
+      links: g.links.filter((l) => l.separator || l.permissions == null),
+    })) as NavigationGroup[];
+  }
+
+  return data;
 };

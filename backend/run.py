@@ -28,7 +28,7 @@ try:
         processes[i] = start_process(i)
 
     while True:
-        time.sleep(1)
+        time.sleep(5)
         for i, p in enumerate(processes):
             if cast(subprocess.Popen[str], p).poll() is not None:
                 print(f"{scripts[i]} terminated unexpectedly. Restarting...")

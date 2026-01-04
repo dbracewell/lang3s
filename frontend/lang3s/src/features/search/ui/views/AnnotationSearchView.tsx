@@ -1,9 +1,7 @@
 "use client";
-import { Lang3sSearchParams } from "@/features/search/params";
 import { useTRPCInfiniteQuery } from "@/lib/trpc/use-queries";
 import React, { Fragment } from "react";
 import { InfiniteScroll } from "@/components/scrolling/InfiniteScroll";
-import { useQueryStates } from "nuqs";
 import { SearchSpinner } from "@/features/search/ui/components/SearchSpinner";
 import { ResultsWrapper } from "@/features/search/ui/components/ResultsWrapper";
 import { AnnotationSearchResult } from "@/features/search/types";
@@ -11,9 +9,10 @@ import { formatCount } from "@/lib/utils/formatters";
 import Link from "next/link";
 import { FileIcon, MinusCircleIcon, PlusCircleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useGlobalSearchParams } from "@/features/search/hooks/useSearchParams";
 
 export const AnnotationSearchView = () => {
-  const [searchParams] = useQueryStates(Lang3sSearchParams);
+  const [searchParams] = useGlobalSearchParams();
   const {
     data: results,
     isLoading,
@@ -48,7 +47,7 @@ export const AnnotationSearchView = () => {
           <Fragment key={JSON.stringify(r)}>
             <details className="group flex w-full flex-col px-2 py-1 first:pt-3">
               <AnnotationFormat result={r} />
-              <div className="bg-row flex max-h-[200px] flex-col gap-1 border-x px-5 text-sm font-semibold dark:bg-zinc-900">
+              <div className="bg-row dark:bg-background-lighter flex max-h-[200px] flex-col gap-1 border-x px-5 text-sm font-semibold">
                 {formatCount(
                   new Set(r.highlights.map((h) => h.documentId)).size,
                   { single: "document", plural: "documents" },
@@ -79,19 +78,25 @@ export const AnnotationSearchView = () => {
   );
 };
 
-const hasAll = (big: string[], small: string[]) => {
-  const s1 = new Set(big);
-  const s2 = new Set(small);
-  console.log(s1.size, s2.size, s2.difference(s1).size, s1.union(s2).size);
-  return s2.difference(s1).size === 0;
-};
-
 const AnnotationFormat = ({ result }: { result: AnnotationSearchResult }) => {
   const isEventive = result.a0 || result.a1 || result.time || result.location;
-  const [searchParams, setSearchParams] = useQueryStates(Lang3sSearchParams);
+  const [searchParams, setSearchParams] = useGlobalSearchParams();
   if (isEventive) {
+    const searchTextParts: string[] = [
+      `"${result.text.replaceAll(/<[^>]+>/g, "")}"`,
+    ];
+    result.a0?.forEach((a) => searchTextParts.push(`"${a}"`));
+    result.a1?.forEach((a) => searchTextParts.push(`"${a}"`));
+    if (result.time) {
+      searchTextParts.push(`"${result.time}"`);
+    }
+    if (result.location) {
+      searchTextParts.push(`"${result.location}"`);
+    }
+    const searchText = searchTextParts.join(" OR ");
+
     return (
-      <summary className="bg-row gap-2 border px-2 py-1 group-group-open:top-0 group-open:sticky group-open:border-b-0 dark:bg-zinc-900">
+      <summary className="bg-row dark:bg-background-lighter gap-2 border px-2 py-1 group-group-open:top-0 group-open:sticky group-open:border-b-0">
         <span className="font-medium">
           <span
             dangerouslySetInnerHTML={{
@@ -140,13 +145,46 @@ const AnnotationFormat = ({ result }: { result: AnnotationSearchResult }) => {
               <span className="ml-1 font-normal">{result.time}</span>
             </span>
           )}
+
+          {!searchParams.q.includes(searchText) ? (
+            <Button
+              variant="listButton"
+              className="ml-3 h-fit!"
+              size="sm"
+              onClick={() => {
+                setSearchParams({
+                  q: !!searchParams.q
+                    ? `${searchParams.q} OR ${searchText}`
+                    : searchText,
+                });
+              }}
+            >
+              <PlusCircleIcon className="size-3" /> Add to search
+            </Button>
+          ) : (
+            <Button
+              variant="listButton"
+              className="ml-3 h-fit!"
+              size="sm"
+              onClick={() => {
+                setSearchParams({
+                  q: searchParams.q
+                    .replace(`OR ${searchText}`, "")
+                    .replace(searchText, "")
+                    .trim(),
+                });
+              }}
+            >
+              <MinusCircleIcon className="size-3" /> Remove from search
+            </Button>
+          )}
         </span>
       </summary>
     );
   }
 
   return (
-    <summary className="bg-row cursor-pointer border border-b px-2 py-1 font-medium group-open:sticky group-open:top-0 group-open:border-b-0 dark:bg-zinc-900">
+    <summary className="bg-row dark:bg-background-lighter cursor-pointer border border-b px-2 py-1 font-medium group-open:sticky group-open:top-0 group-open:border-b-0">
       <span
         dangerouslySetInnerHTML={{
           __html: `${result.text

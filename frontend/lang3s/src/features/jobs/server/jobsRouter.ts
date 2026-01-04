@@ -6,15 +6,12 @@ import {
   getAdminAccount,
   getUserApiKeys,
   getUserByApiKey,
+  isSystemApiKey,
+  requirePermissions,
 } from "@/features/auth/server/actions";
 import { Lang3sFile } from "@/features/common/classes";
 import { BasicUserInfo } from "@/features/common/types";
-import {
-  apiProcedure,
-  createTRPCRouter,
-  isSystemApiKey,
-  requirePermissions,
-} from "@/lib/trpc/init";
+import { apiProcedure, createTRPCRouter } from "@/lib/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { and, AnyColumn, desc, eq, or, sql } from "drizzle-orm";
 import z from "zod";
@@ -45,7 +42,7 @@ const buildWhereClause = async (
     where.push(eq(JobsTable.id, job_id));
   }
 
-  if (apiKey && !isSystemApiKey(apiKey)) {
+  if (apiKey && !(await isSystemApiKey(apiKey))) {
     where.push(eq(JobsTable.apiKey, apiKey));
   }
 
@@ -103,7 +100,7 @@ export const jobsRouter = createTRPCRouter({
       await requirePermissions(user, apiKey, ["jobs:create"]);
       let effectiveUser = user;
       if (effectiveUser == null) {
-        if (isSystemApiKey(apiKey)) {
+        if (await isSystemApiKey(apiKey)) {
           effectiveUser = await getAdminAccount();
         } else if (apiKey != null) {
           effectiveUser = await getUserByApiKey(apiKey);
@@ -112,6 +109,10 @@ export const jobsRouter = createTRPCRouter({
       if (effectiveUser == null) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
+
+      const effectiveApikey = (await isSystemApiKey(apiKey))
+        ? undefined
+        : apiKey;
 
       const [job] = await logAndRethrow(() =>
         db
@@ -122,7 +123,7 @@ export const jobsRouter = createTRPCRouter({
             total,
             status,
             userId: effectiveUser?.id,
-            apiKey: isSystemApiKey(apiKey) ? undefined : apiKey,
+            apiKey: effectiveApikey,
           })
           .returning(),
       );

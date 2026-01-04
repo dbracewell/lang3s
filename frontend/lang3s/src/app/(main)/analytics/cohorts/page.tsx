@@ -8,7 +8,7 @@ import { CohortsList } from "@/features/analytics/ui/components/CohortsList";
 
 const CohortsPage = async () => {
   return (
-    <ScrollableBox.Container className="relative gap-3">
+    <ScrollableBox.Container className="@container relative gap-3">
       <div className="flex flex-col">
         <h1>Cohorts</h1>
         <p className="pageSubheading">

@@ -12,7 +12,7 @@ import {
   dataLoader,
   modeller,
   user,
-} from "@/features/auth/permissions";
+} from "@/lib/auth/permissions";
 import { nextCookies } from "better-auth/next-js";
 
 export const authClient = createAuthClient({
@@ -35,5 +35,3 @@ export const authClient = createAuthClient({
 });
 
 export type Session = typeof authClient.$Infer.Session;
-
-export const { signIn, useSession, changePassword } = createAuthClient();

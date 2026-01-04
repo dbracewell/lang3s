@@ -16,21 +16,20 @@ import {
 import { formatURL } from "@/lib/utils/formatters";
 import { cn } from "@/lib/utils/cn";
 import {
-  Lang3sSearchParams,
   ParsedSearchParams,
   SearchParamSchema,
-} from "@/features/search/params";
+} from "@/features/search/schemas";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SearchIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useQueryStates } from "nuqs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useClickOutside } from "@/hooks/useClickOutside";
+import { useGlobalSearchParams } from "@/features/search/hooks/useSearchParams";
 
 export const SearchBar = () => {
   const router = useRouter();
-  const [searchParams] = useQueryStates(Lang3sSearchParams);
+  const [searchParams] = useGlobalSearchParams();
   const [isOptionsOpen, setOptionsOpen] = useState(false);
 
   const searchBarRef = useRef<HTMLFormElement>(null);

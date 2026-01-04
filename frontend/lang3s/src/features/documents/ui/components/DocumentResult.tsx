@@ -12,7 +12,7 @@ export const DocumentResult = ({
         {doc.title}
       </Link>
       <p className="mb-0.5 text-base">{doc.text}</p>
-      <div className="bg-gray-200 p-2 pt-2 dark:bg-gray-900">
+      <div className="dark:bg-background-lighter bg-zinc-200/70 p-2 pt-2">
         <h2 className="text-sm font-semibold">Entities</h2>
         <div className="flex items-center gap-1 overflow-x-auto">
           {doc.entities.slice(0, 5).map((e, i) => (

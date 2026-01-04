@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { MenuIcon } from "lucide-react";
+import { BotIcon, MenuIcon } from "lucide-react";
 import { Logo } from "@/components/logo";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,24 +9,30 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import * as React from "react";
-import { Suspense, useMemo } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
-import { filterLinks, NavigationGroup } from "@/features/common/navigation";
-import { useUser } from "@/features/auth/contexts/UserContext";
+import { NavigationGroup, useNavigation } from "@/features/common/navigation";
 import { DynamicIcon } from "@/components/DynamicIcon";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import { SearchBar } from "@/features/search/ui/components/SearchBar";
 import { UserButton } from "@/components/buttons/UserButton";
-import { useAnalyticsUpdate } from "@/hooks/events/useAnalyticsUpdate";
+import { useAnalyticsUpdate } from "@/features/events/hooks/useAnalyticsUpdate";
+import { useUser } from "@/features/auth/contexts/UserContext";
+import { useAtomValue } from "jotai";
+import { currentProjectAtom } from "@/features/projects/store/projectStore";
+import { useChatWindowStatus } from "@/features/chat/hooks/useChatWindowStatus";
 
 type MenuBarProps = {
   setIsMenuOpen: (value: boolean) => void;
 };
 
 export const MenuBar = ({ setIsMenuOpen }: MenuBarProps) => {
+  const navigationLinks = useNavigation();
   const user = useUser();
-  const navigationLinks = useMemo(() => filterLinks(user.role), [user.role]);
+  const currentProject = useAtomValue(currentProjectAtom);
+  const { open: isChatOpen, setOpen: setChatOpen } = useChatWindowStatus();
+
   useAnalyticsUpdate();
   return (
     <div className="flex h-10 items-center gap-2 py-1 pl-2">
@@ -41,7 +46,7 @@ export const MenuBar = ({ setIsMenuOpen }: MenuBarProps) => {
         <Logo height={16} className="group-hover:fill-white dark:fill-white" />{" "}
         <span className="font-bold select-none">Lang3s</span>
       </Link>
-      <div className="-gap-2 hidden items-center gap-1 text-sm font-medium sm:flex">
+      <div className="hidden items-center gap-1 text-sm font-medium sm:flex">
         {navigationLinks.map((section) => (
           <Menu key={section.title} section={section} />
         ))}
@@ -49,8 +54,22 @@ export const MenuBar = ({ setIsMenuOpen }: MenuBarProps) => {
       <Suspense>
         <SearchBar />
       </Suspense>
-      <div className="flex flex-1 items-center justify-end pr-3">
-        <UserButton />
+      <div className="flex flex-1 items-center justify-end gap-3 pr-3">
+        <button
+          className={cn(
+            "hover:bg-accent outline-dodger-blue-500 flex items-center gap-2 rounded-full px-1.5 py-0.5 hover:outline",
+            isChatOpen &&
+              "bg-accent outline-dodger-blue-500 hover:bg-dodger-blue-500 flex items-center gap-2 rounded-full px-1.5 py-0.5 outline hover:text-white",
+          )}
+          onClick={() => setChatOpen((prev) => !prev)}
+        >
+          <BotIcon className="size-4" /> Agent
+        </button>
+        <UserButton>
+          <div className="bg-dodger-blue-500 border-dodger-blue-600 dark:border-dodger-blue-900 flex size-7 items-center justify-center rounded-full border-2 text-sm text-white hover:outline-2">
+            {user.username[0].toUpperCase()}
+          </div>
+        </UserButton>
       </div>
     </div>
   );

@@ -1,6 +1,5 @@
 "use client";
 
-import { useUser } from "@/features/auth/contexts/UserContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,9 +16,19 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { logout } from "@/features/auth/helpers";
 
-export const UserButton = () => {
-  const user = useUser();
+export const UserButton = ({
+  children,
+  align,
+  showArrow = true,
+  ref,
+}: {
+  children: React.ReactNode;
+  align?: "center" | "start" | "end";
+  showArrow?: boolean;
+  ref?: React.Ref<HTMLDivElement>;
+}) => {
   const { setTheme } = useTheme();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -27,32 +36,17 @@ export const UserButton = () => {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger className="outline-0">
-        <div className="bg-dodger-blue-500 border-dodger-blue-600 dark:border-dodger-blue-900 flex size-6 items-center justify-center rounded-full border-2 text-sm text-white hover:outline-2">
-          {user.username[0].toUpperCase()}
-        </div>
+        {children}
       </DropdownMenuTrigger>
-      <DropdownMenuContent>
+      <DropdownMenuContent align={align} ref={ref}>
         <DropdownMenuGroup>
-          <div className="dropdown-arrow left-[82%]!"></div>
+          {showArrow && <div className="dropdown-arrow left-[82%]!"></div>}
           <DropdownMenuItem asChild>
             <Link href={"/account"}>
               <User2Icon /> Account
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() =>
-              authClient.signOut({
-                fetchOptions: {
-                  onSuccess() {
-                    router.push("/");
-                  },
-                  onError({ error }) {
-                    toast.error(error.message);
-                  },
-                },
-              })
-            }
-          >
+          <DropdownMenuItem onClick={() => logout(() => router.push("/"))}>
             <LogOutIcon />
             Logout
           </DropdownMenuItem>

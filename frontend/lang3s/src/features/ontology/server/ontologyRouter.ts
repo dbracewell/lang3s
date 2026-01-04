@@ -10,11 +10,11 @@ import { and, asc, eq, getTableColumns, ne, sql } from "drizzle-orm";
 import z from "zod";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { AnnotationColors } from "@/features/common/constants";
-import { roleHasPermissions } from "@/features/auth/permissions";
 import { TRPCError } from "@trpc/server";
 import { OntologyConceptSchema } from "@/features/ontology/schemas";
 import { jsonAgg, jsonBuildObject, jsonStrictAgg } from "@/lib/db/helpers/json";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
+import { requirePermissions } from "@/features/auth/server/actions";
 
 export const ontologyRouter = createTRPCRouter({
   conceptNameExists: protectedProcedure
@@ -37,15 +37,12 @@ export const ontologyRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const { user } = ctx;
       const { path } = input;
-      if (
-        !roleHasPermissions(user.role, [
-          "model:create",
-          "data:load",
-          "data:update",
-        ])
-      ) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
+
+      await requirePermissions(user, undefined, [
+        "model:create",
+        "data:load",
+        "data:update",
+      ]);
 
       const [result] = await logAndRethrow(() =>
         db
@@ -76,15 +73,11 @@ export const ontologyRouter = createTRPCRouter({
       const { id, values } = input;
       const { mapping, ...ontTableProps } = values;
 
-      if (
-        !roleHasPermissions(user.role, [
-          "model:create",
-          "data:load",
-          "data:update",
-        ])
-      ) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
+      await requirePermissions(user, undefined, [
+        "model:create",
+        "data:load",
+        "data:update",
+      ]);
 
       if (
         ontTableProps.properties ||
@@ -148,9 +141,7 @@ export const ontologyRouter = createTRPCRouter({
       const { user } = ctx;
       const { name, parentId, description } = input;
 
-      if (!roleHasPermissions(user.role, ["model:create"])) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
+      await requirePermissions(user, undefined, ["model:create"]);
 
       const parent = parentId
         ? await logAndRethrow(() =>
