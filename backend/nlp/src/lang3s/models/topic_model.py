@@ -3,7 +3,10 @@ import logging
 import os
 import time
 import traceback
-from typing import Iterable, List, NamedTuple, Optional, Sequence
+from typing import TYPE_CHECKING, Iterable, List, NamedTuple, Optional, Sequence
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 import joblib
 import numpy as np
@@ -15,7 +18,6 @@ from sklearn.decomposition import IncrementalPCA
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sqlalchemy import Boolean, Select, cast, delete, distinct, not_, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session
 
 from lang3s import config
 from lang3s.db import Database
@@ -385,6 +387,7 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
 
     def merge_topics(self):
         try:
+            start = time.perf_counter()
             old_topic_count = len(self._topics)
             merged = set()
             new_topics = []
@@ -411,15 +414,13 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                         topic_i.merge(topic_j)
                         merged.add(j)
 
-                if (
-                    topic_i.support >= self.min_support
-                    and topic_i.doc_count >= self.min_document_count
-                ):
+                if topic_i.support >= self.min_support:
                     new_topics.append(topic_i)
 
             self._topics = new_topics
+            end = time.perf_counter()
             logger.info(
-                f"Merged {old_topic_count} topics down to {len(self._topics)} topics",
+                f"Merged {old_topic_count} topics down to {len(self._topics)} topics in {end - start:.2f} seconds",
             )
         except Exception as e:
             traceback.print_exc()
@@ -438,16 +439,22 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
             return
         db = Database()
         topics_to_delete = []
+
         for topic in self._topics:
             support = topic.sentence_count
-            if support < self.min_support and not topic.is_fixed:
+            doc_count = topic.doc_count
+            if (
+                support < self.min_support
+                and doc_count < self.min_document_count
+                and not topic.is_fixed
+            ):
                 topics_to_delete.append(topic.id)
                 continue
             values = {
                 "id": topic.id,
                 "name": topic.name,
                 "support": support,
-                "doc_support": topic.doc_count,
+                "doc_support": doc_count,
                 "embedding": topic.embedding.tolist(),
                 "updated_at": datetime.datetime.now(datetime.timezone.utc),
                 "is_fixed": topic.is_fixed,
@@ -465,6 +472,9 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                 topic for topic in self._topics if topic.id not in topics_to_delete
             ]
         self.reducer.save()
+        with db.cursor() as cursor:
+            cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_sentences;")
+            cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_documents;")
         logger.info(f"Saved {len(self._topics)} topics")
 
     def get_topic(self, topic_id: int | str) -> Topic:

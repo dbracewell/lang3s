@@ -23,6 +23,10 @@ export const jobStatuses = [
 export type JobStatusType = (typeof jobStatuses)[number];
 export const jobStatusEnum = pgEnum("job_status", jobStatuses);
 
+export const jobTypes = ["annotation", "update", "other"] as const;
+export type JobType = (typeof jobTypes)[number];
+export const jobTypEnum = pgEnum("job_type", jobTypes);
+
 export const JobsTable = pgTable("jobs", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
@@ -34,6 +38,7 @@ export const JobsTable = pgTable("jobs", {
   total: integer("total").notNull().default(0),
   completed: integer("completed").notNull().default(0),
   failed: integer("failed").notNull().default(0),
+  jobType: jobTypEnum("job_type").notNull().default("other"),
   metadata: json("metadata").notNull().default({}),
   createdAt: timestamp("created_at").defaultNow(),
   startedAt: timestamp("started_at"),

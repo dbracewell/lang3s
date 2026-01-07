@@ -1,0 +1,8 @@
+{
+  "text_column": "text",
+  "title_column": "title",
+  "metadata": {
+    "date": "date",
+    "categories": "categories"
+  }
+}

@@ -334,6 +334,36 @@
     "description": "Ownership or economic relations.",
     "children": [
       {
+        "name": "Accord",
+        "description": "Relations based on giving or granting power, status, or recognition.",
+        "children": [],
+        "mappings": ["relation:accord"]
+      },
+      {
+        "name": "Association",
+        "description": "Relations based on association.",
+        "children": [],
+        "mappings": ["relation:association"]
+      },
+      {
+        "name": "Composition",
+        "description": "Relations based on  composition.",
+        "children": [],
+        "mappings": ["relation:composition"]
+      },
+      {
+        "name": "Dependency",
+        "description": "Relations based on relative dependencies.",
+        "children": [],
+        "mappings": ["relation:dependency"]
+      },
+      {
+        "name": "Comparison",
+        "description": "Relations based on relative qualities.",
+        "children": [],
+        "mappings": ["relation:comparison"]
+      },
+      {
         "name": "Possession",
         "description": "Describing ownership or control.",
         "children": [],
@@ -372,6 +402,24 @@
     "description": "Static conditions.",
     "children": [
       {
+        "name": "Condition",
+        "description": "The state of something with regard to its appearance, quality, or working order.",
+        "children": [],
+        "mappings": ["state:condition"]
+      },
+      {
+        "name": "Configuration",
+        "description": "Arrangement of elements in a particular form, figure, or combination.",
+        "children": [],
+        "mappings": ["state:configuration"]
+      },
+      {
+        "name": "Status",
+        "description": "The status of an item or individual.",
+        "children": [],
+        "mappings": ["state:status"]
+      },
+      {
         "name": "LocativeState",
         "description": "Situating an entity in space.",
         "children": [
@@ -383,26 +431,6 @@
           }
         ],
         "mappings": ["state:location"]
-      }
-    ],
-    "mappings": []
-  },
-  "Attribute": {
-    "name": "Attribute",
-    "description": "Qualities describing comparison.",
-    "children": [
-      {
-        "name": "Comparison",
-        "description": "Relations based on relative qualities.",
-        "children": [
-          {
-            "name": "Similarity",
-            "description": "Degree of resemblance.",
-            "children": [],
-            "mappings": ["attribute:similarity"]
-          }
-        ],
-        "mappings": ["attribute:comparison"]
       }
     ],
     "mappings": []

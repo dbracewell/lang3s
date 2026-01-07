@@ -35,6 +35,7 @@ export const Wrapper = ({ children }: { children: React.ReactNode }) => {
                   "@container flex min-h-0 flex-1 flex-col",
                   open && "pr-2",
                 )}
+                defaultSize={open ? 75 : 100}
               >
                 {children}
               </ResizablePanel>

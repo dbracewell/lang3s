@@ -7,6 +7,7 @@ DROP TYPE IF EXISTS "public"."job_status" CASCADE;
 DROP TYPE IF EXISTS "public"."metadata_data_type" CASCADE;
 DROP TYPE IF EXISTS "public"."metadata_sources" CASCADE;
 CREATE TYPE "public"."job_status" AS ENUM ('waiting', 'processing', 'complete', 'failed');
+CREATE TYPE "public"."job_type" AS ENUM ('annotation', 'update', 'other');
 CREATE TYPE "public"."metadata_data_type" AS ENUM ('string', 'int', 'float', 'boolean', 'date', 'datetime');
 CREATE TYPE "public"."metadata_sources" AS ENUM ('document', 'annotation', 'sentence');
 CREATE TABLE IF NOT EXISTS "account"
@@ -105,24 +106,37 @@ CREATE TABLE IF NOT EXISTS "documents"
 
 CREATE TABLE IF NOT EXISTS "text_annotations"
 (
-    "id"           text PRIMARY KEY              NOT NULL,
-    "text"         text                          NOT NULL,
-    "clean_text"   text                          NOT NULL,
-    "text_id"      text                          NOT NULL,
-    "doc_id"       text                          NOT NULL,
-    "start"        integer                       NOT NULL,
-    "end"          integer                       NOT NULL,
-    "sentence_id"  integer                       NOT NULL,
-    "sentence_aid" text                          NOT NULL,
-    "type"         text                          NOT NULL,
-    "value"        text                          NOT NULL,
-    "source"       text                          NOT NULL,
-    "mapping"      text,
-    "embedding"    halfvec(384)                  NOT NULL,
-    "metadata"     jsonb     DEFAULT '{}'::jsonb NOT NULL,
-    "created_at"   timestamp DEFAULT now(),
-    "updated_at"   timestamp DEFAULT now()
-);
+    "id"              text PRIMARY KEY              NOT NULL,
+    "text"            text                          NOT NULL,
+    "clean_text"      text                          NOT NULL,
+    "normalized_text" text                          NOT NULL,
+    "text_id"         text                          NOT NULL,
+    "doc_id"          text                          NOT NULL,
+    "start"           integer                       NOT NULL,
+    "end"             integer                       NOT NULL,
+    "sentence_id"     integer                       NOT NULL,
+    "sentence_aid"    text                          NOT NULL,
+    "type"            text                          NOT NULL,
+    "value"           text                          NOT NULL,
+    "source"          text                          NOT NULL,
+    "mapping"         text,
+    "embedding"       halfvec(384)                  NOT NULL,
+    "metadata"        jsonb     DEFAULT '{}'::jsonb NOT NULL,
+    "created_at"      timestamp DEFAULT now(),
+    "updated_at"      timestamp DEFAULT now()
+) PARTITION BY HASH (id);
+
+CREATE TABLE IF NOT EXISTS text_annotations_p1 PARTITION OF text_annotations FOR VALUES WITH (modulus 10, remainder 0);
+CREATE TABLE IF NOT EXISTS text_annotations_p2 PARTITION OF text_annotations FOR VALUES WITH (modulus 10, remainder 1);
+CREATE TABLE IF NOT EXISTS text_annotations_p3 PARTITION OF text_annotations FOR VALUES WITH (modulus 10, remainder 2);
+CREATE TABLE IF NOT EXISTS text_annotations_p4 PARTITION OF text_annotations FOR VALUES WITH (modulus 10, remainder 3);
+CREATE TABLE IF NOT EXISTS text_annotations_p5 PARTITION OF text_annotations FOR VALUES WITH (modulus 10, remainder 4);
+CREATE TABLE IF NOT EXISTS text_annotations_p6 PARTITION OF text_annotations FOR VALUES WITH (modulus 10, remainder 5);
+CREATE TABLE IF NOT EXISTS text_annotations_p7 PARTITION OF text_annotations FOR VALUES WITH (modulus 10, remainder 6);
+CREATE TABLE IF NOT EXISTS text_annotations_p8 PARTITION OF text_annotations FOR VALUES WITH (modulus 10, remainder 7);
+CREATE TABLE IF NOT EXISTS text_annotations_p9 PARTITION OF text_annotations FOR VALUES WITH (modulus 10, remainder 8);
+CREATE TABLE IF NOT EXISTS text_annotations_p10 PARTITION OF text_annotations FOR VALUES WITH (modulus 10, remainder 9);
+
 
 CREATE TABLE IF NOT EXISTS "text"
 (
@@ -163,6 +177,7 @@ CREATE TABLE IF NOT EXISTS "jobs"
     "apiKey"       text,
     "user_id"      text                            NOT NULL,
     "status"       "job_status" DEFAULT 'waiting'  NOT NULL,
+    "job_type"     "job_type"   DEFAULT 'other'    NOT NULL,
     "total"        integer      DEFAULT 0          NOT NULL,
     "completed"    integer      DEFAULT 0          NOT NULL,
     "failed"       integer      DEFAULT 0          NOT NULL,
@@ -244,15 +259,15 @@ ALTER TABLE "jobs"
 
 
 CREATE INDEX IF NOT EXISTS "document_metadata_gin_idx" ON "documents" USING gin ("metadata" jsonb_path_ops);
-CREATE INDEX IF NOT EXISTS "text_annotation_type_idx" ON "text_annotations" USING btree ("type");
-CREATE INDEX IF NOT EXISTS "text_annotation_value_idx" ON "text_annotations" USING btree ("value");
-CREATE INDEX IF NOT EXISTS "text_annotation_sentence_aid" ON "text_annotations" USING btree ("sentence_aid");
-CREATE INDEX IF NOT EXISTS "text_annotation_sentence_id_idx" ON "text_annotations" USING btree ("sentence_id");
+CREATE INDEX IF NOT EXISTS "text_annotation_normalized_index" ON "text_annotations" USING btree ("normalized_text");
+CREATE INDEX IF NOT EXISTS "text_annotation_sentence_aid_index" ON "text_annotations" USING btree ("sentence_aid");
+CREATE INDEX IF NOT EXISTS "text_annotation_document_id_index" ON "text_annotations" USING btree ("doc_id");
 CREATE INDEX IF NOT EXISTS "text_annotation_mapping_index" ON "text_annotations" USING btree ("mapping");
 CREATE INDEX IF NOT EXISTS "ml_text_annotation_search_index" ON "text_annotations" USING pgroonga ("text");
 CREATE INDEX IF NOT EXISTS "text_annotation_embedding_index" ON "text_annotations" USING hnsw ("embedding" halfvec_cosine_ops);
 CREATE INDEX IF NOT EXISTS "text_annotation_metadata_gin_idx" ON "text_annotations" USING gin ("metadata" jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS "ml_text_search_index" ON "text" USING pgroonga ("text");
+CREATE INDEX IF NOT EXISTS "text_document_id_index" ON "text" USING btree ("doc_id");
 CREATE INDEX IF NOT EXISTS "text_embedding_index" ON "text" USING hnsw ("embedding" halfvec_cosine_ops);
 CREATE INDEX IF NOT EXISTS "text_metadata_gin_idx" ON "text" USING gin ("metadata" jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS "ato_ont_id" ON "annotation_to_ontology" USING btree ("ontology_id");
@@ -265,25 +280,22 @@ CREATE INDEX IF NOT EXISTS "topics_embeddingIndex" ON "topics" USING hnsw ("embe
 DROP VIEW IF EXISTS "public"."annotation_with_ontology" CASCADE;
 CREATE VIEW "public"."annotation_with_ontology" AS
 (
-select "text_annotations"."text",
-       "text_annotations"."start",
-       "text_annotations"."end",
-       "text_annotations"."sentence_aid",
-       "text_annotations"."doc_id",
-       "text_annotations"."metadata",
-       "text_annotations"."type",
-       "text_annotations"."value",
-       "text_annotations"."metadata" -> 'A0_TEXT'                                                    as "A0",
-       "text_annotations"."metadata" -> 'A1_TEXT'                                                    as "A1",
-       "text_annotations"."metadata" -> 'TIME_TEXT'                                                  as "TIME",
-       "text_annotations"."metadata" -> 'LOC_TEXT'                                                   as "LOCATION",
-       "text_annotations"."text_id",
-       UPPER(coalesce(("text_annotations"."metadata" ->> 'coref_text')::text,
-                      ("text_annotations"."metadata" ->> 'lemma')::text, "text_annotations"."text")) as "normalized",
+select "text_annotations".*,
+       "text_annotations"."metadata" -> 'A0_TEXT'   as "A0",
+       "text_annotations"."metadata" -> 'A1_TEXT'   as "A1",
+       "text_annotations"."metadata" -> 'TIME_TEXT' as "TIME",
+       "text_annotations"."metadata" -> 'LOC_TEXT'  as "LOCATION",
        "Lp_LGMVaYx"."path",
-       "Lp_LGMVaYx"."name"
+       "Lp_LGMVaYx"."name",
+       "Lp_LGMVaYx"."color",
+       "Lp_LGMVaYx"."properties",
+       CONCAT("normalized_text", '-', "path")       as "normalized_path"
 from "text_annotations"
-         inner join (select "ontology"."path", "ontology"."name", "annotation_to_ontology"."annotation_type_value"
+         inner join (select "ontology"."path",
+                            "ontology"."name",
+                            "ontology"."color",
+                            "ontology"."properties",
+                            "annotation_to_ontology"."annotation_type_value"
                      from "ontology"
                               inner join "annotation_to_ontology"
                                          on "ontology"."id" = "annotation_to_ontology"."ontology_id") "Lp_LGMVaYx"
@@ -311,31 +323,36 @@ WITH DATA;
 
 CREATE MATERIALIZED VIEW "public"."annotation_counts" AS
 (
-select "normalized",
+select "normalized_text",
        "path",
        count(distinct "doc_id")       as "document_count",
        count(distinct "sentence_aid") as "sentence_count",
        count(*)                       as "mention_count"
 from "annotation_with_ontology"
-group by "normalized", "annotation_with_ontology"."path")
+where "path" <@ 'ALL.Entity'
+group by "normalized_text", "annotation_with_ontology"."path"
+having count(distinct "doc_id") >= 5)
 WITH DATA;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS "public"."annotation_co_occurrence" AS
 (
-SELECT t1.normalized                   as "source",
-       t2.normalized                   as "target",
+SELECT t1.normalized_text              as "source",
+       t2.normalized_text              as "target",
        t1.path                         as "source_type",
        t2.path                         as "target_type",
        count(distinct t1.doc_id)       as "document_count",
        count(distinct t1.sentence_aid) as "sentence_count"
 FROM annotation_with_ontology t1
-         INNER JOIN annotation_with_ontology t2
-                    on t1.doc_id = t2.doc_id and t1.normalized < t2.normalized
-GROUP BY 1, 2, 3, 4)
+         INNER JOIN annotation_with_ontology t2 on t1.doc_id = t2.doc_id and t1.normalized_text < t2.normalized_text
+WHERE t1."path" <@ 'ALL.Entity'
+  and t2."path" <@ 'ALL.Entity'
+GROUP BY 1, 2, 3, 4
+HAVING count(distinct t1.doc_id) > 1
+    )
 WITH DATA;
 
 
-CREATE UNIQUE INDEX IF NOT EXISTS annotation_counts_unique_idx ON annotation_counts (normalized, path);
+CREATE UNIQUE INDEX IF NOT EXISTS annotation_counts_unique_idx ON annotation_counts (normalized_text, path);
 CREATE UNIQUE INDEX IF NOT EXISTS annotation_co_occurrence_unique_idx ON annotation_co_occurrence (source, source_type, target, target_type);
 CREATE INDEX IF NOT EXISTS topic_sentences_sentence_aid ON topic_sentences (sentence_aid);
 CREATE INDEX IF NOT EXISTS topic_sentences_topic_id ON topic_sentences (topic_id);

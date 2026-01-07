@@ -215,6 +215,12 @@ cdef class TextAnnotation(TextObject):
 
         sent: TextAnnotation = self.sentence
 
+        normalized_text = self._meta.get(Metadata.COREF_TEXT.value,
+                                         self._meta.get(Metadata.LEMMA.value,
+                                                        self.text
+                                                        )).upper()
+
+
         return list(TextAnnotationRow(
             id=self.id,
             text_id=self.owner.id,
@@ -228,6 +234,7 @@ cdef class TextAnnotation(TextObject):
             source=self.source,
             text=self.text,
             clean_text=self.to_string(True, True, True),
+            normalized_text=normalized_text,
             mapping=f"{self.type}:{self.value}"
             if self.type not in ["sentence", "noun_chunk"]
             else None,

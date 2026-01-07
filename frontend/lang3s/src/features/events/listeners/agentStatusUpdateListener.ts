@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useSetAtom } from "jotai";
 import { eventBus } from "@/lib/events/eventBus";
 import { toast } from "sonner";
-import { upsertAgentStatus } from "@/features/events/stores/agent";
+import { upsertAgentStatus } from "@/features/events/stores/chat-stores";
 
 export function AgentStatusUpdateListener() {
   const upsert = useSetAtom(upsertAgentStatus);

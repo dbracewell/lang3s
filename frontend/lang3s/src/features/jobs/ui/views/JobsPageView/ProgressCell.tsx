@@ -2,7 +2,7 @@
 import { Progress } from "@/components/ui/progress";
 import { RouterOutputs } from "@/lib/trpc/types";
 import React from "react";
-import { jobStatusByIdAtom } from "@/features/jobs/stores/jobStatus";
+import { jobStatusByIdAtom } from "@/features/events/stores/job-stores";
 import { useAtomValue } from "jotai";
 
 export const ProgressCell = ({
@@ -11,9 +11,9 @@ export const ProgressCell = ({
   row: RouterOutputs["jobs"]["getAll"][number];
 }) => {
   const job = useAtomValue(jobStatusByIdAtom(row.id));
-  const pct = (
+  const pct = Math.floor(
     job?.progress ??
-    Math.floor((row.total > 0 ? row.completed / row.total : 0) * 100)
+      (row.total > 0 ? (row.completed + row.failed) / row.total : 0) * 100,
   ).toFixed(0);
   return (
     <div className="relative flex w-full items-center">

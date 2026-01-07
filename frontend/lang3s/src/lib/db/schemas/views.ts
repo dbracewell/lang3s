@@ -1,12 +1,10 @@
 import { integer, pgMaterializedView, pgView, text } from "drizzle-orm/pg-core";
 import { TextAnnotationTable } from "@/lib/db/schemas/text";
 import { TopicsTable } from "@/lib/db/schemas/topics";
-import { countDistinct, eq, gt, gte, sql } from "drizzle-orm";
+import { countDistinct, eq, getTableColumns, gt, gte, sql } from "drizzle-orm";
 import { cosineSimilarity } from "@/lib/db/helpers/vector";
 import { MIN_TOPIC_SIMILARITY } from "@/features/common/constants";
 import { AnnotationToOntology, OntologyTable } from "@/lib/db/schemas/ontology";
-import { upper } from "@/lib/db/helpers/string";
-import { coalesce, jsonValue } from "@/lib/db/funcs";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { ltree } from "@/lib/db/custom_types";
 
@@ -54,6 +52,8 @@ export const AnnotationWithOntologyView = pgView("annotation_with_ontology").as(
       .select({
         path: OntologyTable.path,
         name: OntologyTable.name,
+        color: OntologyTable.color,
+        properties: OntologyTable.properties,
         mapping: AnnotationToOntology.annotation,
       })
       .from(OntologyTable)
@@ -65,14 +65,7 @@ export const AnnotationWithOntologyView = pgView("annotation_with_ontology").as(
 
     return qb
       .select({
-        content: TextAnnotationTable.content,
-        start: TextAnnotationTable.start,
-        end: TextAnnotationTable.end,
-        sentenceAid: TextAnnotationTable.sentenceAid,
-        documentId: TextAnnotationTable.documentId,
-        metadata: TextAnnotationTable.metadata,
-        type: TextAnnotationTable.type,
-        value: TextAnnotationTable.value,
+        ...getTableColumns(TextAnnotationTable),
         a0: sql<string[]>`${TextAnnotationTable.metadata}->'A0_TEXT'`.as("A0"),
         a1: sql<string[]>`${TextAnnotationTable.metadata}->'A1_TEXT'`.as("A1"),
         time: sql<string>`${TextAnnotationTable.metadata}->'TIME_TEXT'`.as(
@@ -81,16 +74,14 @@ export const AnnotationWithOntologyView = pgView("annotation_with_ontology").as(
         location: sql<string>`${TextAnnotationTable.metadata}->'LOC_TEXT'`.as(
           "LOCATION",
         ),
-        textId: TextAnnotationTable.textId,
-        normalized: upper(
-          coalesce(
-            jsonValue<string>(TextAnnotationTable.metadata, "coref_text"),
-            jsonValue<string>(TextAnnotationTable.metadata, "lemma"),
-            TextAnnotationTable.content,
-          ),
-        ).as("normalized"),
         path: sub.path,
         name: sub.name,
+        color: sub.color,
+        properties: sub.properties,
+        normalizedAndPath:
+          sql<string>`CONCAT(${TextAnnotationTable.normalized},'-',${sub.path})`.as(
+            "normalized_path",
+          ),
       })
       .from(TextAnnotationTable)
       .innerJoin(sub, eq(TextAnnotationTable.mapping, sub.mapping));
@@ -98,7 +89,7 @@ export const AnnotationWithOntologyView = pgView("annotation_with_ontology").as(
 );
 
 export const AnnotationCounts = pgMaterializedView("annotation_counts", {
-  content: text("normalized").notNull(),
+  content: text("normalized_text").notNull(),
   type: ltree("path").notNull(),
   documentCount: integer("document_count").notNull(),
   sentenceCount: integer("sentence_count").notNull(),

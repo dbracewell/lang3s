@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import React from "react";
 import { useAtomValue } from "jotai";
-import { jobStatusByIdAtom } from "@/features/jobs/stores/jobStatus";
+import { jobStatusByIdAtom } from "@/features/events/stores/job-stores";
 
 const getIcon = (status: string) => {
   if (status === "processing") {

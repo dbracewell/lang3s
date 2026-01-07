@@ -37,3 +37,4 @@ RUN set -eux; \
 ENV POSTGRES_DB=${POSTGRES_DB}
 ENV POSTGRES_USER=${POSTGRES_USER}
 ENV PGDATA=/var/lib/postgresql/data
+

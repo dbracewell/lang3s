@@ -10,17 +10,19 @@ from lang3s.models.embedder import Embedder, EmbeddingResult
 from lang3s.models.transformer.multi_task_transformer import MultiTaskTransformer
 from lang3s.models.transformer.shared_types import TokenLabelResult
 from lang3s.nlp.event_extraction import extract_events
-from lang3s.shared_types import Document, TextAnnotation, Event
+from lang3s.shared_types import Document, Event, TextAnnotation
 from lang3s.shared_types.metadata import Metadata
 from lang3s.utils import filter_none
 
 logger = logging.getLogger(__name__)
 
+embedder = Embedder()
+embedder.model.eval()
 
-def heavy_nlp(doc: Document, tasks: Optional[Iterable[str]] = None, is_reannotation: bool = False):
-    embedder = Embedder()
-    embedder.model.eval()
 
+def heavy_nlp(
+    doc: Document, tasks: Optional[Iterable[str]] = None, is_reannotation: bool = False
+):
     if doc.text is None:
         return
 
@@ -51,25 +53,15 @@ def _to_mean_array(
 ) -> Optional[NDArray[np.floating]]:
     if len(embeddings) == 0:
         return None
-    return (
-        np.array(list(itertools.chain.from_iterable(embeddings)))
-        .mean(axis=0)
-    )
+    return np.array(list(itertools.chain.from_iterable(embeddings))).mean(axis=0)
 
 
 def embed_event_annotation(annotation: TextAnnotation):
     event: Event = annotation.events[0]
-    trigger_embedding = (
-        np.array([t.embedding for t in annotation.tokens])
-        .mean(axis=0)
-    )
+    trigger_embedding = np.array([t.embedding for t in annotation.tokens]).mean(axis=0)
 
-    a0_embedding = _to_mean_array(
-        [[t.embedding for t in a.tokens] for a in event.A0]
-    )
-    a1_embedding = _to_mean_array(
-        [[t.embedding for t in a.tokens] for a in event.A1]
-    )
+    a0_embedding = _to_mean_array([[t.embedding for t in a.tokens] for a in event.A0])
+    a1_embedding = _to_mean_array([[t.embedding for t in a.tokens] for a in event.A1])
 
     e = filter_none([a0_embedding, a1_embedding])
     if len(e) == 1:
@@ -104,9 +96,7 @@ def embed_annotation(annotation: TextAnnotation):
 
 
 def create_core_embeddings(doc: Document, result: EmbeddingResult):
-    doc_emb = np.zeros(
-        result.sentence_embeddings[0].shape[-1], dtype=np.float16
-    )
+    doc_emb = np.zeros(result.sentence_embeddings[0].shape[-1], dtype=np.float16)
 
     for sentence, word_embeddings, sentence_embedding in zip(
         doc.text.sentences,
@@ -127,13 +117,15 @@ def create_core_embeddings(doc: Document, result: EmbeddingResult):
     doc.text.embedding = normalize(doc_emb).astype(np.float32)
 
 
-def _add_token_span(start: Optional[int],
-                    end: int,
-                    doc: Document,
-                    sentence: TextAnnotation,
-                    annotation_type: str,
-                    source_name: str,
-                    label: Optional[str]):
+def _add_token_span(
+    start: Optional[int],
+    end: int,
+    doc: Document,
+    sentence: TextAnnotation,
+    annotation_type: str,
+    source_name: str,
+    label: Optional[str],
+):
     if start is not None and label is not None:
         doc.text.add_annotation(
             text=" ".join([t.text for t in sentence.tokens[start:end]]),
@@ -150,13 +142,12 @@ def perform_heavy_tagging(
     doc: Document,
     sentences: List[List[str]],
     result: EmbeddingResult,
-    tasks: Optional[Iterable[str]]
+    tasks: Optional[Iterable[str]],
 ):
     tagger = MultiTaskTransformer()
-    outputs = tagger.forward(result,
-                             sentences=sentences,
-                             language=doc.language,
-                             tasks=tasks)
+    outputs = tagger.forward(
+        result, sentences=sentences, language=doc.language, tasks=tasks
+    )
 
     for source_name, output in outputs.items():
         if output.task_type.is_sentence_level():
@@ -205,9 +196,7 @@ def extract_events_for_doc(doc: Document):
                 Metadata.A1_TEXT: [a1.text for a1 in event.A1],
                 Metadata.TIME: event.TIME.id if event.TIME is not None else None,
                 Metadata.LOC: event.LOC.id if event.LOC is not None else None,
-                Metadata.TIME_TEXT: event.TIME.text
-                if event.TIME is not None
-                else None,
+                Metadata.TIME_TEXT: event.TIME.text if event.TIME is not None else None,
                 Metadata.LOC_TEXT: event.LOC.text if event.LOC is not None else None,
             },
         )

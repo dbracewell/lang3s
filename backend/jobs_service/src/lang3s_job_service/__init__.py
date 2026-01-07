@@ -139,6 +139,7 @@ class JobService:
         completed_inc: Optional[int] = None,
         failed_inc: Optional[int] = None,
         status: Optional[JobStatus] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Job:
         return self._call_api_obj(
             "jobs.update",
@@ -148,6 +149,7 @@ class JobService:
                 "completed_increment": completed_inc,
                 "failed_increment": failed_inc,
                 "status": status.value if status else None,
+                "metadata": metadata or None,
             },
             return_type=Job,
             method="POST",

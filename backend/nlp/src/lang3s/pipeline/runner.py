@@ -1,16 +1,18 @@
 import logging
+import sys
 import time
 from collections import defaultdict
 from typing import Dict, Iterable, List, Optional
 
-from lang3s.db.text_database import TextDatabase
+from lang3s_job_service import File
+
 from lang3s.nlp.core_nlp import core_nlp
 from lang3s.nlp.heavy_nlp import heavy_nlp
 from lang3s.pipeline.langdetect import detect_language
 from lang3s.shared_types import Document, Text
 from lang3s.shared_types.metadata import Metadata
 from lang3s.utils import partition_generator
-from lang3s_job_service import File
+
 from .doc_builder import create_document
 
 logger = logging.getLogger(__name__)
@@ -28,20 +30,15 @@ def _group_documents_by_language(docs: List[Document]):
             if Metadata.LANGUAGE.value not in doc:
                 language = detect_language(doc.text.text)
                 doc[Metadata.LANGUAGE.value] = language
-            docs_by_language[doc[Metadata.LANGUAGE.value]].append(
-                doc.text
-            )
+            docs_by_language[doc[Metadata.LANGUAGE.value]].append(doc.text)
     return docs_by_language
 
 
 def pipeline(
     files: Iterable[File],
-    write_to_db: bool = False,
     batch_size: int = 100,
     tasks: Optional[Iterable[str]] = None,
 ) -> List[Document]:
-    text_db = TextDatabase()
-
     docs = []
     for batch in partition_generator(_generate_documents(files), batch_size):
         docs_by_language = _group_documents_by_language(batch)
@@ -61,24 +58,12 @@ def pipeline(
                 logger.error("Error Processing Document: ", e)
                 import traceback
 
-                traceback.print_exc()
+                traceback.print_exc(file=sys.stdout)
 
         end = time.perf_counter()
-
         logger.info(
-            f"✍️ Finished annotation of {len(batch)} documents: {(end - start):.2f}s"
+            f"✅ Finished annotation of {len(batch)} documents: {(end - start):.2f}s"
         )
         docs.extend(batch)
-
-        if write_to_db:
-            start = time.perf_counter()
-            logger.info(
-                f"💽 Starting writing of {len(batch)} documents to database"
-            )
-            text_db.add_documents(batch)
-            end = time.perf_counter()
-            logger.info(
-                f"💽 Finished writing {len(batch)} documents to database: {(end - start):.2f}s"
-            )
 
     return docs

@@ -15,6 +15,7 @@ import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { AnnotationToOntology, OntologyTable } from "@/lib/db/schemas/ontology";
 import { db } from "@/lib/db/index";
 import { CoalesceArgument } from "@/lib/db/helpers/typing";
+import { AnnotationWithOntologyView } from "@/lib/db/schemas/views";
 
 const EVENT_ARGS = {
   a0: sql<string[]>`${TextAnnotationTable.metadata}->'A0_TEXT'`.as("A0"),
@@ -212,6 +213,25 @@ function _getAnnotationsWithOntology<
     );
 }
 
+const _getFullTextSearchSentences = (query: string) => {
+  return db
+    .select({
+      ...getTableColumns(TextAnnotationTable),
+      score: FULL_TEXT_SCORE.as("score"),
+      rank: FULL_TEXT_SCORE.as("rank"),
+    })
+    .from(TextAnnotationTable)
+    .where(
+      and(
+        eq(TextAnnotationTable.type, "sentence"),
+        not(
+          sql<boolean>`COALESCE((${TextAnnotationTable.metadata}->>'is_stopword')::boolean,false)`,
+        ),
+        sql`${TextAnnotationTable.content}  &@~ ${query}`,
+      ),
+    );
+};
+
 const GET_SENTENCES = db
   .select({
     content: TextAnnotationTable.content,
@@ -239,8 +259,11 @@ const createPathWildcards = (values: string[]) => {
   );
 };
 
-const matchPath = (
-  table: { path: string } | typeof OntologyTable,
+export const matchPath = (
+  table:
+    | { path: string }
+    | typeof OntologyTable
+    | typeof AnnotationWithOntologyView,
   values: string[],
 ) => {
   return sql`${table.path} ~ any(array[${createPathWildcards(values)}]::lquery[])`;
@@ -249,6 +272,8 @@ const matchPath = (
 export const Annotations = {
   getColumns: _getDefaultColumns,
   getSentences: () => GET_SENTENCES,
+  getFullTextSearchSentences: (query: string) =>
+    _getFullTextSearchSentences(query),
   getAnnotationsWithOntology: _getAnnotationsWithOntology,
   getFullTextSnippet: function (query: string, text: SQLWrapper) {
     return sql<string>`array_to_string(pgroonga_snippet_html (${text},

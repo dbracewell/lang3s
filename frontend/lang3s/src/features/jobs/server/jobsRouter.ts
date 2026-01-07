@@ -13,7 +13,7 @@ import { Lang3sFile } from "@/features/common/classes";
 import { BasicUserInfo } from "@/features/common/types";
 import { apiProcedure, createTRPCRouter } from "@/lib/trpc/init";
 import { TRPCError } from "@trpc/server";
-import { and, AnyColumn, desc, eq, or, sql } from "drizzle-orm";
+import { and, AnyColumn, count, desc, eq, ne, or, sql } from "drizzle-orm";
 import z from "zod";
 import { publishMessage } from "@/lib/events/publish";
 
@@ -144,6 +144,7 @@ export const jobsRouter = createTRPCRouter({
         completed_increment: z.int().nullish(),
         failed_increment: z.int().nullish(),
         status: z.enum(jobStatuses).nullish(),
+        metadata: z.record(z.string(), z.unknown()).nullish(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -154,7 +155,10 @@ export const jobsRouter = createTRPCRouter({
         completed_increment,
         failed_increment,
         status,
+        metadata,
       } = input;
+
+      console.log("METADATA", metadata);
 
       await requirePermissions(user, apiKey, ["jobs:create"]);
 
@@ -194,10 +198,25 @@ export const jobsRouter = createTRPCRouter({
             completedAt: ["complete", "failed"].includes(status ?? "")
               ? new Date()
               : undefined,
+            metadata: metadata ?? undefined,
           })
           .where(and(...where))
           .returning(),
       );
+
+      if (
+        ["complete", "failed"].includes(status ?? "") &&
+        job.jobType === "annotation"
+      ) {
+        await logAndRethrow(async () => {
+          // await db.execute(
+          //   sql`DROP INDEX IF EXISTS text_annotation_embedding_index;`,
+          // );
+          return db.execute(
+            sql`CREATE INDEX IF NOT EXISTS "text_annotation_embedding_index" ON "text_annotations" USING hnsw ("embedding" halfvec_cosine_ops);`,
+          );
+        });
+      }
 
       await publishJobStatus(updatedJob);
       return updatedJob;
@@ -258,6 +277,23 @@ export const jobsRouter = createTRPCRouter({
         throw new TRPCError({ code: "BAD_REQUEST" });
       }
 
+      const [annotationJobs] = await logAndRethrow(() =>
+        db
+          .select({ count: count() })
+          .from(JobsTable)
+          .where(
+            and(
+              ne(JobsTable.id, job.id),
+              eq(JobsTable.jobType, "annotation"),
+              eq(JobsTable.status, "processing"),
+            ),
+          ),
+      );
+
+      if (annotationJobs != null && annotationJobs.count > 0) {
+        throw new TRPCError({ code: "CONFLICT" });
+      }
+
       try {
         const redis = await getGlobalConnection();
         for (const file of files) {
@@ -269,12 +305,24 @@ export const jobsRouter = createTRPCRouter({
         return job;
       }
 
+      if (job.status === "waiting") {
+        await logAndRethrow(async () => {
+          await db.execute(
+            sql`DROP INDEX IF EXISTS text_annotation_embedding_index;`,
+          );
+          // return db.execute(
+          //   sql`CREATE INDEX IF NOT EXISTS "text_annotation_embedding_index" ON "text_annotations" USING hnsw ("embedding" halfvec_cosine_ops) WITH (m = 8, ef_construction = 16);`,
+          // );
+        });
+      }
+
       const [updatedJob] = await logAndRethrow(() =>
         db
           .update(JobsTable)
           .set({
             total: increment(JobsTable.total, files.length),
             status: "processing",
+            jobType: "annotation",
             startedAt: job.status === "waiting" ? new Date() : undefined,
           })
           .where(and(...where))
@@ -301,14 +349,13 @@ export const jobsRouter = createTRPCRouter({
 });
 
 const publishJobStatus = async (job: typeof JobsTable.$inferSelect) => {
+  const progress = job.total > 0 ? (job.completed + job.failed) / job.total : 0;
   try {
     await publishMessage({
       messageType: "job:update",
       payload: {
         jobId: job.id,
-        progress: Number.isNaN(job.completed / job.total)
-          ? 0
-          : (job.completed / job.total) * 100,
+        progress: progress * 100,
         status: job.status,
       },
       userId: job.userId,

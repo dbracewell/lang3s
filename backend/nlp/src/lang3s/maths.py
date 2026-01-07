@@ -4,7 +4,7 @@ from typing import Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-logger = logging.Logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def binarize(v: NDArray[np.floating]) -> str:
@@ -30,7 +30,9 @@ def cosine(
         n1 = n1.squeeze()
         n2 = n2.squeeze()
 
-    return np.clip(np.dot(n1, n2) / (np.linalg.norm(n1) * np.linalg.norm(n2) + 1e-12), 0, 1)
+    return np.clip(
+        np.dot(n1, n2) / (np.linalg.norm(n1) * np.linalg.norm(n2) + 1e-12), 0, 1
+    )
 
 
 def weighted_average(

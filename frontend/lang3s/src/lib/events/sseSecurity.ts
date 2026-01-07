@@ -2,7 +2,7 @@ import { createRedisClient } from "@/lib/redis";
 
 const redis = await createRedisClient();
 
-const MAX_CONN_PER_USER = 1;
+const MAX_CONN_PER_USER = 10;
 const RATE_LIMIT_WINDOW = 60; // seconds
 const RATE_LIMIT_MAX = 100;
 

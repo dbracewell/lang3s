@@ -7,7 +7,7 @@ os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTHONUNBUFFERED"] = "1"
 
-WORKER_COUNT = int(os.environ.get("WORKER_COUNT", 1))
+WORKER_COUNT = int(os.environ.get("WORKER_COUNT", 3))
 
 subprocess_env = os.environ.copy()
 
@@ -19,7 +19,10 @@ processes: List[Optional[subprocess.Popen[str]]] = [None] * len(scripts)
 
 def start_process(i: int):
     return subprocess.Popen(
-        ["python", "-m", scripts[i]], text=True, bufsize=1, env=subprocess_env
+        ["python", "-u", "-m", scripts[i]],
+        text=True,
+        bufsize=1,
+        env=subprocess_env,
     )
 
 
@@ -30,7 +33,7 @@ try:
     while True:
         time.sleep(5)
         for i, p in enumerate(processes):
-            if cast(subprocess.Popen[str], p).poll() is not None:
+            if p.poll() is not None:
                 print(f"{scripts[i]} terminated unexpectedly. Restarting...")
                 processes[i] = start_process(i)
                 print(scripts[i], cast(subprocess.Popen[str], processes[i]).pid)

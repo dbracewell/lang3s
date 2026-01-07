@@ -1,14 +1,13 @@
 services:
   inngest:
     image: inngest/inngest
-    command: "inngest dev -u http://host.docker.internal:3001/api/inngest"
+    command: "inngest start -u http://host.docker.internal:3000/api/inngest --signing-key A1B2C3 --event-key A1B2C3"
     ports:
       - "8288:8288"
       - "8289:8289"
     env_file:
       - .env
     environment:
-      - INGEST_DEV=1
       - INNGEST_POSTGRES_URI:=postgres://inngest:${POSTGRES_PASSWORD}@database:5432/inngest
       - INNGEST_REDIS_URI=redis://redis:6379
     depends_on:
@@ -26,6 +25,7 @@ services:
       start_period: 40s
 
   database:
+    command: postgres -c maintenance_work_mem=1GB -c max_wal_size=10GB
     build:
       context: .
       dockerfile: postgres/Dockerfile

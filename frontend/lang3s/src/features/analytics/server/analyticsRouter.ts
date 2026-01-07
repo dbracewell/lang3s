@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import {
   AnnotationCoOccurrence,
   AnnotationCounts,
+  AnnotationWithOntologyView,
   TextAnnotationTable,
   TopicSentences,
   TopicsTable,
@@ -32,7 +33,7 @@ import {
   withPagination,
 } from "@/lib/db/funcs";
 import { PAGE_LIMIT } from "@/features/common/constants";
-import { Annotations } from "@/lib/db/annotations";
+import { Annotations, matchPath } from "@/lib/db/annotations";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { TRPCError } from "@trpc/server";
 import { alias } from "drizzle-orm/pg-core";
@@ -42,25 +43,6 @@ import { createRedisClient } from "@/lib/redis";
 import { requirePermissions } from "@/features/auth/server/actions";
 
 export const AnalyticsRouter = createTRPCRouter({
-  getAnnotationTypes: protectedProcedure.query(async () => {
-    return (
-      await logAndRethrow(() =>
-        db
-          .selectDistinct({
-            type: TextAnnotationTable.type,
-          })
-          .from(TextAnnotationTable)
-          .where(
-            and(
-              ne(TextAnnotationTable.type, "sentence"),
-              ne(TextAnnotationTable.type, "token"),
-            ),
-          )
-          .orderBy((t) => [asc(t.type)]),
-      )
-    ).map((t) => t.type);
-  }),
-
   getAnnotationCounts: protectedProcedure
     .input(
       z.object({
@@ -80,25 +62,29 @@ export const AnalyticsRouter = createTRPCRouter({
       }
 
       const [total, results] = await logAndRethrow(() => {
-        const q3 = Annotations.getAnnotationsWithOntology({
-          options: { normalize: true },
-          limitTo: input.values,
-          ontologyFields: ["path", "color"],
-          annotationFields: ["value"],
-          computedColumns: (o) => ({
-            value: sql<string>`${o.name}`.as(randomAlphaUnderscore()),
+        const q3 = db
+          .select({
+            content: AnnotationWithOntologyView.normalized,
+            path: AnnotationWithOntologyView.path,
+            value: AnnotationWithOntologyView.name,
+            color: AnnotationWithOntologyView.color,
             count: count().as("count"),
-            docCount: countDistinct(TextAnnotationTable.documentId).as(
+            docCount: countDistinct(AnnotationWithOntologyView.documentId).as(
               "doc_count",
             ),
             mentionsPerDocument:
-              sql<number>`count(0)::float/count(distinct ${TextAnnotationTable.documentId})`.as(
+              sql<number>`count(0)::float/count(distinct ${AnnotationWithOntologyView.documentId})`.as(
                 "mentions_per_doc",
               ),
-          }),
-        })
+          })
+          .from(AnnotationWithOntologyView)
           .where((t) =>
-            !!filter ? ilike(t.content, `${filter.toUpperCase()}%`) : undefined,
+            and(
+              matchPath(AnnotationWithOntologyView, input.values),
+              !!filter
+                ? ilike(t.content, `${filter.toUpperCase()}%`)
+                : undefined,
+            ),
           )
           .groupBy((t) => [t.content, t.value, t.path, t.color])
           .orderBy((t) =>
@@ -110,6 +96,7 @@ export const AnalyticsRouter = createTRPCRouter({
           )
           .having((t) => gt(t.docCount, 5))
           .as("annotation_search");
+
         return Promise.all([
           db.select({ count: count() }).from(q3),
           withPagination(db.select().from(q3), {
@@ -138,29 +125,41 @@ export const AnalyticsRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       return logAndRethrow(async () => {
-        const q1 = Annotations.getAnnotationsWithOntology({
-          options: { normalize: true },
-          limitTo: [input.leftValue],
-          computedColumns: (o) => ({
-            value: sql<string>`${o.path}`.as(randomAlphaUnderscore()),
-          }),
-          annotationFields: ["id", "start", "end", "sentenceAid"],
-        })
-          .where((t) =>
-            input.leftText
-              ? eq(t.content, input.leftText.toUpperCase())
-              : undefined,
+        const q1 = db
+          .select({
+            content: AnnotationWithOntologyView.normalized,
+            id: AnnotationWithOntologyView.id,
+            start: AnnotationWithOntologyView.start,
+            end: AnnotationWithOntologyView.end,
+            sentenceAid: AnnotationWithOntologyView.sentenceAid,
+            value: AnnotationWithOntologyView.path,
+          })
+          .from(AnnotationWithOntologyView)
+          .where(
+            and(
+              matchPath(AnnotationWithOntologyView, [input.leftValue]),
+              input.leftText
+                ? eq(
+                    AnnotationWithOntologyView.normalized,
+                    input.leftText.toUpperCase(),
+                  )
+                : undefined,
+            ),
           )
           .as("q1");
 
-        const q2 = Annotations.getAnnotationsWithOntology({
-          options: { normalize: true },
-          limitTo: input.rightValues,
-          annotationFields: ["id", "start", "end", "sentenceAid"],
-          computedColumns: (o) => ({
-            value: sql<string>`${o.name}`.as(randomAlphaUnderscore()),
-          }),
-        }).as("q2");
+        const q2 = db
+          .select({
+            content: AnnotationWithOntologyView.normalized,
+            id: AnnotationWithOntologyView.id,
+            start: AnnotationWithOntologyView.start,
+            end: AnnotationWithOntologyView.end,
+            sentenceAid: AnnotationWithOntologyView.sentenceAid,
+            value: AnnotationWithOntologyView.name,
+          })
+          .from(AnnotationWithOntologyView)
+          .where(matchPath(AnnotationWithOntologyView, input.rightValues))
+          .as("q2");
 
         return db
           .select({

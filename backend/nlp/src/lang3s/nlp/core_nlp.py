@@ -12,7 +12,7 @@ from more_itertools.more import first
 from sklearn.feature_extraction.text import TfidfVectorizer
 from spacy.language import Language
 from spacy.matcher import Matcher
-from spacy.tokens import Token
+from spacy.tokens import Span, Token
 from spacy.util import filter_spans
 from spacy_download import load_spacy
 
@@ -21,6 +21,7 @@ from lang3s.shared_types import AnnotationTypes, Metadata
 from lang3s.shared_types.text import Text
 from lang3s.shared_types.text_annotation import TextAnnotation
 from lang3s.utils import decorators, filter_none
+from lang3s.utils.meta import SingletonMeta
 
 test = spacy_component
 
@@ -31,8 +32,7 @@ SPACY_MODELS = {
 }
 
 
-@decorators.singleton
-class CoreLanguageProcessor:
+class CoreLanguageProcessor(metaclass=SingletonMeta):
     def __init__(self):
         self.pipelines = {}
         self.patterns = {}
@@ -78,7 +78,8 @@ class CoreLanguageProcessor:
             nlp.add_pipe(
                 "fastcoref",
                 config={
-                    "device": "cpu",
+                    "device": config.INFERENCE_DEVICE,
+                    "enable_progress_bar": False,
                 },
                 last=True,
             )
@@ -124,7 +125,7 @@ def fix_mwv(doc):
 def core_nlp(language: str, texts: List[Text]):
     core = CoreLanguageProcessor()
     spacy_docs = core.get_pipeline(language).pipe(
-        [text.text for text in texts], batch_size=100
+        [text.text for text in texts], batch_size=20
     )
 
     for text, doc in zip(texts, spacy_docs):
@@ -177,7 +178,11 @@ def core_nlp(language: str, texts: List[Text]):
         handle_coreference(language, doc, coref_map)
 
         entity_map: Dict[int, TextAnnotation] = {}
+        entity: Span
         for entity in doc.ents:
+            label = entity.label_
+            if entity[0].tag_ == "PRP":
+                label = "PERSON"
             annotation = text.add_annotation(
                 start=entity.start,
                 end=entity.end,
@@ -185,7 +190,7 @@ def core_nlp(language: str, texts: List[Text]):
                 sentence_id=sentences[entity.sent.start],
                 type=AnnotationTypes.ENTITY.value,
                 source="coref",
-                value=entity.label_,
+                value=label,
                 metadata={Metadata.LEMMA.value: entity.lemma_},
             )
             entity_map[entity.start] = annotation
@@ -196,8 +201,8 @@ def core_nlp(language: str, texts: List[Text]):
             if coref is not None:
                 coref_annotation = entity_map[coref.start]
                 if coref_annotation.id != annotation.id:
-                    annotation["coref"] = coref_annotation.id
-                    annotation["coref_text"] = coref_annotation.lemma
+                    annotation[Metadata.COREF.value] = coref_annotation.id
+                    annotation[Metadata.COREF_TEXT.value] = coref_annotation.lemma
 
         try:
             for chunk in doc.noun_chunks:

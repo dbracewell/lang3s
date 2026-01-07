@@ -7,7 +7,6 @@ from tqdm import tqdm
 
 from lang3s import config
 from lang3s.models.embedder import Embedder
-from lang3s.models.training.embedding.generate_dataset import DEVICE
 
 # --- 1. CONFIGURATION ---
 # Path to your trained head
@@ -37,14 +36,14 @@ def main():
 
     compress_layer = torch.nn.Linear(768, 384)
     compress_layer.load_state_dict(torch.load("./finetuned_xlm_roberta/compressed.pt"))
-    compress_layer.to(DEVICE)
+    compress_layer.to(device)
     # C. Load STSB Dataset
     print("Loading STSB Validation Set...")
     dataset = load_dataset("sentence-transformers/stsb", split="test")
     # dataset = load_sts_examples("test")
-    sentences1 = dataset['sentence1']
-    sentences2 = dataset['sentence2']
-    gold_scores = dataset['score']
+    sentences1 = dataset["sentence1"]
+    sentences2 = dataset["sentence2"]
+    gold_scores = dataset["score"]
 
     # D. Inference Loop
     print(f"Evaluating on {len(gold_scores)} pairs...")
@@ -52,7 +51,9 @@ def main():
     def get_vectors(text_list):
         t_batch = teacher_model.encode(text_list, show_progress_bar=False)
         result = backbone(text_list, batch_size=BATCH_SIZE)
-        vecs_torch = torch.as_tensor(np.array(result.sentence_embeddings), device=DEVICE)
+        vecs_torch = torch.as_tensor(
+            np.array(result.sentence_embeddings), device=device
+        )
         # with torch.no_grad():
         #     vecs_np = compress_layer(vecs_torch).cpu().numpy()
         vecs_np = vecs_torch.detach().cpu().numpy()
@@ -64,8 +65,8 @@ def main():
     teacher_cosine_scores = []
 
     for i in tqdm(range(0, len(sentences1), BATCH_SIZE)):
-        batch_s1 = sentences1[i: i + BATCH_SIZE]  # type:ignore
-        batch_s2 = sentences2[i: i + BATCH_SIZE]  # type:ignore
+        batch_s1 = sentences1[i : i + BATCH_SIZE]  # type:ignore
+        batch_s2 = sentences2[i : i + BATCH_SIZE]  # type:ignore
 
         # Get Projected Vectors
         xlm1, temb1 = get_vectors(batch_s1)
@@ -80,8 +81,12 @@ def main():
     teacher_spearman_corr, _ = spearmanr(gold_scores, teacher_cosine_scores)
 
     print("\n" + "=" * 40)
-    print(f"✅ Corrected STSB Fine Tuned XLM Roberta Spearman Correlation: {xlm_spearman_corr * 100:.2f}")
-    print(f"✅ Corrected STSB Teacher Spearman Correlation: {teacher_spearman_corr * 100:.2f}")
+    print(
+        f"✅ Corrected STSB Fine Tuned XLM Roberta Spearman Correlation: {xlm_spearman_corr * 100:.2f}"
+    )
+    print(
+        f"✅ Corrected STSB Teacher Spearman Correlation: {teacher_spearman_corr * 100:.2f}"
+    )
     print("=" * 40)
 
 

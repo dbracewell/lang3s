@@ -1,8 +1,10 @@
 import "server-only";
 import { db } from "@/lib/db";
 import {
+  AnnotationWithOntologyView,
   DocumentsTable,
   TextAnnotationTable,
+  TextTable,
   TopicSentences,
   TopicsTable,
 } from "@/lib/db/schema";
@@ -21,12 +23,11 @@ import {
   cosineSimilarity,
   generateNextPage,
   orderAsc,
-  upper,
   withPagination,
 } from "@/lib/db/funcs";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { jsonAgg, jsonBuildObject } from "@/lib/db/helpers/json";
-import { Annotations, OntologyMappings } from "@/lib/db/annotations";
+import { Annotations } from "@/lib/db/annotations";
 import {
   AnnotationSearchResult,
   DocumentSearchResult,
@@ -42,6 +43,16 @@ export type SearchParams = {
   isStrict: boolean;
 };
 
+const loosenQuery = (query?: string) => {
+  if (query != null) {
+    const parts = query.match(/("[^"]+"|\w+)/g) ?? [];
+    return parts
+      .map((p) => (p.startsWith('"') ? p : p === "OR" ? "" : p))
+      .join(" OR ");
+  }
+  return undefined;
+};
+
 export const docSearch = async ({
   embedding,
   threshold,
@@ -49,131 +60,142 @@ export const docSearch = async ({
   query,
   isStrict,
 }: SearchParams) => {
-  const fullTextSearch = db
-    .select({
-      documentId: TextAnnotationTable.documentId,
-      sentenceAid: TextAnnotationTable.sentenceAid,
-      text: sql<string>`${TextAnnotationTable.content}`.as("text"),
-      itemRank: Annotations.fullTextRank.as("item_rank"),
-      scoreRank: Annotations.fullTextRank.as("score_rank"),
-      priority: sql<number>`2`.as("priority"),
-    })
-    .from(TextAnnotationTable)
-    .where(
-      and(
-        Annotations.isNotStopword,
-        Annotations.isSentence,
-        Annotations.getFullTextMatch(query ?? "", TextAnnotationTable.content),
-      ),
-    );
+  const finalQuery = isStrict ? query : loosenQuery(query);
+  try {
+    const fullTextSearch = db
+      .select({
+        documentId: TextTable.documentId,
+        text: sql<string>`${TextTable.content}`.as("text"),
+        itemRank: Annotations.fullTextRank.as("item_rank"),
+        scoreRank: Annotations.fullTextRank.as("score_rank"),
+        priority: sql<number>`2`.as("priority"),
+      })
+      .from(TextTable)
+      .where(Annotations.getFullTextMatch(finalQuery ?? "", TextTable.content));
 
-  const semanticSearch = db
-    .select({
-      documentId: TextAnnotationTable.documentId,
-      sentenceAid: TextAnnotationTable.sentenceAid,
-      text: sql<string>`${TextAnnotationTable.content}`.as("text"),
-      itemRank: Annotations.getSemanticRank(
-        TextAnnotationTable.embedding,
-        embedding!,
-      ).as("item_rank"),
-      scoreRank: Annotations.getSemanticRank(
-        TextAnnotationTable.embedding,
-        embedding!,
-      ).as("score_rank"),
-      priority: sql<number>`1`.as("priority"),
-    })
-    .from(TextAnnotationTable)
-    .where(
-      and(
-        Annotations.isNotStopword,
-        Annotations.isSentence,
-        gte(
-          cosineSimilarity(TextAnnotationTable.embedding, embedding!),
-          threshold,
+    const semanticSearchBase = db
+      .select({
+        documentId: TextAnnotationTable.documentId,
+        similarity:
+          sql<number>`AVG(${cosineSimilarity(TextAnnotationTable.embedding, embedding!)})`.as(
+            randomAlphaUnderscore(),
+          ),
+      })
+      .from(TextAnnotationTable)
+      .where(
+        and(
+          Annotations.isNotStopword,
+          Annotations.isSentence,
+          gte(
+            cosineSimilarity(TextAnnotationTable.embedding, embedding!),
+            threshold,
+          ),
         ),
-      ),
-    );
-
-  let fromTable;
-  if (embedding == null) {
-    fromTable = fullTextSearch.as(randomAlphaUnderscore());
-  } else if (!!query) {
-    fromTable = fullTextSearch
-      .unionAll(semanticSearch)
+      )
+      .groupBy((t) => [t.documentId])
       .as(randomAlphaUnderscore());
-  } else {
-    fromTable = semanticSearch.as(randomAlphaUnderscore());
+
+    const semanticSearch = db
+      .select({
+        documentId: semanticSearchBase.documentId,
+        text: sql<string>`${TextTable.content}`.as("text"),
+        itemRank:
+          sql<number>`DENSE_RANK() OVER (ORDER BY ${semanticSearchBase.similarity} DESC)`.as(
+            "item_rank",
+          ),
+        scoreRank:
+          sql<number>`DENSE_RANK() OVER (ORDER BY ${semanticSearchBase.similarity} DESC)`.as(
+            "score_rank",
+          ),
+        priority: sql<number>`1`.as("priority"),
+      })
+      .from(semanticSearchBase)
+      .innerJoin(
+        TextTable,
+        eq(TextTable.documentId, semanticSearchBase.documentId),
+      );
+
+    let fromTable;
+    if (embedding == null) {
+      fromTable = fullTextSearch.as(randomAlphaUnderscore());
+    } else if (!!finalQuery) {
+      fromTable = fullTextSearch
+        .unionAll(semanticSearch)
+        .as(randomAlphaUnderscore());
+    } else {
+      fromTable = semanticSearch.as(randomAlphaUnderscore());
+    }
+
+    const uniqueRows = db
+      .select({
+        documentId: fromTable.documentId,
+        text: sql<string>`
+            CASE
+              WHEN LENGTH(${Annotations.getFullTextSnippet(
+                finalQuery ?? "",
+                fromTable.text,
+              )}) > 0  THEN ${Annotations.getFullTextSnippet(
+                finalQuery ?? "",
+                fromTable.text,
+              )}
+                ELSE CONCAT(SUBSTRING(${fromTable.text},0,128),'...')
+            END
+        `.as(randomAlphaUnderscore()),
+        itemRank: sql<number>`SUM(1.0 / (60.0 + ${fromTable.itemRank}))`.as(
+          randomAlphaUnderscore(),
+        ),
+        scoreRank: sql<number>`SUM(1.0 / (60.0 + ${fromTable.scoreRank}))`.as(
+          randomAlphaUnderscore(),
+        ),
+      })
+      .from(fromTable)
+      .groupBy((t) => [t.documentId, t.text])
+      .as("unique_rows");
+
+    const sub = db
+      .select({
+        documentTitle: DocumentsTable.title,
+        documentId: DocumentsTable.id,
+        highlights: jsonAgg(
+          jsonBuildObject({
+            text: uniqueRows.text,
+            rank: uniqueRows.itemRank,
+          }),
+          orderAsc(sql`${uniqueRows.itemRank}`),
+        ).as(randomAlphaUnderscore()),
+        rank: sql<number>`SUM(${uniqueRows.scoreRank})`.as("rank"),
+      })
+      .from(uniqueRows)
+      .innerJoin(DocumentsTable, eq(DocumentsTable.id, uniqueRows.documentId))
+      .where((t) =>
+        isStrict && !!finalQuery
+          ? sql`LENGTH(${Annotations.getFullTextSnippet(finalQuery, uniqueRows.text)}) > 0`
+          : undefined,
+      )
+      .groupBy((t) => [t.documentId, t.documentTitle])
+      .orderBy((t) => [desc(t.rank), asc(t.documentId)]);
+
+    let results;
+    let total;
+    if (page <= 1) {
+      const c = sub.as(randomAlphaUnderscore());
+      [results, total] = await Promise.all([
+        withPagination(sub, { page }),
+        db.select({ count: countDistinct(c.documentId) }).from(c),
+      ]);
+    } else {
+      results = await withPagination(sub, { page });
+    }
+    const { finalResults, hasNextPage } = generateNextPage(results);
+
+    return {
+      nextCursor: hasNextPage ? page + 1 : undefined,
+      results: finalResults,
+      total: total ? total[0].count : 0,
+    } as SearchResults<DocumentSearchResult>;
+  } catch (e) {
+    console.error(e);
   }
-
-  const uniqueRows = db
-    .select({
-      documentId: fromTable.documentId,
-      sentenceAid: fromTable.sentenceAid,
-      text: fromTable.text,
-      itemRank: sql<number>`SUM(1.0 / (60.0 + ${fromTable.itemRank}))`.as(
-        randomAlphaUnderscore(),
-      ),
-      scoreRank: sql<number>`SUM(1.0 / (60.0 + ${fromTable.scoreRank}))`.as(
-        randomAlphaUnderscore(),
-      ),
-    })
-    .from(fromTable)
-    .groupBy((t) => [t.documentId, t.sentenceAid, t.text])
-    .as("unique_rows");
-
-  const sub = db
-    .select({
-      documentTitle: DocumentsTable.title,
-      documentId: DocumentsTable.id,
-      highlights: jsonAgg(
-        jsonBuildObject({
-          text: !!query
-            ? sql<string>`
-              CASE
-                 WHEN LENGTH(${Annotations.getFullTextSnippet(
-                   query,
-                   uniqueRows.text,
-                 )}) > 0  THEN ${Annotations.getFullTextSnippet(
-                   query,
-                   uniqueRows.text,
-                 )}
-                ELSE ${uniqueRows.text}
-             END`
-            : sql<string>`${uniqueRows.text}`,
-          rank: uniqueRows.itemRank,
-        }),
-        orderAsc(sql`${uniqueRows.itemRank}`),
-      ).as(randomAlphaUnderscore()),
-      rank: sql<number>`SUM(${uniqueRows.scoreRank})`.as("rank"),
-    })
-    .from(uniqueRows)
-    .innerJoin(DocumentsTable, eq(DocumentsTable.id, uniqueRows.documentId))
-    .where((t) =>
-      isStrict && !!query
-        ? sql`LENGTH(${Annotations.getFullTextSnippet(query, uniqueRows.text)}) > 0`
-        : undefined,
-    )
-    .groupBy((t) => [t.documentId, t.documentTitle])
-    .orderBy((t) => [desc(t.rank), asc(t.documentId)]);
-
-  let results;
-  let total;
-  if (page <= 1) {
-    const c = sub.as(randomAlphaUnderscore());
-    [results, total] = await Promise.all([
-      withPagination(sub, { page }),
-      db.select({ count: countDistinct(c.documentId) }).from(c),
-    ]);
-  } else {
-    results = await withPagination(sub, { page });
-  }
-  const { finalResults, hasNextPage } = generateNextPage(results);
-
-  return {
-    nextCursor: hasNextPage ? page + 1 : undefined,
-    results: finalResults,
-    total: total ? total[0].count : 0,
-  } as SearchResults<DocumentSearchResult>;
 };
 
 export const topicSearch = async ({
@@ -183,6 +205,7 @@ export const topicSearch = async ({
   threshold,
   page,
 }: SearchParams) => {
+  const finalQuery = isStrict ? query : loosenQuery(query);
   const fullTextSearchNoTopics = db
     .select({
       documentId: TextAnnotationTable.documentId,
@@ -196,7 +219,10 @@ export const topicSearch = async ({
       and(
         Annotations.isNotStopword,
         Annotations.isSentence,
-        Annotations.getFullTextMatch(query ?? "", TextAnnotationTable.content),
+        Annotations.getFullTextMatch(
+          finalQuery ?? "",
+          TextAnnotationTable.content,
+        ),
       ),
     )
     .as(randomAlphaUnderscore());
@@ -283,7 +309,7 @@ export const topicSearch = async ({
   let fromTable;
   if (embedding == null) {
     fromTable = fullTextSearch.as(randomAlphaUnderscore());
-  } else if (!!query) {
+  } else if (!!finalQuery) {
     fromTable = fullTextSearch
       .unionAll(semanticSearch)
       .as(randomAlphaUnderscore());
@@ -316,14 +342,14 @@ export const topicSearch = async ({
       highlights: jsonAgg(
         jsonBuildObject({
           documentId: uniqueRows.documentId,
-          sentence: !!query
+          sentence: !!finalQuery
             ? sql<string>`
               CASE
                  WHEN LENGTH(${Annotations.getFullTextSnippet(
-                   query,
+                   finalQuery ?? "",
                    uniqueRows.sentence,
                  )}) > 0  THEN ${Annotations.getFullTextSnippet(
-                   query,
+                   finalQuery ?? "",
                    uniqueRows.sentence,
                  )}
                 ELSE ${uniqueRows.sentence}
@@ -338,8 +364,8 @@ export const topicSearch = async ({
     })
     .from(uniqueRows)
     .where((t) =>
-      isStrict && !!query
-        ? sql`LENGTH(${Annotations.getFullTextSnippet(query, uniqueRows.sentence)}) > 0`
+      isStrict && !!finalQuery
+        ? sql`LENGTH(${Annotations.getFullTextSnippet(finalQuery, uniqueRows.sentence)}) > 0`
         : undefined,
     )
     .groupBy((t) => [t.id, t.name])
@@ -372,47 +398,31 @@ export const annotationSearch = async ({
   threshold,
   page,
 }: SearchParams) => {
-  const o = OntologyMappings.getOntologyMappings().as(randomAlphaUnderscore());
+  const finalQuery = query; //isStrict ? query : loosenQuery(query);
 
-  const interMediate = db
-    .select({
-      content: upper(TextAnnotationTable.content).as("content"),
-      itemRank: Annotations.fullTextRank.as("item_rank"),
-      scoreRank: Annotations.fullTextRank.as("score_rank"),
-      priority: sql<number>`2`.as("priority"),
-      documentId: TextAnnotationTable.documentId,
-      mapping: TextAnnotationTable.mapping,
-      id: TextAnnotationTable.id,
-      embedding: TextAnnotationTable.embedding,
-      ...Annotations.eventArgs,
-    })
-    .from(TextAnnotationTable)
-    .where(
-      and(
-        Annotations.isNotStopword,
-        Annotations.isNotStopword,
-        sql`${TextAnnotationTable.content} &@~  (${query})`,
-      ),
-    )
-    .as(randomAlphaUnderscore());
+  const sentenceSearch = Annotations.getFullTextSearchSentences(
+    finalQuery ?? "",
+  ).as(randomAlphaUnderscore());
 
   const fullTextSearch = db
     .select({
-      path: sql<string>`${o.path}`.as("path"),
-      itemRank: interMediate.itemRank,
-      scoreRank: interMediate.scoreRank,
-      priority: sql<number>`2`.as("priority"),
-      documentId: interMediate.documentId,
-      id: interMediate.id,
-      embedding: interMediate.embedding,
-      content: interMediate.content,
-      a0: interMediate.a0,
-      a1: interMediate.a1,
-      time: interMediate.time,
-      location: interMediate.location,
+      path: AnnotationWithOntologyView.path,
+      itemRank: sql<number>`${sentenceSearch.rank}`.as("item_rank"),
+      scoreRank: sql<number>`${sentenceSearch.rank}`.as("score_rank"),
+      documentId: AnnotationWithOntologyView.documentId,
+      id: AnnotationWithOntologyView.id,
+      embedding: AnnotationWithOntologyView.embedding,
+      content: AnnotationWithOntologyView.normalized,
+      a0: AnnotationWithOntologyView.a0,
+      a1: AnnotationWithOntologyView.a1,
+      time: AnnotationWithOntologyView.time,
+      location: AnnotationWithOntologyView.location,
     })
-    .from(interMediate)
-    .innerJoin(o, eq(interMediate.mapping, o.mapping));
+    .from(AnnotationWithOntologyView)
+    .innerJoin(
+      sentenceSearch,
+      eq(sentenceSearch.sentenceAid, AnnotationWithOntologyView.sentenceAid),
+    );
 
   const semanticSearch = Annotations.getAnnotationsWithOntology({
     options: { normalize: true, includeEventArgs: true },
@@ -427,14 +437,13 @@ export const annotationSearch = async ({
         TextAnnotationTable.embedding,
         embedding!,
       ).as("score_rank"),
-      priority: sql<number>`1`.as("priority"),
     }),
   }).where((t) => gte(cosineSimilarity(t.embedding, embedding!), threshold));
 
   let fromTable;
   if (embedding == null) {
     fromTable = fullTextSearch.as(randomAlphaUnderscore());
-  } else if (!!query) {
+  } else if (!!finalQuery) {
     fromTable = fullTextSearch
       .unionAll(semanticSearch)
       .as(randomAlphaUnderscore());
@@ -474,14 +483,14 @@ export const annotationSearch = async ({
 
   const sub = db
     .select({
-      text: !!query
+      text: !!finalQuery
         ? sql<string>`
               CASE
                  WHEN LENGTH(${Annotations.getFullTextSnippet(
-                   query,
+                   finalQuery,
                    uniqueRows.text,
                  )}) > 0  THEN ${Annotations.getFullTextSnippet(
-                   query,
+                   finalQuery,
                    uniqueRows.text,
                  )}
                 ELSE ${uniqueRows.text}
@@ -506,8 +515,8 @@ export const annotationSearch = async ({
     .from(uniqueRows)
     .innerJoin(DocumentsTable, eq(DocumentsTable.id, uniqueRows.documentId))
     .where((t) =>
-      isStrict && !!query
-        ? sql`LENGTH(${Annotations.getFullTextSnippet(query, uniqueRows.text)}) > 0`
+      isStrict && !!finalQuery
+        ? sql`LENGTH(${Annotations.getFullTextSnippet(finalQuery, uniqueRows.text)}) > 0`
         : undefined,
     )
     .groupBy((t) => [uniqueRows.text, t.value, t.a0, t.a1, t.time, t.location])

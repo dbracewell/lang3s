@@ -51,12 +51,6 @@ class Database(metaclass=SingletonMeta):
             register_vector(conn)
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_sentences;"
-                )
-                cursor.execute(
-                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_documents;"
-                )
-                cursor.execute(
                     "REFRESH MATERIALIZED VIEW CONCURRENTLY  annotation_counts;"
                 )
                 cursor.execute(

@@ -57,7 +57,6 @@ export async function GET(req: NextRequest) {
           ) {
             send(`event: message\n`);
             send(`data: ${message}\n\n`);
-            console.log("Sending >", message);
           }
         } catch (e) {
           console.error(e);

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import {
   jobStatusAtom,
   removeJobStatusAtom,
-} from "@/features/jobs/stores/jobStatus";
+} from "@/features/events/stores/job-stores";
 
 export function useJobStatusSync(
   data: { id: number }[] | undefined,
@@ -21,14 +21,14 @@ export function useJobStatusSync(
     );
 
     const newJobs = status.filter(
-      (job) => !data?.find((e) => e.id === job.jobId),
+      (job) => data.find((e) => e.id === job.jobId) == null,
     );
 
-    if (completed.length) {
+    if (completed.length > 0) {
       refetch().then(() => {
         remove(completed.map((j) => j.jobId));
       });
-    } else if (newJobs.length) {
+    } else if (newJobs.length > 0) {
       refetch();
     }
   }, [status, data, refetch, remove]);

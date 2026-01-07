@@ -16,14 +16,14 @@ SYSTEM_API_KEY = os.environ.get("SYSTEM_API_KEY", "456789")
 #####################################################################################
 DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "abba")
 DB_USER = os.environ.get("POSTGRES_USER", "admin")
-DB_HOST = os.environ.get("POSTGRES_HOST", "localhost")
+DB_HOST = os.environ.get("POSTGRES_HOST", "192.168.0.100")
 DB_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
 DB_URL = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/lang3s"
 
 #####################################################################################
 # REDIS
 #####################################################################################
-REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+REDIS_HOST = os.environ.get("REDIS_HOST", "192.168.0.100")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 

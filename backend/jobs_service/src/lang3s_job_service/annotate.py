@@ -199,6 +199,11 @@ if __name__ == "__main__":
         "--schema", help="The schema to read in json or csv", required=False
     )
     parser.add_argument(
+        "--mime-type",
+        help="The MIME type to use for files",
+        default="text/plain",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         help="Limits the number of documents annotated",
@@ -221,7 +226,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     job_service = JobService(
-        api_key="lang3sxPnhpmccrXzlRWBVzUTfAlbxVFkYXSYydpdphIneYXibELdOTobKQPGxRxNLxXqr",
+        api_key="lang3sqoJciGgMKENwGPFywqJXpZoMZRcKqbyjyoesIDJrVbCOliKlMebmBWvKCayGejik",
         api_host="http://localhost:3000",
     )
 

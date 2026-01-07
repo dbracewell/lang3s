@@ -4,14 +4,14 @@ import threading
 import time
 from typing import Any, List, NamedTuple, Optional
 
+import shortuuid
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from lang3s.db import Database
 from lang3s.models.topic_model import Lang3sTopicModel
 
-logger = logging.Logger(__name__)
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/topics",
@@ -28,11 +28,34 @@ class TopicData(BaseModel):
 
 class Task(NamedTuple):
     method: str
+    id: str
     data: Any
+
+    def __hash__(self):
+        return hash(self.id)
+
+
+class SetQueue(queue.Queue):
+    def _init(self, maxsize):
+        queue.Queue._init(self, maxsize)
+        self.all_items = set()
+
+    def _put(self, item):
+        self.all_items.add(item)
+        queue.Queue._put(self, item)
+
+    def _get(self):
+        item = queue.Queue._get(self)
+        self.all_items.remove(item)
+        return item
+
+    def __contains__(self, item):
+        return item in self.all_items
 
 
 topic_model = None
-work_queue = queue.Queue()
+work_queue = SetQueue()
+finished_queue = SetQueue(maxsize=4)
 
 total_tasks = 0
 is_updating_task = False
@@ -41,12 +64,13 @@ is_updating_task = False
 def worker():
     global is_updating_task
     global topic_model
+    global finished_queue
     while True:
         if is_updating_task:
             time.sleep(5)
             continue
 
-        task = work_queue.get()  # waits until available
+        task = work_queue.get()
         try:
             if task.method == "add":
                 topic_model.partial_fit_sentence_embeddings(task.data)
@@ -66,15 +90,14 @@ def worker():
             work_queue.task_done()
             global total_tasks
             total_tasks -= 1
+            if finished_queue.qsize() > 3:
+                finished_queue.get()
+            finished_queue.put(task.id)
 
 
 def init_globals():
-    """Call this ONCE when the app starts"""
     global topic_model
-    # This ensures we get the singleton instance
     topic_model = Lang3sTopicModel()
-
-    # Start the thread here, not at the top level
     t = threading.Thread(target=worker, daemon=True)
     t.start()
 
@@ -87,7 +110,7 @@ class AddRequest(BaseModel):
 @router.post("")
 async def add(request: AddRequest):
     global total_tasks
-    work_queue.put(Task(method="add", data=request.embeddings))
+    work_queue.put(Task(method="add", data=request.embeddings, id=shortuuid.uuid()))
     total_tasks += 1
     return {"status": "queued", "pending_tasks": total_tasks}
 
@@ -125,7 +148,7 @@ async def get_num_topics():
 @router.put("/label/")
 async def label_topics():
     global total_tasks
-    work_queue.put(Task(method="label", data=None))
+    work_queue.put(Task(method="label", data=None, id=shortuuid.uuid()))
     total_tasks += 1
     return {"status": "queued", "pending_tasks": total_tasks}
 
@@ -134,8 +157,12 @@ async def label_topics():
 @router.put("/finalize/")
 async def finalize():
     global total_tasks
-    work_queue.put(Task(method="finalize", data=None))
+    global finished_queue
+    task = Task(method="finalize", data=None, id=shortuuid.uuid())
+    work_queue.put(task)
     total_tasks += 1
+    while task.id not in finished_queue:
+        time.sleep(1)
     return {"status": "queued", "pending_tasks": total_tasks}
 
 
@@ -171,7 +198,7 @@ async def update_name(topic_id: str, request: TopicUpdateRequest):
 @router.put("/merge/")
 async def merge():
     global total_tasks
-    work_queue.put(Task(method="merge", data=None))
+    work_queue.put(Task(method="merge", data=None, id=shortuuid.uuid()))
     total_tasks += 1
     return {"status": "queued", "pending_tasks": total_tasks}
 

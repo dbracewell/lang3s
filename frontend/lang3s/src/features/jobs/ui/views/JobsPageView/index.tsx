@@ -20,6 +20,7 @@ export const JobPageView = () => {
     trpc.jobs.getAll.queryOptions(),
   );
   const [, setCurrentTime] = useState<number>(0);
+
   useJobStatusSync(data, refetch);
 
   useEffect(() => {

@@ -1,7 +1,10 @@
 "use client";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect } from "react";
-import { agentStatusAtom, removeAgentStatus } from "@/features/events/stores/agent";
+import {
+  agentStatusAtom,
+  removeAgentStatus,
+} from "@/features/events/stores/chat-stores";
 
 export function useAgentStatusSync(
   data: { id: string }[] | undefined,

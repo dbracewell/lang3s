@@ -13,6 +13,7 @@ class Metadata(str, enum.Enum):
     RELATION = "relation"
     WEIGHT = "weight"
     COREF = "coref"
+    COREF_TEXT = "coref_text"
     A0 = "A0"
     A0_TEXT = "A0_TEXT"
     A1 = "A1"

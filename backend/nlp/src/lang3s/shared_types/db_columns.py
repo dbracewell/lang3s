@@ -13,6 +13,7 @@ TEXT_ANNOTATION_COLUMNS = [
     "source",
     "text",
     "clean_text",
+    "normalized_text",
     "mapping",
     "embedding",
     "metadata",

@@ -11,6 +11,7 @@ import {
 
 export const TOKEN_EMBEDDING_DIMENSION = 768;
 export const SEMANTIC_EMBEDDING_DIMENSION = 384;
+
 ////////////////////////////////////////////////////////////////////////////////
 // Documents Table
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,6 +63,7 @@ export const TextTable = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
+    index("text_document_id_index").on(table.documentId),
     index("ml_text_search_index").using("pgroonga", table.content),
     index("text_embedding_index").using(
       "hnsw",
@@ -85,6 +87,7 @@ export const TextAnnotationTable = pgTable(
     id: text("id").primaryKey(),
     content: text("text").notNull(),
     cleaned: text("clean_text").notNull(),
+    normalized: text("normalized_text").notNull(),
     textId: text("text_id")
       .notNull()
       .references(() => TextTable.id, { onDelete: "cascade" }),
@@ -112,11 +115,10 @@ export const TextAnnotationTable = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index("text_annotation_type_idx").on(table.type),
-    index("text_annotation_value_idx").on(table.value),
-    index("text_annotation_sentence_aid").on(table.sentenceAid),
-    index("text_annotation_sentence_id_idx").on(table.sentenceId),
+    index("text_annotation_sentence_aid_index").on(table.sentenceAid),
+    index("text_annotation_document_id_index").on(table.documentId),
     index("text_annotation_mapping_index").on(table.mapping),
+    index("text_annotation_normalized_index").on(table.normalized),
     index("ml_text_annotation_search_index").using("pgroonga", table.content),
     index("text_annotation_embedding_index").using(
       "hnsw",

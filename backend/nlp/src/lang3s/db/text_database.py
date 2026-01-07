@@ -2,7 +2,9 @@ import gzip
 import itertools
 import json
 import os
+import typing
 from collections.abc import Generator
+from concurrent.futures import ThreadPoolExecutor
 from threading import Thread
 from typing import Dict, Iterable, List
 
@@ -25,7 +27,7 @@ from lang3s.shared_types import (
 from lang3s.utils.meta import SingletonMeta
 
 
-def _write_docs_to_disk(documents: Iterable[Document]):
+def _write_docs_to_disk(documents: Iterable[Document]) -> None:
     documents_dir = config.DOCUMENTS_DIR
     os.makedirs(documents_dir, exist_ok=True)
 
@@ -35,16 +37,30 @@ def _write_docs_to_disk(documents: Iterable[Document]):
             json.dump(doc.to_json(), gzip_fp)  # type: ignore
 
 
+def _write_doc_to_disk(doc: Document) -> None:
+    documents_dir = config.DOCUMENTS_DIR
+    doc_path = os.path.join(documents_dir, f"{doc.id}.json")
+    with gzip.open(doc_path + ".gz", "wt", encoding="utf-8") as gzip_fp:
+        json.dump(doc.to_json(), gzip_fp)  # type: ignore
+
+
 class TextDatabase(metaclass=SingletonMeta):
     def __init__(self) -> None:
         self.__database = Database()
 
     def add_documents(self, documents: List[Document]):
-        Thread(
-            target=_write_docs_to_disk,
-            kwargs={"documents": documents},
-            daemon=False,
-        ).start()
+        documents_dir = config.DOCUMENTS_DIR
+        os.makedirs(documents_dir, exist_ok=True)
+
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            executor.map(_write_doc_to_disk, documents)
+
+        # write_thread = Thread(
+        #     target=_write_docs_to_disk,
+        #     kwargs={"documents": documents},
+        #     daemon=False,
+        # )
+        # write_thread.start()
 
         with self.__database.transaction(raw_connection=True) as cursor:
             self.__database.copy_from(
@@ -76,6 +92,8 @@ class TextDatabase(metaclass=SingletonMeta):
                 columns=TEXT_ANNOTATION_COLUMNS,
                 data=all_annotations,
             )
+
+        # write_thread.join()
 
     @property
     def doc_count(self):
