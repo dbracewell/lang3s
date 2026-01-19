@@ -170,6 +170,31 @@
                 "description": "Names of specific spoken or written languages and their dialects.",
                 "mappings": ["entity:LANGUAGE"],
                 "children": []
+              },
+              {
+                "name": "Digital_Identifier",
+                "description": "A standardized sequence of characters or symbols used to uniquely reference, address, or categorize an entity, resource, or concept within a specific digital namespace or protocol.",
+                "mappings": [],
+                "children": [
+                  {
+                    "name": "Handle",
+                    "description": "A unique alphanumeric identifier, typically prefixed by a specific symbol (such as '@'), representing a specific user account, persona, or organization within a social platform or communication system.",
+                    "mappings": ["entity:mention"],
+                    "children": []
+                  },
+                  {
+                    "name": "Tag",
+                    "description": "A string of characters, typically prefixed by a symbol (such as '#'), acting as a non-hierarchical keyword or metadata label assigned to information to describe its topic, theme, or context.",
+                    "mappings": ["entity:hashtag"],
+                    "children": []
+                  },
+                  {
+                    "name": "Locator",
+                    "description": "A structured character string that functions as a reference to a web resource, specifying its location on a computer network and a mechanism for retrieving it.",
+                    "mappings": ["entity:url"],
+                    "children": []
+                  }
+                ]
               }
             ]
           }

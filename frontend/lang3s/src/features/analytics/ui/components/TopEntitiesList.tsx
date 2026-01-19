@@ -168,7 +168,9 @@ const EntityRow = ({
           </Hint>
         </div>
       </div>
-      <div className="flex items-center px-4">{entity.value}</div>
+      <div className="flex items-center px-4">
+        {entity.value.split(".").slice(-1)[0]}
+      </div>
       <div className="flex items-center px-4">{formatNumber(entity.count)}</div>
       <div className="flex items-center px-4">
         {formatNumber(entity.docCount)}

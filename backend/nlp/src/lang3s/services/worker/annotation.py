@@ -1,28 +1,31 @@
-import sys
-import traceback
-
-from lang3s.logging import initialize_logging
-
-initialize_logging()
-import asyncio
+import argparse
+import gc
 import json
 import logging
+import multiprocessing
 import os
+import sys
 import time
-from typing import Any, Dict, List, Optional, cast
+import traceback
+from typing import Any, Dict, List, Optional, Tuple
 
 import redis
+import torch
 from lang3s_job_service import File, Job, JobService, JobStatus
 
 import lang3s.config as config
-from lang3s.clients.topic_model_client import TopicModelClient
-from lang3s.db import Database, TextDatabase
+from lang3s.data.db import Database, TextDatabase
+from lang3s.logs import initialize_logging
+from lang3s.models import Embedder, MultiTaskTransformer
 from lang3s.pipeline import pipeline
-from lang3s.utils import get_value
+from lang3s.services.client.topic_model_client import TopicModelClient
+from lang3s.utils.decorators import trace_mem
+
+initialize_logging(filename="nlp_worker.log")
+
 
 QUEUE_NAME = "doc_queue"
-BATCH_SIZE = 1000
-BATCH_TIMEOUT = 10
+BATCH_TIMEOUT = 30
 
 logger = logging.getLogger("NLP_WORKER")
 pid = os.getpid()
@@ -35,6 +38,17 @@ redis_client = redis.Redis(
 )
 text_db = TextDatabase()
 topic_model = TopicModelClient()
+
+
+worker_embedder = None
+worker_mtask = None
+
+
+def init_worker():
+    global worker_embedder, worker_mtask
+    worker_embedder = Embedder()
+    worker_mtask = MultiTaskTransformer()
+    logger.info(f"👷 Batched Worker {pid} started...")
 
 
 def get_job(job_id: int) -> Optional[Job]:
@@ -79,7 +93,8 @@ def update_job(
         )
 
 
-async def process_batch(batch):
+@trace_mem
+def process_batch(batch, embedder, mtask):
     job_id = batch[0]["job_id"]
     job = get_job(job_id)
     completed = 0
@@ -89,7 +104,7 @@ async def process_batch(batch):
         logger.info(
             f"WORKER {pid}: ❌ Failed to process with {len(batch)} documents failed."
         )
-        return
+        return 0, len(batch)
 
     metadata = job.metadata
     tasks = metadata.get("tasks", None)
@@ -104,10 +119,17 @@ async def process_batch(batch):
             f"WORKER {pid}: ❌ Failed to process with {len(batch)} documents failed."
         )
         update_job(job_id, failed=len(batch))
-        return
+        return 0, len(batch)
 
     try:
-        docs = pipeline(files, tasks=tasks, batch_size=len(files))
+        with torch.inference_mode():
+            docs = pipeline(
+                files,
+                tasks=tasks,
+                batch_size=len(files),
+                embedder=embedder,
+                mtask=mtask,
+            )
         completed += len(docs)
 
         start = time.perf_counter()
@@ -125,19 +147,29 @@ async def process_batch(batch):
         except Exception as e:
             logger.error(f"WORKER {pid}: ❌ Error processing topics: {e}")
 
+        for doc in docs or []:
+            doc.detach()
+
+        gc.collect()
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+        elif torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     except Exception as e:
         logger.error(f"WORKER ❌ {pid}: Error: {e}")
-        traceback.print_exc(file=sys.stdout)
         logger.info(
             f"WORKER {pid}: ❌ Failed to process with {len(files)} documents failed."
         )
+        traceback.print_exc(file=sys.stdout)
         update_job(job_id, failed=len(files))
-        return
+        return 0, len(files)
 
     update_job(job_id, completed=completed, failed=failed)
     logger.info(
         f"WORKER {pid}: ✅ Finished processing batch {completed} successful, {failed} failed."
     )
+    return completed, failed
 
 
 def check_for_completion(job_id: Optional[int] = None) -> bool:
@@ -202,36 +234,30 @@ def check_for_completion(job_id: Optional[int] = None) -> bool:
     return False
 
 
-async def worker_loop():
-    logger.info(f"👷 Batched Worker {pid} started...")
-    total_processed = 0
-    active_job_id = None
+def redis_batch_generator(queue_name, batch_size=250):
+    try:
+        while True:
+            batch = []
+            start_time = time.time()
 
-    while True:
-        batch = []
-        start_time = time.time()
+            while (time.time() - start_time) < BATCH_TIMEOUT and len(
+                batch
+            ) < batch_size:
+                msg = redis_client.lpop(queue_name)
+                if msg:
+                    batch.append(json.loads(msg))
 
-        if total_processed >= 0:
-            logger.info(f"WORKER {pid}: ⌛ {total_processed} total documents processed")
+            yield batch
+    except KeyboardInterrupt:
+        print("Shutting down...")
+        yield []
 
-        count = redis_client.llen(QUEUE_NAME)
-        logger.info(f"WORKER {pid}: ⌛ {QUEUE_NAME} has {count} documents")
 
-        if count == 0:
-            time.sleep(BATCH_TIMEOUT)
-            continue
+def worker_loop(params: Tuple[int, int]):
+    active_job_id = params[1]
+    batch_size = params[0]
 
-        # Try to gather upto BATCH_SIZE tasks to process within a BATCH_TIMEOUT period
-        while len(batch) < BATCH_SIZE and (time.time() - start_time) < BATCH_TIMEOUT:
-            # Keep grabbing tasks will the batch is < BATCH_SIZE and there are tasks on the queue
-            while len(batch) < BATCH_SIZE and redis_client.llen(QUEUE_NAME) > 0:
-                # Pop an item and make sure we got it before another process, and if we did,
-                # parse it and add it to the batch
-                item = cast(str, await get_value(redis_client.rpop(QUEUE_NAME), None))
-                if item:
-                    data = json.loads(item)
-                    batch.append(data)
-
+    for batch in redis_batch_generator(QUEUE_NAME, batch_size):
         if batch:
             # We only allow one annotation job to run at a time
             # Make sure this is true
@@ -249,23 +275,80 @@ async def worker_loop():
 
             # Send things off to be processed
             logger.info(f"WORKER {pid}: Sending {len(batch)} documents for processing")
-            await process_batch(batch)
+
+            try:
+                if torch.backends.mps.is_available():
+                    torch.mps.empty_cache()
+
+                completed, failed = process_batch(batch, worker_embedder, worker_mtask)
+
+            finally:
+                if torch.backends.mps.is_available():
+                    torch.mps.empty_cache()
 
             # Check to see if we are done
             if check_for_completion(active_job_id):
-                # if we are, update our active job id to be None
-                active_job_id = None
-
+                time.sleep(60)
+                return None, completed, failed
+            return active_job_id, completed, failed
         else:
-            # We don't have a batch, so check if we are done
             if check_for_completion(active_job_id):
-                # if we are, (means our active job id was not none), set active job id to None and sleep
-                active_job_id = None
-                time.sleep(BATCH_TIMEOUT * 3)
-            else:
-                # We are not done, so wait a minute and try everything again
-                time.sleep(BATCH_TIMEOUT * 60)
+                return None, 0, 0
+            return active_job_id, 0, 0
+
+    return None
 
 
 if __name__ == "__main__":
-    asyncio.run(worker_loop())
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--num_workers",
+        help="The number of worker processes to use",
+        default=1,
+        type=int,
+    )
+    parser.add_argument(
+        "--batch_size",
+        help="The number of documents to process in each worker process",
+        default=150,
+        type=int,
+    )
+    args = parser.parse_args()
+    active_job_id = None
+    total_docs_completed = 0
+    total_docs_failed = 0
+    try:
+        while True:
+            while redis_client.llen(QUEUE_NAME) == 0:
+                time.sleep(5)
+
+            with multiprocessing.Pool(
+                processes=args.num_workers,
+                initializer=init_worker,
+            ) as pool:
+                for i in range(5):
+                    results = pool.map(
+                        worker_loop,
+                        [(args.batch_size, active_job_id)] * args.num_workers,
+                    )
+                    for result in results:
+                        if result is not None:
+                            active_job_id = result[0]
+                            total_docs_completed += result[1]
+                            total_docs_failed += result[2]
+
+                    logger.info(
+                        f"Total Documents Completed: {total_docs_completed}, Total Documents Failed: {total_docs_failed}"
+                    )
+
+                    if active_job_id is not None:
+                        if check_for_completion(active_job_id):
+                            break
+                    else:
+                        time.sleep(60)
+
+    except KeyboardInterrupt:
+        print("Shutting down...")
+        pool.terminate()
+        pool.join()
+        exit(0)

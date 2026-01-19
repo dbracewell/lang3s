@@ -11,17 +11,13 @@ import { Button } from "@/components/ui/button";
 import { MinusIcon, PlusIcon } from "lucide-react";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { useMemo, useState } from "react";
-import {
-  DataType,
-  DataTypeCategoryMap,
-  MetadataConfiguration,
-  MetadataItem,
-} from "@/features/common/types";
+import { DataType, DataTypeNameToCategoryMap } from "@/features/common/types";
 import { Chart, SeriesSourceType } from "@/features/reports/types";
 import {
   DefaultOntologyTrigger,
   OntologySelectorDialog,
 } from "@/features/ontology/ui/components/OntologySelectorDialog";
+import { MetadataConfiguration, MetadataItem } from "@/features/metadata/types";
 
 type DualAxisFormProps = {
   defaultValues?: ChartSchemaType;
@@ -59,7 +55,7 @@ export const DualAxisForm = ({ defaultValues, setAxis }: DualAxisFormProps) => {
       x: defaultValues?.x ?? {
         type: "ANNOTATION",
         value: "ENTITY",
-        dataType: "categorical",
+        dataType: "string",
         display: "value",
       },
       y: defaultValues?.y,
@@ -133,7 +129,7 @@ export const DualAxisForm = ({ defaultValues, setAxis }: DualAxisFormProps) => {
               onClick={async () => {
                 form.setValue("count", Chart.getCountTypes(x.type)[0]);
                 form.setValue("y.type", "ANNOTATION");
-                form.setValue("y.dataType", "categorical");
+                form.setValue("y.dataType", "string");
                 form.setValue("y.value", "ENTITY");
                 form.setValue("y.display", "value");
               }}
@@ -276,7 +272,7 @@ const SeriesInformation = <T extends FieldValues>({
           onValueChange={(v) => {
             form.setValue(
               dataTypeField,
-              DataTypeCategoryMap[
+              DataTypeNameToCategoryMap[
                 metadata[Chart.getMetadataType(axisType)][v]
                   .dataType as DataType
               ] as any,

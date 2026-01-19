@@ -1,5 +1,4 @@
 import logging
-import sys
 import time
 from collections import defaultdict
 from typing import Dict, Iterable, List, Optional
@@ -9,28 +8,24 @@ from lang3s_job_service import File
 from lang3s.nlp.core_nlp import core_nlp
 from lang3s.nlp.heavy_nlp import heavy_nlp
 from lang3s.pipeline.langdetect import detect_language
-from lang3s.shared_types import Document, Text
+from lang3s.shared_types import Document
 from lang3s.shared_types.metadata import Metadata
 from lang3s.utils import partition_generator
 
-from .doc_builder import create_document
+from ..models import Embedder, MultiTaskTransformer
+from .doc_builder import document_generator
 
 logger = logging.getLogger(__name__)
 
 
-def _generate_documents(files: Iterable[File]) -> Iterable[Document]:
-    for file in files:
-        yield create_document(file)
-
-
 def _group_documents_by_language(docs: List[Document]):
-    docs_by_language: Dict[str, List[Text]] = defaultdict(list)
+    docs_by_language: Dict[str, List[Document]] = defaultdict(list)
     for doc in docs:
         if doc.text:
             if Metadata.LANGUAGE.value not in doc:
                 language = detect_language(doc.text.text)
                 doc[Metadata.LANGUAGE.value] = language
-            docs_by_language[doc[Metadata.LANGUAGE.value]].append(doc.text)
+            docs_by_language[doc[Metadata.LANGUAGE.value]].append(doc)
     return docs_by_language
 
 
@@ -38,9 +33,15 @@ def pipeline(
     files: Iterable[File],
     batch_size: int = 100,
     tasks: Optional[Iterable[str]] = None,
+    embedder: Optional[Embedder] = None,
+    mtask: Optional[MultiTaskTransformer] = None,
 ) -> List[Document]:
+    """
+    Processes raw text into annotated documents.
+    """
     docs = []
-    for batch in partition_generator(_generate_documents(files), batch_size):
+
+    for batch in partition_generator(document_generator(files), batch_size):
         docs_by_language = _group_documents_by_language(batch)
 
         start = time.perf_counter()
@@ -53,12 +54,9 @@ def pipeline(
 
         for doc in batch:
             try:
-                heavy_nlp(doc, tasks)
+                heavy_nlp(doc, tasks, embedder=embedder, mtask=mtask)
             except Exception as e:
-                logger.error("Error Processing Document: ", e)
-                import traceback
-
-                traceback.print_exc(file=sys.stdout)
+                logger.error("Error Processing Document: ", e, exc_info=True)
 
         end = time.perf_counter()
         logger.info(

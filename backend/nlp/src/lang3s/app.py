@@ -3,7 +3,7 @@ import logging
 import sys
 import types
 
-from .logging import initialize_logging
+from .logs import initialize_logging
 
 initialize_logging()
 

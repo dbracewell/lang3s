@@ -1,5 +1,5 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, cdivision=True
-
+import weakref
 from typing import Any, Dict, Optional, Mapping  # for IDEs only
 from psycopg.types.json import Jsonb
 
@@ -80,3 +80,9 @@ cdef class Document:
     @property
     def language(self):
         return self[Metadata.LANGUAGE.value] or "en"
+
+    cpdef void detach(self):
+        if self.text is not None:
+            self.text.detach()
+        self.text = None
+        self._meta = None

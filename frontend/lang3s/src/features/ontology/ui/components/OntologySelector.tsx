@@ -6,6 +6,7 @@ import React, {
   Fragment,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
@@ -395,8 +396,10 @@ const Sections = ({
   entryAlternativeNextButton?: (item: Section[number]) => React.ReactNode;
   sectionWidth?: number;
 }) => {
-  const { sections, setCurrent, breadcrumbs, checkedNodes } = useOntology();
-
+  const { sections, current, setCurrent, breadcrumbs, checkedNodes } =
+    useOntology();
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(() => endRef.current?.scrollIntoView(), [current]);
   return (
     <div className="scrollable flex h-full flex-1 flex-col gap-2 overflow-auto">
       <div className="flex w-fit flex-1 gap-1.5">
@@ -454,6 +457,7 @@ const Sections = ({
             </div>
           </div>
         ))}
+        <div ref={endRef} />
       </div>
     </div>
   );

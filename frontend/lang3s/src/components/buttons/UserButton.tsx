@@ -53,7 +53,7 @@ export const UserButton = ({
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <div className="my-1 flex w-full items-center justify-center rounded-full">
+          <div className="my-2 mb-1 flex w-full items-center justify-center rounded-full">
             <button
               type="button"
               className="bg-accent text-accent-foreground dark:hover:bg-accent/50 flex w-1/2 items-center justify-center rounded-full rounded-r-none border border-r-0 p-1 px-2 dark:cursor-pointer dark:bg-transparent"

@@ -1,5 +1,11 @@
-from threading import Lock
-from typing import TypeVar, Dict, Any, Callable
+import asyncio
+import functools
+import logging
+import os
+import time
+from typing import Callable, Type, TypeVar
+
+import psutil
 
 try:
     from typing import ParamSpec
@@ -10,15 +16,118 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 
-def singleton(cls: Callable[P, T]) -> Callable[P, T]:
-    _instances: Dict[Any, T] = {}
-    _lock = Lock()
+def trace_mem(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        logger = logging.getLogger(func.__module__)
+        process = psutil.Process(os.getpid())
+        mem_before = process.memory_info().rss / (1024**2)  # Convert to MB
+        logger.info(f"\n[MEM] Entering {func.__name__} | Current: {mem_before:.2f} MB")
 
-    def get_instance(*args: P.args, **kwargs: P.kwargs) -> T:
-        if cls not in _instances:
-            with _lock:
-                if cls not in _instances:
-                    _instances[cls] = cls(*args, **kwargs)
-        return _instances[cls]
+        result = func(*args, **kwargs)
 
-    return get_instance
+        mem_after = process.memory_info().rss / (1024**2)
+        logger.info(
+            f"[MEM] Exiting {func.__name__} | Delta: +{mem_after - mem_before:.2f} MB | Total: {mem_after:.2f} MB"
+        )
+        return result
+
+    return wrapper
+
+
+ReturnType = TypeVar("ReturnType")
+
+
+def retry(
+    on_exceed_attempts: Callable[[Exception], ReturnType],
+    no_retry: list[Type[Exception]] | None = None,
+    max_retries=3,
+    delay_base=2,
+):
+    def decorator(func) -> ReturnType:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if no_retry is not None:
+                        for exception in no_retry:
+                            if isinstance(e, exception):
+                                return on_exceed_attempts(e)
+                    if attempt == max_retries:
+                        return on_exceed_attempts(e)
+                    time.sleep(delay_base**attempt)
+
+            raise Exception("Invalid Code Path")
+
+        return wrapper
+
+    return decorator
+
+
+def async_retry(
+    on_exceed_attempts: Callable[[Exception], ReturnType],
+    no_retry: list[Type[Exception]] | None = None,
+    on_exceed_throw_exception: bool = True,
+    max_retries=3,
+    delay_base=2,
+):
+    def decorator(func) -> ReturnType:
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    if no_retry is not None:
+                        for exception in no_retry:
+                            if isinstance(e, exception):
+                                if on_exceed_throw_exception:
+                                    raise on_exceed_attempts(e)
+                                return on_exceed_attempts(e)
+                    last_exception = e
+                    if attempt < max_retries:
+                        await asyncio.sleep(delay_base**attempt)
+
+            if on_exceed_throw_exception:
+                raise on_exceed_attempts(last_exception)
+            return on_exceed_attempts(last_exception)
+
+        return wrapper
+
+    return decorator
+
+
+def retry_async_gen(
+    on_exceed_attempts: Callable[[Exception], ReturnType],
+    no_retry: list[Type[Exception]] | None = None,
+    max_retries=3,
+    decay_base=2.0,
+):
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            last_exception = None
+
+            for attempt in range(max_retries + 1):
+                try:
+                    async for item in func(*args, **kwargs):
+                        yield item
+                    return  # Success: Generator finished without error
+                except Exception as e:
+                    last_exception = e
+                    if no_retry is not None:
+                        for exception in no_retry:
+                            if isinstance(e, exception):
+                                yield on_exceed_attempts(e)
+                                return
+                    if attempt < max_retries:
+                        await asyncio.sleep(decay_base**attempt)
+
+            yield on_exceed_attempts(last_exception)
+
+        return wrapper
+
+    return decorator

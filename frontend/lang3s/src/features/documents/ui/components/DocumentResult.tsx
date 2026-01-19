@@ -12,32 +12,6 @@ export const DocumentResult = ({
         {doc.title}
       </Link>
       <p className="mb-0.5 text-base">{doc.text}</p>
-      <div className="dark:bg-background-lighter bg-zinc-200/70 p-2 pt-2">
-        <h2 className="text-sm font-semibold">Entities</h2>
-        <div className="flex items-center gap-1 overflow-x-auto">
-          {doc.entities.slice(0, 5).map((e, i) => (
-            <div
-              key={i}
-              className="text-xs"
-              dangerouslySetInnerHTML={{
-                __html: (i > 0 ? " | " : "") + e,
-              }}
-            />
-          ))}
-        </div>
-        {doc.topics && doc.topics.length > 0 && (
-          <>
-            <h2 className="mt-1 text-sm font-semibold">Topics</h2>
-            <div className="flex items-center gap-3 overflow-x-auto">
-              {doc.topics?.slice(0, 3).map((topic, i) => (
-                <div key={`${doc.id}-${topic}-${i}`} className="text-xs">
-                  {topic}
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
     </div>
   );
 };

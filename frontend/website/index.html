@@ -578,7 +578,7 @@
         </a>
         <div class="flex gap-4">
             <button class="btn btn-primary btn-demo-badge" disabled>Demo</button>
-            <button class="btn btn-secondary">Contact Us</button>
+            <a class="btn btn-secondary" href="#contact-form">Contact Us</a>
         </div>
     </div>
 </header>
@@ -709,19 +709,43 @@
                         <path stroke-linecap="round" stroke-linejoin="round"
                               d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25"/>
                     </svg>
-                    <span>Platform Screenshot</span>
+                    <span>Coming Soon</span>
                 </div>
             </div>
         </section>
 
+        <div
+                id="contact-form"
+                style="background-color: #84bff540; max-width: 500px; margin: auto; border: 1pt solid gray; border-radius: 16px; padding: 10px 10px; margin-bottom: 50px">
+            <form
+                    action="https://formspree.io/f/xdaangzp"
+                    method="POST"
+                    style="display: flex; flex-direction: column;  align-items: start; gap: 2px">
+                <h1>Contact us</h1>
+                <label for="email" style="font-weight: bold; font-size:10pt">
+                    Your email:
+                </label>
+                <input type="email" name="email" id="email" style="width:100%; height:30px; font-size: 12pt;">
+                <label for="message" style="font-weight: bold; font-size:10pt">
+                    Your message:
+                </label>
+                <textarea name="message" id="message"
+                          style="width:100%; height: 200px; font-size: 12pt; padding: 4px 4px;"></textarea>
+                <!-- your other form fields go here -->
+                <button type="submit"
+                        style="width: 100%; font-size: 14pt; padding: 6px 6px; background-color: #0c65bd; color: white">
+                    Send
+                </button>
+            </form>
+
+        </div>
+
         <div class="footer-space"></div>
 
     </div>
+
 </main>
 
-<iframe src="https://docs.google.com/forms/d/e/1FAIpQLSeRRhfkriPJQ8eWLr-6SeQZN5vPVAHKJtlbOKN6j-vurTRqkw/viewform?embedded=true"
-        width="640" height="811" frameborder="0" marginheight="0" marginwidth="0">Loading…
-</iframe>
 
 </body>
 </html>

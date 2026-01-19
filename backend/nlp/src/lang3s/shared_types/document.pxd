@@ -10,3 +10,4 @@ cdef class Document:
 
     cpdef dict to_json(self)
     cpdef list insert_values(self)
+    cpdef void detach(self)

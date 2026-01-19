@@ -6,6 +6,26 @@ import { JobIdCell } from "@/features/jobs/ui/views/JobsPageView/JobIdCell";
 import { ProgressCell } from "@/features/jobs/ui/views/JobsPageView/ProgressCell";
 import { StatusCell } from "@/features/jobs/ui/views/JobsPageView/StatusCell";
 import { RouterOutputs } from "@/lib/trpc/types";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { RefreshCcwIcon } from "lucide-react";
+
+const ProgressHeader = () => {
+  return (
+    <div className="flex items-center justify-between">
+      <span>Progress</span>
+      <Button
+        variant="ghost"
+        type="button"
+        className="ml-2"
+        size="icon-xs"
+        onClick={() => window.location.reload()}
+      >
+        <RefreshCcwIcon />
+      </Button>
+    </div>
+  );
+};
 
 export type JobType = RouterOutputs["jobs"]["getAll"][number];
 export const columns: ColumnDef<JobType>[] = [
@@ -81,6 +101,7 @@ export const columns: ColumnDef<JobType>[] = [
     name: "progress",
     align: "center",
     size: "minmax(250px, 1fr)",
+    header: <ProgressHeader />,
     sortFn: (a, b) => {
       const aPct = Math.floor((a.total > 0 ? a.completed / a.total : 0) * 100);
       const bPct = Math.floor((b.total > 0 ? b.completed / b.total : 0) * 100);

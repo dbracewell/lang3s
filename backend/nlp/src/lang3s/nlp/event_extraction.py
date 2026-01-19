@@ -1,76 +1,28 @@
-from typing import List, Tuple
-import json
 import gzip
-from more_itertools import first
 import importlib.resources
+import json
+from typing import List, Tuple
 
+from more_itertools import first
+
+from lang3s.nlp.language import PERSON_PRONOUNS, is_person_pronoun
 from lang3s.shared_types import Document, Event, TextAnnotation
 from lang3s.shared_types.metadata import Metadata
-from lang3s.utils import decorators
+from lang3s.utils.meta import SingletonMeta
 
 IGNORE_VERBS = {
     "be",
 }
 
-PERSON_PRONOUNS = [
-    # personal
-    "i",
-    "me",
-    "we",
-    "us",
-    "you",
-    "he",
-    "him",
-    "she",
-    "her",
-    "they",
-    "them",
-    # possessive
-    "my",
-    "mine",
-    "our",
-    "ours",
-    "your",
-    "yours",
-    "his",
-    "her",
-    "hers",
-    "their",
-    "theirs",
-    # reflexive / intensive
-    "myself",
-    "yourself",
-    "himself",
-    "herself",
-    "itself",
-    "ourselves",
-    "yourselves",
-    "themselves",
-    "themself",
-    # indefinite (human-related)
-    "anyone",
-    "anybody",
-    "everyone",
-    "everybody",
-    "someone",
-    "somebody",
-    "noone",
-    "nobody",
-    "each",
-    "either",
-    "neither",
-    # relative / interrogative
-    "who",
-    "whom",
-    "whose",
-]
 
-
-@decorators.singleton
-class FrameNetMapper:
+class FrameNetMapper(metaclass=SingletonMeta):
     def __init__(self):
         self.VERB_EVENT_MAP = {}
-        with importlib.resources.files("lang3s.nlp").joinpath("verb_mapping.gz").open("rb") as f_in:
+        with (
+            importlib.resources.files("lang3s.nlp")
+            .joinpath("verb_mapping.gz")
+            .open("rb") as f_in
+        ):
             with gzip.open(f_in, "rt") as f_gz:
                 self.VERB_EVENT_MAP = json.load(f_gz)
 
@@ -106,7 +58,7 @@ def process_a0_a1(array: List[TextAnnotation]):
             if entity is not None:
                 final_list.append(entity)
             else:
-                if item.text.lower() in PERSON_PRONOUNS:
+                if is_person_pronoun(item):
                     item.type = "entity"
                     item.value = "PERSON"
                 else:
@@ -128,7 +80,9 @@ def expand_argument(annotation: TextAnnotation) -> TextAnnotation:
             if child.value in ("AUX", "ADP") and child.dep in ("advmod"):
                 start = min(start, child.start)
                 end = max(end, child.end)
-        return annotation.owner.create_span(start=start, end=end, value="VERB", source="rb_event_extractor")
+        return annotation.owner.create_span(
+            start=start, end=end, value="VERB", source="rb_event_extractor"
+        )
 
     chunks = [chunk for chunk in annotation.noun_chunks]
     if len(chunks) > 0:
@@ -138,8 +92,9 @@ def expand_argument(annotation: TextAnnotation) -> TextAnnotation:
         for t in chunk.tokens:
             start = min(start, t.start)
             end = max(end, t.end)
-        span = annotation.owner.create_span(start=start, end=end, value="VERB",
-                                            source="rb_event_extractor")
+        span = annotation.owner.create_span(
+            start=start, end=end, value="VERB", source="rb_event_extractor"
+        )
         entity = first(span.entities, None)
         if entity is not None:
             return entity
@@ -151,7 +106,9 @@ def expand_argument(annotation: TextAnnotation) -> TextAnnotation:
     for t in annotation.subtree:
         start = min(start, t.start)
         end = max(end, t.end)
-    span = annotation.owner.create_span(start=start, end=end, value="VERB", source="rb_event_extractor")
+    span = annotation.owner.create_span(
+        start=start, end=end, value="VERB", source="rb_event_extractor"
+    )
     entity = first(span.entities, None)
     if entity is not None:
         return entity
@@ -167,9 +124,7 @@ def extract_events(doc: Document) -> List[Event]:
     sentences: List[TextAnnotation] = list(doc.text.sentences)
     for sent in sentences:
         triggers = [
-            expand_argument(token)
-            for token in sent.tokens
-            if is_event_trigger(token)
+            expand_argument(token) for token in sent.tokens if is_event_trigger(token)
         ]
         for trigger in triggers:
             mapping = mapper.get_category(doc.language, trigger.lemma)

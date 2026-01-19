@@ -22,7 +22,6 @@ import {
   SelectFormField,
   SelectOptionItem,
 } from "@/components/form-controls/select-form-field";
-import { DATA_TYPES, METADATA_SOURCES } from "@/features/common/types";
 import { capitalize } from "@/lib/utils/formatters";
 import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { useRouter } from "next/navigation";
@@ -30,8 +29,10 @@ import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { cn } from "@/lib/utils/cn";
 import { useEffect, useMemo } from "react";
 import { LoadingButton } from "@/components/ui/loading-button";
+import { DataTypeNames } from "@/features/common/types";
+import { MetadataSources } from "@/features/metadata/types";
 
-const SourceOptions = METADATA_SOURCES.map(
+const SourceOptions = MetadataSources.map(
   (source) =>
     ({
       type: "item",
@@ -40,7 +41,7 @@ const SourceOptions = METADATA_SOURCES.map(
     }) as SelectOptionItem,
 );
 
-const DataTypeOptions = DATA_TYPES.map(
+const DataTypeOptions = DataTypeNames.map(
   (source) =>
     ({
       type: "item",
@@ -63,10 +64,10 @@ export const MetadataDialog = ({
   const [metadataValues, setMetadataValues] = useQueryStates({
     id: parseAsString.withOptions({ clearOnDefault: true }),
     name: parseAsString.withOptions({ clearOnDefault: true }),
-    dataType: parseAsStringEnum([...DATA_TYPES]).withOptions({
+    dataType: parseAsStringEnum([...DataTypeNames]).withOptions({
       clearOnDefault: true,
     }),
-    source: parseAsStringEnum([...METADATA_SOURCES]).withOptions({
+    source: parseAsStringEnum([...MetadataSources]).withOptions({
       clearOnDefault: true,
     }),
     formatter: parseAsString,

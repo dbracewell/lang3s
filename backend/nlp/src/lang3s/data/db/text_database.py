@@ -2,10 +2,8 @@ import gzip
 import itertools
 import json
 import os
-import typing
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
-from threading import Thread
 from typing import Dict, Iterable, List
 
 import numpy as np
@@ -16,8 +14,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import noload
 
 from lang3s import config
-from lang3s.db.database import Database
-from lang3s.db.models import DocumentsTable, TextAnnotationsTable
+from lang3s.data.db.database import Database
+from lang3s.data.db.models import DocumentsTable, TextAnnotationsTable
 from lang3s.shared_types import (
     DOCUMENT_COLUMNS,
     TEXT_ANNOTATION_COLUMNS,
@@ -55,45 +53,43 @@ class TextDatabase(metaclass=SingletonMeta):
         with ThreadPoolExecutor(max_workers=20) as executor:
             executor.map(_write_doc_to_disk, documents)
 
-        # write_thread = Thread(
-        #     target=_write_docs_to_disk,
-        #     kwargs={"documents": documents},
-        #     daemon=False,
-        # )
-        # write_thread.start()
-
         with self.__database.transaction(raw_connection=True) as cursor:
             self.__database.copy_from(
                 cursor,
                 "documents",
                 columns=DOCUMENT_COLUMNS,
-                data=[d.insert_values() for d in documents],
+                data=(d.insert_values() for d in documents),
             )
             self.__database.copy_from(
                 cursor,
                 "text",
                 columns=TEXT_COLUMNS,
-                data=[d.text.insert_values() for d in documents],
+                data=(d.text.insert_values() for d in documents),
             )
-            all_annotations = list(
-                a.insert_values()
-                for a in itertools.chain(
-                    *[
-                        doc.text.all_annotations
-                        for doc in documents
-                        if doc.text is not None
-                    ]
-                )
-                if a.type != "token"
+            all_annotations = itertools.chain.from_iterable(
+                (doc.text.all_annotations for doc in documents if doc.text is not None)
+            )
+            filtered_annotations = (
+                a.insert_values() for a in all_annotations if a.type != "token"
             )
             self.__database.copy_from(
                 cursor,
                 "text_annotations",
                 columns=TEXT_ANNOTATION_COLUMNS,
-                data=all_annotations,
+                data=filtered_annotations,
             )
-
-        # write_thread.join()
+            keywords = (
+                [doc.id, doc.text.id, keyword, embedding]
+                for doc in documents
+                if doc.text is not None
+                for keyword, embedding in doc.text.get_keywords()
+            )
+            self.__database.copy_from(
+                cursor,
+                "keywords",
+                columns=["document_id", "text_id", "keyword", "embedding"],
+                data=keywords,
+            )
 
     @property
     def doc_count(self):

@@ -1,6 +1,9 @@
 "use client";
-import { useTRPCInfiniteQuery } from "@/lib/trpc/use-queries";
-import React, { Fragment } from "react";
+import {
+  useTRPCInfiniteQuery,
+  useTRPCSuspenseInfiniteQuery,
+} from "@/lib/trpc/use-queries";
+import React, { Fragment, useMemo } from "react";
 import { InfiniteScroll } from "@/components/scrolling/InfiniteScroll";
 import { SearchSpinner } from "@/features/search/ui/components/SearchSpinner";
 import { ResultsWrapper } from "@/features/search/ui/components/ResultsWrapper";
@@ -13,24 +16,24 @@ import { useGlobalSearchParams } from "@/features/search/hooks/useSearchParams";
 
 export const AnnotationSearchView = () => {
   const [searchParams] = useGlobalSearchParams();
+  const queryInput = useMemo(() => {
+    const { tab, ...rest } = searchParams;
+    return rest;
+  }, [searchParams]);
   const {
     data: results,
     isLoading,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-  } = useTRPCInfiniteQuery((trpc) =>
+  } = useTRPCSuspenseInfiniteQuery((trpc) =>
     trpc.search.searchAnnotations.infiniteQueryOptions(
-      { ...searchParams },
+      { ...queryInput },
       {
         getNextPageParam: (lastPage) => lastPage?.nextCursor,
       },
     ),
   );
-
-  if (searchParams.tab !== "annotations") {
-    return null;
-  }
 
   if (isLoading || results == null) {
     return <SearchSpinner />;
@@ -54,14 +57,18 @@ export const AnnotationSearchView = () => {
                 )}
               </div>
               <div className="bg-card flex flex-col gap-1 border p-1 px-2 text-sm">
-                {[...new Set(r.highlights.map((h) => h.documentTitle))].map(
+                {[...new Set(r.highlights.map((h) => h.documentId))].map(
                   (h) => (
                     <Link
                       key={h}
                       href={`/documents/${h}`}
                       className="link flex gap-1 first:pt-2 last:pb-2"
                     >
-                      <FileIcon className="size-4" /> {h}
+                      <FileIcon className="size-4" />{" "}
+                      {
+                        r.highlights.find((t) => t.documentId === h)
+                          ?.documentTitle
+                      }
                     </Link>
                   ),
                 )}
@@ -98,7 +105,8 @@ const AnnotationFormat = ({ result }: { result: AnnotationSearchResult }) => {
     return (
       <summary className="bg-row dark:bg-background-lighter gap-2 border px-2 py-1 group-group-open:top-0 group-open:sticky group-open:border-b-0">
         <span className="font-medium">
-          <span
+          <div
+            className="contents"
             dangerouslySetInnerHTML={{
               __html: `${result.text
                 .replaceAll(

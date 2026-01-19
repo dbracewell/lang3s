@@ -48,11 +48,11 @@ def partition(
     if size is None:
         size = (
             array_length
-            if array_length < cast(int, max_size)
-            else math.ceil(array_length / cast(int, max_size))
+            if array_length < max_size
+            else math.ceil(array_length / max_size)
         )
     for i in range(0, array_length, size):
-        yield array[i: i + size]
+        yield array[i : i + size]
 
 
 async def get_value(v: T | Awaitable[T | None] | None, default_value: T) -> T:

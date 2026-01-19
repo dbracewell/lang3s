@@ -1,6 +1,9 @@
 "use client";
-import React, { Fragment } from "react";
-import { useTRPCInfiniteQuery } from "@/lib/trpc/use-queries";
+import React, { Fragment, useMemo } from "react";
+import {
+  useTRPCInfiniteQuery,
+  useTRPCSuspenseInfiniteQuery,
+} from "@/lib/trpc/use-queries";
 import { FileTextIcon } from "lucide-react";
 import Link from "next/link";
 import { formatURL } from "@/lib/utils/formatters";
@@ -12,24 +15,24 @@ import { useGlobalSearchParams } from "@/features/search/hooks/useSearchParams";
 
 export const DocumentSearchView = () => {
   const [searchParams] = useGlobalSearchParams();
+  const queryInput = useMemo(() => {
+    const { tab, ...rest } = searchParams;
+    return rest;
+  }, [searchParams]);
   const {
     data: results,
     isLoading,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-  } = useTRPCInfiniteQuery((trpc) =>
+  } = useTRPCSuspenseInfiniteQuery((trpc) =>
     trpc.search.searchDocuments.infiniteQueryOptions(
-      { ...searchParams },
+      { ...queryInput },
       {
         getNextPageParam: (lastPage) => lastPage?.nextCursor,
       },
     ),
   );
-
-  if (searchParams.tab !== "docs") {
-    return null;
-  }
 
   if (isLoading || results == null) {
     return <SearchSpinner />;
@@ -77,10 +80,11 @@ const displayHighlights = ({
     <>
       {highlights.slice(0, 5).map((highlight) => {
         return (
-          <p
+          <div
             key={highlight.text}
+            className="contents whitespace-pre-line"
             dangerouslySetInnerHTML={{
-              __html: `<p class='text-base'>${highlight.text
+              __html: `<p class='text-base whitespace-pre-line'>${highlight.text
                 .replaceAll(
                   '<span class="keyword">',
                   "<b class='text-dodger-blue-500'>",

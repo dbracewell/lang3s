@@ -4,6 +4,7 @@ import os
 from collections import defaultdict
 from typing import Dict, Iterable, List, NamedTuple, Optional, cast
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -50,6 +51,7 @@ class MultiTaskTransformer(nn.Module, metaclass=SingletonMeta):
         for idx in range(0, len(embedding.mapping), batch_size):
             batch = embedding.batch(idx, idx + batch_size)
             hidden, rm = batch.padded_token_embeddings_with_mask()
+
             padded_token_embeddings = (
                 torch.from_numpy(hidden).type(torch.float32).to(self.device)
             )
@@ -71,6 +73,7 @@ class MultiTaskTransformer(nn.Module, metaclass=SingletonMeta):
                         continue
 
                     task.head.to(self.device)
+
                     device_embeddings = sentence_embeddings
                     device_mask = None
 
@@ -86,7 +89,9 @@ class MultiTaskTransformer(nn.Module, metaclass=SingletonMeta):
 
                     task.head.eval()
                     output = task.head(
-                        hidden=device_embeddings, mask=device_mask, return_logits=True
+                        hidden=device_embeddings,
+                        mask=device_mask,
+                        return_logits=True,
                     )
                     labels = task.to_labels(output, device_mask, batch)
                     outputs[task_name].append(
@@ -96,6 +101,8 @@ class MultiTaskTransformer(nn.Module, metaclass=SingletonMeta):
                             labels=labels,
                         )
                     )
+
+            del batch
 
         final_outputs = {}
         for task_name, output in outputs.items():

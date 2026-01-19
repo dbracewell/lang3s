@@ -13,42 +13,58 @@ export type FullUserInfo = BasicUserInfo & {
   keys?: { id: string; name?: string; key: string }[];
 };
 
-export const DATA_TYPE_CATEGORIES = [
-  "categorical",
-  "number",
-  "date",
-  "timestamp",
-] as const;
-export type DataTypeCategory = (typeof DATA_TYPE_CATEGORIES)[number];
-export const DATA_TYPES = [
+export const DataTypeNames = [
   "string",
+  "string[]",
   "int",
   "float",
   "boolean",
   "date",
   "datetime",
 ] as const;
-export type DataType = (typeof DATA_TYPES)[number];
 
-export const DataTypeCategoryMap: Record<DataType, DataTypeCategory> = {
-  string: "categorical",
-  date: "date",
-  boolean: "categorical",
-  datetime: "timestamp",
-  int: "number",
-  float: "number",
-} as const;
+export type DataType = (typeof DataTypeNames)[number];
 
-export const METADATA_SOURCES = ["document", "annotation", "sentence"] as const;
-export type MetadataSourceType = (typeof METADATA_SOURCES)[number];
-
-export type MetadataItem = {
-  id: string;
-  dataType: DataType;
-  formatter?: string;
+export type DataTypeNameToTypeMap = {
+  [K in DataType]: K extends "int" | "float"
+    ? number
+    : K extends "boolean"
+      ? boolean
+      : K extends "date" | "datetime"
+        ? Date
+        : string; // default to string
 };
 
-export type MetadataConfiguration = Record<
-  MetadataSourceType,
-  Record<string, MetadataItem>
->;
+export const DataTypeCategories = [
+  "string",
+  "number",
+  "date",
+  "boolean",
+] as const;
+
+export type DataTypeCategory = (typeof DataTypeCategories)[number];
+
+export const DataTypeNameToCategoryMap: Record<DataType, DataTypeCategory> = {
+  string: "string",
+  "string[]": "string",
+  int: "number",
+  float: "number",
+  boolean: "boolean",
+  date: "date",
+  datetime: "date",
+};
+
+export const DataTypeFilterNames = [
+  "select",
+  "numeric-range",
+  "date-range",
+] as const;
+export type DataTypeFilter = (typeof DataTypeFilterNames)[number];
+
+export const DataTypeNameToFilterMap: Record<DataTypeCategory, DataTypeFilter> =
+  {
+    string: "select",
+    number: "numeric-range",
+    date: "date-range",
+    boolean: "select",
+  };

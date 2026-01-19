@@ -1,6 +1,9 @@
 "use client";
-import { useTRPCInfiniteQuery } from "@/lib/trpc/use-queries";
-import React, { Fragment } from "react";
+import {
+  useTRPCInfiniteQuery,
+  useTRPCSuspenseInfiniteQuery,
+} from "@/lib/trpc/use-queries";
+import React, { Fragment, useMemo } from "react";
 import { InfiniteScroll } from "@/components/scrolling/InfiniteScroll";
 import { SearchSpinner } from "@/features/search/ui/components/SearchSpinner";
 import { ResultsWrapper } from "@/features/search/ui/components/ResultsWrapper";
@@ -12,24 +15,24 @@ import { useGlobalSearchParams } from "@/features/search/hooks/useSearchParams";
 
 export const TopicSearchView = () => {
   const [searchParams, setSearchParams] = useGlobalSearchParams();
+  const queryInput = useMemo(() => {
+    const { tab, ...rest } = searchParams;
+    return rest;
+  }, [searchParams]);
   const {
     data: results,
     isLoading,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-  } = useTRPCInfiniteQuery((trpc) =>
+  } = useTRPCSuspenseInfiniteQuery((trpc) =>
     trpc.search.searchTopics.infiniteQueryOptions(
-      { ...searchParams },
+      { ...queryInput },
       {
         getNextPageParam: (lastPage) => lastPage?.nextCursor,
       },
     ),
   );
-
-  if (searchParams.tab !== "topics") {
-    return null;
-  }
 
   if (isLoading || results == null) {
     return <SearchSpinner />;
@@ -95,7 +98,8 @@ export const TopicSearchView = () => {
                     >
                       <FileIcon className="size-4" />
                     </Link>
-                    <p
+                    <div
+                      className="contents"
                       dangerouslySetInnerHTML={{
                         __html: `<p class='text-base'>${h.sentence
                           .replaceAll(

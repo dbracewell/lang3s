@@ -1,20 +1,48 @@
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { SearchTabButtons } from "@/features/search/ui/components/SearchTabButtons";
-import { DocumentSearchView } from "@/features/search/ui/views/DocumentSearchView";
-import { AnnotationSearchView } from "@/features/search/ui/views/AnnotationSearchView";
 import React from "react";
-import { TopicSearchView } from "@/features/search/ui/views/TopicsSearchView";
 import { SearchResultParameters } from "@/features/search/ui/components/SearchResultParameters";
 import { getUser, roleHasPermissions } from "@/features/auth/server/actions";
-import { FolderPlusIcon } from "lucide-react";
 import { CreateProjectDialog } from "@/features/projects/ui/components/CreateProjectDialog";
+import { SearchTabList } from "@/features/search/ui/views/SearchTabList";
+import { getQueryClient, prefetch, trpc } from "@/lib/trpc/server";
+import { createLoader } from "nuqs/server";
+import { SearchQueryParams } from "@/features/search/schemas";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
-const SearchPage = async () => {
+const SearchPage = async (props: PageProps<"/search">) => {
   const user = await getUser();
+  const paramsLoader = createLoader(SearchQueryParams);
+  const { tab, ...rest } = await paramsLoader(props.searchParams);
+  void prefetch(
+    trpc.search.searchDocuments.infiniteQueryOptions(
+      { ...rest },
+      {
+        getNextPageParam: (lastPage) => lastPage?.nextCursor,
+      },
+    ),
+  );
+  void prefetch(
+    trpc.search.searchAnnotations.infiniteQueryOptions(
+      { ...rest },
+      {
+        getNextPageParam: (lastPage) => lastPage?.nextCursor,
+      },
+    ),
+  );
+  void prefetch(
+    trpc.search.searchTopics.infiniteQueryOptions(
+      { ...rest },
+      {
+        getNextPageParam: (lastPage) => lastPage?.nextCursor,
+      },
+    ),
+  );
   const hasProjectPermission = await roleHasPermissions(user.role, [
     "project:create",
     "project:update",
   ]);
+  const queryClient = getQueryClient();
   return (
     <ScrollableBox.Container>
       <ScrollableBox.Header>
@@ -30,9 +58,9 @@ const SearchPage = async () => {
       </ScrollableBox.Header>
       <div className="flex h-full min-h-0 flex-col gap-1 overflow-hidden">
         <SearchTabButtons />
-        <DocumentSearchView />
-        <AnnotationSearchView />
-        <TopicSearchView />
+        <HydrationBoundary state={dehydrate(queryClient)}>
+          <SearchTabList />
+        </HydrationBoundary>
       </div>
     </ScrollableBox.Container>
   );

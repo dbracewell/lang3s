@@ -11,7 +11,7 @@ export const SeriesSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("TOPIC").refine((a) => a as SeriesSourceType),
     value: z.string().optional(),
-    dataType: z.literal("categorical").refine((a) => a as DataTypeCategory),
+    dataType: z.literal("string").refine((a) => a as DataTypeCategory),
     display: z.enum(["text"]).refine((a) => a as DisplayType),
   }),
   z.object({
@@ -20,14 +20,14 @@ export const SeriesSchema = z.discriminatedUnion("type", [
       .refine((a) => a as SeriesSourceType),
     value: z.string(),
     dataType: z
-      .enum(["categorical", "number", "date", "timestamp"])
+      .enum(["string", "number", "date", "boolean"])
       .refine((a) => a as DataTypeCategory),
     display: z.enum(["value"]).refine((a) => a as DisplayType),
   }),
   z.object({
     type: z.literal("ANNOTATION").refine((a) => a as SeriesSourceType),
     value: z.string(),
-    dataType: z.literal("categorical").refine((a) => a as DataTypeCategory),
+    dataType: z.literal("string").refine((a) => a as DataTypeCategory),
     display: z
       .enum(["text", "value", "text-value"])
       .refine((a) => a as DisplayType),

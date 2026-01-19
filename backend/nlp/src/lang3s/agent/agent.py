@@ -41,7 +41,9 @@ class Agent:
         )
         self.middleware = middleware or []
         self.model = model or ChatModel(config.LLM_MODEL)
-        self.token_estimator: TokenEstimator = TokenEstimator(model or config.LLM_MODEL)
+        self.token_estimator: TokenEstimator = TokenEstimator(
+            model_name=model or config.LLM_MODEL,
+        )
         self.strategy: Strategy
         if strategy is None:
             if self.__starting_state.tools is None:

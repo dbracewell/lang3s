@@ -6,7 +6,12 @@ cdef class Text(TextObject):
     cdef list _annotations
     cdef list _tokens
     cdef list _sentences
+    cdef list _keywords
+
+    cdef object __weakref__
 
     cpdef object get_annotation(self, str id)
 
     cpdef void remove_annotations(self, list sources)
+
+    cpdef void detach(self)

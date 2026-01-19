@@ -29,5 +29,8 @@ export const useEntitySearchParams = () => {
     showEvents: parseAsBoolean
       .withDefault(false)
       .withOptions({ clearOnDefault: true }),
+    view: parseAsStringEnum(["list", "metrics"])
+      .withDefault("list")
+      .withOptions({ clearOnDefault: true }),
   });
 };

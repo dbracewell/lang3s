@@ -6,7 +6,7 @@ import traceback
 from typing import TYPE_CHECKING, Iterable, List, NamedTuple, Optional, Sequence
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+    pass
 
 import joblib
 import numpy as np
@@ -20,8 +20,8 @@ from sqlalchemy import Boolean, Select, cast, delete, distinct, not_, select
 from sqlalchemy.dialects.postgresql import insert
 
 from lang3s import config
-from lang3s.db import Database
-from lang3s.db.models import TextAnnotationsTable, TopicsTable
+from lang3s.data.db import Database
+from lang3s.data.db.models import TextAnnotationsTable, TopicsTable
 from lang3s.maths import cosine, normalize, weighted_average
 from lang3s.shared_types import Document
 from lang3s.utils import flatten
@@ -101,6 +101,7 @@ class Topic:
         self.min_sim_threshold = min_sim_threshold
         self.is_fixed = is_fixed
         self.name = name if name is not None else id
+        self._cached_doc_count = -100
 
     @property
     def doc_count(self) -> int:
@@ -114,7 +115,8 @@ class Topic:
                 >= FULL_EMBEDDING_THRESHOLD,
                 cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False,
             )
-            return session.scalar(stmt)
+            self._cached_doc_count = session.scalar(stmt)
+            return self._cached_doc_count
 
     @property
     def sentence_count(self) -> int:
@@ -226,6 +228,8 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         self.batch_size: int = db.get_config_value("topics_batch_size", 100)
         self.merge_frequency: int = db.get_config_value("topics_merge_frequency", 400)
         self.docs_added: int = 0
+        self._batch_docs: int = 0
+        self._merge_docs: int = 0
         self.sentences_added: int = 0
         self.total_time = 0
         self.buffer: List[NDArray[np.floating]] = []
@@ -273,12 +277,30 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                     self.__update_centroids()
 
     def partial_fit_sentence_embeddings(
-        self, embeddings: List[List[float]] | List[NDArray[np.floating]]
+        self,
+        embeddings: List[List[float]]
+        | List[NDArray[np.floating]]
+        | NDArray[np.floating],
     ):
         self.docs_added += 1
-        self.sentences_added += len(embeddings)
-        self.buffer.extend([normalize(np.array(e)) for e in embeddings])
-        if self.docs_added % self.batch_size == 0:
+        self._batch_docs += 1
+        self._merge_docs += 1
+        if isinstance(embeddings, list):
+            self.sentences_added += len(embeddings)
+        else:
+            self.sentences_added += embeddings.shape[0]
+
+        doc_id = self.docs_added - 1
+        if isinstance(embeddings, list):
+            if isinstance(embeddings[0], list):
+                self.buffer.extend([normalize(np.array(e)) for e in embeddings])
+            else:
+                self.buffer.extend([normalize(e) for e in embeddings])  # type: ignore
+        else:
+            self.buffer.extend([normalize(e) for e in embeddings])
+
+        if self._batch_docs >= self.batch_size:
+            self._batch_docs = 0
             self.__run_batch()
 
     def partial_fit(self, docs: Iterable[Document]):
@@ -304,7 +326,7 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         )
         self.total_time = 0
         self.buffer = []
-        if self.docs_added % self.merge_frequency == 0:
+        if self._merge_docs >= self.merge_frequency:
             self.merge_topics()
 
     def flush(self):
@@ -385,7 +407,10 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                     )
                 )
 
+        del embeddings
+
     def merge_topics(self):
+        self._merge_docs = 0
         try:
             start = time.perf_counter()
             old_topic_count = len(self._topics)
@@ -414,7 +439,10 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                         topic_i.merge(topic_j)
                         merged.add(j)
 
-                if topic_i.support >= self.min_support:
+                if topic_i.support >= self.min_support and (
+                    topic_i._cached_doc_count >= self.min_document_count
+                    or topic_i.doc_count >= self.min_document_count
+                ):
                     new_topics.append(topic_i)
 
             self._topics = new_topics

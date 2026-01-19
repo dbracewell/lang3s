@@ -20,9 +20,13 @@ cdef tuple start_end_key(a):
     return a.start, a.end
 
 cdef class TextObject:
-    def __cinit__(self):
+
+    def __init__(self, id:str, doc_id:str, text: str):
         self._embedding = np.zeros(0)
         self._meta = ListMetadata()
+        self.id = id
+        self.doc_id = doc_id
+        self.text = text
 
     def __str__(self):
         return self.text

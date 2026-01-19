@@ -37,7 +37,7 @@ export const DocumentsViewPage = () => {
   return (
     <>
       <DocumentScrollHeader
-        count={docs.pages[0].totalDocs[0].count}
+        count={docs.pages[0].totalDocs}
         scrollRef={scrollRef}
         isScrolled={isScrolled}
       />

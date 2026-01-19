@@ -1,14 +1,16 @@
+import gc
 import json
 from contextlib import contextmanager
-from typing import Any, ContextManager, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+import numpy as np
 from pgvector.psycopg import register_vector
 from psycopg import sql
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import NullPool, create_engine, event
+from sqlalchemy.orm import sessionmaker
 
 from lang3s import config
-from lang3s.db.models import Base, ConfigurationTable
+from lang3s.data.db.models import Base, ConfigurationTable
 from lang3s.utils.meta import SingletonMeta
 
 
@@ -37,7 +39,9 @@ MAX_INSERT_SIZE = 60000
 
 class Database(metaclass=SingletonMeta):
     def __init__(self) -> None:
-        self.engine = create_engine(config.DB_URL, echo=False, future=True)
+        self.engine = create_engine(
+            config.DB_URL, poolclass=NullPool, echo=False, future=True
+        )
         self.SessionLocal = sessionmaker(
             bind=self.engine, autoflush=False, autocommit=False, future=True
         )
@@ -153,16 +157,24 @@ class Database(metaclass=SingletonMeta):
         cursor,
         table: str,
         columns: List[str],
-        data: List[List[Any]],
+        data: Iterable[List[Any]],
     ):
         copy_sql = sql.SQL("COPY {} ({}) FROM STDIN").format(
             sql.Identifier(table),
             sql.SQL(", ").join(sql.Identifier(c) for c in columns),
         )
+
+        def stream_prepare(rows):
+            for row in rows:
+                yield [prepare_value(item) for item in row]
+
         with cursor.copy(copy_sql) as copy:
+            # for prepared_row in stream_prepare(data):
+            #     copy.write_row(prepared_row)
             for row in data:
-                values = [prepare_value(item) for item in row]
-                copy.write_row(values)
+                copy.write_row(row)
+
+        gc.collect()
 
     def get_config_value(
         self, config_name: str, default_value: Optional[Any] = None
@@ -178,14 +190,39 @@ class Database(metaclass=SingletonMeta):
             return default_value
 
 
+# def prepare_value(v: Any) -> Any:
+#     """Prepare a Python value for PostgreSQL COPY."""
+#     if v is None:
+#         return None
+#     elif isinstance(v, (dict, list)):
+#         return json.dumps(v)  # proper JSON encoding
+#     elif hasattr(v, "__iter__") and not isinstance(v, (str, bytes)):
+#         # likely a pgvector or numpy array
+#         return "[" + ", ".join(map(str, v)) + "]"
+#     else:
+#         return v
+
+
 def prepare_value(v: Any) -> Any:
     """Prepare a Python value for PostgreSQL COPY."""
     if v is None:
         return None
-    elif isinstance(v, (dict, list)):
-        return json.dumps(v)  # proper JSON encoding
-    elif hasattr(v, "__iter__") and not isinstance(v, (str, bytes)):
-        # likely a pgvector or numpy array
-        return "[" + ", ".join(map(str, v)) + "]"
-    else:
-        return v
+
+    # 1. Handle NumPy arrays first and fast
+    if isinstance(v, np.ndarray):
+        return np.array2string(
+            v,
+            separator=",",
+            max_line_width=10**9,  # Large int instead of np.inf
+            threshold=10**9,  # Ensures NumPy doesn't 'summarize' with ...
+        ).replace("\n", "")
+
+    # 2. Standard JSON handling
+    if isinstance(v, (dict, list)):
+        return json.dumps(v)
+
+    # 3. Fallback for other iterables
+    if hasattr(v, "__iter__") and not isinstance(v, (str, bytes)):
+        return list(v)
+
+    return v

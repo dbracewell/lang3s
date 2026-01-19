@@ -12,9 +12,9 @@ from lang3s.agent import Agent, LoggingMiddleware, PlanningStrategy
 from lang3s.agent.llm import Desc, tool
 from lang3s.agent.middleware import NotificationMiddleware
 from lang3s.agent.strategy import DiscoveryStrategy
-from lang3s.db import TextDatabase
+from lang3s.data.db import TextDatabase
 from lang3s.models import Embedder
-from lang3s.services.agent_tools import document_search, topics_search
+from lang3s.services.server.agent_tools import document_search, topics_search
 
 router = APIRouter(
     prefix="/agents",

@@ -1,4 +1,4 @@
-import { JobsTable, user } from "@/lib/db/schema";
+import { JobsTable, KeywordsTable, user } from "@/lib/db/schema";
 import { AnnotationToOntology, OntologyTable } from "@/lib/db/schemas/ontology";
 import {
   DocumentsTable,
@@ -11,18 +11,21 @@ export const UserRelations = relations(user, ({ many }) => ({
   jobs: many(JobsTable),
 }));
 
-export const DocumentRelations = relations(DocumentsTable, ({ one }) => ({
+export const DocumentRelations = relations(DocumentsTable, ({ one, many }) => ({
   text: one(TextTable, {
     fields: [DocumentsTable.id],
     references: [TextTable.documentId],
   }),
+  keywords: many(KeywordsTable),
 }));
 
-export const TextRelations = relations(TextTable, ({ one }) => ({
-  url: one(DocumentsTable, {
+export const TextRelations = relations(TextTable, ({ one, many }) => ({
+  document: one(DocumentsTable, {
     fields: [TextTable.documentId],
     references: [DocumentsTable.id],
   }),
+  annotations: many(TextAnnotationTable),
+  keywords: many(KeywordsTable),
 }));
 
 export const TextAnnotationRelations = relations(
@@ -42,6 +45,17 @@ export const TextAnnotationRelations = relations(
     }),
   }),
 );
+
+export const KeywordsRelations = relations(KeywordsTable, ({ one }) => ({
+  document: one(DocumentsTable, {
+    fields: [KeywordsTable.documentId],
+    references: [DocumentsTable.id],
+  }),
+  text: one(TextTable, {
+    fields: [KeywordsTable.textId],
+    references: [TextTable.id],
+  }),
+}));
 
 export const OntologyRelations = relations(OntologyTable, ({ one, many }) => ({
   parent: one(OntologyTable, {

@@ -9,6 +9,7 @@ import {
   countDistinct,
   desc,
   eq,
+  exists,
   ne,
   not,
   sql,
@@ -23,10 +24,10 @@ import {
   DisplayType,
   SeriesSourceType,
 } from "@/features/reports/types";
-import { MetadataConfiguration, MetadataItem } from "@/features/common/types";
 import { getMetadata } from "@/features/common/server/queries";
 import { jsonValue } from "@/lib/db/helpers/json";
 import { Annotations } from "@/lib/db/annotations";
+import { MetadataConfiguration, MetadataItem } from "@/features/metadata/types";
 
 const LIMIT = 35;
 
@@ -46,11 +47,18 @@ const formatColumn = (
     );
   }
 
+  if (metadataItem.dataType === "string[]") {
+    return {
+      textStatement: sql<string>`jsonb_array_elements((${column}->>${key})::jsonb)`,
+      valueStatement: sql<string>`jsonb_array_elements((${column}->>${key})::jsonb)`,
+    };
+  }
+
   if (metadataItem.formatter != null) {
     if (metadataItem.dataType === "float") {
       valueStatement = sql<number>`ROUND(${jsonValue<number>(column, key, "float")}::numeric, ${metadataItem.formatter}::int)`;
       textStatement = sql<string>`${valueStatement}::text`;
-    } else if (metadataItem.dataType === "date") {
+    } else if (["date", "datetime"].includes(metadataItem.dataType)) {
       valueStatement = sql<string>`TO_CHAR(${jsonValue<Date>(column, key, "date")}, ${metadataItem.formatter})`;
       textStatement = sql<string>`${valueStatement}`;
     }
@@ -66,7 +74,7 @@ export const reportsRouter = createTRPCRouter({
     let finalQuery;
 
     if (y == null) {
-      const q1 = getBaseQuery({
+      const q1 = await getBaseQuery({
         type: x.type,
         value: x.value ?? "",
         countType,
@@ -91,14 +99,14 @@ export const reportsRouter = createTRPCRouter({
         finalQuery = finalQuery.limit(LIMIT);
       }
     } else {
-      const q1 = getBaseQuery({
+      const q1 = await getBaseQuery({
         type: x.type,
         value: x.value ?? "",
         countType,
         metadata,
         displayType: x.display,
       });
-      const q2 = getBaseQuery({
+      const q2 = await getBaseQuery({
         type: y.type,
         value: y.value ?? "",
         countType,
@@ -224,7 +232,7 @@ const getTopNAnnotations = ({
     .as(randomAlphaUnderscore());
 };
 
-const getBaseQuery = ({
+const getBaseQuery = async ({
   type,
   value,
   countType,
@@ -368,7 +376,7 @@ const getBaseQuery = ({
           value,
           metadata["document"][value],
         );
-      return db
+      const q = db
         .select({
           sentenceAId: sql<string>`' '`.as(randomAlphaUnderscore()),
           documentId: DocumentsTable.id,
@@ -376,7 +384,34 @@ const getBaseQuery = ({
           value: dValueStmt.as(randomAlphaUnderscore()),
         })
         .from(DocumentsTable)
-        .orderBy((t) => t.value)
-        .as(randomAlphaUnderscore());
+        .orderBy((t) => t.value);
+
+      if (
+        !["date", "datetime"].includes(metadata["document"][value].dataType)
+      ) {
+        const q1 = q.as(randomAlphaUnderscore());
+        const q2 = q.as(randomAlphaUnderscore());
+        const counts = db
+          .select({
+            v: sql<string>`${q1.value}`.as("v"),
+            count: count().as("count"),
+          })
+          .from(q1)
+          .groupBy((t) => t.v)
+          .orderBy((t) => desc(t.count))
+          .limit(30)
+          .as(randomAlphaUnderscore());
+        return db
+          .select({
+            sentenceAId: q2.sentenceAId,
+            documentId: q2.documentId,
+            text: q2.text,
+            value: q2.value,
+          })
+          .from(q2)
+          .innerJoin(counts, eq(q2.value, counts.v))
+          .as(randomAlphaUnderscore());
+      }
+      return q.as(randomAlphaUnderscore());
   }
 };

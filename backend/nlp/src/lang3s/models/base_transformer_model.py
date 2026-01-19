@@ -4,8 +4,7 @@ import sys
 
 import torch
 import torch.nn as nn
-from transformers import AutoModel, AutoConfig
-
+from transformers import AutoConfig, AutoModel
 
 ### Note: This model works around an MPS bug which tries to optimize the ops in the AutoModel, but has instability.
 
@@ -59,7 +58,7 @@ class ForkedBaseModel(nn.Module):
         for layer in self.shared_encoder:
             x = layer(x, extended_mask)[0]
             hidden_states.append(x)
-        return torch.stack(hidden_states, dim=0), extended_mask
+        return hidden_states, extended_mask
 
     def forward(self, input_ids, attention_mask, task="nli"):
         lower_states, mask = self.forward_trunk(input_ids, attention_mask)

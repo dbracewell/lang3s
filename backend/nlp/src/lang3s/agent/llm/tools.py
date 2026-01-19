@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from typing import (
     Any,
     Callable,
+    Dict,
     Optional,
     Tuple,
     Type,
-    get_args, Dict,
+    get_args,
 )
 
 from openai.types.chat.chat_completion_function_tool_param import (
@@ -19,6 +20,7 @@ from pydantic.config import ConfigDict
 from pydantic.json_schema import DEFAULT_REF_TEMPLATE
 
 from lang3s.utils.async_helper import run_sync
+from lang3s.utils.decorators import async_retry
 
 
 @dataclass
@@ -28,6 +30,20 @@ class LLMTool:
     schema: ChatCompletionFunctionToolParam
     arg_validator: Type[BaseModel]
     function: Callable[..., Any]
+
+
+@dataclass
+class ToolResultMessage:
+    tool_call_id: str
+    content: str
+    is_error: bool = False
+
+    def to_message(self) -> dict[str, Any]:
+        return {
+            "role": "tool",
+            "tool_call_id": self.tool_call_id,
+            "content": self.content,
+        }
 
 
 @dataclass
@@ -43,53 +59,53 @@ class ToolCall:
         return run_sync(self.async_invoke(max_retries=max_retries))
 
     async def async_invoke(self, max_retries: int = 3) -> Dict[str, Any]:
-        last_exception = None
-        for _ in range(max_retries):
-            try:
-
-                try:
-                    arguments = self.arguments_type.model_validate(self.arguments)
-                except Exception as e:
-                    raise RuntimeError(e)
-
-                if self.is_async:
-                    raw_result = await self.function(**arguments.model_dump())
-                else:
-                    raw_result = self.function(**arguments.model_dump())
-
-                is_empty = False
-                if isinstance(raw_result, BaseModel):
-                    content = raw_result.model_dump_json()
-                elif isinstance(raw_result, (dict, list)):
-                    content = json.dumps(raw_result)
-                    is_empty = len(raw_result) == 0
-                elif isinstance(raw_result, (int, float, bool)):
-                    content = json.dumps({"result": raw_result})
-                elif isinstance(raw_result, str):
-                    content = json.dumps({"result": raw_result})
-                    is_empty = len(raw_result) == 0
-                elif raw_result is None:
-                    content = json.dumps({"result": None})
-                    is_empty = True
-                else:
-                    content = json.dumps({"result": str(raw_result)})
-                    is_empty = len(str(raw_result)) == 0
-
-                return {"role": "tool",
-                        "name": self.name,
-                        "tool_call_id": self.tool_call_id,
-                        "raw_result": raw_result,
-                        "is_empty": is_empty,
-                        "content": content}
-            except Exception as e:
-                last_exception = e
-                continue
-
-        raise RuntimeError(
-            f"Tool '{self.name}' failed after {max_retries} attempts.\n"
-            f"Arguments: {self.arguments}\n"
-            f"Error: {last_exception}"
+        @async_retry(
+            max_retries=max_retries,
+            on_exceed_attempts=lambda last_exception: RuntimeError(
+                f"Tool '{self.name}' failed after {max_retries} attempts.\n"
+                f"Arguments: {self.arguments}\n"
+                f"Error: {last_exception}"
+            ),
         )
+        async def call_tool():
+            try:
+                arguments = self.arguments_type.model_validate(self.arguments)
+            except Exception as e:
+                raise RuntimeError(e)
+
+            if self.is_async:
+                raw_result = await self.function(**arguments.model_dump())
+            else:
+                raw_result = self.function(**arguments.model_dump())
+
+            is_empty = False
+            if isinstance(raw_result, BaseModel):
+                content = raw_result.model_dump_json()
+            elif isinstance(raw_result, (dict, list)):
+                content = json.dumps(raw_result)
+                is_empty = len(raw_result) == 0
+            elif isinstance(raw_result, (int, float, bool)):
+                content = json.dumps({"result": raw_result})
+            elif isinstance(raw_result, str):
+                content = json.dumps({"result": raw_result})
+                is_empty = len(raw_result) == 0
+            elif raw_result is None:
+                content = json.dumps({"result": None})
+                is_empty = True
+            else:
+                content = json.dumps({"result": str(raw_result)})
+                is_empty = len(str(raw_result)) == 0
+
+            return {
+                "role": "tool",
+                "name": self.name,
+                "tool_call_id": self.tool_call_id,
+                "raw_result": raw_result,
+                "is_empty": is_empty,
+                "content": content,
+            }
+
+        return await call_tool()
 
 
 class Desc(str):
@@ -97,14 +113,14 @@ class Desc(str):
     A simple class to hold parameter description within typing.Annotated.
     Pydantic will automatically pick this up.
     """
+
     pass
 
 
-def tool(name: Optional[str] = None,
-         description: Optional[str] = None):
-    def to_json_schema(func: Callable[..., Any],
-                       func_name: str,
-                       func_description: str) -> Tuple[Type[BaseModel], ChatCompletionFunctionToolParam]:
+def tool(name: Optional[str] = None, description: Optional[str] = None):
+    def to_json_schema(
+        func: Callable[..., Any], func_name: str, func_description: str
+    ) -> Tuple[Type[BaseModel], ChatCompletionFunctionToolParam]:
         """
         Converts a Python function with type hints (including typing.Annotated)
         into a JSON Schema by dynamically creating a Pydantic Model correctly.
@@ -118,11 +134,16 @@ def tool(name: Optional[str] = None,
             param_annotation = param.annotation
             description = None
 
-            if get_args(param_annotation) and get_args(param_annotation)[0] is not param_annotation:
+            if (
+                get_args(param_annotation)
+                and get_args(param_annotation)[0] is not param_annotation
+            ):
                 base_type, *metadata = get_args(param_annotation)
 
                 for item in metadata:
-                    if isinstance(item, Desc) or (isinstance(item, str) and not item.startswith(('ge=', 'le='))):
+                    if isinstance(item, Desc) or (
+                        isinstance(item, str) and not item.startswith(("ge=", "le="))
+                    ):
                         description = str(item)
                         break
             else:
@@ -132,23 +153,24 @@ def tool(name: Optional[str] = None,
             field_kwargs = {}
 
             if param.default is param.empty:
-                field_kwargs['default'] = ...
+                field_kwargs["default"] = ...
             else:
-                field_kwargs['default'] = param.default
+                field_kwargs["default"] = param.default
 
             if description:
-                field_kwargs['description'] = description
+                field_kwargs["description"] = description
 
             annotations[name] = base_type
             field_definitions[name] = Field(**field_kwargs)
 
         ParamModel = type(
-            'ParamModel',
+            "ParamModel",
             (BaseModel,),
-            {'__annotations__': annotations,
-             **field_definitions,
-             "model_config": ConfigDict(extra="ignore")
-             },
+            {
+                "__annotations__": annotations,
+                **field_definitions,
+                "model_config": ConfigDict(extra="ignore"),
+            },
         )
 
         # Generate the JSON Schema
@@ -158,7 +180,7 @@ def tool(name: Optional[str] = None,
         properties_schema = {
             "type": "object",
             "properties": param_schema.get("properties", {}),
-            "required": param_schema.get("required", [])
+            "required": param_schema.get("required", []),
         }
 
         if "$defs" in param_schema:

@@ -1,19 +1,38 @@
+from __future__ import annotations
+
 import argparse
 import csv
 import enum
 import json
 import os
-import random
 import sys
 import traceback
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional, cast
 
 import jsonlines
 from pydantic import BaseModel, Field
+from url_normalize import url_normalize
 
 from lang3s_job_service import File, JobService
+
+
+def normalize_url(url_string):
+    """
+    Normalizes a given URL string using the url-normalize library.
+
+    Args:
+        url_string: The URL string to normalize.
+
+    Returns:
+        The normalized URL string, or None if the input is not a valid URL.
+    """
+    try:
+        normalized = url_normalize(url_string)
+        return normalized
+    except Exception as e:
+        print(f"Error normalizing URL: {e}")
+        return url_string
 
 
 class InputType(str, enum.Enum):
@@ -25,44 +44,50 @@ class InputType(str, enum.Enum):
 
 
 class BaseSchema(BaseModel):
-    def to_file(self, index: int, row: Dict[str, Any]):
+    def to_file(self, index: int, row: Dict[str, Any], mime_type: str) -> File | None:
         if "metadata" not in row:
             row["metadata"] = dict()
-        row["metadata"]["published_date"] = (
-            datetime.now() - timedelta(days=random.randint(0, 10))
-        ).strftime("%Y-%m-%d")
-        row["metadata"]["trust_score"] = random.random()
-        row["metadata"]["trust_code"] = random.randint(0, 100)
+        row["mime_type"] = mime_type
         return File.model_validate(row)
 
 
 class StructuredSchema(BaseSchema):
     text_column: str
-    title_column: Optional[str]
+    id_column: Optional[str] = Field(default=None)
+    id_column_is_url: bool = Field(default=False)
+    title_column: Optional[str] = Field(default=None)
     metadata: Dict[str, str] = Field(default_factory=dict)
 
     @staticmethod
-    def from_file(file: str | Path) -> "StructuredSchema":
-        with open(file) as fp:
-            return StructuredSchema.model_validate_json(fp.read())
+    def from_file(file: str | Path) -> StructuredSchema:
+        try:
+            with open(file) as fp:
+                return StructuredSchema.model_validate_json(fp.read())
+        except Exception as e:
+            traceback.print_exc(0, file=sys.stderr)
+            raise e
 
     @staticmethod
-    def from_dict(file: Dict[Any, Any]) -> "StructuredSchema":
+    def from_dict(file: Dict[Any, Any]) -> StructuredSchema:
         return StructuredSchema.model_validate(file)
 
-    def to_file(self, index: int, row: Dict[str, Any]):
+    def to_file(self, index: int, row: Dict[str, Any], mime_type: str) -> File | None:
         path = f"file-{index}"
         content = cast(str, row[self.text_column])
         if content.strip() == "":
-            return
+            return None
         metadata = {
             "title": row[self.title_column] if self.title_column else path,
         }
-        metadata.update({k: row[cast(str, v)] for k, v in self.metadata.items()})
+        metadata.update({k: row[v] for k, v in self.metadata.items()})
+        docId = row[self.id_column] if self.id_column else None
+        if docId and self.id_column_is_url:
+            docId = normalize_url(docId)
         return File(
             path=path,
+            docId=docId,
             content=content,
-            mime_type="text/plain",
+            mime_type=mime_type,
             metadata=metadata,
         )
 
@@ -84,7 +109,10 @@ rows_read = 0
 
 
 def read_structured_files(
-    file: str, schema_file: str | Path, input_type: InputType
+    file: str,
+    schema_file: str | Path,
+    input_type: InputType,
+    mime_type: str,
 ) -> List[File]:
     if input_type == InputType.csv:
         schema = CSVSchema.from_file(schema_file)
@@ -103,7 +131,7 @@ def read_structured_files(
 
     files = []
     for doc in generator:
-        new_file = schema.to_file(len(files), doc)  # to_file(len(files), doc, schema)
+        new_file = schema.to_file(len(files), doc, mime_type)
         if new_file:
             files.append(new_file)
     return files
@@ -238,7 +266,9 @@ if __name__ == "__main__":
         InputType.jsonl,
         InputType.filejsonl,
     ]:
-        files = read_structured_files(args.source, args.schema, args.type)
+        files = read_structured_files(
+            args.source, args.schema, args.type, args.mime_type
+        )
         print(f"Generated {len(files)} and read in {rows_read} rows")
 
     if args.type == InputType.file:

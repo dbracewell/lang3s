@@ -17,6 +17,36 @@ async function initDb() {
         name: "mime-type",
         dataType: "string",
       },
+      {
+        source: "document",
+        name: "hashtags",
+        dataType: "string[]",
+      },
+      {
+        source: "document",
+        name: "urls",
+        dataType: "string[]",
+      },
+      {
+        source: "document",
+        name: "mentions",
+        dataType: "string[]",
+      },
+      {
+        source: "annotation",
+        name: "hashtag",
+        dataType: "string",
+      },
+      {
+        source: "annotation",
+        name: "url",
+        dataType: "string",
+      },
+      {
+        source: "annotation",
+        name: "mention",
+        dataType: "string",
+      },
     ])
     .execute();
 

@@ -2,8 +2,8 @@
 
 import itertools
 import json
-from typing import Any, Dict, Optional, List
-
+from typing import Any, Dict, Optional, List, Tuple
+from libcpp.vector cimport vector
 import numpy as np
 import shortuuid
 from numpy.typing import NDArray
@@ -15,11 +15,13 @@ from .text_annotation import TextAnnotation
 from .text_object cimport TextObject
 
 cdef class Text(TextObject):
+
     def __cinit__(self):
         # TextObject.__cinit__ already sets embedding and _meta
         self._annotations = []
         self._tokens = []
         self._sentences = []
+        self._keywords = []
 
     def __init__(
         self,
@@ -29,10 +31,7 @@ cdef class Text(TextObject):
         metadata: Optional[Dict[str, Any]] = None,
         embedding: Optional[NDArray[np.floating]] = None,
     ):
-        # readonly attributes come from TextObject .pxd
-        self.text = content  #type:ignore
-        self.id = id if id is not None else shortuuid.uuid()
-        self.doc_id = doc_id
+        TextObject.__init__(self, id=id if id is not None else shortuuid.uuid(), text=content,doc_id=doc_id)
 
         if embedding is not None:
             self._embedding = embedding
@@ -43,6 +42,8 @@ cdef class Text(TextObject):
         self._annotations = []
         self._tokens = []
         self._sentences = []
+        self._keywords: list[Tuple[str, np.ndarray]] = []
+
 
     cdef list get_tokens(self):
         return self._tokens
@@ -111,6 +112,31 @@ cdef class Text(TextObject):
             if annotation.source not in sources:
                 filtered.append(annotation)
         self._annotations = filtered  #type:ignore
+
+
+    cpdef void detach(self):
+        if self._tokens is not None:
+            for token in self._tokens:
+                token.detach()
+        if self._sentences is not None:
+            for sentence in self._sentences:
+                sentence.detach()
+        if self._annotations is not None:
+            for annotation in self._annotations:
+                annotation.detach()
+        self._tokens = None
+        self._sentences = None
+        self._annotations = None
+        self._embedding = None
+        self._meta= None
+        self._keywords = []
+
+
+    def get_keywords(self):
+        return self._keywords
+
+    def set_keywords(self, keywords):
+        self._keywords = keywords
 
     def tag_data(self):
         cdef list sentences = []

@@ -19,9 +19,12 @@ import {
   gt,
   gte,
   ilike,
+  isNotNull,
+  isNull,
   lt,
   ne,
   not,
+  notInArray,
   or,
   sql,
 } from "drizzle-orm";
@@ -33,16 +36,184 @@ import {
   withPagination,
 } from "@/lib/db/funcs";
 import { PAGE_LIMIT } from "@/features/common/constants";
-import { Annotations, matchPath } from "@/lib/db/annotations";
+import {
+  Annotations,
+  createPathWildcards,
+  matchPath,
+} from "@/lib/db/annotations";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { TRPCError } from "@trpc/server";
-import { alias } from "drizzle-orm/pg-core";
 import { Point } from "@/components/charts/ForceGraph";
 import { getColorName } from "@/lib/utils/colors";
 import { createRedisClient } from "@/lib/redis";
 import { requirePermissions } from "@/features/auth/server/actions";
+import { remap } from "@/lib/utils/math";
 
 export const AnalyticsRouter = createTRPCRouter({
+  getAnnotationEntropy: protectedProcedure
+    .input(
+      z.object({
+        values: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await logAndRethrow(async () => {
+        const entityTopics = db
+          .select({
+            entity: AnnotationWithOntologyView.normalized,
+            type: AnnotationWithOntologyView.path,
+            topicId: TopicSentences.topicId,
+            count: count().as("count"),
+          })
+          .from(AnnotationWithOntologyView)
+          .innerJoin(
+            TopicSentences,
+            eq(
+              TopicSentences.sentenceAid,
+              AnnotationWithOntologyView.sentenceAid,
+            ),
+          )
+          .where(matchPath(AnnotationWithOntologyView.path, input.values))
+          .groupBy(
+            AnnotationWithOntologyView.normalized,
+            AnnotationWithOntologyView.path,
+            TopicSentences.topicId,
+          )
+          .having((t) =>
+            and(
+              sql`count(distinct ${AnnotationWithOntologyView.documentId}) > 5`,
+            ),
+          )
+          .as("entityTopics");
+
+        const probabilities = db
+          .select({
+            entityId: entityTopics.entity,
+            type: entityTopics.type,
+            p: sql<number>`
+        ${entityTopics.count}::float /
+        SUM(${entityTopics.count}) OVER (PARTITION BY CONCAT(${entityTopics.entity},'-',${entityTopics.type}))
+      `.as("p"),
+          })
+          .from(entityTopics)
+          .as("probabilities");
+
+        const base = db
+          .select({
+            entityId: probabilities.entityId,
+            entityType: probabilities.type,
+            rawScore: sql<number>`
+        -SUM(
+          ${probabilities.p} * (LN(${probabilities.p}) / LN(2))
+        )
+      `.as("entropy_score"),
+          })
+          .from(probabilities)
+          .groupBy(probabilities.entityId, probabilities.type);
+
+        const lowQuery = db
+          .select()
+          .from(base.as("query"))
+          .orderBy((t) => asc(t.rawScore))
+          .limit(25);
+        const highQuery = db
+          .select()
+          .from(base.as("query"))
+          .orderBy((t) => desc(t.rawScore))
+          .limit(25);
+        const [low, high] = await Promise.all([lowQuery, highQuery]);
+        const maxLowV = low.length > 0 ? 1 / (low[0].rawScore + 0.0001) : 0;
+        const minLowV =
+          low.length > 0 ? 1 / (low.slice(-1)[0].rawScore + 0.0001) : 0;
+
+        const maxHighV = high.length > 0 ? high[0].rawScore : 0;
+        const lowHighV = high.length > 0 ? high.slice(-1)[0].rawScore : 0;
+
+        return [
+          ...low.map((m) => ({
+            ...m,
+            category: "low",
+            normScore:
+              1 / (m.rawScore + 0.0001) === maxLowV
+                ? 1
+                : remap(m.rawScore, minLowV, maxLowV, 0, 1),
+          })),
+          ...high.reverse().map((m) => ({
+            ...m,
+            category: "high",
+            normScore: remap(m.rawScore, lowHighV, maxHighV, 0, 1),
+          })),
+        ];
+      });
+    }),
+  getAnnotationLoners: protectedProcedure
+    .input(z.object({ values: z.array(z.string()) }))
+    .query(async ({ input }) => {
+      return await logAndRethrow(async () => {
+        const base = db
+          .select({
+            entityId: AnnotationCoOccurrence.source,
+            entityType: AnnotationCoOccurrence.sourceType,
+            rawScore:
+              sql<number>`( count(${AnnotationCoOccurrence.sentenceAid})::float /  ${AnnotationCoOccurrence.sourceSentenceCount})`.as(
+                "score",
+              ),
+          })
+          .from(AnnotationCoOccurrence)
+          .where(
+            and(
+              sql`${AnnotationCoOccurrence.sourceType} ~ any(array[${createPathWildcards(input.values)}]::lquery[])`,
+              gt(AnnotationCoOccurrence.sourceDocumentCount, 5),
+              gt(AnnotationCoOccurrence.sourceSentenceCount, 10),
+              or(
+                isNull(AnnotationCoOccurrence.targetType),
+                sql`${AnnotationCoOccurrence.targetType} <@ 'ALL.Entity'`,
+              ),
+              or(
+                isNull(AnnotationCoOccurrence.targetDocumentCount),
+                gt(AnnotationCoOccurrence.targetDocumentCount, 5),
+              ),
+            ),
+          )
+          .groupBy(
+            AnnotationCoOccurrence.source,
+            AnnotationCoOccurrence.sourceType,
+            AnnotationCoOccurrence.sourceSentenceCount,
+          );
+        const lowQuery = db
+          .select()
+          .from(base.as("query"))
+          .orderBy((t) => t.rawScore)
+          .limit(25);
+        const highQuery = db
+          .select()
+          .from(base.as("query"))
+          .orderBy((t) => desc(t.rawScore))
+          .limit(25);
+        const [low, high] = await Promise.all([lowQuery, highQuery]);
+        const maxLowV = low.length > 0 ? low[0].rawScore : 0;
+        const minLowV = low.length > 0 ? low.slice(-1)[0].rawScore : 0;
+
+        const maxHighV = high.length > 0 ? high[0].rawScore : 0;
+        const lowHighV = high.length > 0 ? high.slice(-1)[0].rawScore : 0;
+
+        return [
+          ...low.map((m) => ({
+            ...m,
+            category: "low",
+            normScore:
+              1 / (m.rawScore + 0.0001) === maxLowV
+                ? 1
+                : remap(m.rawScore, minLowV, maxLowV, 0, 1),
+          })),
+          ...high.reverse().map((m) => ({
+            ...m,
+            category: "high",
+            normScore: remap(m.rawScore, lowHighV, maxHighV, 0, 1),
+          })),
+        ];
+      });
+    }),
   getAnnotationCounts: protectedProcedure
     .input(
       z.object({
@@ -62,31 +233,46 @@ export const AnalyticsRouter = createTRPCRouter({
       }
 
       const [total, results] = await logAndRethrow(() => {
-        const q3 = db
-          .select({
-            content: AnnotationWithOntologyView.normalized,
-            path: AnnotationWithOntologyView.path,
-            value: AnnotationWithOntologyView.name,
-            color: AnnotationWithOntologyView.color,
-            count: count().as("count"),
-            docCount: countDistinct(AnnotationWithOntologyView.documentId).as(
-              "doc_count",
-            ),
+        const base = db
+          .selectDistinct({
+            content: AnnotationCounts.content,
+            path: AnnotationCounts.type,
+            value: sql<string>`${AnnotationCounts.type}`.as("value"),
+            count: AnnotationCounts.mentionCount,
+            docCount: AnnotationCounts.documentCount,
+            sentenceCount: AnnotationCounts.sentenceCount,
             mentionsPerDocument:
-              sql<number>`count(0)::float/count(distinct ${AnnotationWithOntologyView.documentId})`.as(
+              sql<number>`${AnnotationCounts.mentionCount}::float/${AnnotationCounts.documentCount}`.as(
                 "mentions_per_doc",
               ),
           })
-          .from(AnnotationWithOntologyView)
-          .where((t) =>
+          .from(AnnotationCounts)
+          .where(
             and(
-              matchPath(AnnotationWithOntologyView, input.values),
+              notInArray(AnnotationCounts.content, [
+                "WHO",
+                "I",
+                "THEY",
+                "WE",
+                "YOU",
+                "HIS",
+                "HER",
+                "HE",
+                "SHE",
+                "FIRST",
+                "ITS",
+                "TWO",
+                "ONE",
+                "YOUR",
+                "IT",
+              ]),
+              matchPath(AnnotationCounts.type, input.values),
               !!filter
-                ? ilike(t.content, `${filter.toUpperCase()}%`)
+                ? ilike(AnnotationCounts.content, `${filter.toUpperCase()}%`)
                 : undefined,
+              gt(AnnotationCounts.documentCount, 5),
             ),
           )
-          .groupBy((t) => [t.content, t.value, t.path, t.color])
           .orderBy((t) =>
             finalSortBy === "mentions"
               ? desc(t.count)
@@ -94,12 +280,11 @@ export const AnalyticsRouter = createTRPCRouter({
                 ? desc(t.docCount)
                 : desc(t.mentionsPerDocument),
           )
-          .having((t) => gt(t.docCount, 5))
-          .as("annotation_search");
+          .as(randomAlphaUnderscore());
 
         return Promise.all([
-          db.select({ count: count() }).from(q3),
-          withPagination(db.select().from(q3), {
+          db.select({ count: count() }).from(base),
+          withPagination(db.select().from(base), {
             page,
           }),
         ]);
@@ -114,7 +299,6 @@ export const AnalyticsRouter = createTRPCRouter({
         prevPage: page > 1 ? page - 1 : undefined,
       };
     }),
-
   getAnnotationCoOccurrence: protectedProcedure
     .input(
       z.object({
@@ -137,7 +321,7 @@ export const AnalyticsRouter = createTRPCRouter({
           .from(AnnotationWithOntologyView)
           .where(
             and(
-              matchPath(AnnotationWithOntologyView, [input.leftValue]),
+              matchPath(AnnotationWithOntologyView.path, [input.leftValue]),
               input.leftText
                 ? eq(
                     AnnotationWithOntologyView.normalized,
@@ -158,7 +342,7 @@ export const AnalyticsRouter = createTRPCRouter({
             value: AnnotationWithOntologyView.name,
           })
           .from(AnnotationWithOntologyView)
-          .where(matchPath(AnnotationWithOntologyView, input.rightValues))
+          .where(matchPath(AnnotationWithOntologyView.path, input.rightValues))
           .as("q2");
 
         return db
@@ -184,7 +368,6 @@ export const AnalyticsRouter = createTRPCRouter({
           .limit(40);
       });
     }),
-
   getEventsForEntity: protectedProcedure
     .input(
       z.object({
@@ -304,7 +487,6 @@ export const AnalyticsRouter = createTRPCRouter({
           .orderBy(events.value);
       });
     }),
-
   getTopics: protectedProcedure.query(async () => {
     const s1 = db
       .select({ id: TopicsTable.id, embedding: TopicsTable.embedding })
@@ -434,58 +616,51 @@ export const AnalyticsRouter = createTRPCRouter({
 
   getCohorts: protectedProcedure.query(async () => {
     const [similarities, pointsRaw] = await logAndRethrow(() => {
-      const s1 = alias(AnnotationCounts, "s1");
-      const s2 = alias(AnnotationCounts, "s2");
       const similarityQuery = db
         .select({
-          id1: sql<string>`CONCAT(${s1.content},'-',${s1.type})`.as("id1"),
-          id2: sql<string>`CONCAT(${s2.content},'-',${s2.type})`.as("id2"),
+          id1: AnnotationCoOccurrence.sourceNorm,
+          id2: sql<string>`${AnnotationCoOccurrence.targetNorm}`.as(
+            "target_norm",
+          ),
           similarity: sql<number>`
-       ${AnnotationCoOccurrence.documentCount}::float /
-       NULLIF( (${s1.documentCount} + ${s2.documentCount}  -${AnnotationCoOccurrence.documentCount}),0)
+       ${countDistinct(AnnotationCoOccurrence.documentId)}::float /
+       NULLIF( (${AnnotationCoOccurrence.sourceDocumentCount} + ${AnnotationCoOccurrence.targetDocumentCount}  -${countDistinct(AnnotationCoOccurrence.documentId)}),0)
       `.as("similarity"),
         })
         .from(AnnotationCoOccurrence)
-        .innerJoin(
-          s1,
-          and(
-            eq(AnnotationCoOccurrence.source, sql`${s1.content}`),
-            eq(AnnotationCoOccurrence.sourceType, s1.type),
-          ),
-        )
-        .innerJoin(
-          s2,
-          and(
-            eq(AnnotationCoOccurrence.target, sql`${s2.content}`),
-            eq(AnnotationCoOccurrence.targetType, s2.type),
-          ),
-        )
         .where((t) =>
           and(
-            gte(t.similarity, 0.25),
-            sql`${s1.type} <@ 'ALL.Entity'`,
+            isNotNull(AnnotationCoOccurrence.targetNorm),
+            sql`${AnnotationCoOccurrence.sourceType} <@ 'ALL.Entity'`,
             not(
-              sql`${s1.type} <@ 'ALL.Entity.Abstract.Temporal_And_Occurrence'`,
+              sql`${AnnotationCoOccurrence.sourceType} <@ 'ALL.Entity.Abstract.Temporal_And_Occurrence'`,
             ),
             not(
-              sql`${s1.type} <@ 'ALL.Entity.Abstract.Value_And_Quantification'`,
+              sql`${AnnotationCoOccurrence.sourceType} <@ 'ALL.Entity.Abstract.Value_And_Quantification'`,
             ),
-            sql`${s2.type} <@ 'ALL.Entity'`,
+            sql`${AnnotationCoOccurrence.targetType} <@ 'ALL.Entity'`,
             not(
-              sql`${s2.type} <@ 'ALL.Entity.Abstract.Temporal_And_Occurrence'`,
+              sql`${AnnotationCoOccurrence.targetType} <@ 'ALL.Entity.Abstract.Temporal_And_Occurrence'`,
             ),
             not(
-              sql`${s2.type} <@ 'ALL.Entity.Abstract.Value_And_Quantification'`,
+              sql`${AnnotationCoOccurrence.targetType} <@ 'ALL.Entity.Abstract.Value_And_Quantification'`,
             ),
-            gt(s1.documentCount, 5),
-            gt(s2.documentCount, 5),
+            gt(AnnotationCoOccurrence.sourceDocumentCount, 5),
+            gt(AnnotationCoOccurrence.targetDocumentCount, 5),
           ),
-        );
+        )
+        .groupBy((t) => [
+          t.id1,
+          t.id2,
+          AnnotationCoOccurrence.targetDocumentCount,
+          AnnotationCoOccurrence.sourceDocumentCount,
+        ])
+        .having((t) => gte(t.similarity, 0.25));
 
       return Promise.all([
         similarityQuery,
         db
-          .select({
+          .selectDistinct({
             id: sql<string>`CONCAT(${AnnotationCounts.content},'-',${AnnotationCounts.type})`.as(
               "id",
             ),
@@ -589,25 +764,32 @@ export const AnalyticsRouter = createTRPCRouter({
         db
           .select({
             source: AnnotationCoOccurrence.source,
-            sourceId:
-              sql<string>`CONCAT(${AnnotationCoOccurrence.source},'-',${AnnotationCoOccurrence.sourceType})`.as(
-                "source_id",
-              ),
-            target: AnnotationCoOccurrence.target,
-            targetId:
-              sql<string>`CONCAT(${AnnotationCoOccurrence.target},'-',${AnnotationCoOccurrence.targetType})`.as(
-                "target_id",
-              ),
-            documentCount: AnnotationCoOccurrence.documentCount,
-            sentenceCount: AnnotationCoOccurrence.sentenceCount,
+            sourceId: AnnotationCoOccurrence.sourceNorm,
+            target: sql<string>`${AnnotationCoOccurrence.target}`.as("target"),
+            targetId: sql<string>`${AnnotationCoOccurrence.targetNorm}`.as(
+              "target_id",
+            ),
+            documentCount: countDistinct(AnnotationCoOccurrence.documentId).as(
+              "document_count",
+            ),
+            sentenceCount: countDistinct(AnnotationCoOccurrence.sentenceAid).as(
+              "document_count",
+            ),
           })
           .from(AnnotationCoOccurrence)
           .where(
             and(
-              sql`CONCAT(${AnnotationCoOccurrence.source},'-',${AnnotationCoOccurrence.sourceType}) in (${array})`,
-              sql`CONCAT(${AnnotationCoOccurrence.target},'-',${AnnotationCoOccurrence.targetType}) in (${array})`,
+              isNotNull(AnnotationCoOccurrence.targetNorm),
+              sql`${AnnotationCoOccurrence.sourceNorm} in (${array})`,
+              sql`${AnnotationCoOccurrence.targetNorm} in (${array})`,
             ),
           )
+          .groupBy((t) => [
+            t.source,
+            t.sourceId,
+            AnnotationCoOccurrence.targetNorm,
+            AnnotationCoOccurrence.target,
+          ])
           .orderBy((t) => [t.sourceId, t.targetId]),
       );
 

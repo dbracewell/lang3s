@@ -71,33 +71,33 @@ const DataTypeToChart: Record<
   DataTypeCategory,
   Record<DataTypeCategory | "none", ChartType>
 > = {
-  categorical: {
+  string: {
     none: "barchart",
-    categorical: "heatmap",
+    string: "heatmap",
     number: "linechart",
     date: "linechart",
-    timestamp: "linechart",
+    boolean: "heatmap",
+  },
+  boolean: {
+    none: "barchart",
+    string: "heatmap",
+    number: "linechart",
+    date: "linechart",
+    boolean: "heatmap",
   },
   number: {
     none: "linechart",
-    categorical: "linechart",
+    string: "linechart",
+    boolean: "linechart",
     number: "scatterplot",
     date: "scatterplot",
-    timestamp: "scatterplot",
   },
   date: {
     none: "linechart",
-    categorical: "linechart",
+    string: "linechart",
+    boolean: "linechart",
     number: "scatterplot",
     date: "scatterplot",
-    timestamp: "scatterplot",
-  },
-  timestamp: {
-    none: "linechart",
-    categorical: "linechart",
-    number: "scatterplot",
-    date: "scatterplot",
-    timestamp: "scatterplot",
   },
 };
 

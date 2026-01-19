@@ -1,10 +1,14 @@
+from typing import Tuple
+
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
 from lang3s.shared_types import Text
 
 
-def mmr_rank(doc_embedding, candidate_embeddings, candidates, top_n=5, diversity=0.7):
+def mmr_rank(
+    doc_embedding, candidate_embeddings, candidates, top_n=5, diversity=0.7
+) -> list[Tuple[str, np.ndarray]]:
     """
     Selects keywords using Maximal Marginal Relevance.
 
@@ -54,10 +58,7 @@ def mmr_rank(doc_embedding, candidate_embeddings, candidates, top_n=5, diversity
         if len(candidates_idx) == 0:
             break
 
-    return [
-        (candidates[idx], candidate_similarity[idx][0], candidate_embeddings[idx])
-        for idx in keywords_idx
-    ]
+    return [(candidates[idx], candidate_embeddings[idx]) for idx in keywords_idx]
 
 
 def extract_keywords(text: Text, top_n=5, diversity=0.5):
@@ -108,6 +109,12 @@ def extract_keywords(text: Text, top_n=5, diversity=0.5):
             if add:
                 final_candidates.append(c)
                 final_candidate_embeddings.append(e)
+
+    if len(final_candidates) < top_n:
+        return [
+            (keyword, embedding)
+            for keyword, embedding in zip(final_candidates, final_candidate_embeddings)
+        ]
 
     keywords = mmr_rank(
         text.embedding.reshape(1, -1),

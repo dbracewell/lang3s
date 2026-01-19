@@ -1,11 +1,13 @@
+import io
 import logging
 import time
 from typing import Iterable, List, NamedTuple
 
+import numpy as np
 import requests
 
 from lang3s.config import FASTAPI_PORT
-from lang3s.services.topics import TopicData
+from lang3s.services.server.topics import TopicData
 from lang3s.shared_types import Document
 
 logger = logging.getLogger("TopicModelClient")
@@ -21,18 +23,54 @@ TOPIC_MODEL_HOST = f"http://localhost:{FASTAPI_PORT}/topics"
 
 class TopicModelClient:
     def partial_fit(self, docs: Iterable[Document]) -> Status:
-        for doc in docs:
-            embeddings = [
-                s.embedding.tolist()
-                for s in doc.text.sentences
-                if not s.is_stopword and s.embedding is not None
-            ]
-            response = requests.post(
-                TOPIC_MODEL_HOST, json={"embeddings": embeddings}
-            )
-            response.raise_for_status()
-        response = requests.get(f"{TOPIC_MODEL_HOST}/status")
-        return Status(**response.json())
+        with requests.Session() as session:
+            for i, doc in enumerate(docs):
+                current_batch = [
+                    s.embedding
+                    for s in doc.text.sentences
+                    if not s.is_stopword and s.embedding is not None
+                ]
+
+                if not current_batch:
+                    continue
+
+                embeddings = np.stack(current_batch)
+
+                with io.BytesIO() as buf:
+                    np.save(buf, embeddings)
+                    buf.seek(0)
+
+                    response = None  # Prevent UnboundLocalError
+                    try:
+                        response = session.post(
+                            TOPIC_MODEL_HOST,
+                            files={
+                                "file": ("array.npy", buf, "application/octet-stream")
+                            },
+                            timeout=30,
+                        )
+                        response.raise_for_status()
+                    except Exception as e:
+                        logger.error(f"Failed to post doc {i}: {e}")
+                        raise e
+                    finally:
+                        # Safe cleanup
+                        if response:
+                            response.close()
+                        buf.close()
+                        del buf
+
+                del embeddings
+                del current_batch
+
+            response = None
+            try:
+                response = session.get(f"{TOPIC_MODEL_HOST}/status")
+                status_data = response.json()
+            finally:
+                response.close()
+
+        return Status(**status_data)
 
     def get_topics(self) -> List[TopicData]:
         response = requests.get(TOPIC_MODEL_HOST)

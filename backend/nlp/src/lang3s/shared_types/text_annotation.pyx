@@ -1,4 +1,5 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, cdivision=True
+import weakref
 from typing import Any, Dict, Optional, List
 
 import numpy as np
@@ -27,18 +28,15 @@ cdef class TextAnnotation(TextObject):
         embedding: Optional[NDArray[np.floating]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
-        self.id = id
-        self.text = text
+        TextObject.__init__(self, id=id, text=text,doc_id=owner.doc_id)
         self._start = start
         self._end = end
         self.source = source
-        self._owner = owner
+        self._owner_ref = weakref.ref(owner)
         self.type = type
         self.sentence_id = sentence_id
         self.value = value
-        self.doc_id = owner.doc_id
 
-        # embedding (use base TextObject.embedding)
         if embedding is not None:
             self._embedding = embedding
 
@@ -64,29 +62,45 @@ cdef class TextAnnotation(TextObject):
         def __set__(self, value: str):
             self.value = value
 
-    cpdef int get_start(self):
+    cdef int get_start(self):
         return self._start
 
-    cpdef int get_end(self):
+    cdef int get_end(self):
         return self._end
 
     cdef list get_tokens(self):
+        cdef object generic_owner = self.owner
+        cdef Text owner_doc = <Text> generic_owner
+
         if self.type == AnnotationTypes.TOKEN.value:
             return [self]
 
         cdef list toks = []
         cdef object tok
-        for tok in self._owner._tokens[self._start:self._end]:
+
+        for tok in owner_doc._tokens[self._start:self._end]:
             toks.append(tok)
         return toks
+
+
     cdef list get_sentences(self):
-        cdef object s
-        for s in self._owner._sentences:
+        cdef object generic_owner = self.owner
+        cdef Text owner_doc = <Text> generic_owner
+
+        if self.type == AnnotationTypes.SENTENCE.value:
+            return [self]
+
+        for s in owner_doc._sentences:
             if s.start < self.get_end() and s.end > self.get_start():
                 return [s]
+
         raise Exception("No sentence found")
 
     cpdef list annotations_of_type(self, str type):
+        cdef object generic_owner = self.owner
+        cdef Text owner_doc = <Text> generic_owner
+
+
         cdef list out = []
         cdef object a
 
@@ -94,13 +108,16 @@ cdef class TextAnnotation(TextObject):
             out.append(self)
             return out
 
-        for a in self._owner._annotations:
+        for a in owner_doc._annotations:
             if a.type == type and self.overlaps(a):
                 out.append(a)
         return out
 
     cdef object get_owner(self):
-        return self._owner
+        cdef object obj = self._owner_ref()
+        if obj is None:
+            raise RuntimeError("Owner Text has already been deleted")
+        return obj
 
     cdef bint _is_stopword(self):
         cdef object v = self[Metadata.IS_STOPWORD.value]
@@ -129,14 +146,14 @@ cdef class TextAnnotation(TextObject):
             head = self[Metadata.HEAD.value]
             if head == self.get_start():
                 return None
-            return self._owner._tokens[head]
+            return self.owner.tokens[head]
 
         # span-level parent: find token whose head is outside span
-        span_set = set((token.start for token in self.get_tokens()))  #type: ignore
-        for token in self.get_tokens():  #type: ignore
+        span_set = set((token.start for token in self.gettokens()))  #type: ignore
+        for token in self.gettokens():  #type: ignore
             head = token[Metadata.HEAD.value]
             if head not in span_set or head == token.start:
-                return self._owner._tokens[head]
+                return self.owner.tokens[head]
 
         return None
 
@@ -172,12 +189,12 @@ cdef class TextAnnotation(TextObject):
         cdef object token
 
         if self.type == AnnotationTypes.TOKEN.value:
-            for token in self._owner._tokens:
+            for token in self.owner.tokens:
                 if token[Metadata.HEAD.value] == self.get_start():
                     children.append(token)
             return children
 
-        for token in self.get_tokens():  #type: ignore
+        for token in self.gettokens():  #type: ignore
             children.extend(token.children)
         return children
 
@@ -190,7 +207,7 @@ cdef class TextAnnotation(TextObject):
         cdef object ann
         if coref_id is None:
             return self
-        for ann in self._owner._annotations:
+        for ann in self.owner._annotations:
             if ann.id == coref_id:
                 return ann
         return self
@@ -234,7 +251,7 @@ cdef class TextAnnotation(TextObject):
             source=self.source,
             text=self.text,
             clean_text=self.to_string(True, True, True),
-            normalized_text=normalized_text,
+            normalized_text=normalized_text if len(normalized_text) < 1000 else normalized_text[:1000],
             mapping=f"{self.type}:{self.value}"
             if self.type not in ["sentence", "noun_chunk"]
             else None,
@@ -280,3 +297,11 @@ cdef class TextAnnotation(TextObject):
             "embedding": emb_list if emb is not None else None,
             "metadata": self._meta.to_dict(),  #type: ignore
         }
+
+    cpdef void detach(self):
+        self._owner_ref = None
+        self._embedding = None
+        self._meta = None
+        self.source = None
+        self.type = None
+        self.value = None

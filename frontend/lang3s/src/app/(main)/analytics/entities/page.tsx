@@ -5,6 +5,8 @@ import { TopEntitiesList } from "@/features/analytics/ui/components/TopEntitiesL
 import { EntityEvents } from "@/features/analytics/ui/components/EntityEvents";
 import { EntityCoOccurrenceVisualization } from "@/features/analytics/ui/components/EntityCoOccurrenceVisualization";
 import { ONTOLOGY_ENTITY_ROOT } from "@/features/common/constants";
+import { EntityMetrics } from "@/features/analytics/ui/components/EntityMetrics";
+import { EntitiesPageTabs } from "@/features/analytics/ui/components/EntitiesPageTabs";
 
 const EntitiesPage = async (props: PageProps<"/analytics/entities">) => {
   const values = await caller.ontology.getFullPath({
@@ -24,7 +26,7 @@ const EntitiesPage = async (props: PageProps<"/analytics/entities">) => {
           <EntityTypeSelector values={values} />
         </div>
       </ScrollableBox.Header>
-      <TopEntitiesList />
+      <EntitiesPageTabs />
       <EntityEvents />
       <EntityCoOccurrenceVisualization />
     </ScrollableBox.Container>

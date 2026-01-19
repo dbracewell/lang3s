@@ -4,12 +4,13 @@ version = "2025.10.3"
 description = "Job Service"
 authors = [{ name = "David Bracewell", email = "david@davidbracewell.com" }]
 readme = "README.md"
-dependencies = [
-	"requests (>=2.32.5,<3.0.0)",
-	"pydantic (==2.11.4)",
-	"pydantic-core (==2.33.2)",
-]
 
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+requests = ">=2.32.5,<3.0.0"
+pydantic = "2.11.4"
+pydantic-core = "2.33.2"
+url-normalize = ">=2.2.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

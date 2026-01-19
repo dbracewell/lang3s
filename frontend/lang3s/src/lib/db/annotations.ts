@@ -15,7 +15,6 @@ import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { AnnotationToOntology, OntologyTable } from "@/lib/db/schemas/ontology";
 import { db } from "@/lib/db/index";
 import { CoalesceArgument } from "@/lib/db/helpers/typing";
-import { AnnotationWithOntologyView } from "@/lib/db/schemas/views";
 
 const EVENT_ARGS = {
   a0: sql<string[]>`${TextAnnotationTable.metadata}->'A0_TEXT'`.as("A0"),
@@ -252,21 +251,15 @@ const GET_SENTENCES = db
     ),
   );
 
-const createPathWildcards = (values: string[]) => {
+export const createPathWildcards = (values: string[]) => {
   return sql.join(
     values.flatMap((v) => [v, `${v}.*`]).map((v) => sql`${v}`),
     sql`, `,
   );
 };
 
-export const matchPath = (
-  table:
-    | { path: string }
-    | typeof OntologyTable
-    | typeof AnnotationWithOntologyView,
-  values: string[],
-) => {
-  return sql`${table.path} ~ any(array[${createPathWildcards(values)}]::lquery[])`;
+export const matchPath = (column: SQLWrapper, values: string[]) => {
+  return sql`${column} ~ any(array[${createPathWildcards(values)}]::lquery[])`;
 };
 
 export const Annotations = {
@@ -299,7 +292,7 @@ export const Annotations = {
 export const OntologyMappings = {
   getOntologyMappings: function (limitTo?: string[]) {
     return BASE_ONTOLOGY_QUERY.where(
-      limitTo ? matchPath(OntologyTable, limitTo) : undefined,
+      limitTo ? matchPath(OntologyTable.path, limitTo) : undefined,
     );
   },
 };

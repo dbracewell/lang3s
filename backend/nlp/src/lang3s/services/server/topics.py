@@ -1,11 +1,13 @@
+import io
 import logging
 import queue
 import threading
 import time
 from typing import Any, List, NamedTuple, Optional
 
+import numpy as np
 import shortuuid
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -108,9 +110,13 @@ class AddRequest(BaseModel):
 
 @router.post("/")
 @router.post("")
-async def add(request: AddRequest):
+# async def add(request: AddRequest):
+async def add(file: UploadFile):
     global total_tasks
-    work_queue.put(Task(method="add", data=request.embeddings, id=shortuuid.uuid()))
+    contents = await file.read()
+    buf = io.BytesIO(contents)
+    arr = np.load(buf)
+    work_queue.put(Task(method="add", data=arr, id=shortuuid.uuid()))
     total_tasks += 1
     return {"status": "queued", "pending_tasks": total_tasks}
 

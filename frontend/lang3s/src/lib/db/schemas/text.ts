@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uuid,
 } from "drizzle-orm/pg-core";
 
 export const TOKEN_EMBEDDING_DIMENSION = 768;
@@ -132,3 +133,31 @@ export const TextAnnotationTable = pgTable(
 );
 
 ////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// Keywords Table
+////////////////////////////////////////////////////////////////////////////////
+export const KeywordsTable = pgTable(
+  "keywords",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    keyword: text("keyword").notNull(),
+    documentId: text("document_id")
+      .references(() => DocumentsTable.id, { onDelete: "cascade" })
+      .notNull(),
+    textId: text("text_id")
+      .references(() => TextTable.id, { onDelete: "cascade" })
+      .notNull(),
+    embedding: halfvec("embedding", {
+      dimensions: SEMANTIC_EMBEDDING_DIMENSION,
+    }).notNull(),
+  },
+  (table) => [
+    index("keywords_embedding_index").using(
+      "hnsw",
+      table.embedding.op("halfvec_cosine_ops"),
+    ),
+    index("keywords_document_id").on(table.documentId),
+    index("keywords_text_id").on(table.textId),
+  ],
+);

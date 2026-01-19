@@ -6,7 +6,6 @@ from numpy.typing import NDArray
 from .text_annotation import TextAnnotation  # adjust if name/module differs
 from .text_object import TextObject
 
-
 class Text(TextObject):
     def __init__(
         self,
@@ -23,10 +22,8 @@ class Text(TextObject):
     _sentences: List[TextAnnotation]
 
     def get_annotation(self, id: Optional[str]) -> Optional[TextAnnotation]: ...
-
     @property
     def all_annotations(self) -> List[TextAnnotation]: ...
-
     def tag_data(
         self,
     ) -> Tuple[
@@ -34,17 +31,15 @@ class Text(TextObject):
         List[List[TextAnnotation]],
         List[List[str]],
     ]: ...
-
+    def detach(
+        self,
+    ): ...
     @property
     def annotations(self) -> List[TextAnnotation]: ...
-
     def insert_values(self) -> List[Any]: ...
-
     def to_json(self) -> Dict[str, Any]: ...
-
     @staticmethod
     def from_json(obj: Dict[str, Any]) -> "Text": ...
-
     def add_annotation(
         self,
         text: str,
@@ -58,14 +53,11 @@ class Text(TextObject):
         embedding: Optional[NDArray[np.floating]] = ...,
         metadata: Optional[Dict[str, Any]] = ...,
     ) -> TextAnnotation: ...
-
     def attach_annotation(
         self,
         annotation: TextAnnotation,
     ) -> TextAnnotation: ...
-
     def remove_annotation(self, sources: List[str]) -> None: ...
-
     def create_span(
         self,
         start: int,
@@ -75,3 +67,5 @@ class Text(TextObject):
         value: Optional[str] = ...,
         metadata: Optional[Dict[str, Any]] = ...,
     ) -> TextAnnotation: ...
+    def get_keywords(self) -> list[Tuple[str, np.ndarray]]: ...
+    def set_keywords(self, keywords: List[Tuple[str, np.ndarray]]) -> None:

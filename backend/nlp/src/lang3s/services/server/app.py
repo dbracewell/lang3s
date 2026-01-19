@@ -6,12 +6,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from lang3s import config
+from lang3s.services.server.topics import init_globals
+from lang3s.services.server.topics import router as topic_router
 
 from .agents import router as agent_router
 from .documents import router as documents_router
 from .embeddings import router as embedding_router
-from .topics import init_globals
-from .topics import router as topic_router
 
 logging.basicConfig(
     level=logging.INFO,

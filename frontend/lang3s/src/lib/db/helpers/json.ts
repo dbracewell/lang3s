@@ -1,4 +1,4 @@
-import { Column, sql, SQL } from "drizzle-orm";
+import { Column, sql, SQL, SQLWrapper } from "drizzle-orm";
 import { asSQL, InferValue } from "@/lib/db/helpers/typing";
 
 export function jsonBuildObject<T extends Record<string, any>>(
@@ -85,7 +85,7 @@ export function jsonbAgg<T>(
 }
 
 export const jsonValue = <T>(
-  column: Column,
+  column: Column | SQLWrapper,
   key: string,
   castAs:
     | "text"
@@ -96,6 +96,8 @@ export const jsonValue = <T>(
     | "float"
     | "boolean"
     | "text[]"
+    | "string[]"
+    | "number"
     | "int[]"
     | "float[]"
     | "json" = "text",
@@ -105,9 +107,11 @@ export const jsonValue = <T>(
     case "text":
       return sql<T>`(${column}->>${key})::text`;
     case "text[]":
+    case "string[]":
       return sql<T>`(${column}->>${key})::text[]`;
     case "int":
     case "float":
+    case "number":
       return sql<T>`(${column}->>${key})::numeric`;
     case "int[]":
     case "float[]":

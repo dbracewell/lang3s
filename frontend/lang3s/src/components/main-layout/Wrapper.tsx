@@ -27,7 +27,7 @@ export const Wrapper = ({ children }: { children: React.ReactNode }) => {
         <div className="min-h-0 flex-1 overflow-hidden p-1 pt-0!">
           <div className="bg-background inset-shadow-insert-shadow-border flex h-full min-h-0 w-full flex-col rounded-b-2xl border p-2 inset-shadow-xs">
             <ResizablePanelGroup
-              direction="horizontal"
+              orientation="horizontal"
               className="min-h-0 w-full flex-1"
             >
               <ResizablePanel
@@ -35,7 +35,8 @@ export const Wrapper = ({ children }: { children: React.ReactNode }) => {
                   "@container flex min-h-0 flex-1 flex-col",
                   open && "pr-2",
                 )}
-                defaultSize={open ? 75 : 100}
+                id="main-panel"
+                defaultSize={open ? "75%" : "100%"}
               >
                 {children}
               </ResizablePanel>
@@ -43,10 +44,10 @@ export const Wrapper = ({ children }: { children: React.ReactNode }) => {
                 <>
                   <ResizableHandle />
                   <ResizablePanel
-                    defaultSize={25}
-                    maxSize={40}
+                    defaultSize="25%"
+                    maxSize="50%"
+                    minSize="25%"
                     id="chat-panel"
-                    order={2}
                   >
                     <ChatWindow />
                   </ResizablePanel>

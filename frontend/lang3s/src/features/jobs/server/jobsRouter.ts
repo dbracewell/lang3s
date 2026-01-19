@@ -158,8 +158,6 @@ export const jobsRouter = createTRPCRouter({
         metadata,
       } = input;
 
-      console.log("METADATA", metadata);
-
       await requirePermissions(user, apiKey, ["jobs:create"]);
 
       const where = await buildWhereClause(job_id, user, apiKey);
@@ -310,9 +308,6 @@ export const jobsRouter = createTRPCRouter({
           await db.execute(
             sql`DROP INDEX IF EXISTS text_annotation_embedding_index;`,
           );
-          // return db.execute(
-          //   sql`CREATE INDEX IF NOT EXISTS "text_annotation_embedding_index" ON "text_annotations" USING hnsw ("embedding" halfvec_cosine_ops) WITH (m = 8, ef_construction = 16);`,
-          // );
         });
       }
 

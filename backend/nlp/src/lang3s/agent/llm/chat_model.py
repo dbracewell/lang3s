@@ -13,12 +13,15 @@ from typing import (
 
 import openai
 from openai.types.chat.chat_completion_audio import ChatCompletionAudio
-from openai.types.chat.chat_completion_message_function_tool_call import ChatCompletionMessageFunctionToolCall
+from openai.types.chat.chat_completion_message_function_tool_call import (
+    ChatCompletionMessageFunctionToolCall,
+)
 from openai.types.shared.reasoning_effort import ReasoningEffort
 from pydantic import BaseModel
 
 from lang3s import config
 from lang3s.agent.llm.messages import to_message
+
 from .tools import LLMTool, ToolCall
 
 T = TypeVar("T", bound=BaseModel)
@@ -34,10 +37,9 @@ class ChatModelResponse(Generic[T]):
 
 
 class ChatModel:
-
-    def __init__(self,
-                 model_name: str):
+    def __init__(self, model_name: str):
         self.model = model_name
+        self.base_url = f"{config.LLM_HOST}/v1/"
         self.sync_client = openai.OpenAI(
             api_key=config.LLM_API_KEY,
             base_url=f"{config.LLM_HOST}/v1/",
@@ -52,19 +54,22 @@ class ChatModel:
         tool_definitions: Dict[str, LLMTool] = dict()
         if tools:
             for func in tools:
-                if not isinstance(func, Callable) or not hasattr(func, 'tool'):
-                    raise ValueError("tool must be a callable or a function and must have the tool decorator")
+                if not isinstance(func, Callable) or not hasattr(func, "tool"):
+                    raise ValueError(
+                        "tool must be a callable or a function and must have the tool decorator"
+                    )
                 else:
                     tool_definitions[func.tool.name] = func.tool  # type: ignore
         return tool_definitions
 
-    def _prepare_payload(self,
-                         messages: List[Dict[str, Any]],
-                         tools: Optional[List[LLMTool]] = None,
-                         response_model: Optional[Type[BaseModel]] = None,
-                         force_tool_call: bool = False,
-                         **kwargs, ) -> Dict[str, Any]:
-
+    def _prepare_payload(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[LLMTool]] = None,
+        response_model: Optional[Type[BaseModel]] = None,
+        force_tool_call: bool = False,
+        **kwargs,
+    ) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
             "model": self.model,
             "messages": [to_message(**m) for m in messages],
@@ -84,17 +89,18 @@ class ChatModel:
                 "type": "json_schema",
                 "json_schema": {
                     "name": response_model.__name__,
-                    "strict": True,
-                    "schema": raw
-                }
+                    "strict": False,
+                    "schema": raw,
+                },
             }
         return payload
 
     @staticmethod
-    def _parse_response(response,
-                        response_model: Optional[Type[BaseModel]] = None,
-                        tool_definitions: Optional[Dict[str, LLMTool]] = None,
-                        ) -> ChatModelResponse:
+    def _parse_response(
+        response,
+        response_model: Optional[Type[BaseModel]] = None,
+        tool_definitions: Optional[Dict[str, LLMTool]] = None,
+    ) -> ChatModelResponse:
         msg = response.choices[0].message
         tool_calls: Optional[List[ToolCall]] = None
         tool_definitions = tool_definitions or {}
@@ -106,14 +112,16 @@ class ChatModel:
                     function = tc.function
                     definition = tool_definitions.get(function.name, None)
                     if definition:
-                        tool_calls.append(ToolCall(
-                            name=function.name,
-                            tool_call_id=tc.id,
-                            is_async=definition.is_async,
-                            arguments_type=definition.arg_validator,
-                            function=definition.function,
-                            arguments=json.loads(function.arguments),
-                        ))
+                        tool_calls.append(
+                            ToolCall(
+                                name=function.name,
+                                tool_call_id=tc.id,
+                                is_async=definition.is_async,
+                                arguments_type=definition.arg_validator,
+                                function=definition.function,
+                                arguments=json.loads(function.arguments),
+                            )
+                        )
 
         exception = None
         parsed = getattr(msg, "parsed", None)
@@ -131,43 +139,50 @@ class ChatModel:
             exception=exception,
         )
 
-    def chat(self, *,
-             messages: List[Dict[str, Any]],
-             tools: Optional[List[Callable[..., Any]]] = None,
-             response_model: Optional[Type[T]] = None,
-             force_tool_call: bool = False,
-             reasoning_effort: Optional[ReasoningEffort] = None,
-             max_tokens: Optional[int] = None,
-             temperature: Optional[float] = None,
-             ) -> ChatModelResponse[T]:
+    def chat(
+        self,
+        *,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Callable[..., Any]]] = None,
+        response_model: Optional[Type[T]] = None,
+        force_tool_call: bool = False,
+        reasoning_effort: Optional[ReasoningEffort] = None,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+    ) -> ChatModelResponse[T]:
         tool_definitions = ChatModel._prepare_tools(tools=tools)
-        payload: Dict[str, Any] = self._prepare_payload(messages=messages,
-                                                        tools=list(tool_definitions.values()),
-                                                        response_model=response_model,
-                                                        force_tool_call=force_tool_call,
-                                                        reasoning_effort=reasoning_effort,
-                                                        max_completion_tokens=max_tokens,
-                                                        temperature=temperature)
+        payload: Dict[str, Any] = self._prepare_payload(
+            messages=messages,
+            tools=list(tool_definitions.values()),
+            response_model=response_model,
+            force_tool_call=force_tool_call,
+            reasoning_effort=reasoning_effort,
+            max_completion_tokens=max_tokens,
+            temperature=temperature,
+        )
         response = self.sync_client.chat.completions.create(**payload)
         return ChatModel._parse_response(response, response_model, tool_definitions)
 
-    async def async_chat(self, *,
-                         messages: List[Dict[str, Any]],
-                         tools: Optional[List[Callable[..., Any]]] = None,
-                         response_model: Optional[Type[T]] = None,
-                         force_tool_call: bool = False,
-                         reasoning_effort: Optional[ReasoningEffort] = None,
-                         max_tokens: Optional[int] = None,
-                         temperature: Optional[float] = None
-                         ) -> ChatModelResponse[T]:
-
+    async def async_chat(
+        self,
+        *,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Callable[..., Any]]] = None,
+        response_model: Optional[Type[T]] = None,
+        force_tool_call: bool = False,
+        reasoning_effort: Optional[ReasoningEffort] = None,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+    ) -> ChatModelResponse[T]:
         tool_definitions = ChatModel._prepare_tools(tools=tools)
-        payload: Dict[str, Any] = self._prepare_payload(messages=messages,
-                                                        tools=list(tool_definitions.values()),
-                                                        response_model=response_model,
-                                                        force_tool_call=force_tool_call,
-                                                        reasoning_effort=reasoning_effort,
-                                                        max_completion_tokens=max_tokens,
-                                                        temperature=temperature)
+        payload: Dict[str, Any] = self._prepare_payload(
+            messages=messages,
+            tools=list(tool_definitions.values()),
+            response_model=response_model,
+            force_tool_call=force_tool_call,
+            reasoning_effort=reasoning_effort,
+            max_completion_tokens=max_tokens,
+            temperature=temperature,
+        )
         response = await self.async_client.chat.completions.create(**payload)
         return ChatModel._parse_response(response, response_model, tool_definitions)

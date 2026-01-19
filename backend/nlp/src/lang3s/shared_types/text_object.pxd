@@ -29,6 +29,7 @@ cdef class TextObject:
     cdef object get_owner(self)
 
     cdef list get_events(self)
+
     cpdef list annotations_of_type(self, str t)
     cpdef list interleave(self, str annotation_type)
     cpdef bint overlaps(self, TextObject other)

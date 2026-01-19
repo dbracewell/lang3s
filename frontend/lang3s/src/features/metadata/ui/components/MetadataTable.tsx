@@ -1,10 +1,10 @@
-import { MetadataConfiguration, MetadataItem } from "@/features/common/types";
 import { Fragment } from "react";
 import { DeleteMetadataButton } from "@/features/metadata/ui/components/DeleteMetadataButton";
 import Link from "next/link";
 import { formatURL } from "@/lib/utils/formatters";
 import { buttonVariants } from "@/components/ui/button";
 import { PencilIcon } from "lucide-react";
+import { MetadataConfiguration, MetadataItem } from "@/features/metadata/types";
 
 export const MetadataTable = ({
   metadata,

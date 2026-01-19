@@ -10,29 +10,36 @@ from lang3s.models.embedder import Embedder, EmbeddingResult
 from lang3s.models.transformer.multi_task_transformer import MultiTaskTransformer
 from lang3s.models.transformer.shared_types import TokenLabelResult
 from lang3s.nlp.event_extraction import extract_events
+from lang3s.nlp.keyword_extraction import extract_keywords
 from lang3s.shared_types import Document, Event, TextAnnotation
 from lang3s.shared_types.metadata import Metadata
 from lang3s.utils import filter_none
 
 logger = logging.getLogger(__name__)
 
-embedder = Embedder()
-embedder.model.eval()
+
+embedding_dtype = np.float16
 
 
 def heavy_nlp(
-    doc: Document, tasks: Optional[Iterable[str]] = None, is_reannotation: bool = False
+    doc: Document,
+    tasks: Optional[Iterable[str]] = None,
+    is_reannotation: bool = False,
+    embedder: Optional[Embedder] = None,
+    mtask: Optional[MultiTaskTransformer] = None,
 ):
+    # with torch.amp.autocast(dtype=torch.float16, device_type="cpu"):
+    embedder = embedder if embedder is not None else Embedder()
+    embedder.model.eval()
+
     if doc.text is None:
         return
 
-    # with torch.amp.autocast(dtype=torch.float32, device_type="cpu"):
     sentences = [[t.text for t in s.tokens] for s in doc.text.sentences]
     result = embedder(
         sentences,
         is_split_into_words=True,
     )
-
     if not is_reannotation:
         create_core_embeddings(doc, result)
     else:
@@ -41,11 +48,14 @@ def heavy_nlp(
             sources += tasks
         doc.text.remove_annotation(sources)
 
-    perform_heavy_tagging(doc, sentences, result, tasks)
+    perform_heavy_tagging(doc, sentences, result, tasks, mtask=mtask)
     extract_events_for_doc(doc)
 
     for annotation in doc.text.annotations:
         embed_annotation(annotation)
+
+    keywords = extract_keywords(doc.text, top_n=10)
+    doc.text.set_keywords(keywords)
 
 
 def _to_mean_array(
@@ -72,7 +82,7 @@ def embed_event_annotation(annotation: TextAnnotation):
         raise ValueError("Something went wrong", event)
 
     sum_embedding += (1.0 - 0.2 * len(e)) * trigger_embedding
-    annotation.embedding = sum_embedding
+    annotation.embedding = sum_embedding.astype(embedding_dtype)
 
 
 def embed_annotation(annotation: TextAnnotation):
@@ -85,36 +95,38 @@ def embed_annotation(annotation: TextAnnotation):
         annotation.embedding = (
             np.array([t.embedding for t in annotation.tokens])
             .mean(axis=0)
-            .astype(np.float16)
+            .astype(embedding_dtype)
         )
     if np.any(np.isnan(annotation.embedding)):
         logger.error(
             f"Error: NaN value in embedding for {annotation.text} {[t.text for t in annotation.tokens]} ",
             exc_info=True,
         )
-        annotation.embedding = np.nan_to_num(annotation.embedding)
+        annotation.embedding = np.nan_to_num(annotation.embedding).astype(
+            embedding_dtype
+        )
 
 
 def create_core_embeddings(doc: Document, result: EmbeddingResult):
-    doc_emb = np.zeros(result.sentence_embeddings[0].shape[-1], dtype=np.float16)
+    doc_emb = np.zeros(result.sentence_embeddings[0].shape[-1], dtype=embedding_dtype)
 
     for sentence, word_embeddings, sentence_embedding in zip(
         doc.text.sentences,
         result.word_embeddings,
         result.sentence_embeddings,
     ):
-        sentence.embedding = normalize(sentence_embedding)
+        sentence.embedding = normalize(sentence_embedding).astype(embedding_dtype)
         weight = sentence[Metadata.WEIGHT.value]
         if weight > 0:
             doc_emb += sentence_embedding * float(weight)
 
         # Assign the token embeddings
         for token, emb in zip(sentence.tokens, word_embeddings):
-            token.embedding = emb
+            token.embedding = emb.astype(embedding_dtype)
 
     # Document level embedding is the weighted sum of the
     # sentence embeddings
-    doc.text.embedding = normalize(doc_emb).astype(np.float32)
+    doc.text.embedding = normalize(doc_emb).astype(embedding_dtype)
 
 
 def _add_token_span(
@@ -143,8 +155,9 @@ def perform_heavy_tagging(
     sentences: List[List[str]],
     result: EmbeddingResult,
     tasks: Optional[Iterable[str]],
+    mtask: Optional[MultiTaskTransformer],
 ):
-    tagger = MultiTaskTransformer()
+    tagger = mtask if mtask is not None else MultiTaskTransformer()
     outputs = tagger.forward(
         result, sentences=sentences, language=doc.language, tasks=tasks
     )

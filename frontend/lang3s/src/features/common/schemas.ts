@@ -1,15 +1,11 @@
 import z from "zod";
-import {
-  DATA_TYPES,
-  DataType,
-  METADATA_SOURCES,
-  MetadataSourceType,
-} from "@/features/common/types";
+import { DataType, DataTypeNames } from "@/features/common/types";
+import { MetadataSource, MetadataSources } from "@/features/metadata/types";
 
 export const MetadataSchema = z.object({
   name: z.string().min(1, "Metadata name is required"),
-  dataType: z.enum(DATA_TYPES).refine((a) => a as DataType),
-  source: z.enum(METADATA_SOURCES).refine((a) => a as MetadataSourceType),
+  dataType: z.enum(DataTypeNames).refine((a) => a as DataType),
+  source: z.enum(MetadataSources).refine((a) => a as MetadataSource),
   formatter: z.string().optional(),
 });
 
