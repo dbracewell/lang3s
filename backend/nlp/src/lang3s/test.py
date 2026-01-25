@@ -1,19 +1,82 @@
 import json
 from collections import defaultdict
+from time import perf_counter, time
 
+import duckdb
 import numpy as np
 from psycopg import sql
 from sklearn.cluster import HDBSCAN
+from sqlalchemy import select
+from tqdm import tqdm
 from umap import UMAP
 
 from lang3s.app import Application
 from lang3s.data.db import Database
+from lang3s.data.db.models import TextAnnotationsTable
 from lang3s.data.io.serialization import deserialize
 from lang3s.maths import cosine
 
 
 class Test(Application):
     def run(self):
+        conn = duckdb.connect("/Users/ik/prj/Lang3s/file.db")
+
+        # conn.execute("INSTALL postgres;")
+        # conn.execute("LOAD postgres;")
+        # conn.execute(
+        #     "ATTACH 'dbname=lang3s user=admin password=abba host=192.168.0.100' AS pg (TYPE postgres)"
+        # )
+        # conn.execute(
+        #     "CREATE TABLE text_annotations AS SELECT * FROM pg.public.text_annotations;"
+        # )
+        # conn.execute("""
+        #              CREATE OR REPLACE VIEW annotation_norm as
+        #              select UPPER(COALESCE(metadata->>'coref_text',text)) as text,
+        #                     type,
+        #                     value,
+        #                     COUNT(DISTINCT doc_id) as document_count,
+        #                     COUNT(DISTINCT sentence_id) as sentence_count,
+        #                     COUNT(0) as mention_count
+        #              FROM text_annotations
+        #              GROUP BY metadata, UPPER(COALESCE(metadata->>'coref_text',text)) , type, value
+        #             """)
+
+        start = time()
+        r = conn.query(
+            """SELECT id, text
+               FROM text_annotations
+               WHERE text ilike '%wall%street%'
+               """
+        )
+        for row in r.fetchall():
+            print(row)
+        end = time()
+        print(end - start)
+        exit()
+        conn.sql(
+            "CREATE TABLE IF NOT EXISTS ANNOTATIONS (id TEXT PRIMARY KEY, type TEXT, value TEXT, text TEXT, embedding FLOAT[384])"
+        )
+        db = Database()
+        with db.session() as session:
+            stmt = select(TextAnnotationsTable).execution_options(yield_per=100)
+            i = 0
+            for row in tqdm(session.scalars(stmt)):
+                conn.execute(
+                    f"INSERT INTO ANNOTATIONS VALUES (?,?,?,?,?)",
+                    [
+                        row.id,
+                        row.type_,
+                        row.value,
+                        row.content,
+                        row.embedding.to_numpy(),
+                    ],
+                )
+                i += 1
+                if i % 100 == 0:
+                    conn.commit()
+
+        conn.close()
+        exit()
         # with open(
         #     "/Users/ik/prj/Lang3s/backend/nlp/src/lang3s/reddit_style_corpus.json"
         # ) as fp:

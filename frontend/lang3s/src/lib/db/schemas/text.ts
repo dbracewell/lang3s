@@ -1,16 +1,6 @@
 import { sql } from "drizzle-orm";
-import {
-  halfvec,
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { halfvec, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-export const TOKEN_EMBEDDING_DIMENSION = 768;
 export const SEMANTIC_EMBEDDING_DIMENSION = 384;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,6 +104,32 @@ export const TextAnnotationTable = pgTable(
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => new Date()),
+    a0Text: text("a0_text")
+      .array()
+      .generatedAlwaysAs(
+        sql`ARRAY(SELECT jsonb_array_elements_text(metadata->'A0_TEXT'))`,
+      ),
+    a1Text: text("a1_text")
+      .array()
+      .generatedAlwaysAs(
+        sql`ARRAY(SELECT jsonb_array_elements_text(metadata->'A0_TEXT'))`,
+      ),
+    timeText: text("time_text").generatedAlwaysAs(
+      sql`(metadata->>'TIME_TEXT')`,
+    ),
+    locText: text("loc_text").generatedAlwaysAs(sql`(metadata->>'LOC_TEXT')`),
+    a0Id: text("a0_id")
+      .array()
+      .generatedAlwaysAs(
+        sql`ARRAY(SELECT jsonb_array_elements_text(metadata->'A0'))`,
+      ),
+    a1Id: text("a1_id")
+      .array()
+      .generatedAlwaysAs(
+        sql`ARRAY(SELECT jsonb_array_elements_text(metadata->'A1'))`,
+      ),
+    timeId: text("time_id").generatedAlwaysAs(sql`(metadata->>'TIME')`),
+    locId: text("loc_id").generatedAlwaysAs(sql`(metadata->>'LOC')`),
   },
   (table) => [
     index("text_annotation_sentence_aid_index").on(table.sentenceAid),
@@ -121,6 +137,10 @@ export const TextAnnotationTable = pgTable(
     index("text_annotation_mapping_index").on(table.mapping),
     index("text_annotation_normalized_index").on(table.normalized),
     index("ml_text_annotation_search_index").using("pgroonga", table.content),
+    index("text_annotation_a0_text_index").using("GIN", table.a0Text),
+    index("text_annotation_a1_text_index").using("GIN", table.a1Text),
+    index("text_annotation_loc_text_index").on(table.locText),
+    index("text_annotation_time_text_index").on(table.timeText),
     index("text_annotation_embedding_index").using(
       "hnsw",
       table.embedding.op("halfvec_cosine_ops"),

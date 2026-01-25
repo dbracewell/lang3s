@@ -259,6 +259,9 @@ cdef class TextAnnotation(TextObject):
             metadata=Jsonb(self._meta.to_dict())  #type:ignore
         ))
 
+    def metadata(self):
+        return self._meta.to_dict()
+
     property dep:
         def __get__(self):
             cdef TextAnnotation parent

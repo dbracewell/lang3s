@@ -101,7 +101,6 @@ class Topic:
         self.min_sim_threshold = min_sim_threshold
         self.is_fixed = is_fixed
         self.name = name if name is not None else id
-        self._cached_doc_count = -100
 
     @property
     def doc_count(self) -> int:
@@ -115,8 +114,7 @@ class Topic:
                 >= FULL_EMBEDDING_THRESHOLD,
                 cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False,
             )
-            self._cached_doc_count = session.scalar(stmt)
-            return self._cached_doc_count
+            return session.scalar(stmt)
 
     @property
     def sentence_count(self) -> int:
@@ -439,10 +437,10 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                         topic_i.merge(topic_j)
                         merged.add(j)
 
-                if topic_i.support >= self.min_support and (
-                    topic_i._cached_doc_count >= self.min_document_count
-                    or topic_i.doc_count >= self.min_document_count
-                ):
+                if topic_i.support >= self.min_support:
+                    # and (
+                    # or topic_i.doc_count >= self.min_document_count
+                    # ):
                     new_topics.append(topic_i)
 
             self._topics = new_topics
@@ -500,9 +498,7 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                 topic for topic in self._topics if topic.id not in topics_to_delete
             ]
         self.reducer.save()
-        with db.cursor() as cursor:
-            cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_sentences;")
-            cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_documents;")
+        db.refresh_topic_views()
         logger.info(f"Saved {len(self._topics)} topics")
 
     def get_topic(self, topic_id: int | str) -> Topic:

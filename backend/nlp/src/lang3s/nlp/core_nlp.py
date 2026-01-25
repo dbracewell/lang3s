@@ -245,7 +245,7 @@ def _core_nlp(nlp: Language, language: str, docs: List[Document]):
         entity: Span
         for entity in spacy_doc.ents:
             label = entity.label_
-            if is_person_pronoun(entity):
+            if is_person_pronoun(entity) and entity.text != "US":
                 label = "PERSON"
 
             metadata = {Metadata.LEMMA.value: entity.lemma_}

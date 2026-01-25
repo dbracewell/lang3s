@@ -376,88 +376,64 @@ export const AnalyticsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      return await logAndRethrow(() => {
+      return await logAndRethrow(async () => {
         const { entity, value } = input;
 
-        const entityQuery = Annotations.getAnnotationsWithOntology({
-          options: { normalize: true },
-          annotationFields: ["sentenceAid"],
-          limitTo: [value],
-        })
-          .where((t) => eq(t.content, entity.toUpperCase()))
-          .as(randomAlphaUnderscore());
-
-        const sentenceQuery = Annotations.getSentences().as("sentence_query");
         const entitiesWithSentences = db
           .selectDistinct({
-            sentenceAid: sentenceQuery.sentenceAid,
-            sentence: sentenceQuery.content,
+            sentenceAid: AnnotationWithOntologyView.sentenceAid,
+            sentence: TextAnnotationTable.content,
           })
-          .from(entityQuery)
+          .from(AnnotationWithOntologyView)
           .innerJoin(
-            sentenceQuery,
-            eq(entityQuery.sentenceAid, sentenceQuery.sentenceAid),
-          )
-          .as("entities_with_sentences");
-
-        const eventsBaseQuery = Annotations.getAnnotationsWithOntology({
-          limitTo: ["ALL.Event", "ALL.State", "ALL.Process"],
-          options: { normalize: true, includeEventArgs: true },
-          annotationFields: ["sentenceAid"],
-          computedColumns: (o) => ({
-            value: sql<string>`${o.name}`.as(randomAlphaUnderscore()),
-            isA0: sql<boolean>`exists (
-          select 1
-          from jsonb_array_elements_text(metadata->'A0_TEXT') as elem
-          where lower(elem) = ${entity.toLowerCase()})`.as("isA0"),
-            isA1: sql<boolean>`exists (
-          select 1
-          from jsonb_array_elements_text(metadata->'A1_TEXT') as elem
-          where lower(elem) = ${entity.toLowerCase()})`.as("isA1"),
-            isLoc:
-              sql<boolean>`UPPER((metadata->>'LOC_TEXT')::text) = ${entity.toUpperCase()}`.as(
-                "isLoc",
-              ),
-          }),
-        })
-          .where(
+            TextAnnotationTable,
             and(
-              or(
-                sql`exists (
-          select 1
-          from jsonb_array_elements_text(metadata->'A0_TEXT') as elem
-          where lower(elem) = ${entity.toLowerCase()}
-      )`,
-                sql`exists (
-          select 1
-          from jsonb_array_elements_text(metadata->'A1_TEXT') as elem
-          where lower(elem) = ${entity.toLowerCase()}
-      )`,
-                sql`UPPER((metadata->>'LOC_TEXT')::text) = ${entity.toUpperCase()}`,
+              eq(
+                AnnotationWithOntologyView.sentenceAid,
+                TextAnnotationTable.sentenceAid,
               ),
+              eq(TextAnnotationTable.type, "sentence"),
             ),
           )
-          .as("events_base_query");
+          .where(
+            and(
+              eq(AnnotationWithOntologyView.normalized, entity.toUpperCase()),
+              eq(AnnotationWithOntologyView.path, value),
+            ),
+          )
+          .as(randomAlphaUnderscore());
 
+        const entityLower = entity.toLowerCase();
+        const entityLowerArr = sql`ARRAY[${entityLower}]::text[]`;
         const events = db
           .select({
-            text: eventsBaseQuery.content,
-            A0: eventsBaseQuery.a0,
-            A1: eventsBaseQuery.a1,
-            LOC: eventsBaseQuery.location,
-            TIME: eventsBaseQuery.time,
-            value: eventsBaseQuery.value,
+            text: sql<string>`${AnnotationWithOntologyView.content}`.as(
+              randomAlphaUnderscore(),
+            ),
+            value: AnnotationWithOntologyView.name,
+            A0: AnnotationWithOntologyView.a0Text,
+            A1: AnnotationWithOntologyView.a1Text,
+            TIME: AnnotationWithOntologyView.timeText,
+            LOC: AnnotationWithOntologyView.locText,
             sentence: entitiesWithSentences.sentence,
-            isA0: eventsBaseQuery.isA0,
-            isA1: eventsBaseQuery.isA1,
-            isLoc: eventsBaseQuery.isLoc,
           })
-          .from(entitiesWithSentences)
+          .from(AnnotationWithOntologyView)
           .innerJoin(
-            eventsBaseQuery,
-            eq(entitiesWithSentences.sentenceAid, eventsBaseQuery.sentenceAid),
+            entitiesWithSentences,
+            eq(
+              entitiesWithSentences.sentenceAid,
+              AnnotationWithOntologyView.sentenceAid,
+            ),
           )
-          .as("events");
+          .where(
+            or(
+              sql`lower_array(${AnnotationWithOntologyView.a0Text}) && ${entityLowerArr}`,
+              sql`lower_array(${AnnotationWithOntologyView.a1Text}) && ${entityLowerArr}`,
+              sql`lower(${AnnotationWithOntologyView.locText}) = ${entityLower}`,
+              sql`lower(${AnnotationWithOntologyView.timeText}) = ${entityLower}`,
+            ),
+          )
+          .as(randomAlphaUnderscore());
 
         return db
           .select({
@@ -472,9 +448,6 @@ export const AnalyticsRouter = createTRPCRouter({
                   A1: events.A1,
                   TIME: events.TIME,
                   LOC: events.LOC,
-                  isA0: events.isA0,
-                  isA1: events.isA1,
-                  isLoc: events.isLoc,
                 },
                 true,
               ),

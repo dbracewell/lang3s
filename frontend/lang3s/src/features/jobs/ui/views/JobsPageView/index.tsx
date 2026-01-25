@@ -14,13 +14,15 @@ import { toast } from "sonner";
 import { columns, type JobType } from "./columns";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { useJobStatusSync } from "@/features/jobs/hooks/jobStatusSync";
+import { useSetAtom } from "jotai";
+import { removeJobStatusAtom } from "@/features/events/stores/job-stores";
 
 export const JobPageView = () => {
   const { data, refetch } = useTRPCQuery((trpc) =>
     trpc.jobs.getAll.queryOptions(),
   );
   const [, setCurrentTime] = useState<number>(0);
-
+  const remove = useSetAtom(removeJobStatusAtom);
   useJobStatusSync(data, refetch);
 
   useEffect(() => {
@@ -44,11 +46,14 @@ export const JobPageView = () => {
         failed += 1;
       }
     }
-    setToDelete([]);
-    setIsDeleting(false);
+
     if (failed > 0) {
       toast.error(`Could not delete ${failed} jobs`);
+    } else {
+      remove(toDelete);
     }
+    setToDelete([]);
+    setIsDeleting(false);
   };
 
   const { DataTable, setFilter, getFilter, rows } = useDataTable({

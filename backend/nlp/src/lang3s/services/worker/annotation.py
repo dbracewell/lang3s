@@ -1,6 +1,5 @@
 import argparse
 import gc
-import json
 import logging
 import multiprocessing
 import os
@@ -9,7 +8,6 @@ import time
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
-import redis
 import torch
 from lang3s_job_service import File, Job, JobService, JobStatus
 
@@ -18,24 +16,22 @@ from lang3s.data.db import Database, TextDatabase
 from lang3s.logs import initialize_logging
 from lang3s.models import Embedder, MultiTaskTransformer
 from lang3s.pipeline import pipeline
+from lang3s.services.client.redis_client import (
+    ANNOTATION_QUEUE_NAME,
+    DUCKDB_QUEUE_NAME,
+    RedisClient,
+    redis_batch_generator,
+)
 from lang3s.services.client.topic_model_client import TopicModelClient
 from lang3s.utils.decorators import trace_mem
 
 initialize_logging(filename="nlp_worker.log")
 
 
-QUEUE_NAME = "doc_queue"
-BATCH_TIMEOUT = 30
-
 logger = logging.getLogger("NLP_WORKER")
 pid = os.getpid()
 job_service = JobService(api_key=config.SYSTEM_API_KEY, api_host=config.NODEJS_HOST)
-redis_client = redis.Redis(
-    host=config.REDIS_HOST,
-    port=config.REDIS_PORT,
-    db=config.REDIS_DB,
-    decode_responses=True,
-)
+redis_client = RedisClient()
 text_db = TextDatabase()
 topic_model = TopicModelClient()
 
@@ -137,6 +133,25 @@ def process_batch(batch, embedder, mtask):
             f"WORKER {pid}: 💽 Starting writing of {len(docs)} documents to database"
         )
         text_db.add_documents(docs)
+
+        # for doc in docs:
+        #     # redis_client.enqueue(DUCKDB_QUEUE_NAME, doc.id)
+        #     for annotation in doc.text.all_annotations:
+        #         if annotation.type == "token":
+        #             continue
+        #         a = {
+        #             "id": annotation.id,
+        #             "text": annotation.get("coref_text", annotation.text).upper(),
+        #             "type": annotation.type,
+        #             "mapping": f"{annotation.type}:{annotation.value}",
+        #             "value": annotation.value,
+        #             "sentence_aid": annotation.sentence.id,
+        #             "document_id": annotation.doc_id,
+        #             "embedding": annotation.embedding.tolist(),
+        #             "metadata": annotation.metadata(),
+        #         }
+        #         redis_client.enqueue(DUCKDB_QUEUE_NAME, a)
+
         end = time.perf_counter()
         logger.info(
             f"WORKER {pid}: ✅ Finished writing {len(docs)} documents to database: {(end - start):.2f}s"
@@ -196,14 +211,13 @@ def check_for_completion(job_id: Optional[int] = None) -> bool:
             total_inc=20,
             metadata={"is_finalizing": True},
         )
+
+        redis_client.enqueue(DUCKDB_QUEUE_NAME, {"status": "completed"})
+        db = Database()
+
         logger.info(f"WORKER {pid}: Finishing job {job_id}")
         try:
-            db = Database()
-            logger.info(f"WORKER {pid}: Indexing text annotation embeddings")
-            with db.cursor() as cursor:
-                cursor.execute(
-                    'CREATE INDEX IF NOT EXISTS "text_annotation_embedding_index" ON "text_annotations" USING hnsw ("embedding" halfvec_cosine_ops);'
-                )
+            db.create_text_annotation_embedding_index()
         except Exception as e:
             if "pg_class_relname_nsp_index" in str(e):
                 return True
@@ -218,9 +232,8 @@ def check_for_completion(job_id: Optional[int] = None) -> bool:
             logger.error(f"WORKER {pid}: Error finalizing topics: {e}")
 
         try:
-            db = Database()
             logger.info(f"WORKER {pid}: Refreshing views")
-            db.refresh_views()
+            db.refresh_annotation_views()
             logger.info(f"WORKER {pid}: Completed refreshing views")
         except Exception as e:
             logger.error(f"WORKER {pid}: Error constructing materialized views: {e}")
@@ -234,30 +247,11 @@ def check_for_completion(job_id: Optional[int] = None) -> bool:
     return False
 
 
-def redis_batch_generator(queue_name, batch_size=250):
-    try:
-        while True:
-            batch = []
-            start_time = time.time()
-
-            while (time.time() - start_time) < BATCH_TIMEOUT and len(
-                batch
-            ) < batch_size:
-                msg = redis_client.lpop(queue_name)
-                if msg:
-                    batch.append(json.loads(msg))
-
-            yield batch
-    except KeyboardInterrupt:
-        print("Shutting down...")
-        yield []
-
-
 def worker_loop(params: Tuple[int, int]):
     active_job_id = params[1]
     batch_size = params[0]
 
-    for batch in redis_batch_generator(QUEUE_NAME, batch_size):
+    for batch in redis_batch_generator(ANNOTATION_QUEUE_NAME, batch_size):
         if batch:
             # We only allow one annotation job to run at a time
             # Make sure this is true
@@ -317,9 +311,10 @@ if __name__ == "__main__":
     active_job_id = None
     total_docs_completed = 0
     total_docs_failed = 0
+
     try:
         while True:
-            while redis_client.llen(QUEUE_NAME) == 0:
+            while redis_client.queue_length(ANNOTATION_QUEUE_NAME) == 0:
                 time.sleep(5)
 
             with multiprocessing.Pool(

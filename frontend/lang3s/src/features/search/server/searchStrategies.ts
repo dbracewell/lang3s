@@ -503,10 +503,10 @@ export const annotationSearch = async ({
       id: AnnotationWithOntologyView.id,
       embedding: AnnotationWithOntologyView.embedding,
       content: AnnotationWithOntologyView.normalized,
-      a0: AnnotationWithOntologyView.a0,
-      a1: AnnotationWithOntologyView.a1,
-      time: AnnotationWithOntologyView.time,
-      location: AnnotationWithOntologyView.location,
+      a0: AnnotationWithOntologyView.a0Text,
+      a1: AnnotationWithOntologyView.a1Text,
+      time: AnnotationWithOntologyView.timeText,
+      location: AnnotationWithOntologyView.locText,
     })
     .from(AnnotationWithOntologyView)
     .innerJoin(

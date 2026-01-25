@@ -50,7 +50,7 @@ class Database(metaclass=SingletonMeta):
         def connect(dbapi_connection, connection_record):
             register_vector(dbapi_connection)
 
-    def refresh_views(self):
+    def refresh_annotation_views(self):
         with psy_raw(self.engine) as conn:
             register_vector(conn)
             with conn.cursor() as cursor:
@@ -59,6 +59,27 @@ class Database(metaclass=SingletonMeta):
                 )
                 cursor.execute(
                     "REFRESH MATERIALIZED VIEW CONCURRENTLY  annotation_co_occurrence;"
+                )
+            conn.commit()
+
+    def create_text_annotation_embedding_index(self):
+        with psy_raw(self.engine) as conn:
+            register_vector(conn)
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    'CREATE INDEX IF NOT EXISTS "text_annotation_embedding_index" ON "text_annotations" USING hnsw ("embedding" halfvec_cosine_ops);'
+                )
+            conn.commit()
+
+    def refresh_topic_views(self):
+        with psy_raw(self.engine) as conn:
+            register_vector(conn)
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_sentences;"
+                )
+                cursor.execute(
+                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_documents;"
                 )
             conn.commit()
 
@@ -164,13 +185,7 @@ class Database(metaclass=SingletonMeta):
             sql.SQL(", ").join(sql.Identifier(c) for c in columns),
         )
 
-        def stream_prepare(rows):
-            for row in rows:
-                yield [prepare_value(item) for item in row]
-
         with cursor.copy(copy_sql) as copy:
-            # for prepared_row in stream_prepare(data):
-            #     copy.write_row(prepared_row)
             for row in data:
                 copy.write_row(row)
 

@@ -1,7 +1,7 @@
 import { createClient, RedisClientType } from "redis";
 import { t3env } from "@/lib/t3env";
 
-export const ANNOTATION_QUEUE = "doc_queue";
+export const ANNOTATION_QUEUE = "annotation_queue";
 
 const globalForRedis = global as unknown as { redis: RedisClientType };
 

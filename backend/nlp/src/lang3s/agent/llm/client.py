@@ -58,24 +58,16 @@ class LlmClient:
         api_key: str = config.LLM_API_KEY,
         llm_host: str = config.LLM_HOST,
     ):
-        self._client: AsyncOpenAI | None = None
         self.max_retries: int = 3
         self.api_key: str = api_key
         self.base_url: str = f"{llm_host}/v1/"
         self.model_name: str = model_name
 
     def _get_client(self):
-        if self._client is None:
-            self._client = AsyncOpenAI(
-                api_key=config.LLM_API_KEY,
-                base_url=f"{config.LLM_HOST}/v1/",
-            )
-        return self._client
-
-    def close(self):
-        if self._client is not None:
-            self._client.close()
-            self._client = None
+        return AsyncOpenAI(
+            api_key=config.LLM_API_KEY,
+            base_url=f"{config.LLM_HOST}/v1/",
+        )
 
     @staticmethod
     def _error_to_event(e: Exception) -> ChatCompletionEvent:
@@ -156,6 +148,8 @@ class LlmClient:
 
         async for event in chat():
             yield event
+
+        await client.close()
         return
 
     @staticmethod
@@ -338,9 +332,9 @@ class LlmClient:
         stream: bool = False,
         response_model: Type[T] | None = None,
         **kwargs: Unpack[ChatCompletionParams],
-    ):
+    ) -> Generator[ChatCompletionEvent[T], None, None]:
         for event in async_generator_to_sync(
-            self.chat_completion(
+            lambda: self.chat_completion(
                 messages=messages,
                 stream=stream,
                 response_model=response_model,

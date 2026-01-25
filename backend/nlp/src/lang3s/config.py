@@ -16,14 +16,14 @@ SYSTEM_API_KEY = os.environ.get("SYSTEM_API_KEY", "456789")
 #####################################################################################
 DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "abba")
 DB_USER = os.environ.get("POSTGRES_USER", "admin")
-DB_HOST = os.environ.get("POSTGRES_HOST", "100.118.226.19")
+DB_HOST = os.environ.get("POSTGRES_HOST", "localhost")  # "100.118.226.19")
 DB_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
 DB_URL = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/lang3s"
 
 #####################################################################################
 # REDIS
 #####################################################################################
-REDIS_HOST = os.environ.get("REDIS_HOST", "100.118.226.19")
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")  # "100.118.226.19")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 
@@ -51,8 +51,10 @@ USE_COREFERENCE = True
 # STORAGE DIRECTORIES
 #####################################################################################
 __DEFAULT_MODELS_DIR = "/app"
-__DEFAULT_DOCUMENTS_DIR = "/Users/ik/prj/Lang3s/documents"
-DOCUMENTS_DIR: str = os.environ.get("DOCUMENTS_DIR", __DEFAULT_DOCUMENTS_DIR)
+__DEFAULT_FILESTORE_ROOT = "/Users/ik/prj/Lang3s/filestore"
+
+FILESTORE_ROOT = os.environ.get("FILESTORE_ROOT", __DEFAULT_FILESTORE_ROOT)
+
 MODELS_DIR: str = os.environ.get("MODELS_DIR", __DEFAULT_MODELS_DIR)
 ADAPTERS_DIR: str = os.path.join(MODELS_DIR, "adapters")
 ADAPTER_CONFIG_FILE: str = os.path.join(ADAPTERS_DIR, "adapters.json")

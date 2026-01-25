@@ -3,6 +3,24 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pgroonga;
 CREATE EXTENSION IF NOT EXISTS ltree;
 
+CREATE OR REPLACE FUNCTION jsonb_array_to_text_array(_js jsonb)
+    RETURNS text[]
+    LANGUAGE sql
+    IMMUTABLE PARALLEL SAFE AS
+$$
+SELECT ARRAY(SELECT jsonb_array_elements_text(_js));
+$$;
+
+CREATE FUNCTION lower_array(text[]) RETURNS text[]
+    LANGUAGE sql
+    IMMUTABLE AS
+$$
+SELECT array_agg(lower(x))
+FROM unnest($1) x;
+$$;
+
+
+
 DROP TYPE IF EXISTS "public"."job_status" CASCADE;
 DROP TYPE IF EXISTS "public"."job_type" CASCADE;
 DROP TYPE IF EXISTS "public"."metadata_data_type" CASCADE;
@@ -96,7 +114,8 @@ CREATE TABLE IF NOT EXISTS "verification"
     "updated_at" timestamp DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "documents"
+DROP TABLE IF EXISTS "documents" CASCADE;
+CREATE TABLE "documents"
 (
     "id"         text PRIMARY KEY              NOT NULL,
     "title"      text                          NOT NULL,
@@ -105,7 +124,8 @@ CREATE TABLE IF NOT EXISTS "documents"
     "updated_at" timestamp DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS "text_annotations"
+DROP TABLE IF EXISTS "text_annotations" CASCADE;
+CREATE TABLE "text_annotations"
 (
     "id"              text PRIMARY KEY              NOT NULL,
     "text"            text                          NOT NULL,
@@ -123,6 +143,14 @@ CREATE TABLE IF NOT EXISTS "text_annotations"
     "mapping"         text,
     "embedding"       halfvec(384)                  NOT NULL,
     "metadata"        jsonb     DEFAULT '{}'::jsonb NOT NULL,
+    "a0_text"         text[] GENERATED ALWAYS AS (jsonb_array_to_text_array(metadata -> 'A0_TEXT')) STORED,
+    "a1_text"         text[] GENERATED ALWAYS AS (jsonb_array_to_text_array(metadata -> 'A1_TEXT')) STORED,
+    "time_text"       text GENERATED ALWAYS AS (metadata ->> 'TIME_TEXT') STORED,
+    "loc_text"        text GENERATED ALWAYS AS (metadata ->> 'LOC_TEXT') STORED,
+    "a0_id"           text[] GENERATED ALWAYS AS (jsonb_array_to_text_array(metadata -> 'A0')) STORED,
+    "a1_id"           text[] GENERATED ALWAYS AS (jsonb_array_to_text_array(metadata -> 'A1')) STORED,
+    "time_id"         text GENERATED ALWAYS AS (metadata ->> 'TIME') STORED,
+    "loc_id"          text GENERATED ALWAYS AS (metadata ->> 'LOC') STORED,
     "created_at"      timestamp DEFAULT now(),
     "updated_at"      timestamp DEFAULT now()
 ) PARTITION BY HASH (id);
@@ -139,7 +167,8 @@ CREATE TABLE IF NOT EXISTS text_annotations_p9 PARTITION OF text_annotations FOR
 CREATE TABLE IF NOT EXISTS text_annotations_p10 PARTITION OF text_annotations FOR VALUES WITH (modulus 10, remainder 9);
 
 
-CREATE TABLE IF NOT EXISTS "text"
+DROP TABLE IF EXISTS "text" CASCADE;
+CREATE TABLE "text"
 (
     "id"         text PRIMARY KEY              NOT NULL,
     "text"       text                          NOT NULL,
@@ -150,7 +179,8 @@ CREATE TABLE IF NOT EXISTS "text"
     "updated_at" timestamp DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS "annotation_to_ontology"
+DROP TABLE IF EXISTS "annotation_to_ontology" CASCADE;
+CREATE TABLE "annotation_to_ontology"
 (
     "id"                    serial PRIMARY KEY NOT NULL,
     "ontology_id"           integer            NOT NULL,
@@ -158,7 +188,8 @@ CREATE TABLE IF NOT EXISTS "annotation_to_ontology"
     CONSTRAINT "ato_ont_type_idx" UNIQUE ("ontology_id", "annotation_type_value")
 );
 
-CREATE TABLE IF NOT EXISTS "ontology"
+DROP TABLE IF EXISTS "ontology" CASCADE;
+CREATE TABLE "ontology"
 (
     "id"           serial PRIMARY KEY      NOT NULL,
     "name"         text                    NOT NULL,
@@ -171,7 +202,8 @@ CREATE TABLE IF NOT EXISTS "ontology"
     CONSTRAINT "ontology_name_unique" UNIQUE ("name")
 );
 
-CREATE TABLE IF NOT EXISTS "jobs"
+DROP TABLE IF EXISTS "jobs" CASCADE;
+CREATE TABLE "jobs"
 (
     "id"           serial PRIMARY KEY              NOT NULL,
     "name"         varchar(255)                    NOT NULL,
@@ -189,13 +221,15 @@ CREATE TABLE IF NOT EXISTS "jobs"
     "updated_at"   timestamp    DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS "configuration"
+DROP TABLE IF EXISTS "configuration" CASCADE;
+CREATE TABLE "configuration"
 (
     "name"  text PRIMARY KEY NOT NULL,
     "value" jsonb            NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "topics"
+DROP TABLE IF EXISTS "topics" CASCADE;
+CREATE TABLE "topics"
 (
     "id"          text PRIMARY KEY        NOT NULL,
     "name"        text                    NOT NULL,
@@ -207,7 +241,8 @@ CREATE TABLE IF NOT EXISTS "topics"
     "updated_at"  timestamp DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS "metadata"
+DROP TABLE IF EXISTS "metadata" CASCADE;
+CREATE TABLE "metadata"
 (
     "id"                   uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "source"               "metadata_sources"                         NOT NULL,
@@ -219,7 +254,8 @@ CREATE TABLE IF NOT EXISTS "metadata"
     CONSTRAINT "source_name_unique" UNIQUE ("source", "name")
 );
 
-CREATE TABLE IF NOT EXISTS "keywords"
+DROP TABLE IF EXISTS "keywords" CASCADE;
+CREATE TABLE "keywords"
 (
     "id"          uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "keyword"     text                                       NOT NULL,
@@ -282,6 +318,7 @@ ALTER TABLE "jobs"
 
 
 CREATE INDEX IF NOT EXISTS "document_metadata_gin_idx" ON "documents" USING gin ("metadata" jsonb_path_ops);
+
 CREATE INDEX IF NOT EXISTS "text_annotation_normalized_index" ON "text_annotations" USING btree ("normalized_text");
 CREATE INDEX IF NOT EXISTS "text_annotation_sentence_aid_index" ON "text_annotations" USING btree ("sentence_aid");
 CREATE INDEX IF NOT EXISTS "text_annotation_document_id_index" ON "text_annotations" USING btree ("doc_id");
@@ -289,6 +326,13 @@ CREATE INDEX IF NOT EXISTS "text_annotation_mapping_index" ON "text_annotations"
 CREATE INDEX IF NOT EXISTS "ml_text_annotation_search_index" ON "text_annotations" USING pgroonga ("text");
 CREATE INDEX IF NOT EXISTS "text_annotation_embedding_index" ON "text_annotations" USING hnsw ("embedding" halfvec_cosine_ops);
 CREATE INDEX IF NOT EXISTS "text_annotation_metadata_gin_idx" ON "text_annotations" USING gin ("metadata" jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS "text_annotation_a0_text_index" on "text_annotations" USING gin ("a0_text");
+CREATE INDEX IF NOT EXISTS text_annotations_a0_lower_idx ON text_annotations USING GIN (lower_array(a0_text));
+CREATE INDEX IF NOT EXISTS "text_annotation_a1_text_index" on "text_annotations" USING gin ("a1_text");
+CREATE INDEX IF NOT EXISTS text_annotations_a1_lower_idx ON text_annotations USING GIN (lower_array(a1_text));
+CREATE INDEX IF NOT EXISTS "text_annotation_time_text_index" ON "text_annotations" USING btree ("time_text");
+CREATE INDEX IF NOT EXISTS "text_annotation_loc_text_index" ON "text_annotations" USING btree ("loc_text");
+
 CREATE INDEX IF NOT EXISTS "ml_text_search_index" ON "text" USING pgroonga ("text");
 CREATE INDEX IF NOT EXISTS "text_document_id_index" ON "text" USING btree ("doc_id");
 CREATE INDEX IF NOT EXISTS "text_embedding_index" ON "text" USING hnsw ("embedding" halfvec_cosine_ops);
@@ -307,15 +351,11 @@ DROP VIEW IF EXISTS "public"."annotation_with_ontology" CASCADE;
 CREATE VIEW "public"."annotation_with_ontology" AS
 (
 select "text_annotations".*,
-       "text_annotations"."metadata" -> 'A0_TEXT'   as "A0",
-       "text_annotations"."metadata" -> 'A1_TEXT'   as "A1",
-       "text_annotations"."metadata" -> 'TIME_TEXT' as "TIME",
-       "text_annotations"."metadata" -> 'LOC_TEXT'  as "LOCATION",
        "Lp_LGMVaYx"."path",
        "Lp_LGMVaYx"."name",
        "Lp_LGMVaYx"."color",
        "Lp_LGMVaYx"."properties",
-       CONCAT("normalized_text", '-', "path")       as "normalized_path"
+       CONCAT("normalized_text", '-', "path") as "normalized_path"
 from "text_annotations"
          inner join (select "ontology"."path",
                             "ontology"."name",

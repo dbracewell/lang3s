@@ -1,7 +1,7 @@
 import asyncio
 import queue
 import threading
-from typing import AsyncGenerator, Generator, TypeVar
+from typing import AsyncGenerator, Callable, Generator, TypeVar
 
 
 def run_sync(coro):
@@ -18,19 +18,26 @@ T = TypeVar("T")
 
 
 def async_generator_to_sync(
-    generator: AsyncGenerator[T, None],
+    gen_factory: Callable[[], AsyncGenerator[T, None]],
 ) -> Generator[T, None, None]:
     q = queue.Queue()
 
     def async_runner():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
         async def iterate():
             try:
-                async for item in generator:
+                async for item in gen_factory():
                     q.put(item)
             finally:
                 q.put(None)
 
-        asyncio.run(iterate())
+        try:
+            loop.run_until_complete(iterate())
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        finally:
+            loop.close()
 
     t = threading.Thread(target=async_runner)
     t.start()

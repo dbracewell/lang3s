@@ -14,6 +14,8 @@ export const t3env = createEnv({
     BETTER_AUTH_URL: z.url(),
     NODE_ENV: z.string().optional(),
     DOCUMENTS_DIR: z.string(),
+    FILESTORE_ROOT: z.string(),
+    PYTHON_SERVER: z.string(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.url(),

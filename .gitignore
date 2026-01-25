@@ -91,4 +91,4 @@ htmlcov/
 *.bak
 *.swp
 
-/documents
+/filestore

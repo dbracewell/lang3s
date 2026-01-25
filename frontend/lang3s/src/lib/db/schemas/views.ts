@@ -66,14 +66,6 @@ export const AnnotationWithOntologyView = pgView("annotation_with_ontology").as(
     return qb
       .select({
         ...getTableColumns(TextAnnotationTable),
-        a0: sql<string[]>`${TextAnnotationTable.metadata}->'A0_TEXT'`.as("A0"),
-        a1: sql<string[]>`${TextAnnotationTable.metadata}->'A1_TEXT'`.as("A1"),
-        time: sql<string>`${TextAnnotationTable.metadata}->'TIME_TEXT'`.as(
-          "TIME",
-        ),
-        location: sql<string>`${TextAnnotationTable.metadata}->'LOC_TEXT'`.as(
-          "LOCATION",
-        ),
         path: sub.path,
         name: sub.name,
         color: sub.color,

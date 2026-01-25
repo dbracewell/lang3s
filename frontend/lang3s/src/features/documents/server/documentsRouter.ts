@@ -9,15 +9,11 @@ import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { asc, count, eq, sql } from "drizzle-orm";
 import z from "zod";
-import { promises as fs } from "fs";
-import path from "path";
-import { DocumentSchema } from "@/features/common/schemas";
-import { t3env } from "@/lib/t3env";
-import * as zlib from "node:zlib";
 import { generateNextPage, withPagination } from "@/lib/db/funcs";
 import { OntologyMappings } from "@/lib/db/annotations";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { DEFAULT_ONTOLOGY_COLOR } from "@/features/common/constants";
+import { fileStore } from "@/features/common/filestore";
 
 export const DocumentsRouter = createTRPCRouter({
   getMany: protectedProcedure
@@ -65,13 +61,8 @@ export const DocumentsRouter = createTRPCRouter({
   getOne: protectedProcedure
     .input(z.object({ id: z.string().min(1) }))
     .query(async ({ input }) => {
-      const filePath = path.join(t3env.DOCUMENTS_DIR, `${input.id}.json.gz`);
       try {
-        const jsonData = zlib
-          .gunzipSync(await fs.readFile(filePath))
-          .toString("utf-8");
-        const document = DocumentSchema.parse(JSON.parse(jsonData));
-
+        const document = await fileStore.getLang3sDocument(input.id);
         const ontologyMapping = OntologyMappings.getOntologyMappings().as(
           randomAlphaUnderscore(),
         );

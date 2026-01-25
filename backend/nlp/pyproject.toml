@@ -68,6 +68,10 @@ emoji = "^2.15.0"
 umap-learn = "^0.5.11"
 url-normalize = "^2.2.1"
 spacy = "^3.8.11"
+pandas = "^2.3.3"
+tables = "^3.10.2"
+nltk = "^3.9.2"
+duckdb = "^1.4.3"
 
 
 [tool.poetry.group.dev.dependencies]

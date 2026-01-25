@@ -33,6 +33,7 @@ const COLORS = [
 export const EntityCoOccurrenceVisualization = () => {
   const [params, setParams] = useEntitySearchParams();
   const { setContext } = useChatContext();
+
   const { data, isLoading } = useTRPCQuery((trpc) =>
     trpc.analytics.getAnnotationCoOccurrence.queryOptions(
       {

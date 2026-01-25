@@ -1,6 +1,6 @@
 "use client";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   jobStatusAtom,
   removeJobStatusAtom,
@@ -12,6 +12,7 @@ export function useJobStatusSync(
 ) {
   const status = useAtomValue(jobStatusAtom);
   const remove = useSetAtom(removeJobStatusAtom);
+  const lastNew = useRef<number[]>([]);
 
   useEffect(() => {
     if (!status.length || data == null) return;
@@ -24,12 +25,21 @@ export function useJobStatusSync(
       (job) => data.find((e) => e.id === job.jobId) == null,
     );
 
+    if (newJobs.length > 0) {
+      for (const job of newJobs) {
+        if (lastNew.current.includes(job.jobId)) {
+          remove([job.jobId]);
+        }
+      }
+    }
+
     if (completed.length > 0) {
       refetch().then(() => {
         remove(completed.map((j) => j.jobId));
       });
     } else if (newJobs.length > 0) {
       refetch();
+      lastNew.current = newJobs.map((j) => j.jobId);
     }
   }, [status, data, refetch, remove]);
 }

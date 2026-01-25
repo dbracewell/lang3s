@@ -59,6 +59,8 @@ export const TopEntitiesList = () => {
     return <SkeletonPage />;
   }
 
+  console.log(data.results[0]);
+
   return (
     <div className="mx-auto flex min-h-0 w-full flex-1 flex-col gap-2 p-3">
       <div className="flex items-center gap-5">

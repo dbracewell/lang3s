@@ -111,7 +111,7 @@ export const EntityEvents = () => {
           <div className="flex flex-col gap-0.5">
             <span className="text-sm font-medium">Event Type</span>
             <Select onValueChange={(value) => scrollTo(value)}>
-              <SelectTrigger className="w-[350px]">
+              <SelectTrigger className="w-87.5">
                 <SelectValue placeholder="Select an event type..." />
               </SelectTrigger>
               <SelectContent>

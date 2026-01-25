@@ -2,8 +2,10 @@ import gzip
 import itertools
 import json
 import os
+import traceback
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from typing import Dict, Iterable, List
 
 import numpy as np
@@ -15,7 +17,9 @@ from sqlalchemy.orm import noload
 
 from lang3s import config
 from lang3s.data.db.database import Database
+from lang3s.data.db.filestore import FILE_STORE
 from lang3s.data.db.models import DocumentsTable, TextAnnotationsTable
+from lang3s.services.client.redis_client import DUCKDB_QUEUE_NAME, RedisClient
 from lang3s.shared_types import (
     DOCUMENT_COLUMNS,
     TEXT_ANNOTATION_COLUMNS,
@@ -25,21 +29,9 @@ from lang3s.shared_types import (
 from lang3s.utils.meta import SingletonMeta
 
 
-def _write_docs_to_disk(documents: Iterable[Document]) -> None:
-    documents_dir = config.DOCUMENTS_DIR
-    os.makedirs(documents_dir, exist_ok=True)
-
-    for doc in documents:
-        doc_path = os.path.join(documents_dir, f"{doc.id}.json")
-        with gzip.open(doc_path + ".gz", "wt", encoding="utf-8") as gzip_fp:
-            json.dump(doc.to_json(), gzip_fp)  # type: ignore
-
-
-def _write_doc_to_disk(doc: Document) -> None:
-    documents_dir = config.DOCUMENTS_DIR
-    doc_path = os.path.join(documents_dir, f"{doc.id}.json")
-    with gzip.open(doc_path + ".gz", "wt", encoding="utf-8") as gzip_fp:
-        json.dump(doc.to_json(), gzip_fp)  # type: ignore
+def _write_doc_to_disk(doc: Document, client: RedisClient) -> None:
+    doc_id = FILE_STORE.write_document(doc)
+    client.enqueue(DUCKDB_QUEUE_NAME, doc_id)
 
 
 class TextDatabase(metaclass=SingletonMeta):
@@ -47,11 +39,10 @@ class TextDatabase(metaclass=SingletonMeta):
         self.__database = Database()
 
     def add_documents(self, documents: List[Document]):
-        documents_dir = config.DOCUMENTS_DIR
-        os.makedirs(documents_dir, exist_ok=True)
-
         with ThreadPoolExecutor(max_workers=20) as executor:
-            executor.map(_write_doc_to_disk, documents)
+            with RedisClient() as client:
+                func = partial(_write_doc_to_disk, client=client)
+                executor.map(func, documents)
 
         with self.__database.transaction(raw_connection=True) as cursor:
             self.__database.copy_from(
@@ -120,14 +111,7 @@ class TextDatabase(metaclass=SingletonMeta):
             doc_ids = session.execute(stmt).fetchall()
         for record in doc_ids:
             doc_id = record[0]
-            json_file = os.path.join(config.DOCUMENTS_DIR, f"{doc_id}.json.gz")
-            if os.path.exists(json_file):
-                try:
-                    with gzip.open(json_file) as fp:
-                        yield Document.from_json(json.load(fp))
-                except Exception as e:
-                    print(e)
-                    continue
+            yield FILE_STORE.read_document(doc_id)
 
     def search_topics(self, query: str, limit: int = 3) -> List[Dict[str, str]]:
         query = " OR ".join(query.split())
