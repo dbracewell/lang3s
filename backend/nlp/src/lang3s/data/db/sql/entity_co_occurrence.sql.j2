@@ -1,0 +1,15 @@
+{% import 'macros.sql' as macros %}
+
+SELECT e2.text                         as e2,
+       e2.name                         as e2Type,
+       count(DISTINCT e2.sentence_aid) as count
+FROM text_annotations_mapped e1
+         INNER JOIN text_annotations_mapped e2
+                    on e1.sentence_aid = e2.sentence_aid
+                        and e1.normalized_path != e2.normalized_path
+WHERE e1.path = ?
+  AND e1.text = ?
+  AND {{ macros.match_paths('e2.path', mapping_list) }}
+GROUP BY e2.text, e2.name
+ORDER BY count(DISTINCT e2.sentence_aid) desc
+LIMIT 50

@@ -1,6 +1,10 @@
 import z from "zod";
-import { DataType, DataTypeNames } from "@/features/common/types";
-import { MetadataSource, MetadataSources } from "@/features/metadata/types";
+import {
+  DataType,
+  DataTypeNames,
+  MetadataSource,
+  MetadataSources,
+} from "@/lib/db/schemas/metadata";
 
 export const MetadataSchema = z.object({
   name: z.string().min(1, "Metadata name is required"),

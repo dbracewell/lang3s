@@ -4,12 +4,17 @@ import { z } from "zod";
 export const t3env = createEnv({
   server: {
     EMBEDDING_SERVER: z.url(),
+    INNGEST_URL: z.string(),
     REDIS_HOST: z.hostname(),
     REDIS_PORT: z.coerce.number().int(),
     REDIS_DB: z.coerce.number().int(),
     ADMIN_PASSPHRASE: z.string(),
     SYSTEM_KEY: z.string(),
-    DATABASE_URL: z.url(),
+    DATABASE_URL: z
+      .string()
+      .default(
+        `postgres://${process.env.POSTGRES_USER}:${process.env.POSTGRES_PASSWORD}@${process.env.POSTGRES_HOST}:${process.env.POSTGRES_PORT}/${process.env.POSTGRES_DB}`,
+      ),
     BETTER_AUTH_SECRET: z.string(),
     BETTER_AUTH_URL: z.url(),
     NODE_ENV: z.string().optional(),

@@ -1,0 +1,52 @@
+CREATE
+OR
+REPLACE
+TABLE annotation_stats_cache
+AS
+WITH ta_mapped AS (SELECT a.*,
+                          o.name,
+                          o.path
+                   FROM text_annotations a
+                            -- Ideally, join against LOCAL copies of these tables as discussed previously!
+                            INNER JOIN pg_db.public.annotation_to_ontology ato
+                                       ON a.mapping = ato.annotation_type_value
+                            INNER JOIN pg_db.public.ontology o
+                                       ON ato.ontology_id = o.id)
+SELECT a.*,
+       COUNT(*) OVER (PARTITION BY text, path)                     AS mention_count,
+       COUNT(DISTINCT sentence_aid) OVER (PARTITION BY text, path) AS sentence_count,
+       COUNT(DISTINCT document_id) OVER (PARTITION BY text, path)  AS document_count,
+
+       (COUNT(*) OVER (PARTITION BY text, path)::FLOAT /
+        NULLIF(COUNT(DISTINCT document_id) OVER (PARTITION BY text, path), 0)
+           )                                                       AS mentions_per_document
+FROM ta_mapped a
+ORDER BY sentence_aid;
+
+
+CREATE
+OR
+REPLACE
+TABLE annotation_co_occurrence
+AS
+SELECT a.id                        AS source_id,
+       a.text                      AS source, -- Equivalent to normalized_text
+       a.path                      AS source_type,
+       CONCAT(a.text, '-', a.path) AS source_norm,
+       a.sentence_count            AS source_sentence_count,
+       a.document_count            AS source_document_count,
+       a.mention_count             AS source_mention_count,
+       a.sentence_aid,
+       a.document_id               AS doc_id,
+       b.id                        AS target_id,
+       b.text                      AS target,
+       b.path                      AS target_type,
+       CONCAT(b.text, '-', b.path) AS target_norm,
+       b.sentence_count            AS target_sentence_count,
+       b.document_count            AS target_document_count,
+       b.mention_count             AS target_mention_count
+FROM annotation_stats_cache a
+         LEFT JOIN annotation_stats_cache b
+                   ON a.sentence_aid = b.sentence_aid
+                       AND CONCAT(a.text, '-', a.path) != CONCAT(b.text, '-', b.path);
+

@@ -1,12 +1,8 @@
-import gzip
 import itertools
-import json
-import os
-import traceback
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Dict, Iterable, List
+from typing import Dict, List
 
 import numpy as np
 import sqlalchemy as db
@@ -15,17 +11,16 @@ from psycopg import sql
 from sqlalchemy import func, select
 from sqlalchemy.orm import noload
 
-from lang3s import config
 from lang3s.data.db.database import Database
 from lang3s.data.db.filestore import FILE_STORE
 from lang3s.data.db.models import DocumentsTable, TextAnnotationsTable
-from lang3s.services.client.redis_client import DUCKDB_QUEUE_NAME, RedisClient
-from lang3s.shared_types import (
+from lang3s.nlp.shared_types import (
     DOCUMENT_COLUMNS,
     TEXT_ANNOTATION_COLUMNS,
     TEXT_COLUMNS,
     Document,
 )
+from lang3s.services.client.redis_client import DUCKDB_QUEUE_NAME, RedisClient
 from lang3s.utils.meta import SingletonMeta
 
 
@@ -73,7 +68,7 @@ class TextDatabase(metaclass=SingletonMeta):
                 [doc.id, doc.text.id, keyword, embedding]
                 for doc in documents
                 if doc.text is not None
-                for keyword, embedding in doc.text.get_keywords()
+                for keyword, embedding in doc.text.keywords
             )
             self.__database.copy_from(
                 cursor,

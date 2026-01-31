@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import abc
 from dataclasses import dataclass, field
-from typing import Any, TypeVar
+from typing import Any, Callable, TypeVar
 
 T = TypeVar("T")
 
@@ -13,7 +12,5 @@ class ParseResult[T]:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-class Parser[R: ParseResult[Any]](abc.ABC):
-    @abc.abstractmethod
-    def parse(self, text: str | bytes, encoding: str | None = None) -> R:
-        raise NotImplementedError
+type R = ParseResult[Any]
+type ParseFn = Callable[[str | bytes, str | None], R]

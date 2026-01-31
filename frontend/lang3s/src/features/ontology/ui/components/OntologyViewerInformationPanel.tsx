@@ -66,7 +66,7 @@ export const OntologyViewerInformationPanel = () => {
             </tbody>
           </table>
         ) : (
-          <div className="flex h-[100px] w-full flex-col items-center justify-center gap-2">
+          <div className="flex h-25 w-full flex-col items-center justify-center gap-2">
             <TablePropertiesIcon className="text-muted-foreground" />
             <h4 className="text-muted-foreground truncate font-medium">
               No Properties
@@ -96,7 +96,7 @@ export const OntologyViewerInformationPanel = () => {
             </tbody>
           </table>
         ) : (
-          <div className="flex h-[100px] w-full flex-col items-center justify-center gap-2">
+          <div className="flex h-25 w-full flex-col items-center justify-center gap-2">
             <RouteIcon className="text-muted-foreground" />
             <h4 className="text-muted-foreground truncate font-medium">
               No Mappings

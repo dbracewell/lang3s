@@ -1,4 +1,3 @@
+from .parser import ParseFn, ParseResult
 
-from .parser import Parser, ParseResult
-
-__all__ = ["ParseResult", "Parser"]
+__all__ = ["ParseResult", "ParseFn"]

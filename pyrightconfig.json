@@ -1,8 +1,0 @@
-{
-  "reportPrivateImportUsage": "none",
-  "enableTypeIgnoreComments": true,
-  "include": [
-    "backend/nlp/src"
-  ],
-  "stubPath": "backend/nlp/src"
-}

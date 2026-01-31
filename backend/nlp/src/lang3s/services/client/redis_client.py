@@ -47,31 +47,27 @@ def redis_batch_generator(
     batch_timeout=30,
 ):
     with RedisClient() as redis_client:
-        try:
-            while True:
-                batch = []
-                start_time = time.time()
+        while True:
+            batch = []
+            start_time = time.time()
 
-                while (time.time() - start_time) < batch_timeout and len(
-                    batch
-                ) < batch_size:
-                    msg = redis_client.dequeue(queue_name)
+            while (time.time() - start_time) < batch_timeout and len(
+                batch
+            ) < batch_size:
+                msg = redis_client.dequeue(queue_name)
 
-                    if not msg:
-                        continue
+                if not msg:
+                    continue
 
-                    msg_doc = json.loads(msg)
-                    if (
-                        isinstance(msg_doc, dict)
-                        and msg_doc.get("status", "") == "completed"
-                    ):
-                        if batch:
-                            yield batch
-                        yield [msg_doc]
-                    else:
-                        batch.append(msg_doc)
+                msg_doc = json.loads(msg)
+                if (
+                    isinstance(msg_doc, dict)
+                    and msg_doc.get("status", "") == "completed"
+                ):
+                    if batch:
+                        yield batch
+                    yield [msg_doc]
+                else:
+                    batch.append(msg_doc)
 
-                yield batch
-        except KeyboardInterrupt:
-            print("Shutting down...")
-            yield []
+            yield batch

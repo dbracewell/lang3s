@@ -1,34 +1,24 @@
-import { integer, pgMaterializedView, pgView, text } from "drizzle-orm/pg-core";
+import {
+  doublePrecision,
+  integer,
+  pgMaterializedView,
+  pgView,
+  text,
+} from "drizzle-orm/pg-core";
 import { TextAnnotationTable } from "@/lib/db/schemas/text";
-import { TopicsTable } from "@/lib/db/schemas/topics";
-import { countDistinct, eq, getTableColumns, gt, gte, sql } from "drizzle-orm";
-import { cosineSimilarity } from "@/lib/db/helpers/vector";
-import { MIN_TOPIC_SIMILARITY } from "@/features/common/constants";
+import { countDistinct, eq, getTableColumns, gt, sql } from "drizzle-orm";
 import { AnnotationToOntology, OntologyTable } from "@/lib/db/schemas/ontology";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { ltree } from "@/lib/db/custom_types";
 
-export const TopicSentences = pgMaterializedView("topic_sentences").as((qb) =>
-  qb
-    .select({
-      topicId: sql<string>`${TopicsTable.id}`.as("topic_id"),
-      documentId: TextAnnotationTable.documentId,
-      textId: TextAnnotationTable.textId,
-      sentenceAid: TextAnnotationTable.sentenceAid,
-      similarity: cosineSimilarity(
-        TopicsTable.embedding,
-        TextAnnotationTable.embedding,
-      ).as("similarity"),
-    })
-    .from(TopicsTable)
-    .innerJoin(TextAnnotationTable, eq(TextAnnotationTable.type, "sentence"))
-    .where(
-      gte(
-        cosineSimilarity(TopicsTable.embedding, TextAnnotationTable.embedding),
-        MIN_TOPIC_SIMILARITY,
-      ),
-    ),
-);
+export const TopicSentences = pgMaterializedView("topic_sentences", {
+  topicId: text("topic_id").notNull(),
+  documentId: text("doc_id").notNull(),
+  textId: text("text_id").notNull(),
+  sentenceAid: text("sentence_aid").notNull(),
+  sentence: text("sentence").notNull(),
+  similarity: doublePrecision("similarity").notNull(),
+}).existing();
 
 export const TopicDocuments = pgMaterializedView("topic_documents").as((qb) =>
   qb

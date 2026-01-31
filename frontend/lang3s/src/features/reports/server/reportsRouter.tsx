@@ -9,9 +9,7 @@ import {
   countDistinct,
   desc,
   eq,
-  exists,
-  ne,
-  not,
+  isNotNull,
   sql,
 } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -26,10 +24,388 @@ import {
 } from "@/features/reports/types";
 import { getMetadata } from "@/features/common/server/queries";
 import { jsonValue } from "@/lib/db/helpers/json";
-import { Annotations } from "@/lib/db/annotations";
+import { Annotations, matchPath } from "@/lib/db/annotations";
 import { MetadataConfiguration, MetadataItem } from "@/features/metadata/types";
+import { AnnotationWithOntologyView, TopicSentences } from "@/lib/db/schema";
 
 const LIMIT = 35;
+
+export const reportsRouter = createTRPCRouter({
+  getData: protectedProcedure.input(ChartSchema).query(async ({ input }) => {
+    const { x, y, count: countType } = input;
+    const metadata = await logAndRethrow(() => getMetadata());
+
+    const q1 = getBaseQuery({
+      type: x.type,
+      value: x.value ?? "",
+      countType,
+      metadata,
+    });
+
+    return await logAndRethrow(() => {
+      if (y == null) {
+        return db
+          .select({
+            text1: q1.text,
+            value1: q1.value,
+            text2: sql<string>`''`.as(randomAlphaUnderscore()),
+            value2: sql<string>`''`.as(randomAlphaUnderscore()),
+            documentCount: countDistinct(q1.documentId),
+            sentenceCount: countDistinct(q1.sentenceAId),
+            mentionCount: count(),
+          })
+          .from(q1)
+          .groupBy((t) => [t.text1, t.value1, t.text2, t.value2])
+          .orderBy((t) => [asc(t.text1)]);
+      }
+
+      const q2 = getBaseQuery({
+        type: y.type,
+        value: y.value ?? "",
+        countType,
+        metadata,
+      });
+
+      const chartType = Chart.getChartType(x.dataType, y.dataType);
+
+      if (chartType === "scatterplot") {
+        return db
+          .select({
+            text1: q1.text,
+            text2: q2.text,
+            value1: q1.value,
+            value2: q2.value,
+            documentCount: sql<number>`0`,
+            sentenceCount: sql<number>`0`,
+            mentionCount: sql<number>`0`,
+          })
+          .from(q1)
+          .innerJoin(
+            q2,
+            and(
+              eq(q1.documentId, q2.documentId),
+              countType !== "document"
+                ? eq(sql`${q1.sentenceAId}`, q2.sentenceAId)
+                : undefined,
+            ),
+          );
+      }
+
+      return db
+        .select({
+          text1: q1.text,
+          text2: q2.text,
+          value1: q1.value,
+          value2: q2.value,
+          documentCount: countDistinct(q1.documentId),
+          sentenceCount: countDistinct(q1.sentenceAId),
+          mentionCount: sql<number>`0`,
+        })
+        .from(q1)
+        .innerJoin(
+          q2,
+          and(
+            eq(q1.documentId, q2.documentId),
+            countType !== "document"
+              ? eq(sql`${q1.sentenceAId}`, q2.sentenceAId)
+              : undefined,
+          ),
+        )
+        .groupBy((t) => [t.text1, t.text2, t.value1, t.value2]);
+    });
+  }),
+});
+
+const getBaseQuery = ({
+  type,
+  value,
+  countType,
+  metadata,
+}: {
+  type: SeriesSourceType;
+  value: string;
+  countType: CountType;
+  metadata: MetadataConfiguration;
+}) => {
+  switch (type) {
+    case "ANNOTATION":
+      return getAnnotations({
+        page: 1,
+        countType,
+        value,
+      });
+
+    case "TOPIC":
+      return getTopics({
+        page: 1,
+        countType,
+        value,
+      });
+
+    case "ANNOTATION_METADATA":
+      return getAnnotationMetadata({
+        page: 1,
+        value,
+        metadata,
+        isSentence: false,
+      });
+
+    case "SENTENCE_METADATA":
+      return getAnnotationMetadata({
+        page: 1,
+        value,
+        metadata,
+        isSentence: true,
+      });
+
+    case "DOCUMENT_METADATA":
+      return getDocumentMetadata({
+        page: 1,
+        value,
+        metadata,
+      });
+  }
+};
+
+const getAnnotations = ({
+  page,
+  value,
+  countType,
+}: {
+  page: number;
+  value: string;
+  countType: CountType;
+}) => {
+  const paths = value
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+  const entityStats = db
+    .select({
+      content:
+        sql`${AnnotationWithOntologyView.normalized} || ' (' || ${AnnotationWithOntologyView.name} || ')'`.as(
+          randomAlphaUnderscore(),
+        ),
+      docCount: countDistinct(AnnotationWithOntologyView.documentId).as(
+        randomAlphaUnderscore(),
+      ),
+    })
+    .from(AnnotationWithOntologyView)
+    .where(matchPath(AnnotationWithOntologyView.path, paths))
+    .groupBy(
+      AnnotationWithOntologyView.normalized,
+      AnnotationWithOntologyView.name,
+    )
+    .orderBy((t) => desc(t.docCount))
+    .offset((page - 1) * LIMIT)
+    .limit(LIMIT)
+    .as(randomAlphaUnderscore());
+
+  return db
+    .select({
+      sentenceAId: AnnotationWithOntologyView.sentenceAid,
+      documentId: AnnotationWithOntologyView.documentId,
+      text: entityStats.content,
+      value: sql<string>`${entityStats.content}`.as(randomAlphaUnderscore()),
+    })
+    .from(AnnotationWithOntologyView)
+    .innerJoin(
+      entityStats,
+      eq(
+        sql`${AnnotationWithOntologyView.normalized} || ' (' || ${AnnotationWithOntologyView.name} || ')'`,
+        entityStats.content,
+      ),
+    )
+    .orderBy(desc(entityStats.docCount), asc(entityStats.content))
+    .as(randomAlphaUnderscore());
+};
+
+const getTopics = ({
+  page,
+  value,
+  countType,
+}: {
+  page: number;
+  value: string;
+  countType: CountType;
+}) => {
+  const topNTopics = db
+    .select({
+      topicId: TopicsTable.id,
+      name: TopicsTable.name,
+      embedding: TopicsTable.embedding,
+    })
+    .from(TopicsTable)
+    .orderBy(
+      desc(
+        countType === "sentence" ? TopicsTable.support : TopicsTable.documents,
+      ),
+      asc(TopicsTable.id),
+    )
+    .offset((page - 1) * LIMIT)
+    .limit(LIMIT)
+    .as(randomAlphaUnderscore());
+
+  return db
+    .selectDistinct({
+      sentenceAId: TopicSentences.sentenceAid,
+      documentId: TopicSentences.documentId,
+      text: topNTopics.name,
+      value: sql<number | string>`0`.as(randomAlphaUnderscore()),
+    })
+    .from(topNTopics)
+    .innerJoin(TopicSentences, eq(TopicSentences.topicId, topNTopics.topicId))
+    .as(randomAlphaUnderscore());
+};
+
+const getDocumentMetadata = ({
+  page,
+  value,
+  metadata,
+}: {
+  page: number;
+  value: string;
+  metadata: MetadataConfiguration;
+}) => {
+  const { textStatement: dTextStmt, valueStatement: dValueStmt } = formatColumn(
+    DocumentsTable.metadata,
+    value,
+    metadata["document"][value],
+  );
+
+  let pageData = null;
+  if (["date", "datetime"].includes(metadata["document"][value].dataType)) {
+    pageData = db
+      .select({
+        value: dValueStmt.as(randomAlphaUnderscore()),
+      })
+      .from(DocumentsTable)
+      .orderBy((t) => t.value)
+      .offset((page - 1) * LIMIT)
+      .limit(LIMIT)
+      .as(randomAlphaUnderscore());
+  } else {
+    pageData = db
+      .select({
+        value: dValueStmt.as(randomAlphaUnderscore()),
+        count: count().as(randomAlphaUnderscore()),
+      })
+      .from(DocumentsTable)
+      .groupBy((t) => t.value)
+      .orderBy((t) => [desc(t.count), t.value])
+      .offset((page - 1) * LIMIT)
+      .limit(LIMIT)
+      .as(randomAlphaUnderscore());
+  }
+
+  const base = db
+    .select({
+      documentId: DocumentsTable.id,
+      text: dTextStmt.as(randomAlphaUnderscore()),
+      value: dValueStmt.as(randomAlphaUnderscore()),
+    })
+    .from(DocumentsTable)
+    .as(randomAlphaUnderscore());
+
+  return db
+    .select({
+      sentenceAId: sql<string>`' '`.as(randomAlphaUnderscore()),
+      documentId: base.documentId,
+      text: base.text,
+      value: base.value,
+    })
+    .from(base)
+    .innerJoin(pageData, eq(pageData.value, base.value))
+    .orderBy((t) => t.value)
+    .as(randomAlphaUnderscore());
+};
+
+const getAnnotationMetadata = ({
+  page,
+  value,
+  metadata,
+  isSentence,
+}: {
+  page: number;
+  value: string;
+  metadata: MetadataConfiguration;
+  isSentence: boolean;
+}) => {
+  const { textStatement: dTextStmt, valueStatement: dValueStmt } = formatColumn(
+    TextAnnotationTable.metadata,
+    value,
+    metadata["document"][value],
+  );
+
+  let pageData = null;
+  if (["date", "datetime"].includes(metadata["document"][value].dataType)) {
+    pageData = db
+      .select({
+        value: dValueStmt.as(randomAlphaUnderscore()),
+      })
+      .from(TextAnnotationTable)
+      .where(
+        and(
+          Annotations.isNotStopword,
+          isSentence ? Annotations.isSentence : undefined,
+          isNotNull(dValueStmt),
+        ),
+      )
+      .orderBy((t) => t.value)
+      .offset((page - 1) * LIMIT)
+      .limit(LIMIT)
+      .as(randomAlphaUnderscore());
+  } else {
+    pageData = db
+      .select({
+        value: dValueStmt.as(randomAlphaUnderscore()),
+        count: count().as(randomAlphaUnderscore()),
+      })
+      .from(TextAnnotationTable)
+      .where(
+        and(
+          Annotations.isNotStopword,
+          isSentence ? Annotations.isSentence : undefined,
+          isNotNull(dValueStmt),
+        ),
+      )
+      .groupBy((t) => t.value)
+      .orderBy((t) => [desc(t.count), t.value])
+      .offset((page - 1) * LIMIT)
+      .limit(LIMIT)
+      .as(randomAlphaUnderscore());
+  }
+
+  const base = db
+    .select({
+      sentenceAId: TextAnnotationTable.sentenceAid,
+      documentId: TextAnnotationTable.documentId,
+      text: dTextStmt.as(randomAlphaUnderscore()),
+      value: dValueStmt.as(randomAlphaUnderscore()),
+    })
+    .from(TextAnnotationTable)
+    .where(
+      and(
+        Annotations.isNotStopword,
+        isSentence ? Annotations.isSentence : undefined,
+        isNotNull(dValueStmt),
+      ),
+    )
+    .as(randomAlphaUnderscore());
+
+  return db
+    .select({
+      sentenceAId: base.sentenceAId,
+      documentId: base.documentId,
+      text: base.text,
+      value: base.value,
+    })
+    .from(base)
+    .innerJoin(pageData, eq(pageData.value, base.value))
+    .orderBy((t) => t.value)
+    .as(randomAlphaUnderscore());
+};
 
 const formatColumn = (
   column: typeof DocumentsTable.metadata | typeof TextAnnotationTable.metadata,
@@ -64,354 +440,4 @@ const formatColumn = (
     }
   }
   return { textStatement, valueStatement };
-};
-
-export const reportsRouter = createTRPCRouter({
-  getData: protectedProcedure.input(ChartSchema).query(async ({ input }) => {
-    const { x, y, count: countType } = input;
-    const metadata = await logAndRethrow(() => getMetadata());
-
-    let finalQuery;
-
-    if (y == null) {
-      const q1 = await getBaseQuery({
-        type: x.type,
-        value: x.value ?? "",
-        countType,
-        metadata,
-        displayType: x.display,
-      });
-      finalQuery = db
-        .select({
-          text1: q1.text,
-          value1: q1.value,
-          text2: sql<string>`''`.as(randomAlphaUnderscore()),
-          value2: sql<string>`''`.as(randomAlphaUnderscore()),
-          documentCount: countDistinct(q1.documentId),
-          sentenceCount: countDistinct(q1.sentenceAId),
-          mentionCount: count(),
-        })
-        .from(q1)
-        .groupBy((t) => [t.text1, t.value1, t.text2, t.value2])
-        .orderBy((t) => [asc(t.text1)]);
-
-      if (["TOPIC", "ANNOTATION"].includes(x.type)) {
-        finalQuery = finalQuery.limit(LIMIT);
-      }
-    } else {
-      const q1 = await getBaseQuery({
-        type: x.type,
-        value: x.value ?? "",
-        countType,
-        metadata,
-        displayType: x.display,
-      });
-      const q2 = await getBaseQuery({
-        type: y.type,
-        value: y.value ?? "",
-        countType,
-        metadata,
-        displayType: y.display,
-      });
-
-      const chartType = Chart.getChartType(x.dataType, y.dataType);
-      if (chartType === "scatterplot") {
-        const query = db
-          .select({
-            text1: q1.text,
-            text2: q2.text,
-            value1: q1.value,
-            value2: q2.value,
-            documentCount: sql<number>`0`,
-            sentenceCount: sql<number>`0`,
-            mentionCount: sql<number>`0`,
-          })
-          .from(q1)
-          .innerJoin(
-            q2,
-            and(
-              eq(q1.documentId, q2.documentId),
-              countType !== "document"
-                ? eq(sql`${q1.sentenceAId}`, q2.sentenceAId)
-                : undefined,
-            ),
-          );
-        return await logAndRethrow(() => query);
-      }
-      finalQuery = db
-        .select({
-          text1: q1.text,
-          text2: q2.text,
-          value1: q1.value,
-          value2: q2.value,
-          documentCount: countDistinct(q1.documentId),
-          sentenceCount: countDistinct(q1.sentenceAId),
-          mentionCount: sql<number>`0`,
-        })
-        .from(q1)
-        .innerJoin(
-          q2,
-          and(
-            eq(q1.documentId, q2.documentId),
-            countType !== "document"
-              ? eq(sql`${q1.sentenceAId}`, q2.sentenceAId)
-              : undefined,
-          ),
-        )
-        .groupBy((t) => [t.text1, t.text2, t.value1, t.value2]);
-    }
-
-    if (finalQuery != null) {
-      return await logAndRethrow(() => finalQuery);
-    }
-    return [];
-  }),
-});
-
-const getTopNTopics = ({ countType }: { countType: CountType }) => {
-  return db
-    .select({
-      topicId: TopicsTable.id,
-      name: TopicsTable.name,
-      embedding: TopicsTable.embedding,
-    })
-    .from(TopicsTable)
-    .orderBy(
-      desc(
-        countType === "sentence" ? TopicsTable.support : TopicsTable.documents,
-      ),
-      asc(TopicsTable.id),
-    )
-    .limit(LIMIT)
-    .as(randomAlphaUnderscore());
-};
-
-const getTopNAnnotations = ({
-  value,
-  countType,
-  displayType,
-}: {
-  value: string;
-  countType: CountType;
-  displayType: DisplayType;
-}) => {
-  const base = Annotations.getAnnotationsWithOntology({
-    options: { normalize: true },
-    computedColumns: (o) => ({
-      value: sql<string>`${o.name}`.as(randomAlphaUnderscore()),
-    }),
-    limitTo: value
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean),
-    annotationFields: ["sentenceAid", "documentId"],
-  }).as(randomAlphaUnderscore());
-
-  return db
-    .select({
-      text: Chart.convertToDisplay({
-        content: base.content,
-        value: base.value,
-        displayType,
-        isValue: false,
-      }).as(randomAlphaUnderscore()),
-      value: Chart.convertToDisplay({
-        content: base.content,
-        value: base.value,
-        displayType,
-        isValue: true,
-      }).as(randomAlphaUnderscore()),
-      documentCount: countDistinct(base.documentId),
-      sentenceCount: countDistinct(base.sentenceAid),
-      mentionCount: count(),
-    })
-    .from(base)
-    .groupBy((t) => [t.text, t.value])
-    .orderBy((t) => [desc(Chart.getCountColumn(countType, t)), asc(t.text)])
-    .limit(LIMIT)
-    .as(randomAlphaUnderscore());
-};
-
-const getBaseQuery = async ({
-  type,
-  value,
-  countType,
-  metadata,
-  displayType,
-}: {
-  type: SeriesSourceType;
-  value: string;
-  countType: CountType;
-  metadata: MetadataConfiguration;
-  displayType: DisplayType;
-}) => {
-  switch (type) {
-    case "ANNOTATION":
-      const topNAnnotations = getTopNAnnotations({
-        value,
-        countType,
-        displayType,
-      });
-
-      const base = Annotations.getAnnotationsWithOntology({
-        options: { normalize: true },
-        computedColumns: (o) => ({
-          value: sql<string>`${o.name}`.as(randomAlphaUnderscore()),
-        }),
-        limitTo: value
-          .split(",")
-          .map((v) => v.trim())
-          .filter(Boolean),
-        annotationFields: ["sentenceAid", "documentId"],
-      }).as(randomAlphaUnderscore());
-
-      return db
-        .select({
-          sentenceAId: base.sentenceAid,
-          documentId: base.documentId,
-          text: topNAnnotations.text,
-          value: sql<number | string>`0`.as(randomAlphaUnderscore()),
-        })
-        .from(base)
-        .innerJoin(
-          topNAnnotations,
-          and(
-            eq(
-              Chart.convertToDisplay({
-                content: base.content,
-                value: base.value,
-                displayType,
-                isValue: false,
-              }),
-              topNAnnotations.text,
-            ),
-            eq(
-              Chart.convertToDisplay({
-                content: base.content,
-                value: base.value,
-                displayType,
-                isValue: true,
-              }),
-              topNAnnotations.value,
-            ),
-          ),
-        )
-        .as(randomAlphaUnderscore());
-
-    case "TOPIC":
-      const topNTopics = getTopNTopics({ countType });
-      const baseSentence = Annotations.getSentences().as(
-        randomAlphaUnderscore(),
-      );
-      return db
-        .selectDistinct({
-          sentenceAId: baseSentence.sentenceAid,
-          documentId: baseSentence.documentId,
-          text: topNTopics.name,
-          value: sql<number | string>`0`.as(randomAlphaUnderscore()),
-        })
-        .from(topNTopics)
-        .innerJoin(
-          baseSentence,
-          sql<number>`(1 - (${baseSentence.embedding} <=> ${topNTopics.embedding})) >= ${MIN_TOPIC_SIMILARITY}`,
-        )
-        .as(randomAlphaUnderscore());
-
-    case "ANNOTATION_METADATA":
-      const { textStatement: aTextStmt, valueStatement: aValueStmt } =
-        formatColumn(
-          TextAnnotationTable.metadata,
-          value,
-          metadata["annotation"][value],
-        );
-      return db
-        .select({
-          sentenceAId: TextAnnotationTable.sentenceAid,
-          documentId: TextAnnotationTable.documentId,
-          text: aTextStmt.as(randomAlphaUnderscore()),
-          value: aValueStmt.as(randomAlphaUnderscore()),
-        })
-        .from(TextAnnotationTable)
-        .where(
-          and(
-            ne(TextAnnotationTable.type, "sentence"),
-            not(
-              sql<boolean>`COALESCE((${TextAnnotationTable.metadata}->>'is_stopword')::boolean,false)`,
-            ),
-          ),
-        )
-        .orderBy((t) => t.value)
-        .as(randomAlphaUnderscore());
-
-    case "SENTENCE_METADATA":
-      const { textStatement: sTextStmt, valueStatement: sValueStmt } =
-        formatColumn(
-          TextAnnotationTable.metadata,
-          value,
-          metadata["sentence"][value],
-        );
-      return db
-        .select({
-          sentenceAId: TextAnnotationTable.sentenceAid,
-          documentId: TextAnnotationTable.documentId,
-          text: sTextStmt.as(randomAlphaUnderscore()),
-          value: sValueStmt.as(randomAlphaUnderscore()),
-        })
-        .from(TextAnnotationTable)
-        .where(
-          and(
-            eq(TextAnnotationTable.type, "sentence"),
-            not(
-              sql<boolean>`COALESCE((${TextAnnotationTable.metadata}->>'is_stopword')::boolean,false)`,
-            ),
-          ),
-        )
-        .orderBy((t) => t.value)
-        .as(randomAlphaUnderscore());
-
-    case "DOCUMENT_METADATA":
-      const { textStatement: dTextStmt, valueStatement: dValueStmt } =
-        formatColumn(
-          DocumentsTable.metadata,
-          value,
-          metadata["document"][value],
-        );
-      const q = db
-        .select({
-          sentenceAId: sql<string>`' '`.as(randomAlphaUnderscore()),
-          documentId: DocumentsTable.id,
-          text: dTextStmt.as(randomAlphaUnderscore()),
-          value: dValueStmt.as(randomAlphaUnderscore()),
-        })
-        .from(DocumentsTable)
-        .orderBy((t) => t.value);
-
-      if (
-        !["date", "datetime"].includes(metadata["document"][value].dataType)
-      ) {
-        const q1 = q.as(randomAlphaUnderscore());
-        const q2 = q.as(randomAlphaUnderscore());
-        const counts = db
-          .select({
-            v: sql<string>`${q1.value}`.as("v"),
-            count: count().as("count"),
-          })
-          .from(q1)
-          .groupBy((t) => t.v)
-          .orderBy((t) => desc(t.count))
-          .limit(30)
-          .as(randomAlphaUnderscore());
-        return db
-          .select({
-            sentenceAId: q2.sentenceAId,
-            documentId: q2.documentId,
-            text: q2.text,
-            value: q2.value,
-          })
-          .from(q2)
-          .innerJoin(counts, eq(q2.value, counts.v))
-          .as(randomAlphaUnderscore());
-      }
-      return q.as(randomAlphaUnderscore());
-  }
 };

@@ -29,8 +29,7 @@ import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { cn } from "@/lib/utils/cn";
 import { useEffect, useMemo } from "react";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { DataTypeNames } from "@/features/common/types";
-import { MetadataSources } from "@/features/metadata/types";
+import { DataTypeNames, MetadataSources } from "@/lib/db/schemas/metadata";
 
 const SourceOptions = MetadataSources.map(
   (source) =>

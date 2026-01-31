@@ -23,10 +23,6 @@ include = [
 ]
 
 
-[build-system]
-requires = ["setuptools>=65", "wheel", "Cython>=3.0"]
-build-backend = "setuptools.build_meta"
-
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
 transformers = "4.51.3"
@@ -44,12 +40,11 @@ fastapi = "*"
 spacy_download = "1.1.0"
 uvicorn = "*"
 redis = "7.0.0"
-lang3s-job-service = {path = "../jobs_service", develop = true}
+lang3s-job-service = { path = "../jobs_service", develop = true }
 jsonlines = ">=4.0.0,<5.0.0"
 hnswlib = ">=0.8.0,<0.9.0"
 psycopg = { version = ">=3.2.12,<4.0.0", extras = ["binary", "pgvector"] }
 psycopg-pool = ">=3.2.7,<4.0.0"
-pytorch-crf = ">=0.7.2,<0.8.0"
 fastcoref = ">=2.1.6,<3.0.0"
 openai = ">=2.7.2,<3.0.0"
 more-itertools = ">=10.8.0,<11.0.0"
@@ -72,11 +67,12 @@ pandas = "^2.3.3"
 tables = "^3.10.2"
 nltk = "^3.9.2"
 duckdb = "^1.4.3"
+python-dotenv = "^1.2.1"
+jinja2 = "^3.1.6"
 
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
-cython = "^3.2.1"
 ruff = ">=0.14.3"
 
 [tool.setuptools]

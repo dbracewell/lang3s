@@ -1,5 +1,5 @@
 "use server";
-import { postJson } from "@/lib/utils/superFetch";
+import { getJson, postJson, putJson } from "@/lib/utils/superFetch";
 import { PAGE_LIMIT } from "@/features/common/constants";
 
 const BASE_PATH = `${process.env.EMBEDDING_SERVER}/analytics`;
@@ -27,18 +27,84 @@ type EventIntermediate = {
   A1: string[];
   TIME: string;
   LOC: string;
+  sentence: string;
+};
+
+type AnnotationLoaner = {
+  entityId: string;
+  entityType: string;
+  rawScore: number;
+  normScore: number;
+  category: string;
+};
+
+type Cohorts = {
+  edges: { id1: string; id2: string; similarity: number }[];
+  nodes: { id: string; name: string; support: number; r: number }[];
+  clusters: { id: string; name: string; type: string }[];
+  id_cid: Record<string, string>;
+};
+
+type CohortInformation = {
+  edges: {
+    source: string;
+    sourceId: string;
+    target: string;
+    targetId: string;
+    documentCount: number;
+    sentenceCount: number;
+  }[];
+  ranked: { id: string; support: number }[];
+};
+
+type TopicEntity = {
+  entity: string;
+  type: string;
+  count: number;
+};
+
+export const topicInformation = async (topic_id: string) => {
+  return getJson<TopicEntity>(`${BASE_PATH}/topic/${topic_id}`);
+};
+
+export const cohortSupportInformation = async (ids: string[]) => {
+  return postJson<CohortInformation>(`${BASE_PATH}/cohortinformation`, {
+    ids,
+  });
 };
 
 export const annotationCounts = async (
   page: number,
   sortBy: string,
   mappings: string[],
+  filter: string | null | undefined,
 ) => {
   return postJson<AnnotationCountsType>(`${BASE_PATH}/counts`, {
     mappings,
     page,
     page_size: PAGE_LIMIT,
     order_by: sortBy,
+    filter: filter,
+  });
+};
+
+export const updateAnalytics = async () => {
+  return putJson(`${BASE_PATH}/updatestats`);
+};
+
+export const cohorts = async () => {
+  return postJson<Cohorts>(`${BASE_PATH}/cohorts`);
+};
+
+export const annotationAffinity = async (values: string[]) => {
+  return postJson<AnnotationLoaner[]>(`${BASE_PATH}/affinity`, {
+    values,
+  });
+};
+
+export const annotationTopicScore = async (values: string[]) => {
+  return postJson<AnnotationLoaner[]>(`${BASE_PATH}/topicscore`, {
+    values,
   });
 };
 

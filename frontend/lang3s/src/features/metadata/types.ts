@@ -1,7 +1,4 @@
-import { DataType } from "@/features/common/types";
-
-export const MetadataSources = ["document", "annotation", "sentence"] as const;
-export type MetadataSource = (typeof MetadataSources)[number];
+import { DataType, MetadataSource } from "@/lib/db/schemas/metadata";
 
 export type MetadataItem = {
   id: string;

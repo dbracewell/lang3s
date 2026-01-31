@@ -11,13 +11,14 @@ import { Button } from "@/components/ui/button";
 import { MinusIcon, PlusIcon } from "lucide-react";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { useMemo, useState } from "react";
-import { DataType, DataTypeNameToCategoryMap } from "@/features/common/types";
+import { DataTypeNameToCategoryMap } from "@/features/common/types";
 import { Chart, SeriesSourceType } from "@/features/reports/types";
 import {
   DefaultOntologyTrigger,
   OntologySelectorDialog,
 } from "@/features/ontology/ui/components/OntologySelectorDialog";
 import { MetadataConfiguration, MetadataItem } from "@/features/metadata/types";
+import { DataType } from "@/lib/db/schemas/metadata";
 
 type DualAxisFormProps = {
   defaultValues?: ChartSchemaType;
@@ -232,15 +233,15 @@ const SeriesInformation = <T extends FieldValues>({
           switch (v as SeriesSourceType) {
             case "TOPIC":
               form.setValue(valueField, "TOPIC" as any);
-              form.setValue(dataTypeField, "categorical" as any);
+              form.setValue(dataTypeField, "string" as any);
               break;
             case "ANNOTATION":
               form.setValue(valueField, "ENTITY" as any);
-              form.setValue(dataTypeField, "categorical" as any);
+              form.setValue(dataTypeField, "string" as any);
               break;
             default:
               form.setValue(valueField, "" as any);
-              form.setValue(dataTypeField, "categorical" as any);
+              form.setValue(dataTypeField, "string" as any);
           }
         }}
       />
@@ -254,12 +255,6 @@ const SeriesInformation = <T extends FieldValues>({
             }}
           />
           <div>{selected.join(" ")}</div>
-          {/*<SelectFormField*/}
-          {/*  options={AnnotationTypeOptions}*/}
-          {/*  reactHookForm={form}*/}
-          {/*  name={valueField}*/}
-          {/*  label="Annotation Type"*/}
-          {/*/>*/}
         </>
       )}
       {[

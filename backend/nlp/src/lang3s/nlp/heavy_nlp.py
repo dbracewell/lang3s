@@ -1,19 +1,18 @@
 import itertools
 import logging
-from typing import Iterable, List, Optional, cast
+from typing import Iterable, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
 
-from lang3s.maths import normalize
 from lang3s.models.embedder import Embedder, EmbeddingResult
 from lang3s.models.transformer.multi_task_transformer import MultiTaskTransformer
 from lang3s.models.transformer.shared_types import TokenLabelResult
 from lang3s.nlp.event_extraction import extract_events
 from lang3s.nlp.keyword_extraction import extract_keywords
-from lang3s.shared_types import Document, Event, TextAnnotation
-from lang3s.shared_types.metadata import Metadata
+from lang3s.nlp.shared_types import Document, Event, Metadata, TextAnnotation
 from lang3s.utils import filter_none
+from lang3s.utils.maths import normalize
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,6 @@ def heavy_nlp(
     embedder: Optional[Embedder] = None,
     mtask: Optional[MultiTaskTransformer] = None,
 ):
-    # with torch.amp.autocast(dtype=torch.float16, device_type="cpu"):
     embedder = embedder if embedder is not None else Embedder()
     embedder.model.eval()
 
@@ -40,13 +38,14 @@ def heavy_nlp(
         sentences,
         is_split_into_words=True,
     )
+
     if not is_reannotation:
         create_core_embeddings(doc, result)
     else:
         sources = ["rb_event_extractor"]
         if tasks is not None:
             sources += tasks
-        doc.text.remove_annotation(sources)
+        doc.text.remove_annotations(sources)
 
     perform_heavy_tagging(doc, sentences, result, tasks, mtask=mtask)
     extract_events_for_doc(doc)
@@ -55,7 +54,7 @@ def heavy_nlp(
         embed_annotation(annotation)
 
     keywords = extract_keywords(doc.text, top_n=10)
-    doc.text.set_keywords(keywords)
+    doc.text.keywords = keywords
 
 
 def _to_mean_array(
@@ -174,7 +173,7 @@ def perform_heavy_tagging(
                     }
 
         else:
-            all_labels: TokenLabelResult = cast(TokenLabelResult, output.labels)
+            all_labels: TokenLabelResult = output.labels
             for sentence, sentence_labels in zip(doc.text.sentences, all_labels):
                 for label, start, end in sentence_labels:
                     _add_token_span(

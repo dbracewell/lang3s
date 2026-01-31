@@ -5,9 +5,8 @@ from typing import List, Tuple
 
 from more_itertools import first
 
-from lang3s.nlp.language import PERSON_PRONOUNS, is_person_pronoun
-from lang3s.shared_types import Document, Event, TextAnnotation
-from lang3s.shared_types.metadata import Metadata
+from lang3s.nlp.language import is_person_pronoun
+from lang3s.nlp.shared_types import Document, Event, Metadata, TextAnnotation
 from lang3s.utils.meta import SingletonMeta
 
 IGNORE_VERBS = {
@@ -77,7 +76,7 @@ def expand_argument(annotation: TextAnnotation) -> TextAnnotation:
         start = annotation.start
         end = annotation.end
         for child in annotation.children:
-            if child.value in ("AUX", "ADP") and child.dep in ("advmod"):
+            if child.value in ("AUX", "ADP") and child.dep in ("advmod", "aux"):
                 start = min(start, child.start)
                 end = max(end, child.end)
         return annotation.owner.create_span(
@@ -128,7 +127,6 @@ def extract_events(doc: Document) -> List[Event]:
         ]
         for trigger in triggers:
             mapping = mapper.get_category(doc.language, trigger.lemma)
-
             if mapping is None:
                 continue
 

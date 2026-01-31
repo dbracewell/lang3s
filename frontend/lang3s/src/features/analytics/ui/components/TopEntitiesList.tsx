@@ -25,6 +25,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { RouterOutputs } from "@/lib/trpc/types";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
+import { useQuery } from "@tanstack/react-query";
+import { annotationCounts } from "@/features/analytics/server/analyticsApi";
 
 export const TopEntitiesList = () => {
   const [params, setParams] = useEntitySearchParams();
@@ -52,6 +54,7 @@ export const TopEntitiesList = () => {
   }, [data, params]);
 
   if (error != null) {
+    console.log(error);
     throw error;
   }
 

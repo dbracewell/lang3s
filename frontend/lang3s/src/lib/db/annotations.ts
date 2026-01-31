@@ -25,7 +25,6 @@ const EVENT_ARGS = {
   ),
 };
 
-// const FULL_TEXT_RANK = sql<number>`ROW_NUMBER() OVER (ORDER BY pgroonga_score(tableoid,ctid) DESC)`;
 const FULL_TEXT_RANK = sql<number>`DENSE_RANK() OVER (ORDER BY pgroonga_score(tableoid,ctid) DESC)`;
 const FULL_TEXT_SCORE = sql<number>`pgroonga_score(tableoid,ctid)`;
 const BASE_ONTOLOGY_QUERY = db

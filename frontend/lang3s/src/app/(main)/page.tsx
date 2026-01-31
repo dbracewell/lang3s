@@ -1,25 +1,36 @@
-"use client";
-import { Logo } from "@/components/logo";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { ScrollableBox } from "@/components/scrolling/Scrollbox";
+import { CorpusSummary } from "@/features/precomputed/components/CorpusSummary";
+import { caller } from "@/lib/trpc/server";
+import { TopicSummary } from "@/features/precomputed/components/TopicSummary";
+import { CorpusStats } from "@/features/precomputed/components/CorpusStats";
 
-export default function Home() {
-  const isMobile = useIsMobile();
+type CorpusSummaryType = {
+  corpus_summary: string;
+  overall_stats: {
+    documents: number;
+    sentences: number;
+    annotations: number;
+  };
+  topic_summary: { name: string; support: number }[];
+};
+
+export default async function Home() {
+  const data = (await caller.precomputedStats.get({
+    name: "corpus_summary",
+  })) as CorpusSummaryType;
+
   return (
-    <div className="flex h-full flex-1 flex-col items-center justify-center gap-2">
-      <div className="shadow-shadow flex aspect-square size-fit flex-col items-center justify-center gap-3 rounded-full border-2 bg-slate-200 p-20 shadow-sm md:p-40 dark:bg-slate-800">
-        {isMobile ? (
-          <Logo
-            height={300}
-            className="fill-dodger-blue-500 stroke-dodger-blue-600 stroke-[10px]"
-          />
-        ) : (
-          <Logo
-            height={340}
-            className="fill-dodger-blue-500 stroke-dodger-blue-600 stroke-[10px]"
-          />
-        )}
-        <span className="text-5xl font-bold md:text-9xl">Lang3s</span>
+    <ScrollableBox.Container>
+      <ScrollableBox.Header>
+        <h1>Corpus Summary</h1>
+      </ScrollableBox.Header>
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-6 lg:flex-row">
+        <CorpusSummary summary={data["corpus_summary"]} />
+        <div className="scrollable flex w-1/2 flex-col gap-6">
+          <CorpusStats summary={data["overall_stats"]} />
+          <TopicSummary summary={data["topic_summary"]} />
+        </div>
       </div>
-    </div>
+    </ScrollableBox.Container>
   );
 }

@@ -1,6 +1,6 @@
 from lingua import Language, LanguageDetectorBuilder
 
-languages = [
+_detection_languages = [
     Language.ENGLISH,
     Language.JAPANESE,
     Language.SPANISH,
@@ -9,11 +9,11 @@ languages = [
     Language.DUTCH,
     Language.CHINESE,
 ]
+_detector = LanguageDetectorBuilder.from_languages(*_detection_languages).build()
 
 
 def detect_language(text: str) -> str:
-    detector = LanguageDetectorBuilder.from_languages(*languages).build()
-    lang = detector.detect_language_of(text)
+    lang = _detector.detect_language_of(text)
     if lang is None:
         return "en"
     return str(lang.iso_code_639_1.name).lower()

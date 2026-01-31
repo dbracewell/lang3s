@@ -38,3 +38,6 @@ ENV POSTGRES_DB=${POSTGRES_DB}
 ENV POSTGRES_USER=${POSTGRES_USER}
 ENV PGDATA=/var/lib/postgresql/data
 
+
+CMD ["postgres", "-c", "maintenance_work_mem=${MAINTENCE_WORK_MEM:-2}gb", "-c", "max_parallel_maintenance_workers=${MAX_PARELLISM:-4}"]
+

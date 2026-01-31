@@ -41,7 +41,7 @@ def main():
     args = parser.parse_args()
     scripts.append(
         (
-            "lang3s.services.worker.annotation",
+            "lang3s.services.worker.annotation_worker",
             [
                 "--num_workers",
                 str(args.num_workers),
@@ -50,7 +50,7 @@ def main():
             ],
         )
     )
-    scripts.append(("lang3s.services.server.app", []))
+    scripts.append(("lang3s.services.app", []))
 
     processes: List[Optional[subprocess.Popen[str]]] = [None] * len(scripts)
     try:

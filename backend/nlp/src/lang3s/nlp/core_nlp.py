@@ -19,9 +19,7 @@ from spacy_download import load_spacy
 
 from lang3s import config
 from lang3s.nlp.language import is_person_pronoun
-from lang3s.shared_types import AnnotationTypes, Metadata
-from lang3s.shared_types.document import Document
-from lang3s.shared_types.text_annotation import TextAnnotation
+from lang3s.nlp.shared_types import AnnotationTypes, Document, Metadata, TextAnnotation
 from lang3s.utils import filter_none
 from lang3s.utils.meta import SingletonMeta
 from lang3s.utils.urls import normalize_url

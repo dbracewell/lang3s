@@ -1,6 +1,6 @@
 from spacy.tokens import Span, Token
 
-from lang3s.shared_types.text_annotation import TextAnnotation
+from lang3s.nlp.shared_types import TextAnnotation
 
 PERSON_PRONOUNS = [
     # personal

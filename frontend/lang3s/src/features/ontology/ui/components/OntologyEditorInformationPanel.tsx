@@ -1,17 +1,18 @@
 "use client";
-import { useOntology } from "@/features/ontology/ui/components/OntologySelector";
+import { AnnotationTypeValueFormDialog } from "@/components/dialogs/AnnotationTypeValueFormDialog";
+import { ColorPickerDialog } from "@/components/dialogs/ColorPickerDialog";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { AnnotationColors, ONTOLOGY_ROOT } from "@/features/common/constants";
+import useConfigValue from "@/features/configuration/hooks/use-config-value";
+import { useAnalyticsUpdateMonitor } from "@/features/events/hooks/analyticsUpdateMonitor";
+import { AddPropertyDialog } from "@/features/ontology/ui/components/AddPropertyDialog";
+import { useOntology } from "@/features/ontology/ui/components/OntologySelector";
+import { OntologyProperties } from "@/lib/db/schemas/ontology";
+import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { cn } from "@/lib/utils/cn";
 import { ArrowUpFromLine, RouteIcon, TablePropertiesIcon } from "lucide-react";
-import React, { useEffect } from "react";
-import { ColorPickerDialog } from "@/components/dialogs/ColorPickerDialog";
-import { AnnotationTypeValueFormDialog } from "@/components/dialogs/AnnotationTypeValueFormDialog";
 import { parseAsString, useQueryState } from "nuqs";
-import { useTRPCMutation } from "@/lib/trpc/use-mutation";
-import { AddPropertyDialog } from "@/features/ontology/ui/components/AddPropertyDialog";
-import { OntologyProperties } from "@/lib/db/schemas/ontology";
-import { Button } from "@/components/ui/button";
-import { LoadingButton } from "@/components/ui/loading-button";
+import { useCallback, useEffect } from "react";
 
 export const OntologyEditorInformationPanel = () => {
   const { currentNode, rootNode } = useOntology();
@@ -20,6 +21,7 @@ export const OntologyEditorInformationPanel = () => {
     successToast: "Successfully updated ontology",
     errorToast: "Failed to update ontology",
   }));
+
   const [, setPathParam] = useQueryState(
     "path",
     parseAsString
@@ -130,7 +132,7 @@ export const OntologyEditorInformationPanel = () => {
             </tbody>
           </table>
         ) : (
-          <div className="flex h-[100px] w-full flex-col items-center justify-center gap-2">
+          <div className="flex h-25 w-full flex-col items-center justify-center gap-2">
             <TablePropertiesIcon className="text-muted-foreground" />
             <h4 className="text-muted-foreground truncate font-medium">
               No Properties
@@ -181,7 +183,7 @@ export const OntologyEditorInformationPanel = () => {
             </tbody>
           </table>
         ) : (
-          <div className="flex h-[100px] w-full flex-col items-center justify-center gap-2">
+          <div className="flex h-25 w-full flex-col items-center justify-center gap-2">
             <RouteIcon className="text-muted-foreground" />
             <h4 className="text-muted-foreground truncate font-medium">
               No Mappings
@@ -194,14 +196,31 @@ export const OntologyEditorInformationPanel = () => {
 };
 
 const PublishChangesButton = () => {
+  const [updating, setUpdating] = useConfigValue("update-analytics", false);
   const updateTables = useTRPCMutation((trpc) => ({
-    mutation: trpc.analytics.updateAnalyticsTables.mutationOptions(),
+    mutation: trpc.analytics.updateAnalyticsTables.mutationOptions({
+      onMutate: () => setUpdating(true),
+      onSuccess: (_, __, ___, context) => {
+        context.client.invalidateQueries(
+          trpc.config.getValue.queryOptions({
+            name: "update-analytics",
+          }),
+        );
+      },
+    }),
+
     errorToast: "Failed to publish changes and update analytics",
   }));
+
+  const updateProgress = useCallback(async () => {
+    setUpdating(false);
+  }, []);
+
+  useAnalyticsUpdateMonitor(updateProgress);
   return (
     <LoadingButton
-      isLoading={updateTables.isPending}
-      disabled={updateTables.isPending}
+      isLoading={updateTables.isPending || updating}
+      disabled={updateTables.isPending || updating}
       type="button"
       variant="ghost"
       size="sm"

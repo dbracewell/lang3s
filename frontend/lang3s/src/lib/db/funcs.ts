@@ -1,7 +1,6 @@
 import { sql, SQL } from "drizzle-orm";
 import { asSQL, CoalesceArgument } from "@/lib/db/helpers/typing";
 
-export * from "./helpers/columns";
 export * from "./helpers/json";
 export * from "./helpers/ordering";
 export * from "./helpers/pagination";

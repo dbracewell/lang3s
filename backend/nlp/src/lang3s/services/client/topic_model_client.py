@@ -6,9 +6,9 @@ from typing import Iterable, List, NamedTuple
 import numpy as np
 import requests
 
-from lang3s.config import FASTAPI_PORT
-from lang3s.services.server.topics import TopicData
-from lang3s.shared_types import Document
+from lang3s import config
+from lang3s.nlp.shared_types import Document
+from lang3s.services.api.topics import TopicData
 
 logger = logging.getLogger("TopicModelClient")
 
@@ -18,7 +18,7 @@ class Status(NamedTuple):
     pending_tasks: int
 
 
-TOPIC_MODEL_HOST = f"http://localhost:{FASTAPI_PORT}/topics"
+TOPIC_MODEL_HOST = f"http://localhost:{config.FASTAPI_PORT}/topics"
 
 
 class TopicModelClient:
@@ -40,7 +40,7 @@ class TopicModelClient:
                     np.save(buf, embeddings)
                     buf.seek(0)
 
-                    response = None  # Prevent UnboundLocalError
+                    response = None
                     try:
                         response = session.post(
                             TOPIC_MODEL_HOST,
@@ -54,7 +54,6 @@ class TopicModelClient:
                         logger.error(f"Failed to post doc {i}: {e}")
                         raise e
                     finally:
-                        # Safe cleanup
                         if response:
                             response.close()
                         buf.close()

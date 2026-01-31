@@ -21,6 +21,30 @@ class NGramDatabase:
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS embeddings (key BLOB PRIMARY KEY, vector BLOB)"
         )
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS ngram_statistics (key INTEGER PRIMARY KEY, count INTEGER)"
+        )
+        self.conn.commit()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.conn.close()
+
+    def increment_total_n(self, counter_dict):
+        if not counter_dict:
+            return
+        # Use ON CONFLICT to add to existing counts
+        data = [(k, v, v) for k, v in counter_dict.items()]
+        self.conn.executemany(
+            """
+            INSERT INTO ngram_statistics (key, count)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET count = count + ?
+            """,
+            data,
+        )
         self.conn.commit()
 
     def get_count(self, key):
@@ -62,6 +86,10 @@ class NGramDatabase:
             "INSERT OR REPLACE INTO counts (key, count) VALUES (?, ?)", (k_bytes, value)
         )
         self.conn.commit()
+
+    def get_total_tokens(self):
+        r = self.conn.execute("SELECT * FROM ngram_statistics where key = 1").fetchone()
+        return r[1] if r else 0
 
     def store_embedding(self, key, vector):
         k_bytes = pickle.dumps(key)

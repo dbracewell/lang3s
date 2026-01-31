@@ -1,4 +1,5 @@
 import { UserRole } from "@/lib/auth/permissions";
+import { DataType } from "@/lib/db/schemas/metadata";
 
 export type BasicUserInfo = {
   id: string;
@@ -12,18 +13,6 @@ export type FullUserInfo = BasicUserInfo & {
   email: string;
   keys?: { id: string; name?: string; key: string }[];
 };
-
-export const DataTypeNames = [
-  "string",
-  "string[]",
-  "int",
-  "float",
-  "boolean",
-  "date",
-  "datetime",
-] as const;
-
-export type DataType = (typeof DataTypeNames)[number];
 
 export type DataTypeNameToTypeMap = {
   [K in DataType]: K extends "int" | "float"

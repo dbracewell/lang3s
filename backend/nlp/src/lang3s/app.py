@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+import traceback
 import types
 
 from .logs import initialize_logging
@@ -10,53 +11,27 @@ initialize_logging()
 import argparse
 from typing import (
     Any,
+    ClassVar,
     Dict,
     List,
     Optional,
     Type,
-    ClassVar,
-    get_origin,
+    Union,
     get_args,
-    Union)
+    get_origin,
+)
+
 import yaml
-from pydantic import BaseModel, Field, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
-# ===============================================================
-# Plugin Base
-# ===============================================================
-
-class AppPlugin:
-    """
-    Optional plugin base class.
-    Plugins may extend:
-      - CLI arguments
-      - hooks around run()
-    """
-
-    name: str = "base-plugin"
-
-    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
-        """Override to add argparse arguments."""
-        pass
-
-    def before_run(self, app: "Application") -> None:
-        """Runs before app.run()."""
-        pass
-
-    def after_run(self, app: "Application") -> None:
-        """Runs after app.run()."""
-        pass
-
-
-def unwrap_optional(annotation):
+def _unwrap_optional(annotation):
     """
     Turns Optional[T] / Union[T, NoneType] / (T | None) into T.
     Otherwise returns annotation unchanged.
     """
     origin = get_origin(annotation)
-
-    if origin in (Union, types.UnionType):
+    if origin in (Union, types.UnionType, Optional):
         args = get_args(annotation)
         non_none = [a for a in args if a is not type(None)]
         if len(non_none) == 1:
@@ -72,19 +47,16 @@ class Application(BaseModel):
     - Docstring → help/description
     - YAML config loading (merged with CLI)
     - Subcommands
-    - Plugin system
 
     Subclasses should define typed fields and implement `.run()`.
     """
 
-    # Pydantic v2 config
     model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="allow",  # allow unknown fields (e.g. plugin args)
+        extra="allow",
         validate_assignment=True,
         arbitrary_types_allowed=True,
     )
 
-    # Normal model fields
     extra_args: List[str] = Field(
         default_factory=list,
         description="Additional args not consumed by the parser",
@@ -97,15 +69,9 @@ class Application(BaseModel):
     # Non-field class-level metadata (must be ClassVar so Pydantic doesn't
     # treat them as model fields and strip them off the class)
     subcommands: ClassVar[Dict[str, Type["Application"]]] = {}
-    plugins: ClassVar[List[AppPlugin]] = []
-
-    # ------------------------ RUN ------------------------------
 
     def run(self) -> Any:
-        """Override this in your subclass."""
         raise NotImplementedError("Subclasses must implement .run()")
-
-    # ----------------- YAML Config Merging ---------------------
 
     @classmethod
     def _load_yaml(cls, path: Optional[str]) -> Dict[str, Any]:
@@ -127,12 +93,9 @@ class Application(BaseModel):
         yaml_cfg: Dict[str, Any],
         cli_cfg: Dict[str, Any],
     ) -> Dict[str, Any]:
-        # CLI overrides YAML
         merged = dict(yaml_cfg)
         merged.update({k: v for k, v in cli_cfg.items() if v is not None})
         return merged
-
-    # ------------------ Argparse Generation --------------------
 
     @classmethod
     def _add_arg(cls, parser: argparse.ArgumentParser, name: str, field: Any) -> None:
@@ -144,7 +107,7 @@ class Application(BaseModel):
         dashed = f"--{name.replace('_', '-')}"
         underscored = f"--{name}"
 
-        annotation = unwrap_optional(field.annotation)
+        annotation = _unwrap_optional(field.annotation)
         default = field.default
 
         examples = field.examples or []
@@ -166,7 +129,8 @@ class Application(BaseModel):
                 )
             else:
                 group.add_argument(
-                    dashed, underscored,
+                    dashed,
+                    underscored,
                     dest=name,
                     action="store_true",
                     help=help_text or f"Enable {name}",
@@ -178,7 +142,8 @@ class Application(BaseModel):
         # Enum
         if hasattr(annotation, "__members__"):
             parser.add_argument(
-                dashed, underscored,
+                dashed,
+                underscored,
                 type=str,
                 choices=list(annotation.__members__.keys()),
                 default=default,
@@ -195,7 +160,11 @@ class Application(BaseModel):
                     return None if field.default is None else field.default
                 if isinstance(value, list):
                     return [inner_type(v) for v in value]
-                if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
+                if (
+                    isinstance(value, str)
+                    and value.startswith("[")
+                    and value.endswith("]")
+                ):
                     try:
                         raw = json.loads(value)
                         return [inner_type(x) for x in raw]
@@ -204,7 +173,8 @@ class Application(BaseModel):
                 return [inner_type(value)]
 
             parser.add_argument(
-                dashed, underscored,
+                dashed,
+                underscored,
                 nargs="*",
                 type=str,
                 default=default or [],
@@ -220,7 +190,8 @@ class Application(BaseModel):
         # primitives
         if annotation in (int, float, str):
             parser.add_argument(
-                dashed, underscored,
+                dashed,
+                underscored,
                 type=annotation,
                 default=default,
                 help=help_text,
@@ -229,7 +200,8 @@ class Application(BaseModel):
 
         # fallback: just accept as string-ish
         parser.add_argument(
-            dashed, underscored,
+            dashed,
+            underscored,
             default=default,
             help=help_text,
         )
@@ -240,7 +212,6 @@ class Application(BaseModel):
         for name, field in cls.model_fields.items():
             cls._add_arg(parser, name, field)
 
-        # Remainder args
         parser.add_argument(
             "extra_args",
             nargs=argparse.REMAINDER,
@@ -269,22 +240,12 @@ class Application(BaseModel):
                 sp = subparsers.add_parser(name, help=sub_help)
                 subcls._add_arguments_to_parser(sp)
 
-                # Let plugins extend subcommand parser
-                for plugin in subcls.plugins:
-                    plugin.add_arguments(sp)
-
             return parser
 
         # No subcommands → normal single-command parser
         cls._add_arguments_to_parser(parser)
 
-        # Let plugins extend root parser
-        for plugin in cls.plugins:
-            plugin.add_arguments(parser)
-
         return parser
-
-    # ------------------------ CLI ENTRY ------------------------
 
     @classmethod
     def from_cli(cls) -> "Application":
@@ -295,7 +256,7 @@ class Application(BaseModel):
 
         for i in range(len(leftover)):
             if leftover[i].startswith("--logger."):
-                logger_name = leftover[i][len("--logger."):]
+                logger_name = leftover[i][len("--logger.") :]
                 if "=" in logger_name:
                     parts = logger_name.split("=")
                     logger_name = parts[0].strip()
@@ -339,20 +300,7 @@ class Application(BaseModel):
             app = cls(**merged)
             app.extra_args = extra_cli
             return app
-        except ValidationError as e:
-            print(e)
+        except ValidationError:
             parser.print_help()
+            traceback.print_exc()
             exit(1)
-
-    # --------------------- Plugin Hooks ------------------------
-
-    def run_with_plugins(self) -> Any:
-        for plugin in self.plugins:
-            plugin.before_run(self)
-
-        result = self.run()
-
-        for plugin in self.plugins:
-            plugin.after_run(self)
-
-        return result

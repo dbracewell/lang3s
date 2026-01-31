@@ -11,7 +11,7 @@ $$
 SELECT ARRAY(SELECT jsonb_array_elements_text(_js));
 $$;
 
-CREATE FUNCTION lower_array(text[]) RETURNS text[]
+CREATE OR REPLACE FUNCTION lower_array(text[]) RETURNS text[]
     LANGUAGE sql
     IMMUTABLE AS
 $$
@@ -264,6 +264,15 @@ CREATE TABLE "keywords"
     "embedding"   halfvec(384)                               NOT NULL
 );
 
+DROP TABLE IF EXISTS "precomputed_stats" CASCADE;
+CREATE TABLE "precomputed_stats"
+(
+    id    SERIAL PRIMARY KEY,
+    name  TEXT  NOT NULL,
+    value JSONB NOT NULL
+);
+
+
 ALTER TABLE "keywords"
     DROP CONSTRAINT IF EXISTS "keywords_document_id_documents_id_fk";
 ALTER TABLE "keywords"
@@ -319,6 +328,7 @@ ALTER TABLE "jobs"
 
 CREATE INDEX IF NOT EXISTS "document_metadata_gin_idx" ON "documents" USING gin ("metadata" jsonb_path_ops);
 
+CREATE INDEX IF NOT EXISTS text_annotations_sentence_aid_idx ON text_annotations USING btree (sentence_aid);
 CREATE INDEX IF NOT EXISTS "text_annotation_normalized_index" ON "text_annotations" USING btree ("normalized_text");
 CREATE INDEX IF NOT EXISTS "text_annotation_sentence_aid_index" ON "text_annotations" USING btree ("sentence_aid");
 CREATE INDEX IF NOT EXISTS "text_annotation_document_id_index" ON "text_annotations" USING btree ("doc_id");
@@ -347,6 +357,8 @@ CREATE INDEX IF NOT EXISTS "metadata_link_index" on "metadata" USING btree ("lin
 CREATE INDEX IF NOT EXISTS "keywords_embedding_index" ON "keywords" USING hnsw ("embedding" halfvec_cosine_ops);
 CREATE INDEX IF NOT EXISTS "keywords_document_id" ON "keywords" USING btree ("document_id");
 
+CREATE UNIQUE INDEX IF NOT EXISTS "precomputed_stats_name_unique" ON "precomputed_stats" USING btree ("name");
+
 DROP VIEW IF EXISTS "public"."annotation_with_ontology" CASCADE;
 CREATE VIEW "public"."annotation_with_ontology" AS
 (
@@ -373,6 +385,7 @@ select "topics"."id"                                                            
        "text_annotations"."doc_id",
        "text_annotations"."text_id",
        "text_annotations"."sentence_aid",
+       "text_annotations"."text"                                                                   as "sentence",
        (1 - cosine_distance("topics"."embedding", "text_annotations"."embedding"::halfvec)::float) as "similarity"
 from "topics"
          inner join "text_annotations" on "text_annotations"."type" = 'sentence'

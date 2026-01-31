@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
-from lang3s.shared_types import Text
+from lang3s.nlp.shared_types import Text
 
 
 def mmr_rank(

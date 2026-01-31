@@ -13,13 +13,11 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import declarative_base, relationship
 
 from lang3s import config
 
-
-class Base(DeclarativeBase):
-    pass
+Base = declarative_base()
 
 
 class UserTable(Base):
@@ -166,7 +164,7 @@ class JobsTable(Base):
     name = Column("name", String, nullable=False)
     apiKey = Column("apiKey", Text, nullable=True)
     userId = Column(
-        "user_id", Text, ForeignKey("user.id", ondelete="cascade"), nullable=True
+        "user_id", Text, ForeignKey("user.id", ondelete="cascade"), nullable=False
     )
     status = Column(
         "status",
@@ -176,6 +174,11 @@ class JobsTable(Base):
     total = Column("total", Integer, nullable=False)
     completed = Column("completed", Integer, nullable=False)
     failed = Column("failed", Integer, nullable=False)
+    jobType = Column(
+        "job_type",
+        Enum("annotation", "update", "other", name="job_type"),
+        nullable=False,
+    )
     metadata_ = Column("metadata", JSON, nullable=False)
     createdAt = Column("created_at", DateTime, nullable=True)
     startedAt = Column("started_at", DateTime, nullable=True)
@@ -183,6 +186,38 @@ class JobsTable(Base):
     updatedAt = Column("updated_at", DateTime, nullable=True)
 
     user = relationship("UserTable", back_populates="jobs_collection")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<%s id={self.id}>" % self.__class__.__name__
+
+
+class MetadataTable(Base):
+    __tablename__ = "metadata"
+
+    id = Column("id", Text, primary_key=True, nullable=False)
+    source = Column(
+        "source",
+        Enum("document", "annotation", "sentence", name="metadata_sources"),
+        nullable=False,
+    )
+    name = Column("name", Text, nullable=False)
+    dataType = Column(
+        "data_type",
+        Enum(
+            "string",
+            "string[]",
+            "int",
+            "float",
+            "boolean",
+            "date",
+            "datetime",
+            name="metadata_data_type",
+        ),
+        nullable=False,
+    )
+    formatter = Column("formatter", Text, nullable=True)
+    linksToDocumentId = Column("links_to_document_id", Boolean, nullable=False)
+    linksToMetadataId = Column("metadata_link", Text, nullable=True)
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<%s id={self.id}>" % self.__class__.__name__
@@ -230,6 +265,17 @@ class AnnotationToOntologyTable(Base):
         return f"<%s id={self.id}>" % self.__class__.__name__
 
 
+class PrecomputedStatsTable(Base):
+    __tablename__ = "precomputed_stats"
+
+    id = Column("id", Integer, primary_key=True, nullable=False)
+    name = Column("name", Text, nullable=False)
+    value = Column("value", JSONB, nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<%s id={self.id}>" % self.__class__.__name__
+
+
 class DocumentsTable(Base):
     __tablename__ = "documents"
 
@@ -244,6 +290,9 @@ class DocumentsTable(Base):
     )
     text_annotations_collection = relationship(
         "TextAnnotationsTable", back_populates="document", cascade="all, delete-orphan"
+    )
+    keywords_collection = relationship(
+        "KeywordsTable", back_populates="document", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:  # pragma: no cover
@@ -268,6 +317,9 @@ class TextTable(Base):
     document = relationship("DocumentsTable", back_populates="text_collection")
     text_annotations_collection = relationship(
         "TextAnnotationsTable", back_populates="text", cascade="all, delete-orphan"
+    )
+    keywords_collection = relationship(
+        "KeywordsTable", back_populates="text", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:  # pragma: no cover
@@ -295,18 +347,50 @@ class TextAnnotationsTable(Base):
     value = Column("value", Text, nullable=False)
     source = Column("source", Text, nullable=False)
     mapping = Column("mapping", Text, nullable=True)
-    embedding: Mapped[list[float]] = mapped_column(
-        HALFVEC(config.SEMANTIC_EMBEDDING_DIMENSION), nullable=False
+    embedding = Column(
+        "embedding", HALFVEC(config.SEMANTIC_EMBEDDING_DIMENSION), nullable=False
     )
-    # embedding = Column('embedding', HALFVEC(config.SEMANTIC_EMBEDDING_DIMENSION), nullable=False)
     metadata_ = Column("metadata", JSONB, nullable=False)
     createdAt = Column("created_at", DateTime, nullable=True)
     updatedAt = Column("updated_at", DateTime, nullable=True)
+    a0Text = Column("a0_text", Text, nullable=True)
+    a1Text = Column("a1_text", Text, nullable=True)
+    timeText = Column("time_text", Text, nullable=True)
+    locText = Column("loc_text", Text, nullable=True)
+    a0Id = Column("a0_id", Text, nullable=True)
+    a1Id = Column("a1_id", Text, nullable=True)
+    timeId = Column("time_id", Text, nullable=True)
+    locId = Column("loc_id", Text, nullable=True)
 
     text = relationship("TextTable", back_populates="text_annotations_collection")
     document = relationship(
         "DocumentsTable", back_populates="text_annotations_collection"
     )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<%s id={self.id}>" % self.__class__.__name__
+
+
+class KeywordsTable(Base):
+    __tablename__ = "keywords"
+
+    id = Column("id", Text, primary_key=True, nullable=False)
+    keyword = Column("keyword", Text, nullable=False)
+    documentId = Column(
+        "document_id",
+        Text,
+        ForeignKey("documents.id", ondelete="cascade"),
+        nullable=False,
+    )
+    textId = Column(
+        "text_id", Text, ForeignKey("text.id", ondelete="cascade"), nullable=False
+    )
+    embedding = Column(
+        "embedding", HALFVEC(config.SEMANTIC_EMBEDDING_DIMENSION), nullable=False
+    )
+
+    document = relationship("DocumentsTable", back_populates="keywords_collection")
+    text = relationship("TextTable", back_populates="keywords_collection")
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<%s id={self.id}>" % self.__class__.__name__

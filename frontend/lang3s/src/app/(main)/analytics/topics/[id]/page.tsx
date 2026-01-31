@@ -10,11 +10,21 @@ import {
 import { GoBackButton } from "@/components/buttons/GoBackButton";
 import { CircleQuestionMarkIcon, XIcon } from "lucide-react";
 import { Hint } from "@/components/hint";
-import React from "react";
+import React, { Suspense } from "react";
 import { TopicIdContext } from "@/features/analytics/ui/components/TopicIdContext";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/Spinner";
 
 const Page = async (props: PageProps<"/analytics/topics/[id]">) => {
   const { id } = await props.params;
+  return (
+    <Suspense fallback={<Spinner />}>
+      <SuspensedPage id={id} />
+    </Suspense>
+  );
+};
+
+const SuspensedPage = async ({ id }: { id: string }) => {
   const data = await caller.analytics.getTopic({ id });
   return (
     <>

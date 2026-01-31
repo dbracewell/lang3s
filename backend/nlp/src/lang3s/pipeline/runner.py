@@ -5,14 +5,13 @@ from typing import Dict, Iterable, List, Optional
 
 from lang3s_job_service import File
 
+from lang3s.models import Embedder, MultiTaskTransformer
 from lang3s.nlp.core_nlp import core_nlp
 from lang3s.nlp.heavy_nlp import heavy_nlp
+from lang3s.nlp.shared_types import Document, Metadata
 from lang3s.pipeline.langdetect import detect_language
-from lang3s.shared_types import Document
-from lang3s.shared_types.metadata import Metadata
 from lang3s.utils import partition_generator
 
-from ..models import Embedder, MultiTaskTransformer
 from .doc_builder import document_generator
 
 logger = logging.getLogger(__name__)
@@ -55,8 +54,8 @@ def pipeline(
         for doc in batch:
             try:
                 heavy_nlp(doc, tasks, embedder=embedder, mtask=mtask)
-            except Exception as e:
-                logger.error("Error Processing Document: ", e, exc_info=True)
+            except Exception:
+                logger.error("Error Processing Document: ", exc_info=True)
 
         end = time.perf_counter()
         logger.info(

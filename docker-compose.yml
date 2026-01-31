@@ -129,6 +129,7 @@ services:
       - redis_data:/data
     networks:
       - lang3s-network
+    container_name: lang3s_redis
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s

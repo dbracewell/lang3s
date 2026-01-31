@@ -257,7 +257,9 @@ if __name__ == "__main__":
         "--use_synthetic", action="store_true", help="Force usage of synthetic data"
     )
     parser.add_argument(
-        "--output", default="reddit_style_corpus.json", help="Output file"
+        "--output",
+        default="/Users/ik/prj/Lang3s/reddit_style_corpus.json",
+        help="Output file",
     )
     parser.add_argument(
         "--interval",

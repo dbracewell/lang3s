@@ -153,61 +153,60 @@ export const docSearch = async ({
   let { query: finalQuery, metadata } = parseQuery(query);
   finalQuery = isStrict ? finalQuery : loosenQuery(finalQuery);
 
-  try {
-    const fullTextSearch = db
-      .select({
-        documentId: TextTable.documentId,
-        text: sql<string>`${TextTable.content}`.as("text"),
-        itemRank: Annotations.fullTextRank.as("item_rank"),
-        scoreRank: Annotations.fullTextRank.as("score_rank"),
-        priority: sql<number>`2`.as("priority"),
-      })
-      .from(TextTable)
-      .where(Annotations.getFullTextMatch(finalQuery ?? "", TextTable.content));
+  const fullTextSearch = db
+    .select({
+      documentId: TextTable.documentId,
+      text: sql<string>`${TextTable.content}`.as("text"),
+      itemRank: Annotations.fullTextRank.as("item_rank"),
+      scoreRank: Annotations.fullTextRank.as("score_rank"),
+      priority: sql<number>`2`.as("priority"),
+    })
+    .from(TextTable)
+    .where(Annotations.getFullTextMatch(finalQuery ?? "", TextTable.content));
 
-    const similarityExpr = cosineSimilarity(
-      TextAnnotationTable.embedding,
-      embedding!,
-    );
+  const similarityExpr = cosineSimilarity(
+    TextAnnotationTable.embedding,
+    embedding!,
+  );
 
-    const semanticSearch = db
-      .select({
-        documentId: TextAnnotationTable.documentId,
-        text: sql<string>`array_to_string(
-      array_agg(${TextAnnotationTable.content} order by ${TextAnnotationTable.sentenceId}), 
+  const semanticSearch = db
+    .select({
+      documentId: TextAnnotationTable.documentId,
+      text: sql<string>`array_to_string(
+      array_agg(${TextAnnotationTable.content} order by ${TextAnnotationTable.sentenceId}),
       '...\n'
     )`.as("text"),
-        itemRank:
-          sql<number>`dense_rank() over (order by max(${similarityExpr}) desc)`.as(
-            "item_rank",
-          ),
-        scoreRank:
-          sql<number>`dense_rank() over (order by max(${similarityExpr}) desc)`.as(
-            "score_rank",
-          ),
-        priority: sql<number>`1`.as("priority"),
-      })
-      .from(TextAnnotationTable)
-      .where(
-        and(
-          Annotations.isNotStopword,
-          Annotations.isSentence,
-          gte(similarityExpr, threshold),
+      itemRank:
+        sql<number>`dense_rank() over (order by max(${similarityExpr}) desc)`.as(
+          "item_rank",
         ),
-      )
-      .groupBy(TextAnnotationTable.documentId);
+      scoreRank:
+        sql<number>`dense_rank() over (order by max(${similarityExpr}) desc)`.as(
+          "score_rank",
+        ),
+      priority: sql<number>`1`.as("priority"),
+    })
+    .from(TextAnnotationTable)
+    .where(
+      and(
+        Annotations.isNotStopword,
+        Annotations.isSentence,
+        gte(similarityExpr, threshold),
+      ),
+    )
+    .groupBy(TextAnnotationTable.documentId);
 
-    const fromTable = createUnionQuery({
-      embedding,
-      finalQuery,
-      semanticSearch,
-      fullTextSearch,
-    });
+  const fromTable = createUnionQuery({
+    embedding,
+    finalQuery,
+    semanticSearch,
+    fullTextSearch,
+  });
 
-    const uniqueRows = db
-      .select({
-        documentId: fromTable.documentId,
-        text: sql<string>`
+  const uniqueRows = db
+    .select({
+      documentId: fromTable.documentId,
+      text: sql<string>`
             CASE
               WHEN LENGTH(${Annotations.getFullTextSnippet(
                 finalQuery ?? "",
@@ -219,68 +218,65 @@ export const docSearch = async ({
                 ELSE CONCAT(SUBSTRING(${fromTable.text},0,512),'...')
             END
         `.as(randomAlphaUnderscore()),
-        itemRank: sql<number>`SUM(1.0 / (60.0 + ${fromTable.itemRank}))`.as(
-          randomAlphaUnderscore(),
-        ),
-        scoreRank: sql<number>`SUM(1.0 / (60.0 + ${fromTable.scoreRank}))`.as(
-          randomAlphaUnderscore(),
-        ),
-      })
-      .from(fromTable)
-      .groupBy((t) => [t.documentId, t.text])
-      .as("unique_rows");
+      itemRank: sql<number>`SUM(1.0 / (60.0 + ${fromTable.itemRank}))`.as(
+        randomAlphaUnderscore(),
+      ),
+      scoreRank: sql<number>`SUM(1.0 / (60.0 + ${fromTable.scoreRank}))`.as(
+        randomAlphaUnderscore(),
+      ),
+    })
+    .from(fromTable)
+    .groupBy((t) => [t.documentId, t.text])
+    .as("unique_rows");
 
-    const documentWhere: SQL[] = [];
-    if (isStrict && !!finalQuery) {
-      documentWhere.push(
-        sql`LENGTH(${Annotations.getFullTextSnippet(finalQuery, uniqueRows.text)}) > 0`,
-      );
-    }
-    const mdQuery = await prepareMetadataQuery(metadata);
-    if (mdQuery != null) {
-      documentWhere.push(mdQuery);
-    }
-
-    const sub = db
-      .select({
-        documentTitle: DocumentsTable.title,
-        documentId: DocumentsTable.id,
-        highlights: jsonAgg(
-          jsonBuildObject({
-            text: uniqueRows.text,
-            rank: uniqueRows.itemRank,
-          }),
-          orderAsc(sql`${uniqueRows.itemRank}`),
-        ).as(randomAlphaUnderscore()),
-        rank: sql<number>`SUM(${uniqueRows.scoreRank})`.as("rank"),
-      })
-      .from(uniqueRows)
-      .innerJoin(DocumentsTable, eq(DocumentsTable.id, uniqueRows.documentId))
-      .where(and(...documentWhere))
-      .groupBy((t) => [t.documentId, t.documentTitle])
-      .orderBy((t) => [desc(t.rank), asc(t.documentId)]);
-
-    let results;
-    let total;
-    if (page <= 1) {
-      const c = sub.as(randomAlphaUnderscore());
-      [results, total] = await Promise.all([
-        withPagination(sub, { page }),
-        db.select({ count: countDistinct(c.documentId) }).from(c),
-      ]);
-    } else {
-      results = await withPagination(sub, { page });
-    }
-    const { finalResults, hasNextPage } = generateNextPage(results);
-
-    return {
-      nextCursor: hasNextPage ? page + 1 : undefined,
-      results: finalResults,
-      total: total ? total[0].count : 0,
-    } as SearchResults<DocumentSearchResult>;
-  } catch (e) {
-    console.error(e);
+  const documentWhere: SQL[] = [];
+  if (isStrict && !!finalQuery) {
+    documentWhere.push(
+      sql`LENGTH(${Annotations.getFullTextSnippet(finalQuery, uniqueRows.text)}) > 0`,
+    );
   }
+  const mdQuery = await prepareMetadataQuery(metadata);
+  if (mdQuery != null) {
+    documentWhere.push(mdQuery);
+  }
+
+  const sub = db
+    .select({
+      documentTitle: DocumentsTable.title,
+      documentId: DocumentsTable.id,
+      highlights: jsonAgg(
+        jsonBuildObject({
+          text: uniqueRows.text,
+          rank: uniqueRows.itemRank,
+        }),
+        orderAsc(sql`${uniqueRows.itemRank}`),
+      ).as(randomAlphaUnderscore()),
+      rank: sql<number>`SUM(${uniqueRows.scoreRank})`.as("rank"),
+    })
+    .from(uniqueRows)
+    .innerJoin(DocumentsTable, eq(DocumentsTable.id, uniqueRows.documentId))
+    .where(and(...documentWhere))
+    .groupBy((t) => [t.documentId, t.documentTitle])
+    .orderBy((t) => [desc(t.rank), asc(t.documentId)]);
+
+  let results;
+  let total;
+  if (page <= 1) {
+    const c = sub.as(randomAlphaUnderscore());
+    [results, total] = await Promise.all([
+      withPagination(sub, { page }),
+      db.select({ count: countDistinct(c.documentId) }).from(c),
+    ]);
+  } else {
+    results = await withPagination(sub, { page });
+  }
+  const { finalResults, hasNextPage } = generateNextPage(results);
+
+  return {
+    nextCursor: hasNextPage ? page + 1 : undefined,
+    results: finalResults,
+    total: total ? total[0].count : 0,
+  } as SearchResults<DocumentSearchResult>;
 };
 
 export const topicSearch = async ({

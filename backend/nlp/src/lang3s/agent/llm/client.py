@@ -1,4 +1,3 @@
-import asyncio
 from typing import (
     Any,
     AsyncGenerator,
@@ -63,7 +62,8 @@ class LlmClient:
         self.base_url: str = f"{llm_host}/v1/"
         self.model_name: str = model_name
 
-    def _get_client(self):
+    @staticmethod
+    def _get_client():
         return AsyncOpenAI(
             api_key=config.LLM_API_KEY,
             base_url=f"{config.LLM_HOST}/v1/",
@@ -342,23 +342,3 @@ class LlmClient:
             )
         ):
             yield event
-
-
-async def main():
-    client = LlmClient(model_name="")
-    for event in client.sync_chat_completion(
-        messages=[
-            {
-                "role": "user",
-                "content": "Please greet Sam Wise.",
-            }
-        ],
-        # tools=[get_message],
-        stream=True,
-    ):
-        print(event)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-    # main()

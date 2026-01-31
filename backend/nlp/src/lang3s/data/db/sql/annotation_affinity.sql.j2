@@ -1,0 +1,30 @@
+{% import 'macros.sql' as macros %}
+
+WITH base_stats AS (SELECT source                                               as entityId,
+                           source_type                                          as entityType,
+                           -- Calculate score: mentions / sentence_count
+                           (COUNT(sentence_aid)::FLOAT / source_sentence_count) as rawScore
+                    FROM annotation_co_occurrence
+                    WHERE {{ macros.match_paths('source_type', mapping_list) }}
+                      AND source_document_count > 5
+                      AND source_sentence_count > 10
+                      AND (
+                        target_type IS NULL
+                            OR target_type = 'ALL.Entity'
+                            OR target_type LIKE 'ALL.Entity.%'
+                        )
+                      AND (target_document_count IS NULL OR target_document_count > 5)
+
+                    GROUP BY source, source_type, source_sentence_count)
+-- Select the unions of top and bottom to save round-trips
+SELECT *, 'low' as category
+FROM (SELECT *
+      FROM base_stats
+      ORDER BY rawScore ASC
+      LIMIT 25)
+UNION ALL
+SELECT *, 'high' as category
+FROM (SELECT *
+      FROM base_stats
+      ORDER BY rawScore DESC
+      LIMIT 25)
