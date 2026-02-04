@@ -4,13 +4,16 @@ import argparse
 import csv
 import enum
 import json
+import math
 import os
 import sys
 import traceback
 from pathlib import Path
+from time import strftime
 from typing import Any, Dict, Generator, List, Optional, cast
 
 import jsonlines
+import shortuuid
 from pydantic import BaseModel, Field
 from url_normalize import url_normalize
 
@@ -217,6 +220,23 @@ def read_directory(file: str, ext: str | None) -> List[File]:
     return files
 
 
+import random
+from datetime import datetime, timedelta
+
+
+def random_datetime_between(start_date, end_date):
+    """
+    Generate a random datetime between two datetime objects.
+    """
+    delta = end_date - start_date
+    int_delta = (delta.days * 24 * 60 * 60) + delta.seconds
+    random_second = random.randrange(int_delta)
+    return start_date + timedelta(seconds=random_second)
+
+
+# Example Usage
+d1 = datetime.strptime("1/1/2000 1:30 AM", "%m/%d/%Y %I:%M %p")
+d2 = datetime.strptime("1/1/2025 4:50 AM", "%m/%d/%Y %I:%M %p")
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", help="The source of your documents", required=True)
@@ -277,6 +297,15 @@ if __name__ == "__main__":
     if len(files) > 0:
         if args.limit is not None:
             files = files[: args.limit]
+        for file in files:
+            file.metadata["published_data"] = random_datetime_between(d1, d2).strftime(
+                "%Y-%m-%d %H:%M:%S",
+            )
+            file.metadata["int_data"] = random.randint(0, 100)
+            file.metadata["float_data"] = random.random()
+            file.metadata["string_array_data"] = [
+                shortuuid.uuid() for _ in range(random.randint(1, 10))
+            ]
         job_service.annotate_documents(files, wait_for_completion=args.wait)
 
     print(f"Processing {len(files)} files")

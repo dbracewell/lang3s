@@ -8,8 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { NotebookTextIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import { DocumentView } from "@/features/documents/ui/components/DocumentView";
 import { GoBackButton } from "@/components/buttons/GoBackButton";
 
@@ -33,9 +32,6 @@ const DocumentIdPage = async (props: PageProps<"/documents/[id]">) => {
               ))}
           </CardDescription>
           <CardAction className="flex items-center gap-10">
-            <Button variant="note">
-              <NotebookTextIcon />
-            </Button>
             <GoBackButton variant="ghost">
               <XIcon />
             </GoBackButton>

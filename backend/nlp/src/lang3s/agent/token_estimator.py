@@ -1,3 +1,5 @@
+from typing import Any
+
 from transformers import AutoTokenizer
 
 
@@ -20,6 +22,21 @@ def _resolve_tokenizer(model_id: str):
         return "google/gemma-2-9b-it"
 
     return "meta-llama/Llama-3.1-8B-Instruct"
+
+
+_cache = {}
+
+
+def _get_tokenizer(model_name: str):
+    tokenizer_name = _resolve_tokenizer(model_name)
+    if not tokenizer_name in _cache:
+        _cache[tokenizer_name] = AutoTokenizer.from_pretrained(model_name)
+    return _cache[tokenizer_name]
+
+
+def estimate_tokens(model_name: str, messages: list[dict[str, Any]]) -> int:
+    tokenizer = _get_tokenizer(model_name)
+    return len(tokenizer(messages, tokenize=True))
 
 
 class TokenEstimator:

@@ -1,6 +1,5 @@
 import asyncio
 import io
-import logging
 import time
 from contextlib import asynccontextmanager
 
@@ -10,7 +9,7 @@ from fastapi import APIRouter, Depends, FastAPI, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from lang3s.nlp.topics import model as topics
-from lang3s.services.model.topics import *
+from lang3s.services.model.topics_models import *
 from lang3s.services.service_logging import get_logger
 from lang3s.services.worker.topics_worker import (
     finished_queue,
@@ -32,7 +31,7 @@ background_tasks = set()
 
 @asynccontextmanager
 async def topics_lifecycle(app: FastAPI):
-    logger.info("Initializing Topic Model...")
+    logger.info("Initializing Topic Api and Worker...")
     topics.init_topic_model()
     app.state.is_updating_task = False
     worker_task = asyncio.create_task(asyncio.to_thread(topics_worker, app.state))
@@ -104,7 +103,7 @@ async def update_name(
 ):
     request.app.state.is_updating_task = True
     try:
-        topic = topic_model.get_topic(topic_id)
+        topic = topic_model.get_ranked_entities_for_topic(topic_id)
 
         if body.name is not None:
             topic.name = body.name
@@ -131,7 +130,7 @@ async def merge():
 
 @router.get("/{topic_id}")
 async def get_topic(topic_id: str, topic_model=Depends(topics.get_topic_model)):
-    topic = topic_model.get_topic(topic_id)
+    topic = topic_model.get_ranked_entities_for_topic(topic_id)
     return TopicData(
         id=topic.id,
         name=topic.name,

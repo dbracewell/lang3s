@@ -1,38 +1,10 @@
 import z from "zod";
-import {
-  Chart,
-  CountType,
-  DisplayType,
-  SeriesSourceType,
-} from "@/features/reports/types";
-import { DataTypeCategory } from "@/features/common/types";
+import { Chart, CountType, SERIES_SOURCES } from "@/features/reports/types";
 
-export const SeriesSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("TOPIC").refine((a) => a as SeriesSourceType),
-    value: z.string().optional(),
-    dataType: z.literal("string").refine((a) => a as DataTypeCategory),
-    display: z.enum(["text"]).refine((a) => a as DisplayType),
-  }),
-  z.object({
-    type: z
-      .enum(["DOCUMENT_METADATA", "SENTENCE_METADATA", "ANNOTATION_METADATA"])
-      .refine((a) => a as SeriesSourceType),
-    value: z.string(),
-    dataType: z
-      .enum(["string", "number", "date", "boolean"])
-      .refine((a) => a as DataTypeCategory),
-    display: z.enum(["value"]).refine((a) => a as DisplayType),
-  }),
-  z.object({
-    type: z.literal("ANNOTATION").refine((a) => a as SeriesSourceType),
-    value: z.string(),
-    dataType: z.literal("string").refine((a) => a as DataTypeCategory),
-    display: z
-      .enum(["text", "value", "text-value"])
-      .refine((a) => a as DisplayType),
-  }),
-]);
+export const SeriesSchema = z.object({
+  type: z.enum(SERIES_SOURCES),
+  value: z.string(),
+});
 
 export type SeriesType = z.infer<typeof SeriesSchema>;
 

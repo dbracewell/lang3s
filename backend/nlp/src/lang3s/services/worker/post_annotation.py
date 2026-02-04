@@ -1,8 +1,8 @@
 from collections import defaultdict
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel
-from sqlalchemy import ScalarResult, select
+from dateutil import parser
+from sqlalchemy import ScalarResult, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.sql.functions import func
 
@@ -18,6 +18,8 @@ from lang3s.data.db.models import (
     TopicsTable,
 )
 from lang3s.models import Embedder
+from lang3s.nlp.shared_types import Metadata
+from lang3s.services.service_logging import get_logger
 
 
 @tool(description="Searches the database for results similar to the given query.")
@@ -47,8 +49,11 @@ def search_database(query: Annotated[str, Desc("The query to search.")]):
     return results
 
 
+logger = get_logger(__name__)
+
+
 def generate_corpus_summary():
-    print("Starting to process: discovery")
+    logger.info("Starting to process: discovery")
     corpus_discovery = DiscoveryStrategy(
         search_tool="search_database", rounds=1, queries_per_round=3
     )
@@ -59,6 +64,8 @@ def generate_corpus_summary():
     response = agent.invoke(
         prompt="Determine the main topics of the corpus. The corpus is comprised of news articles."
     )
+    logger.info("Finished discovery")
+    logger.info("Starting collecting statistics")
     db = Database()
     with db.session() as session:
         stmt = select(TopicsTable).order_by(TopicsTable.support.desc()).limit(7)
@@ -86,7 +93,9 @@ def generate_corpus_summary():
             }
         )
 
-    with db.session() as session:
+    logger.info("Finished collecting statistics")
+    logger.info("Saving results")
+    with db.session(commit=True) as session:
         stmt = insert(PrecomputedStatsTable).values(
             {
                 "name": "corpus_summary",
@@ -106,71 +115,102 @@ def generate_corpus_summary():
             set_={"value": stmt.excluded.value},
         )
         session.execute(stmt)
+    logger.info("Finished saving results")
 
 
-class MetadataEntry(BaseModel):
-    name: str
-    valueType: Literal["string", "string[]", "number", "date"]
+def is_date(value: str) -> bool:
+    try:
+        parser.parse(value)
+        return True
+    except ValueError:
+        return False
 
 
-class MetadataProbe(BaseModel):
-    metadata: list[MetadataEntry]
-
-
-def probe_metadata():
+def guess_metadata(
+    metadata_source: Literal["document", "sentence", "annotation"],
+) -> dict[str, str]:
     db = Database()
+
+    if metadata_source == "document":
+        metadata_column = DocumentsTable.metadata_
+        where = text("1 = 1")
+    elif metadata_source == "sentence":
+        metadata_column = TextAnnotationsTable.metadata_
+        where = TextAnnotationsTable.type_ == "sentence"
+    else:
+        metadata_column = TextAnnotationsTable.metadata_
+        where = TextAnnotationsTable.type_ != "sentence"
+
     with db.session() as session:
         results: ScalarResult[dict[str, Any]] = session.scalars(
-            select(DocumentsTable.metadata_).limit(5000)
+            select(metadata_column).where(where).limit(25000)
         )
         metadata: dict[str, set] = defaultdict(set)
         for result in results:
             for key, value in result.items():
-                if isinstance(value, list) or isinstance(value, dict):
-                    if isinstance(value, list):
-                        if len(value) == 0:
-                            continue
-                        v = f"{type(value[0]).__name__}[]"
-                    else:
-                        v = f"dict"
+                if isinstance(value, list):
+                    if len(value) == 0 or type(value[0]).__name__ != "str":
+                        continue
+                    v = "str[]"
                     metadata[key].add(v)
-                else:
+                elif not isinstance(value, dict):
                     metadata[key].add(value)
 
-        metadata.pop("path", None)
-        metadata.pop("mime-type", None)
-        metadata.pop("title", None)
-        metadata.pop("language", None)
+        for ignore in Metadata:
+            metadata.pop(ignore.value, None)
+
         if len(metadata) == 0:
-            return
+            return {}
 
-        agent = Agent(output_format=MetadataProbe)
-        response = agent.invoke(
-            prompt=f"""
-        Give the following metadata identify the type of the value for each metadata key.
-        {"\n".join([f"{key} = {list(value)[:5]}" for key, value in metadata.items()])}
-        /no_think
-        """,
-        )
+        type_info: dict[str, str] = dict()
+        for key, value in metadata.items():
+            if len(value) == 0:
+                continue
+            if len(value) == 1 and value.pop() == "str[]":
+                type_info[key] = "string[]"
+            elif any(isinstance(v, float) for v in value if v is not None):
+                type_info[key] = "float"
+            elif all(isinstance(v, int) for v in value if v is not None):
+                type_info[key] = "int"
+            elif all(isinstance(v, bool) for v in value if v is not None):
+                type_info[key] = "boolean"
+            elif all(is_date(v) for v in value if v is not None):
+                type_info[key] = "date"
+            elif all(isinstance(v, str) for v in value if v is not None):
+                type_info[key] = "string"
 
-    if not response.parsed:
+    return type_info
+
+
+def probe_metadata():
+    values = []
+
+    for metadata_source in ["document", "sentence", "annotation"]:
+        metadata = guess_metadata(metadata_source=metadata_source)  # type:ignore
+        for key, valueType in metadata.items():
+            formatter = None
+            if valueType == "date":
+                formatter = "yyyy-MM-dd"
+            elif valueType == "number":
+                formatter = "2"
+
+            values.append(
+                {
+                    "source": metadata_source,
+                    "name": key,
+                    "data_type": valueType,
+                    "formatter": formatter,
+                }
+            )
+
+    if not values:
         return
 
-    with db.session() as session:
-        type_info: MetadataProbe = response.parsed[0]
-        values = []
-        for entry in type_info.metadata:
-            formatter = None
-            if entry.valueType == "date":
-                formatter = "yyyy-MM-dd"
-            values.append(
-                MetadataTable(
-                    source="document",
-                    name=entry.name,
-                    dataType=entry.valueType,
-                    formatter=formatter,
-                )
+    with Database().session(commit=True) as session:
+        session.execute(
+            insert(MetadataTable)
+            .values(values)
+            .on_conflict_do_nothing(
+                index_elements=[MetadataTable.source, MetadataTable.name]
             )
-        insert(MetadataTable).values(values).on_conflict_do_nothing(
-            index_elements=[MetadataTable.source, MetadataTable.name]
         )

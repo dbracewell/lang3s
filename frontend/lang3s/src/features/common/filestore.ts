@@ -6,6 +6,7 @@ import { promises as fs } from "fs";
 import { DocumentSchema } from "@/features/common/schemas";
 import { Lang3sFile } from "@/features/common/classes";
 import z from "zod";
+import { decode } from "@msgpack/msgpack";
 
 async function writeGzipStringToFile(dataString: string, filename: string) {
   try {
@@ -24,11 +25,9 @@ export class FileStore {
   }
 
   async getLang3sDocument(id: string) {
-    const filePath = path.join(this.basePath, "documents", `${id}.json.gz`);
-    const jsonData = zlib
-      .gunzipSync(await fs.readFile(filePath))
-      .toString("utf-8");
-    return DocumentSchema.parse(JSON.parse(jsonData));
+    const filePath = path.join(this.basePath, "documents", `${id}.msgpack`);
+    const deserializedData = decode(await fs.readFile(filePath));
+    return DocumentSchema.parse(deserializedData);
   }
 
   async saveAnnotationFile(file: z.infer<typeof Lang3sFile>) {

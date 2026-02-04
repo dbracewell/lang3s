@@ -123,20 +123,6 @@ async def chat(request: AgentRequest):
         middleware=[LoggingMiddleware()],
         system_message="You are a helpful assistant that answers users' questions.",
     )
-
-    #  prompt = f"""
-    #  Complete the user's task using the supplied tools. Do NOT provide any other information outside of the information obtained from the tools unless explicitly asked for by the user.
-    #
-    #  # Formatting Rules
-    #  - When you reference a specific document from the context, you MUST create a Markdown link.
-    #  - The link format must be: [Document Title](/documents/<documentId>)
-    #  - Do not use absolute URLs (e.g., http://localhost/...). Use relative paths only.
-    #  - Example: "As seen in [Project Alpha](/documents/doc_101), the timeline is strict."
-    #
-    #  TASK:
-    #  {request.prompt}
-    # """
-    #  if request.context is not None and request.context.strip() != "":
     prompt = f"""
     Using the supplied context (also referred to as a document). Do NOT provide any other information outside of the context or tools unless explicitly asked for by the user.
 

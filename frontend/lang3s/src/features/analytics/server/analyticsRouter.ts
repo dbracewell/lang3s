@@ -45,18 +45,16 @@ export const AnalyticsRouter = createTRPCRouter({
       z.object({
         values: z.array(z.string()),
         page: z.number().nullish(),
-        sortBy: z.string().nullish(),
+        sortBy: z
+          .enum(["mention_count", "document_count", "mentions_per_document"])
+          .nullish(),
         filter: z.string().nullish(),
       }),
     )
     .query(async ({ input }) => {
       const page = Math.max(1, input.page ?? 1);
       const filter = input.filter;
-      const rawSortBy = input.sortBy ?? "mentions";
-      let finalSortBy = rawSortBy.toLowerCase();
-      if (!["mentions", "docs", "mentionsperdoc"].includes(finalSortBy)) {
-        finalSortBy = "mentions";
-      }
+      const finalSortBy = input.sortBy ?? "mention_count";
       return await annotationCounts(page, finalSortBy, input.values, filter);
     }),
 

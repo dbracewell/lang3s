@@ -1,9 +1,9 @@
 import "server-only";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { db } from "@/lib/db";
-import { MetadataTable } from "@/lib/db/schemas/metadata";
+import { MetadataSource, MetadataTable } from "@/lib/db/schemas/metadata";
 import { jsonAgg, jsonBuildObject } from "@/lib/db/helpers/json";
-import { MetadataConfiguration, MetadataItem, MetadataSource } from "@/features/metadata/types";
+import { MetadataConfiguration, MetadataItem } from "@/features/metadata/types";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { and, eq, inArray, sql } from "drizzle-orm";
 

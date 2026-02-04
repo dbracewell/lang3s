@@ -21,7 +21,6 @@ export const DataTypeNames = [
   "float",
   "boolean",
   "date",
-  "datetime",
 ] as const;
 export type DataType = (typeof DataTypeNames)[number];
 

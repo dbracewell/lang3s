@@ -157,7 +157,8 @@ const CustomizedContent = (props: TreemapNode) => {
     shortName += "...";
   }
 
-  let secondLine = parts.length > 1 ? parts[1].trim() : "";
+  let secondLine =
+    parts.length > 1 ? parts[1].trim().split(".").slice(-1)[0] : "";
 
   return (
     <g>

@@ -8,7 +8,7 @@ import requests
 
 from lang3s import config
 from lang3s.nlp.shared_types import Document
-from lang3s.services.api.topics import TopicData
+from lang3s.services.api.topics_api import TopicData
 
 logger = logging.getLogger("TopicModelClient")
 

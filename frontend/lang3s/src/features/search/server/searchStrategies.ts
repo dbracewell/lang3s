@@ -6,29 +6,11 @@ import {
   TextAnnotationTable,
   TextTable,
   TopicSentences,
-  TopicsTable,
+  TopicsTable
 } from "@/lib/db/schema";
-import {
-  and,
-  asc,
-  count,
-  countDistinct,
-  desc,
-  eq,
-  gte,
-  or,
-  SQL,
-  sql,
-  SQLWrapper,
-} from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, gte, or, SQL, sql, SQLWrapper } from "drizzle-orm";
 
-import {
-  cosineSimilarity,
-  generateNextPage,
-  jsonValue,
-  orderAsc,
-  withPagination,
-} from "@/lib/db/funcs";
+import { cosineSimilarity, generateNextPage, jsonValue, orderAsc, withPagination } from "@/lib/db/funcs";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { jsonAgg, jsonBuildObject } from "@/lib/db/helpers/json";
 import { Annotations } from "@/lib/db/annotations";
@@ -36,7 +18,7 @@ import {
   AnnotationSearchResult,
   DocumentSearchResult,
   SearchResults,
-  TopicSearchResult,
+  TopicSearchResult
 } from "@/features/search/types";
 import { getMetadataBySourceAndName } from "@/features/common/server/queries";
 
@@ -497,7 +479,6 @@ export const annotationSearch = async ({
       scoreRank: sql<number>`${sentenceSearch.rank}`.as("score_rank"),
       documentId: AnnotationWithOntologyView.documentId,
       id: AnnotationWithOntologyView.id,
-      embedding: AnnotationWithOntologyView.embedding,
       content: AnnotationWithOntologyView.normalized,
       a0: AnnotationWithOntologyView.a0Text,
       a1: AnnotationWithOntologyView.a1Text,
@@ -510,21 +491,32 @@ export const annotationSearch = async ({
       eq(sentenceSearch.sentenceAid, AnnotationWithOntologyView.sentenceAid),
     );
 
-  const semanticSearch = Annotations.getAnnotationsWithOntology({
-    options: { normalize: true, includeEventArgs: true },
-    annotationFields: ["documentId", "id", "embedding"],
-    computedColumns: (o) => ({
-      path: sql<string>`${o.path}`.as("path"),
+  const semanticSearch = db
+    .select({
+      path: AnnotationWithOntologyView.path,
       itemRank: Annotations.getSemanticRank(
-        TextAnnotationTable.embedding,
+        AnnotationWithOntologyView.embedding,
         embedding!,
       ).as("item_rank"),
       scoreRank: Annotations.getSemanticRank(
-        TextAnnotationTable.embedding,
+        AnnotationWithOntologyView.embedding,
         embedding!,
       ).as("score_rank"),
-    }),
-  }).where((t) => gte(cosineSimilarity(t.embedding, embedding!), threshold));
+      documentId: AnnotationWithOntologyView.documentId,
+      id: AnnotationWithOntologyView.id,
+      content: AnnotationWithOntologyView.normalized,
+      a0: AnnotationWithOntologyView.a0Text,
+      a1: AnnotationWithOntologyView.a1Text,
+      time: AnnotationWithOntologyView.timeText,
+      location: AnnotationWithOntologyView.locText,
+    })
+    .from(AnnotationWithOntologyView)
+    .where(
+      gte(
+        cosineSimilarity(AnnotationWithOntologyView.embedding, embedding!),
+        threshold,
+      ),
+    );
 
   const fromTable = createUnionQuery({
     embedding,

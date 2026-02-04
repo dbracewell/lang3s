@@ -40,7 +40,6 @@ export const DataTypeNameToCategoryMap: Record<DataType, DataTypeCategory> = {
   float: "number",
   boolean: "boolean",
   date: "date",
-  datetime: "date",
 };
 
 export const DataTypeFilterNames = [

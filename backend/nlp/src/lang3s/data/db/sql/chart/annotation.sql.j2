@@ -1,0 +1,24 @@
+{% import 'macros.sql' as macros %}
+
+{{ VALUE_SELECTOR }}
+AS
+(SELECT text || ' (' || name || ')'  as text,
+        name                         as value,
+        normalized_path,
+        count(0)                     as mention_count,
+        count(distinct document_id)  as document_count,
+        count(distinct sentence_aid) as sentence_count
+ FROM text_annotations_mapped
+ WHERE {{ macros.match_paths('path', mapping_list) }}
+ GROUP BY text, value, name, normalized_path
+ ORDER BY {{ order_by }}
+ OFFSET ? LIMIT ?)
+,
+{{ VALUE_MAPPING }} AS
+(SELECT B.text,
+       B.value,
+       A.document_id,
+       A.sentence_aid
+FROM text_annotations_mapped AS A
+         INNER JOIN {{ VALUE_SELECTOR }} B ON A.normalized_path = B.normalized_path
+)

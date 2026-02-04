@@ -12,10 +12,10 @@ export type AnnotationCountsType = {
       content: string;
       path: string;
       value: string;
-      count: number;
-      docCount: number;
-      sentenceCount: number;
-      mentionsPerDocument: number;
+      document_count: number;
+      sentence_count: number;
+      mention_count: number;
+      mentions_per_document: number;
     },
   ];
 };
@@ -75,7 +75,7 @@ export const cohortSupportInformation = async (ids: string[]) => {
 
 export const annotationCounts = async (
   page: number,
-  sortBy: string,
+  sortBy: "mention_count" | "document_count" | "mentions_per_document",
   mappings: string[],
   filter: string | null | undefined,
 ) => {

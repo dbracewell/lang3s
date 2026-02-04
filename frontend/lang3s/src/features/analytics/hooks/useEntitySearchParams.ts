@@ -15,8 +15,12 @@ export const defaultValues = [
 export const useEntitySearchParams = () => {
   return useQueryStates({
     page: parsePageIndex.withDefault(1).withOptions({ clearOnDefault: true }),
-    sortBy: parseAsStringEnum(["mentions", "docs", "mentionsPerDoc"])
-      .withDefault("mentions")
+    sortBy: parseAsStringEnum([
+      "mention_count",
+      "document_count",
+      "mentions_per_document",
+    ])
+      .withDefault("mention_count")
       .withOptions({ clearOnDefault: true }),
     filter: parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
     tags: parseAsArrayOf(parseAsString, ",")

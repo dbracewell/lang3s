@@ -1,12 +1,12 @@
 {% import 'macros.sql' as macros %}
 
 select text                                   as content,
+       name                                   as value,
        path,
-       COUNT(0)                               as count,
-       COUNT(DISTINCT document_id)            as docCount,
-       count(DISTINCT sentence_aid)           as sentenceCount,
-       COUNT(0) / COUNT(DISTINCT document_id) as mentionsPerDocument,
-       name                                   as value
+       COUNT(0)                               as mention_count,
+       COUNT(DISTINCT document_id)            as documnet_count,
+       count(DISTINCT sentence_aid)           as sentence_count,
+       COUNT(0) / COUNT(DISTINCT document_id) as mentions_per_document
 from text_annotations_mapped
 where {{ macros.match_paths('path', mapping_list) }}
     {% if filter is not none %}

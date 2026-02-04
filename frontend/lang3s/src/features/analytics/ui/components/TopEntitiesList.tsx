@@ -25,8 +25,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { RouterOutputs } from "@/lib/trpc/types";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
-import { useQuery } from "@tanstack/react-query";
-import { annotationCounts } from "@/features/analytics/server/analyticsApi";
 
 export const TopEntitiesList = () => {
   const [params, setParams] = useEntitySearchParams();
@@ -77,17 +75,17 @@ export const TopEntitiesList = () => {
           <div className="text-center">Entity</div>
           <div className="text-center">Entity Type</div>
           <SortableHeaderColumn
-            sortBy={"mentions"}
+            sortBy={"mention_count"}
             text={"Mention Count"}
             hint={`Number of times this entity is mentioned\n(Includes multiple mentions per document.)`}
           />
           <SortableHeaderColumn
-            sortBy={"docs"}
+            sortBy={"document_count"}
             text={"Document Count"}
             hint={"Number of documents in which this entity appears"}
           />
           <SortableHeaderColumn
-            sortBy={"mentionsPerDoc"}
+            sortBy={"mentions_per_document"}
             text={"Mentions Per Document"}
             hint={
               "Average number of times the entity is mentioned in documents in which it appears."
@@ -176,12 +174,14 @@ const EntityRow = ({
       <div className="flex items-center px-4">
         {entity.value.split(".").slice(-1)[0]}
       </div>
-      <div className="flex items-center px-4">{formatNumber(entity.count)}</div>
       <div className="flex items-center px-4">
-        {formatNumber(entity.docCount)}
+        {formatNumber(entity.mention_count)}
       </div>
       <div className="flex items-center px-4">
-        {entity.mentionsPerDocument.toFixed(2)}
+        {formatNumber(entity.document_count)}
+      </div>
+      <div className="flex items-center px-4">
+        {entity.mentions_per_document.toFixed(2)}
       </div>
     </div>
   );
@@ -192,7 +192,7 @@ const SortableHeaderColumn = ({
   text,
   hint,
 }: {
-  sortBy: "mentionsPerDoc" | "mentions" | "docs";
+  sortBy: "mentions_per_document" | "mention_count" | "document_count";
   text: string;
   hint: string;
 }) => {

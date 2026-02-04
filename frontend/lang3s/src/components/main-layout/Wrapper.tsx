@@ -29,6 +29,7 @@ export const Wrapper = ({ children }: { children: React.ReactNode }) => {
             <ResizablePanelGroup
               orientation="horizontal"
               className="min-h-0 w-full flex-1"
+              suppressHydrationWarning
             >
               <ResizablePanel
                 className={cn(

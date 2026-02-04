@@ -225,7 +225,7 @@ const _getFullTextSearchSentences = (query: string) => {
         not(
           sql<boolean>`COALESCE((${TextAnnotationTable.metadata}->>'is_stopword')::boolean,false)`,
         ),
-        sql`${TextAnnotationTable.content}  &@~ ${query}`,
+        sql`${TextAnnotationTable.content}   &@~  ${query}`,
       ),
     );
 };
@@ -263,13 +263,13 @@ export const matchPath = (column: SQLWrapper, values: string[]) => {
 
 export const Annotations = {
   getColumns: _getDefaultColumns,
-  getSentences: () => GET_SENTENCES,
   getFullTextSearchSentences: (query: string) =>
     _getFullTextSearchSentences(query),
   getAnnotationsWithOntology: _getAnnotationsWithOntology,
   getFullTextSnippet: function (query: string, text: SQLWrapper) {
+    const cleanQuery = query.replaceAll(" OR ", " ");
     return sql<string>`array_to_string(pgroonga_snippet_html (${text},
-    								 pgroonga_query_extract_keywords(${query})), '\n')`;
+    								 pgroonga_query_extract_keywords(${cleanQuery})), '\n')`;
   },
   fullTextScore: FULL_TEXT_SCORE,
   fullTextRank: FULL_TEXT_RANK,

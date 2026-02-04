@@ -6,7 +6,6 @@ import { HeatMap } from "@/features/reports/ui/components/HeatMap";
 
 import { LineChart } from "@/features/reports/ui/components/LineChart";
 import { ScatterPlotChart } from "@/features/reports/ui/components/ScatterPlot";
-import { Chart } from "@/features/reports/types";
 
 export const ChartView = ({ chart }: { chart: ChartSchemaType }) => {
   const { data, isPending, isError, error } = useTRPCQuery((trpc) =>
@@ -21,15 +20,15 @@ export const ChartView = ({ chart }: { chart: ChartSchemaType }) => {
     return <Spinner />;
   }
 
-  const chartType = Chart.getChartType(chart.x.dataType, chart.y?.dataType);
+  const chartType = data.chart_type;
 
   switch (chartType) {
     case "heatmap":
-      return <HeatMap data={data} countType={chart.count} />;
+      return <HeatMap data={data.results} countType={chart.count} />;
     case "linechart":
       return (
         <LineChart
-          data={data}
+          data={data.results}
           countType={chart.count}
           xSeries={chart.x}
           ySeries={chart.y!}
@@ -38,7 +37,7 @@ export const ChartView = ({ chart }: { chart: ChartSchemaType }) => {
     case "scatterplot":
       return (
         <ScatterPlotChart
-          data={data}
+          data={data.results}
           countType={chart.count}
           xSeries={chart.x}
           ySeries={chart.y!}
@@ -50,7 +49,7 @@ export const ChartView = ({ chart }: { chart: ChartSchemaType }) => {
           xAxisType={chart.x.type}
           xAxisValue={chart.x.value ?? ""}
           countType={chart.count}
-          data={data}
+          data={data.results}
         />
       );
   }

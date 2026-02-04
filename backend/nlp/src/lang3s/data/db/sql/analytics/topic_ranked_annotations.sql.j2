@@ -1,9 +1,6 @@
 {% import 'macros.sql' as macros %}
 
-WITH topic_subset AS (SELECT doc_id,
-                             sentence_aid,
-                             sentence as content,
-                             similarity
+WITH topic_subset AS (SELECT sentence_aid
                       FROM pg_db.topic_sentences
                       WHERE topic_id = ?
                       ORDER BY similarity DESC
@@ -20,4 +17,4 @@ FROM topic_subset s
          JOIN target_entities t ON s.sentence_aid = t.sentence_aid
 GROUP BY t.entity_text, t.entity_type
 HAVING COUNT(*) >= 2
-ORDER BY count DESC, entity ASC;
+ORDER BY count DESC, entity;

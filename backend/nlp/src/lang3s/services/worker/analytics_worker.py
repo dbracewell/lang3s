@@ -4,14 +4,17 @@ import os
 import tempfile
 import traceback
 
-from lang3s.data.db import analytics
 from lang3s.data.db.filestore import FILE_STORE
 from lang3s.nlp.shared_types import Metadata
 from lang3s.services.client.redis_client import DUCKDB_QUEUE_NAME, redis_batch_generator
+from lang3s.services.service.analytics_service import (
+    AnalyticsService,
+    get_analytics_service,
+)
 
 
 def analytics_worker(shared_state):
-    db = analytics.get_db()
+    service: AnalyticsService = get_analytics_service()
     try:
         while not getattr(shared_state, "should_exit", False):
             for batch in redis_batch_generator(DUCKDB_QUEUE_NAME, 200, batch_timeout=5):
@@ -21,11 +24,7 @@ def analytics_worker(shared_state):
                         and isinstance(batch[0], dict)
                         and batch[0].get("status", "") == "completed"
                     ):
-                        db.execute(
-                            "PRAGMA create_fts_index('text_annotations', 'id', 'text', overwrite=1);"
-                        )
-                        db.build_annotation_stats()
-                        db.commit()
+                        service.finish_data_ingestion()
                         continue
 
                     print(f"WRITING {len(batch)} documents to duckdb")
@@ -62,11 +61,8 @@ def analytics_worker(shared_state):
                             del annotations
                             f.close()
                             temp_file = f.name
-                        db.execute(
-                            f"INSERT OR IGNORE INTO text_annotations SELECT * FROM read_json_auto('{temp_file}');"
-                        )
+                        service.ingest_annotation_batch_from_file(temp_file)
                         os.remove(temp_file)
-                        db.commit()
                     except Exception as e:
                         print(e)
                         traceback.print_exc()

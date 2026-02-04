@@ -8,13 +8,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from lang3s import config
-from lang3s.services.api.agents import router as agent_router
-from lang3s.services.api.analytics import analytics_lifecycle
-from lang3s.services.api.analytics import router as analytics_router
-from lang3s.services.api.documents import router as documents_router
-from lang3s.services.api.embeddings import router as embedding_router
-from lang3s.services.api.topics import router as topic_router
-from lang3s.services.api.topics import topics_lifecycle
+from lang3s.services.api.agent_api import router as agent_router
+from lang3s.services.api.analytics_api import analytics_lifecycle
+from lang3s.services.api.analytics_api import router as analytics_router
+from lang3s.services.api.charting_service import charting_lifecycle
+from lang3s.services.api.charting_service import router as charting_router
+from lang3s.services.api.embedding_api import (
+    embedding_lifecycle,
+)
+from lang3s.services.api.embedding_api import (
+    router as embedding_router,
+)
+from lang3s.services.api.topics_api import router as topic_router
+from lang3s.services.api.topics_api import topics_lifecycle
 from lang3s.services.service_logging import get_logger
 
 logger = get_logger(__name__)
@@ -24,7 +30,9 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Application starting up...")
     async with AsyncExitStack() as stack:
+        await stack.enter_async_context(embedding_lifecycle())
         await stack.enter_async_context(analytics_lifecycle(app))
+        await stack.enter_async_context(charting_lifecycle(app))
         await stack.enter_async_context(topics_lifecycle(app))
         yield
     logger.info("Application shutting down...")
@@ -56,9 +64,9 @@ app.add_middleware(
 
 app.include_router(topic_router)
 app.include_router(embedding_router)
-app.include_router(documents_router)
 app.include_router(agent_router)
 app.include_router(analytics_router)
+app.include_router(charting_router)
 
 if __name__ == "__main__":
     current_dir = Path(__file__).parent

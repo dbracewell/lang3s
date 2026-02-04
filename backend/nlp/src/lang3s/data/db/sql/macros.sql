@@ -13,3 +13,19 @@
         1=1
     {% endif %}
 {% endmacro %}
+
+{% macro select_metadata(data_type, formatter) %}
+    {% if data_type == 'string[]' %}
+        unnest((metadata->?)::VARCHAR[])::VARCHAR
+    {% elif data_type == 'string' %}
+        metadata ->>?
+    {% elif data_type == 'date' %}
+         strftime((metadata->>?)::TIMESTAMP, '{{ formatter }}')
+     {% elif data_type == 'int' %}
+         (metadata->>?)::INTEGER
+     {% elif formatter|int(-9999) != -9999  %}
+         ROUND((metadata->>?)::DOUBLE, {{ formatter }})
+     {% else %}
+         (metadata->>?)::DOUBLE
+     {% endif %}
+{% endmacro %}

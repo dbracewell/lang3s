@@ -11,14 +11,12 @@ import { Button } from "@/components/ui/button";
 import { MinusIcon, PlusIcon } from "lucide-react";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { useMemo, useState } from "react";
-import { DataTypeNameToCategoryMap } from "@/features/common/types";
 import { Chart, SeriesSourceType } from "@/features/reports/types";
 import {
   DefaultOntologyTrigger,
   OntologySelectorDialog,
 } from "@/features/ontology/ui/components/OntologySelectorDialog";
 import { MetadataConfiguration, MetadataItem } from "@/features/metadata/types";
-import { DataType } from "@/lib/db/schemas/metadata";
 
 type DualAxisFormProps = {
   defaultValues?: ChartSchemaType;
@@ -55,9 +53,7 @@ export const DualAxisForm = ({ defaultValues, setAxis }: DualAxisFormProps) => {
     defaultValues: {
       x: defaultValues?.x ?? {
         type: "ANNOTATION",
-        value: "ENTITY",
-        dataType: "string",
-        display: "value",
+        value: "ALL.Entity",
       },
       y: defaultValues?.y,
       count: "mention",
@@ -87,8 +83,6 @@ export const DualAxisForm = ({ defaultValues, setAxis }: DualAxisFormProps) => {
             <SeriesInformation
               typeField={"x.type"}
               valueField={"x.value"}
-              dataTypeField={"x.dataType"}
-              displayField={"x.display"}
               form={form}
               axisType={form.watch("x.type")}
               metadata={
@@ -102,8 +96,6 @@ export const DualAxisForm = ({ defaultValues, setAxis }: DualAxisFormProps) => {
               <SeriesInformation
                 typeField={"y.type"}
                 valueField={"y.value"}
-                dataTypeField={"y.dataType"}
-                displayField={"y.display"}
                 form={form}
                 axisType={form.watch("y.type") ?? "TOPIC"}
                 metadata={
@@ -130,9 +122,7 @@ export const DualAxisForm = ({ defaultValues, setAxis }: DualAxisFormProps) => {
               onClick={async () => {
                 form.setValue("count", Chart.getCountTypes(x.type)[0]);
                 form.setValue("y.type", "ANNOTATION");
-                form.setValue("y.dataType", "string");
                 form.setValue("y.value", "ENTITY");
-                form.setValue("y.display", "value");
               }}
             >
               <PlusIcon /> Series
@@ -158,16 +148,12 @@ export const DualAxisForm = ({ defaultValues, setAxis }: DualAxisFormProps) => {
 const SeriesInformation = <T extends FieldValues>({
   typeField,
   valueField,
-  dataTypeField,
-  displayField,
   form,
   metadata,
   axisType,
 }: {
   typeField: Path<T>;
   valueField: Path<T>;
-  dataTypeField: Path<T>;
-  displayField: Path<T>;
   form: UseFormReturn<T>;
   metadata: MetadataConfiguration;
   axisType: SeriesSourceType;
@@ -177,50 +163,6 @@ const SeriesInformation = <T extends FieldValues>({
     [metadata, axisType],
   );
   const [selected, setSelected] = useState<string[]>([]);
-
-  const DisplayOptions = useMemo(() => {
-    switch (axisType) {
-      case "TOPIC":
-        return [
-          {
-            type: "item",
-            value: "text",
-            node: <>Topic Name</>,
-          } satisfies SelectOptionItem,
-        ];
-      case "ANNOTATION":
-        return [
-          {
-            type: "item",
-            value: "text",
-            node: <>Annotation Text</>,
-          } satisfies SelectOptionItem,
-          {
-            type: "item",
-            value: "value",
-            node: <>Annotation Value</>,
-          } satisfies SelectOptionItem,
-          {
-            type: "item",
-            value: "text-value",
-            node: <>Annotation Text-Value</>,
-          } satisfies SelectOptionItem,
-        ];
-      default:
-        return [
-          {
-            type: "item",
-            value: "value",
-            node: <>Metadata Value</>,
-          } satisfies SelectOptionItem,
-          {
-            type: "item",
-            value: "text-value",
-            node: <>Metadata Key-Value</>,
-          } satisfies SelectOptionItem,
-        ];
-    }
-  }, [axisType]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -233,15 +175,12 @@ const SeriesInformation = <T extends FieldValues>({
           switch (v as SeriesSourceType) {
             case "TOPIC":
               form.setValue(valueField, "TOPIC" as any);
-              form.setValue(dataTypeField, "string" as any);
               break;
             case "ANNOTATION":
               form.setValue(valueField, "ENTITY" as any);
-              form.setValue(dataTypeField, "string" as any);
               break;
             default:
               form.setValue(valueField, "" as any);
-              form.setValue(dataTypeField, "string" as any);
           }
         }}
       />
@@ -264,27 +203,11 @@ const SeriesInformation = <T extends FieldValues>({
       ].includes(axisType) && (
         <SelectFormField
           options={metadataOptions}
-          onValueChange={(v) => {
-            form.setValue(
-              dataTypeField,
-              DataTypeNameToCategoryMap[
-                metadata[Chart.getMetadataType(axisType)][v]
-                  .dataType as DataType
-              ] as any,
-            );
-          }}
           reactHookForm={form}
           name={valueField}
           label="Metadata Key"
         />
       )}
-      <SelectFormField
-        reactHookForm={form}
-        defaultValue={"text"}
-        name={displayField}
-        label="Display Value"
-        options={DisplayOptions}
-      />
     </div>
   );
 };

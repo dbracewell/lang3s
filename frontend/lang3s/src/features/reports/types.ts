@@ -5,7 +5,7 @@ import { Column, sql, SQL } from "drizzle-orm";
 import { SeriesType } from "@/features/reports/schema";
 import Aliased = SQL.Aliased;
 
-const SERIES_SOURCES = [
+export const SERIES_SOURCES = [
   "TOPIC",
   "ANNOTATION",
   "DOCUMENT_METADATA",

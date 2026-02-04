@@ -1,17 +1,18 @@
 from typing import Iterable
 
-import jsonlines
+import msgpack
 
 from lang3s.nlp.shared_types import Document
 
 
 def serialize(docs: Iterable[Document], file: str):
-    with jsonlines.open(file, mode="w") as writer:
+    with open(file, "wb") as writer:
         for doc in docs:
-            writer.write(doc.to_json())
+            msgpack.pack(doc.to_json(), writer, use_bin_type=True)
 
 
 def deserialize(file: str) -> Iterable[Document]:
-    with jsonlines.open(file) as reader:
-        for obj in reader:
-            yield Document.from_json(obj)
+    with open(file, "rb") as reader:
+        unpacker = msgpack.Unpacker(reader, raw=False, use_list=False)
+        for unpacked_doc in unpacker:
+            yield Document.from_json(unpacked_doc)

@@ -222,10 +222,6 @@ def check_for_completion(job_id: Optional[int] = None) -> bool:
         except Exception as e:
             logger.error(f"WORKER {pid}: Error constructing materialized views: {e}")
 
-        status = JobStatus.FAILED if job.failed > 0 else JobStatus.COMPLETE
-        job_service.update_job(job_id, completed_inc=20, status=status)
-        logger.info(f"WORKER {pid}: 🏁 Job {job.id} finished with status; {status}")
-
         try:
             logger.info(f"WORKER {pid}: Generating corpus summary")
             probe_metadata()
@@ -233,6 +229,10 @@ def check_for_completion(job_id: Optional[int] = None) -> bool:
             logger.info(f"WORKER {pid}: Completed generating corpus summary")
         except Exception as e:
             logger.error(f"WORKER {pid}: Error constructing materialized views: {e}")
+
+        status = JobStatus.FAILED if job.failed > 0 else JobStatus.COMPLETE
+        job_service.update_job(job_id, completed_inc=20, status=status)
+        logger.info(f"WORKER {pid}: 🏁 Job {job.id} finished with status; {status}")
 
         return True
 

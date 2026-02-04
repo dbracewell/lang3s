@@ -6,7 +6,7 @@ from typing import Literal
 import requests
 from jsonlines import jsonlines
 
-from lang3s.data.parsers.text import MarkDownParser
+from lang3s.data.parsers.text.markdown import parse_markdown
 
 
 class RedditCrawler:
@@ -16,7 +16,7 @@ class RedditCrawler:
         user_agent="Mozilla/5.0 (compatible; CulturalAI_Bot/1.0; +http://example.com)",
     ):
         self.headers = {"User-Agent": user_agent}
-        self.parser = MarkDownParser()
+        self.parser = parse_markdown
         self.seen_ids = set()
         self.corpus = Path(corpus)
         self.__load_existing_ids()
@@ -98,13 +98,13 @@ class RedditCrawler:
                         if not post_id or post_id in self.seen_ids:
                             continue
 
-                        selftext = post.get("selftext", "")
+                        selftext: str = post.get("selftext", "")
 
                         # Skip if mostly image/link or empty
                         if not selftext or len(selftext) < 50:
                             continue
 
-                        clean_text = self.parser.parse(selftext).content
+                        clean_text = self.parser(selftext).content
 
                         self.seen_ids.add(post_id)
                         new_docs.append(
@@ -137,8 +137,3 @@ class RedditCrawler:
         except KeyboardInterrupt:
             print("\n\nStopping monitor. Data is safe.")
             sys.exit(0)
-
-
-if __name__ == "__main__":
-    crawler = RedditCrawler(corpus="/Users/ik/reddit.json")
-    crawler.crawl(["richardson"])

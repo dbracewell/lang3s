@@ -175,11 +175,11 @@ const AnnotationFormat = ({ result }: { result: AnnotationSearchResult }) => {
               className="ml-3 h-fit!"
               size="sm"
               onClick={() => {
+                const firstR = new RegExp(
+                  `^${searchText} OR|OR ${searchText}$|OR ${searchText}|${searchText}`,
+                );
                 setSearchParams({
-                  q: searchParams.q
-                    .replace(`OR ${searchText}`, "")
-                    .replace(searchText, "")
-                    .trim(),
+                  q: searchParams.q.replace(firstR, "").trim(),
                 });
               }}
             >

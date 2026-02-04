@@ -7,7 +7,6 @@ WITH ta_mapped AS (SELECT a.*,
                           o.name,
                           o.path
                    FROM text_annotations a
-                            -- Ideally, join against LOCAL copies of these tables as discussed previously!
                             INNER JOIN pg_db.public.annotation_to_ontology ato
                                        ON a.mapping = ato.annotation_type_value
                             INNER JOIN pg_db.public.ontology o

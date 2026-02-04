@@ -93,7 +93,6 @@ class LlmClient:
         response_model: Type[T] | None = None,
         **kwargs: Unpack[ChatCompletionParams],
     ) -> AsyncGenerator[ChatCompletionEvent[T], None]:
-        client = self._get_client()
         available_tools = LlmClient._prepare_tools(tools)
 
         completion_args: dict[str, Any] = {
@@ -127,29 +126,25 @@ class LlmClient:
             max_retries=self.max_retries,
             decay_base=3,
         )
-        async def chat():
-            if stream:
-                async for chunk in self._stream_completion(
-                    client=client,
-                    tools=available_tools,
-                    response_model=response_model,
-                    **completion_args,
-                ):
-                    yield chunk
-            else:
-                async for chunk in self._no_stream_completion(
-                    client=client,
-                    tools=available_tools,
-                    response_model=response_model,
-                    **completion_args,
-                ):
-                    yield chunk
+        async def perform_chat(
+            async_client: AsyncOpenAI,
+        ) -> AsyncGenerator[ChatCompletionEvent[T], None]:
+            method = self._stream_completion if stream else self._no_stream_completion
+            async for chunk in method(
+                client=async_client,
+                tools=available_tools,
+                response_model=response_model,
+                **completion_args,
+            ):
+                yield chunk
             return
 
-        async for event in chat():
-            yield event
-
-        await client.close()
+        client = self._get_client()
+        try:
+            async for event in perform_chat(async_client=client):
+                yield event
+        finally:
+            await client.close()
         return
 
     @staticmethod

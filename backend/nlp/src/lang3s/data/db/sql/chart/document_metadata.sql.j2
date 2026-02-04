@@ -1,0 +1,25 @@
+{% import 'macros.sql' as macros %}
+
+{{ DATA_SELECTOR }}
+AS
+(SELECT {{ macros.select_metadata(data_type, formatter) }} AS text,
+        id                                                 as document_id
+ FROM pg_db.documents
+ WHERE json_exists(metadata, ?))
+,
+{{ VALUE_SELECTOR }} AS (
+  SELECT text, count(*) as document_count
+  FROM {{DATA_SELECTOR}}
+  GROUP BY 1
+  ORDER BY {{order_by}}
+  OFFSET ? LIMIT ?
+),
+{{ VALUE_MAPPING }} AS (
+SELECT
+    B.text as text,
+    B.text as value,
+    A.document_id,
+    '' as sentence_aid
+FROM {{DATA_SELECTOR}} AS A
+INNER JOIN {{ VALUE_SELECTOR }} B ON A.text = B.text
+)
