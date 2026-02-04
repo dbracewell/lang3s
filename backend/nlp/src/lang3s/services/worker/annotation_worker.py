@@ -12,7 +12,7 @@ import torch
 from lang3s_job_service import File, Job, JobService, JobStatus
 
 import lang3s.config as config
-from lang3s.data.db import Database, TextDatabase
+from lang3s.data.db import TextDatabase, db
 from lang3s.logs import initialize_logging
 from lang3s.models import Embedder, MultiTaskTransformer
 from lang3s.pipeline import pipeline
@@ -196,7 +196,6 @@ def check_for_completion(job_id: Optional[int] = None) -> bool:
         )
 
         redis_client.enqueue(DUCKDB_QUEUE_NAME, {"status": "completed"})
-        db = Database()
 
         logger.info(f"WORKER {pid}: Finishing job {job_id}")
         try:
@@ -228,7 +227,7 @@ def check_for_completion(job_id: Optional[int] = None) -> bool:
             generate_corpus_summary()
             logger.info(f"WORKER {pid}: Completed generating corpus summary")
         except Exception as e:
-            logger.error(f"WORKER {pid}: Error constructing materialized views: {e}")
+            logger.error(f"WORKER {pid}: Error generating corpus summary: {e}")
 
         status = JobStatus.FAILED if job.failed > 0 else JobStatus.COMPLETE
         job_service.update_job(job_id, completed_inc=20, status=status)

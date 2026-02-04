@@ -155,13 +155,7 @@ export const MetadataDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent
-        className={cn(
-          "",
-          (dataType === "date" || dataType === "datetime") &&
-            "lg:max-w-[770px]!",
-        )}
-      >
+      <DialogContent className={cn("", dataType === "date" && "max-w-215!")}>
         <DialogHeader>
           <DialogTitle>Metadata Editor</DialogTitle>
           <DialogDescription>Something</DialogDescription>
@@ -171,9 +165,7 @@ export const MetadataDialog = ({
             onSubmit={form.handleSubmit(onSubmit)}
             className={cn(
               "grid h-fit gap-6",
-              dataType === "date" || dataType === "datetime"
-                ? "grid-cols-2"
-                : "grid-cols-1",
+              dataType === "date" ? "grid-cols-2" : "grid-cols-1",
             )}
           >
             <div className="flex h-full flex-col gap-4">
@@ -216,7 +208,7 @@ export const MetadataDialog = ({
                 description="How this metadata value should be represented"
                 options={DataTypeOptions}
               />
-              {(dataType === "date" || dataType === "datetime") && (
+              {dataType === "date" && (
                 <InputFormField
                   reactHookForm={form}
                   type="text"
@@ -240,91 +232,110 @@ export const MetadataDialog = ({
                 {isEdit ? "Save Changes" : "Create"}
               </LoadingButton>
             </div>
-            {(dataType === "date" || dataType === "datetime") && (
-              <ScrollableBox.Container className="h-[430px] lg:h-fit lg:w-[350px]">
+            {dataType === "date" && (
+              <ScrollableBox.Container className="h-100 lg:w-100">
                 <ScrollableBox.ScrollArea outerClassName="p-0! text-xs font-mono">
                   <table>
                     <thead>
-                      <tr className="bg-heading sticky top-0 text-white">
-                        <td className="p-0.5">Token</td>
-                        <td className="p-0.5">Description</td>
-                        <td className="p-0.5">Example</td>
+                      <tr className="bg-heading font-bold text-white">
+                        <td className="p-1">Token</td>
+                        <td className="p-1">Description</td>
+                        <td className="p-1">Example</td>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-border divide-y">
                       <tr>
-                        <td className="p-0.5">yyyy</td>
-                        <td className="p-0.5">Year</td>
-                        <td className="p-0.5">2025</td>
-                      </tr>
-                      <tr>
-                        <td className="p-0.5">yy</td>
-                        <td className="p-0.5">Last two digits of year</td>
-                        <td className="p-0.5">25</td>
-                      </tr>
-                      <tr>
-                        <td className="p-0.5">MM</td>
-                        <td className="p-0.5">Month number (01-12)</td>
-                        <td className="p-0.5">12</td>
-                      </tr>
-                      <tr>
-                        <td className="p-0.5">MMM</td>
-                        <td className="p-0.5">Short month name</td>
-                        <td className="p-0.5">Dec</td>
-                      </tr>
-                      <tr>
-                        <td className="p-0.5">MMMM</td>
-                        <td className="p-0.5">Full month name</td>
-                        <td className="p-0.5">December</td>
-                      </tr>
-                      <tr>
-                        <td className="p-0.5">dd</td>
-                        <td className="p-0.5">Day of the month (01-31)</td>
-                        <td className="p-0.5">23</td>
-                      </tr>
-                      <tr>
-                        <td className="p-0.5">do</td>
-                        <td className="p-0.5">Day of the month with ordinal</td>
-                        <td className="p-0.5">23rd</td>
-                      </tr>
-                      <tr>
-                        <td className="p-0.5">eee</td>
-                        <td className="p-0.5">Short day of the week</td>
-                        <td className="p-0.5">Tue</td>
-                      </tr>
-                      <tr>
-                        <td className="p-0.5">eeee</td>
-                        <td className="p-0.5">Full day of the week</td>
-                        <td className="p-0.5">Tuesday</td>
-                      </tr>
-                      <tr>
-                        <td className="p-0.5">HH</td>
-                        <td className="p-0.5">
-                          Hours in 24-hour format (00-23)
+                        <td className="p-1 text-center">%Y</td>
+                        <td className="p-1">
+                          Year with century as a decimal number
                         </td>
-                        <td className="p-0.5">14</td>
+                        <td className="p-1">2026</td>
                       </tr>
                       <tr>
-                        <td className="p-0.5">hh</td>
-                        <td className="p-0.5">
-                          Hours in 12-hour format (01-12)
+                        <td className="p-1 text-center">%y</td>
+                        <td className="p-1">Year without century (00-99)</td>
+                        <td className="p-1">26</td>
+                      </tr>
+                      <tr>
+                        <td className="p-1 text-center">%m</td>
+                        <td className="p-1">
+                          Month as a zero-padded decimal number
                         </td>
-                        <td className="p-0.5">02</td>
+                        <td className="p-1">02</td>
                       </tr>
                       <tr>
-                        <td className="p-0.5">mm</td>
-                        <td className="p-0.5">Minutes (00-59)</td>
-                        <td className="p-0.5">29</td>
+                        <td className="p-1 text-center">%b</td>
+                        <td className="p-1">Abbreviated month name</td>
+                        <td className="p-1">Feb</td>
                       </tr>
                       <tr>
-                        <td className="p-0.5">ss</td>
-                        <td className="p-0.5">Seconds (00-59)</td>
-                        <td className="p-0.5">00</td>
+                        <td className="p-1 text-center">%B</td>
+                        <td className="p-1">Full month name</td>
+                        <td className="p-1">February</td>
                       </tr>
                       <tr>
-                        <td className="p-0.5">a</td>
-                        <td className="p-0.5">AM/PM</td>
-                        <td className="p-0.5">PM</td>
+                        <td className="p-1 text-center">%d</td>
+                        <td className="p-1">
+                          Day of the month as a zero-padded decimal
+                        </td>
+                        <td className="p-1">04</td>
+                      </tr>
+                      <tr>
+                        <td className="p-1 text-center">%a</td>
+                        <td className="p-1">Abbreviated weekday name</td>
+                        <td className="p-1">Wed</td>
+                      </tr>
+                      <tr>
+                        <td className="p-1 text-center">%A</td>
+                        <td className="p-1">Full weekday name</td>
+                        <td className="p-1">Wednesday</td>
+                      </tr>
+                      <tr>
+                        <td className="p-1 text-center">%H</td>
+                        <td className="p-1">
+                          Hour (24-hour clock) as a zero-padded decimal
+                        </td>
+                        <td className="p-1">11</td>
+                      </tr>
+                      <tr>
+                        <td className="p-1 text-center">%I</td>
+                        <td className="p-1">
+                          Hour (12-hour clock) as a zero-padded decimal
+                        </td>
+                        <td className="p-1">11</td>
+                      </tr>
+                      <tr>
+                        <td className="p-1 text-center">%M</td>
+                        <td className="p-1">
+                          Minute as a zero-padded decimal number
+                        </td>
+                        <td className="p-1">47</td>
+                      </tr>
+                      <tr>
+                        <td className="p-1 text-center">%S</td>
+                        <td className="p-1">
+                          Second as a zero-padded decimal number
+                        </td>
+                        <td className="p-1">20</td>
+                      </tr>
+                      <tr>
+                        <td className="p-1 text-center">%p</td>
+                        <td className="p-1">
+                          Locale's equivalent of either AM or PM
+                        </td>
+                        <td className="p-1">AM</td>
+                      </tr>
+                      <tr>
+                        <td className="p-1 text-center">%j</td>
+                        <td className="p-1">
+                          Day of the year as a zero-padded decimal
+                        </td>
+                        <td className="p-1">035</td>
+                      </tr>
+                      <tr>
+                        <td className="p-1 text-center">%f</td>
+                        <td className="p-1">Microsecond as a decimal number</td>
+                        <td className="p-1">000000</td>
                       </tr>
                     </tbody>
                   </table>

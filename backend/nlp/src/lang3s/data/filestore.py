@@ -32,8 +32,6 @@ class FileStore:
         )
         with open(document_file_name, "wb") as fp:
             msgpack.pack(doc.to_json(), fp)
-        # with gzip.open(document_file_name, "wt", encoding="utf-8") as gzip_fp:
-        #     json.dump(doc.to_json(), gzip_fp)  # type: ignore
         return doc.id
 
     def read_document(self, doc_id: str) -> Document:
@@ -44,8 +42,6 @@ class FileStore:
         )
         with open(document_file_name, "rb") as fp:
             return Document.from_json(msgpack.unpack(fp))
-        # with gzip.open(document_file_name, "rt", encoding="utf-8") as gzip_fp:
-        #     return Document.from_json(json.load(gzip_fp))
 
     def read_annotation_file(self, doc_id: str) -> Document:
         documents_dir = (

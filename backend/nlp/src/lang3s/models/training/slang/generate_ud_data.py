@@ -5,7 +5,7 @@ import pandas as pd
 import spacy
 from tqdm import tqdm
 
-from lang3s.data.db.filestore import FILE_STORE
+from lang3s.data.filestore import FILE_STORE
 
 INPUT_JSON = "/Users/ik/Downloads/data/words.json"  # Path to your downloaded CSV
 OUTPUT_JSON = FILE_STORE.get_file_path("slang_vocab.json")

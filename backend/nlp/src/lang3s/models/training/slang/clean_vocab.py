@@ -3,7 +3,7 @@ import json
 import nltk
 from nltk.corpus import brown, stopwords, words
 
-from lang3s.data.db.filestore import FILE_STORE
+from lang3s.data.filestore import FILE_STORE
 
 # Configuration
 INPUT_FILE = FILE_STORE.get_file_path("slang_vocab.json")

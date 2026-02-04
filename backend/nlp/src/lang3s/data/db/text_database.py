@@ -5,15 +5,14 @@ from functools import partial
 from typing import Dict, List
 
 import numpy as np
-import sqlalchemy as db
 from numpy.typing import NDArray
 from psycopg import sql
 from sqlalchemy import func, select
 from sqlalchemy.orm import noload
 
-from lang3s.data.db.database import Database
-from lang3s.data.db.filestore import FILE_STORE
+import lang3s.data.db.database as db
 from lang3s.data.db.models import DocumentsTable, TextAnnotationsTable
+from lang3s.data.filestore import FILE_STORE
 from lang3s.nlp.shared_types import (
     DOCUMENT_COLUMNS,
     TEXT_ANNOTATION_COLUMNS,
@@ -30,23 +29,19 @@ def _write_doc_to_disk(doc: Document, client: RedisClient) -> None:
 
 
 class TextDatabase(metaclass=SingletonMeta):
-    def __init__(self) -> None:
-        self.__database = Database()
-
     def add_documents(self, documents: List[Document]):
         with ThreadPoolExecutor(max_workers=20) as executor:
             with RedisClient() as client:
-                func = partial(_write_doc_to_disk, client=client)
-                executor.map(func, documents)
+                executor.map(partial(_write_doc_to_disk, client=client), documents)
 
-        with self.__database.transaction(raw_connection=True) as cursor:
-            self.__database.copy_from(
+        with db.transaction(raw=True) as cursor:
+            db.copy_from(
                 cursor,
                 "documents",
                 columns=DOCUMENT_COLUMNS,
                 data=(d.insert_values() for d in documents),
             )
-            self.__database.copy_from(
+            db.copy_from(
                 cursor,
                 "text",
                 columns=TEXT_COLUMNS,
@@ -58,7 +53,7 @@ class TextDatabase(metaclass=SingletonMeta):
             filtered_annotations = (
                 a.insert_values() for a in all_annotations if a.type != "token"
             )
-            self.__database.copy_from(
+            db.copy_from(
                 cursor,
                 "text_annotations",
                 columns=TEXT_ANNOTATION_COLUMNS,
@@ -70,7 +65,7 @@ class TextDatabase(metaclass=SingletonMeta):
                 if doc.text is not None
                 for keyword, embedding in doc.text.keywords
             )
-            self.__database.copy_from(
+            db.copy_from(
                 cursor,
                 "keywords",
                 columns=["document_id", "text_id", "keyword", "embedding"],
@@ -79,11 +74,11 @@ class TextDatabase(metaclass=SingletonMeta):
 
     @property
     def doc_count(self):
-        with self.__database.session() as session:
+        with db.get_session() as session:
             return session.query(DocumentsTable).count()
 
     def random_sentences(self, count: int) -> List[str]:
-        with self.__database.session() as session:
+        with db.get_session() as session:
             annotations: List[TextAnnotationsTable] = (
                 session.query(TextAnnotationsTable)
                 .options(noload("*"))
@@ -99,14 +94,18 @@ class TextDatabase(metaclass=SingletonMeta):
             return [a.text for a in annotations]  # type: ignore
 
     def get_documents(
-        self, offset: int = 0, limit: int = 1000
+        self, last_id: str | None = None, limit: int = 1000
     ) -> Generator[Document, None, None]:
-        with self.__database.connection() as session:
-            stmt = db.select(DocumentsTable.id).offset(offset).limit(limit)
-            doc_ids = session.execute(stmt).fetchall()
-        for record in doc_ids:
-            doc_id = record[0]
-            yield FILE_STORE.read_document(doc_id)
+        with db.get_session() as session:
+            stmt = select(DocumentsTable.id).order_by(DocumentsTable.id)
+
+            if last_id is not None:
+                stmt = stmt.where(DocumentsTable.id > last_id)
+
+            stmt = stmt.limit(limit)
+
+            for doc_id in session.execute(stmt).scalars().all():
+                yield FILE_STORE.read_document(doc_id)
 
     def search_topics(self, query: str, limit: int = 3) -> List[Dict[str, str]]:
         query = " OR ".join(query.split())
@@ -127,7 +126,7 @@ class TextDatabase(metaclass=SingletonMeta):
                             LIMIT %s
                             """)
 
-        with self.__database.cursor() as cursor:
+        with db.raw_cursor() as cursor:
             cursor.execute(sql_query, (query, limit))
             result = cursor.fetchall()
             return [
@@ -158,7 +157,7 @@ class TextDatabase(metaclass=SingletonMeta):
                             LIMIT %s
                             """)
 
-        with self.__database.cursor() as cursor:
+        with db.raw_cursor() as cursor:
             cursor.execute(sql_query, (query, limit))
             result = cursor.fetchall()
             return [
@@ -182,6 +181,6 @@ class TextDatabase(metaclass=SingletonMeta):
             .limit(limit)
         )
 
-        with self.__database.session() as session:
+        with db.get_session() as session:
             results = session.scalars(stmt).all()
             return [r.content for r in results]

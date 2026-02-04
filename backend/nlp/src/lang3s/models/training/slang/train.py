@@ -13,7 +13,7 @@ from transformers import (
     TrainingArguments,
 )
 
-from lang3s.data.db.filestore import FILE_STORE
+from lang3s.data.filestore import FILE_STORE
 
 # Configuration
 DATA_FILE = str(FILE_STORE.get_file_path("slang_training_data.jsonl"))

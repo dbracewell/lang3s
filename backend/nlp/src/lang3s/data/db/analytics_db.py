@@ -3,8 +3,8 @@ from typing import Literal
 import duckdb
 
 from lang3s import config
-from lang3s.data.db.filestore import FILE_STORE
 from lang3s.data.db.query_template import QueryTemplateEngine
+from lang3s.data.filestore import FILE_STORE
 from lang3s.utils.meta import SingletonMeta
 
 

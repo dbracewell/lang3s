@@ -9,7 +9,7 @@ from sqlalchemy.sql.functions import func
 from lang3s.agent import Agent
 from lang3s.agent.llm import Desc, tool
 from lang3s.agent.strategy import DiscoveryStrategy
-from lang3s.data.db import Database, TextDatabase
+from lang3s.data.db import TextDatabase, db
 from lang3s.data.db.models import (
     DocumentsTable,
     MetadataTable,
@@ -66,8 +66,7 @@ def generate_corpus_summary():
     )
     logger.info("Finished discovery")
     logger.info("Starting collecting statistics")
-    db = Database()
-    with db.session() as session:
+    with db.get_session() as session:
         stmt = select(TopicsTable).order_by(TopicsTable.support.desc()).limit(7)
         topics = session.execute(stmt).scalars().all()
         total_docs = session.scalar(
@@ -84,18 +83,18 @@ def generate_corpus_summary():
             .where(TextAnnotationsTable.type_ != "sentence")
         )
 
-    topic_summary = []
-    for topic in topics:
-        topic_summary.append(
-            {
-                "name": topic.name,
-                "support": topic.support,
-            }
-        )
+        topic_summary = []
+        for topic in topics:
+            topic_summary.append(
+                {
+                    "name": topic.name,
+                    "support": topic.support,
+                }
+            )
 
     logger.info("Finished collecting statistics")
     logger.info("Saving results")
-    with db.session(commit=True) as session:
+    with db.get_session() as session:
         stmt = insert(PrecomputedStatsTable).values(
             {
                 "name": "corpus_summary",
@@ -129,8 +128,6 @@ def is_date(value: str) -> bool:
 def guess_metadata(
     metadata_source: Literal["document", "sentence", "annotation"],
 ) -> dict[str, str]:
-    db = Database()
-
     if metadata_source == "document":
         metadata_column = DocumentsTable.metadata_
         where = text("1 = 1")
@@ -141,7 +138,7 @@ def guess_metadata(
         metadata_column = TextAnnotationsTable.metadata_
         where = TextAnnotationsTable.type_ != "sentence"
 
-    with db.session() as session:
+    with db.get_session() as session:
         results: ScalarResult[dict[str, Any]] = session.scalars(
             select(metadata_column).where(where).limit(25000)
         )
@@ -190,8 +187,8 @@ def probe_metadata():
         for key, valueType in metadata.items():
             formatter = None
             if valueType == "date":
-                formatter = "yyyy-MM-dd"
-            elif valueType == "number":
+                formatter = "%Y-%m-%d"
+            elif valueType == "float":
                 formatter = "2"
 
             values.append(
@@ -206,7 +203,7 @@ def probe_metadata():
     if not values:
         return
 
-    with Database().session(commit=True) as session:
+    with db.get_session() as session:
         session.execute(
             insert(MetadataTable)
             .values(values)

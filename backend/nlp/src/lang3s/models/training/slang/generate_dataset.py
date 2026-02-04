@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from tqdm import tqdm
 
 from lang3s.agent.llm import ChatModel
-from lang3s.data.db.filestore import FILE_STORE
+from lang3s.data.filestore import FILE_STORE
 
 OUTPUT_FILE = FILE_STORE.get_file_path("slang_training_data.jsonl")
 NUM_BATCHES_TO_GENERATE = 1500

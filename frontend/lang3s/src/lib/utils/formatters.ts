@@ -55,6 +55,7 @@ export const formatNumber = (num: number) => {
     notation: "standard",
     compactDisplay: "long",
     style: "decimal",
+    maximumFractionDigits: 2,
   }).format(num);
 };
 

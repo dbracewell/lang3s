@@ -22,7 +22,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sqlalchemy import Boolean, Select, cast, delete, select
 from sqlalchemy.dialects.postgresql import insert
 
-from lang3s.data.db import Database
+from lang3s.data.db import db
 from lang3s.data.db.models import TextAnnotationsTable, TopicsTable
 from lang3s.nlp.shared_types import Document
 from lang3s.utils import flatten
@@ -45,7 +45,6 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
     def __init__(
         self,
     ):
-        db = Database()
         self.sim_threshold: float = db.get_config_value(
             "topics_similarity_threshold", 0.45
         )
@@ -79,10 +78,9 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         self._next_doc_id = 0
 
     def _load_topics(self):
-        db = Database()
         topics = []
         session: Session
-        with db.session() as session:
+        with db.get_session() as session:
             for topic in session.scalars(select(TopicsTable)).all():
                 topics.append(
                     Topic(
@@ -310,7 +308,6 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         if len(topics) == 0:
             return
 
-        db = Database()
         to_delete = []
         to_upsert = []
         final_topics = []
@@ -345,16 +342,16 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
             topic.doc_ids.clear()
             final_topics.append((topic_label, topic))
 
-        with db.session() as session:
+        with db.get_session() as session:
             if to_upsert:
                 stmt = insert(TopicsTable).values(to_upsert)
-                update_cols = {
-                    col: stmt.excluded[col]
-                    for col in to_upsert[0].keys()
-                    if col != "id"
-                }
                 upsert_stmt = stmt.on_conflict_do_update(
-                    index_elements=["id"], set_=update_cols
+                    index_elements=[TopicsTable.id],
+                    set_={
+                        c.name: stmt.excluded[c.name]
+                        for c in TopicsTable.__table__.columns  # type:ignore
+                        if c.name != "id"
+                    },
                 )
                 session.execute(upsert_stmt)
 
@@ -364,51 +361,6 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                 )
 
             session.commit()
-
-        # db = Database()
-        # to_delete = []
-        # final_topics = []
-        # for topic_label, topic in topics:
-        #     support = topic.sentence_count
-        #     doc_count = topic.doc_count
-        #
-        #     if (
-        #         support < self.min_support
-        #         and doc_count < self.min_document_count
-        #         and not topic.is_fixed
-        #     ):
-        #         to_delete.append(topic.id)
-        #         self.topic_index.remove_topic(topic_label)
-        #         continue
-        #
-        #     topic_id = topic.id
-        #     if topic_id.startswith("topic-"):
-        #         topic_id = shortuuid.uuid()
-        #         topic.id = topic_id
-        #
-        #     values = {
-        #         "id": topic_id,
-        #         "name": topic.name,
-        #         "support": support,
-        #         "doc_support": doc_count,
-        #         "embedding": topic.embedding.tolist(),
-        #         "updated_at": datetime.datetime.now(datetime.timezone.utc),
-        #         "is_fixed": topic.is_fixed,
-        #     }
-        #     topic.doc_support = doc_count
-        #     topic.doc_ids.clear()
-        #     final_topics.append((topic_label, topic))
-        #
-        #     self._next_doc_id = 0
-        #     insert_stmt = insert(TopicsTable).values(values)
-        #     update_values = {k: v for k, v in values.items() if k != "id"}
-        #     db.upsert(insert_stmt, "id", update_values)
-        #
-        # if len(to_delete) > 0:
-        #     with db.session() as session:  # type: Session
-        #         session.execute(
-        #             delete(TopicsTable).where(TopicsTable.id.in_(to_delete))
-        #         )
 
         self.topic_index.rebuild(final_topics)
         self.reducer.save()

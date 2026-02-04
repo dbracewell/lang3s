@@ -3,8 +3,8 @@ from collections import Counter
 from lang3s_job_service import File
 
 from lang3s import config
-from lang3s.data.db.filestore import FILE_STORE
 from lang3s.data.db.ngram_stats import NGramDatabase
+from lang3s.data.filestore import FILE_STORE
 from lang3s.distributed.broker import broker
 from lang3s.nlp.shared_types import TextAnnotation
 from lang3s.pipeline import pipeline

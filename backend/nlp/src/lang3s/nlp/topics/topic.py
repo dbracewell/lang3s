@@ -1,20 +1,16 @@
 import traceback
-from typing import TYPE_CHECKING, Optional, Sequence
-
-from lang3s import config
-from lang3s.nlp.topics.reducer import OnlineReducer
-from lang3s.nlp.topics.shared_types import TopicSentence
-
-if TYPE_CHECKING:
-    pass
+from typing import Optional, Sequence
 
 import numpy as np
 import sqlalchemy
 from numpy.typing import NDArray
 from sqlalchemy import Boolean, cast, distinct, not_, select
 
-from lang3s.data.db import Database
+from lang3s import config
+from lang3s.data.db import db
 from lang3s.data.db.models import TextAnnotationsTable
+from lang3s.nlp.topics.reducer import OnlineReducer
+from lang3s.nlp.topics.shared_types import TopicSentence
 from lang3s.utils.maths import normalize, weighted_average
 
 
@@ -50,8 +46,7 @@ class Topic:
 
     @property
     def sentence_count(self) -> int:
-        db = Database()
-        with db.session() as session:  # type: Session
+        with db.get_session() as session:
             stmt = select(
                 sqlalchemy.func.count(distinct(TextAnnotationsTable.id))
             ).where(
@@ -89,8 +84,7 @@ class Topic:
         )
 
     def get_sentences(self, limit: int = 1000):
-        db = Database()
-        with db.session() as session:  # type: Session
+        with db.get_session() as session:
             similarity_score = 1 - TextAnnotationsTable.embedding.cosine_distance(
                 self.embedding
             )

@@ -1,17 +1,11 @@
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import Link from "next/link";
-import {
-  ChartNoAxesGanttIcon,
-  FileBarChartIcon,
-  SquareArrowUpRightIcon,
-} from "lucide-react";
+import { FileBarChartIcon } from "lucide-react";
 import React from "react";
 import { formatNumber } from "@/lib/utils/formatters";
 
@@ -48,14 +42,23 @@ export const CorpusStats = ({
             <tr>
               <td className="w-40 p-1 font-bold">Total Documents</td>
               <td className="p-1">{formatNumber(summary.documents)}</td>
+              <td colSpan={2}></td>
             </tr>
             <tr>
               <td className="w-40 p-1 font-bold">Total Sentences</td>
               <td className="p-1">{formatNumber(summary.sentences)}</td>
+              <td className="w-60 p-1 font-bold">Sentences / Document</td>
+              <td className="p-1">
+                {formatNumber(summary.sentences / summary.documents)}
+              </td>
             </tr>
             <tr>
               <td className="w-40 p-1 font-bold">Total Annotations</td>
               <td className="p-1">{formatNumber(summary.annotations)}</td>
+              <td className="w-60 p-1 font-bold">Annotations / Document</td>
+              <td className="p-1">
+                {formatNumber(summary.annotations / summary.documents)}
+              </td>
             </tr>
           </tbody>
         </table>

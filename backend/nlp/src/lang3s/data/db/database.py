@@ -1,17 +1,104 @@
 import gc
 import json
-from contextlib import contextmanager
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from contextlib import closing, contextmanager
+from typing import Any, Generator, Iterable
 
 import numpy as np
 from pgvector.psycopg import register_vector
 from psycopg import sql
 from sqlalchemy import NullPool, create_engine, event
+from sqlalchemy.engine.interfaces import DBAPIConnection, DBAPICursor
 from sqlalchemy.orm import sessionmaker
 
 from lang3s import config
 from lang3s.data.db.models import Base, ConfigurationTable
-from lang3s.utils.meta import SingletonMeta
+
+engine = create_engine(config.DB_URL, poolclass=NullPool, echo=False, future=True)
+session_local = sessionmaker(
+    bind=engine, autoflush=False, autocommit=False, future=True
+)
+
+
+@event.listens_for(engine, "connect")
+def connect(dbapi_connection, connection_record):
+    register_vector(dbapi_connection)
+
+
+@contextmanager
+def get_session():
+    session = session_local()
+    try:
+        yield session
+        session.commit()
+    except:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+@contextmanager
+def transaction(
+    raw: bool = False,
+):
+    if not raw:
+        with get_session() as session:
+            with session.begin():
+                yield session
+    else:
+        with raw_connection() as connection:
+            cursor = connection.cursor()
+            try:
+                yield cursor
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                cursor.close()
+
+
+@contextmanager
+def raw_connection() -> Generator[DBAPIConnection, Any, None]:
+    raw = engine.raw_connection()
+    connection = raw.dbapi_connection
+
+    if connection is None:
+        raw.close()
+        raise RuntimeError("engine.raw_connection() returned no DBAPI connection")
+
+    try:
+        yield connection
+    finally:
+        raw.close()
+
+
+@contextmanager
+def raw_cursor() -> Generator[DBAPICursor, Any, None]:
+    with raw_connection() as connection:
+        cursor = connection.cursor()
+        try:
+            yield cursor
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            cursor.close()
+
+
+@contextmanager
+def connection(commit=False):
+    with engine.connect() as connection:
+        try:
+            yield connection
+            if commit:
+                connection.commit()
+        except:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
 
 def alias_identifier(ident, alias=None):
@@ -25,197 +112,77 @@ def alias_identifier(ident, alias=None):
         )
 
 
-@contextmanager
-def psy_raw(engine):
-    raw = engine.raw_connection()
-    try:
-        yield raw.connection  # yield psycopg3 connection
-    finally:
-        raw.close()
-
-
 MAX_INSERT_SIZE = 60000
 
 
-class Database(metaclass=SingletonMeta):
-    def __init__(self) -> None:
-        self.engine = create_engine(
-            config.DB_URL, poolclass=NullPool, echo=False, future=True
-        )
-        self.SessionLocal = sessionmaker(
-            bind=self.engine, autoflush=False, autocommit=False, future=True
+def refresh_annotation_views():
+    with raw_cursor() as cursor:
+        cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  annotation_counts;")
+        cursor.execute(
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY  annotation_co_occurrence;"
         )
 
-        @event.listens_for(self.engine, "connect")
-        def connect(dbapi_connection, connection_record):
-            register_vector(dbapi_connection)
 
-    def refresh_annotation_views(self):
-        with psy_raw(self.engine) as conn:
-            register_vector(conn)
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  annotation_counts;"
-                )
-                cursor.execute(
-                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  annotation_co_occurrence;"
-                )
-            conn.commit()
-
-    def create_text_annotation_embedding_index(self):
-        with psy_raw(self.engine) as conn:
-            register_vector(conn)
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    'CREATE INDEX IF NOT EXISTS "text_annotation_embedding_index" ON "text_annotations" USING hnsw ("embedding" halfvec_cosine_ops);'
-                )
-            conn.commit()
-
-    def refresh_topic_views(self):
-        with psy_raw(self.engine) as conn:
-            register_vector(conn)
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_sentences;"
-                )
-                cursor.execute(
-                    "REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_documents;"
-                )
-            conn.commit()
-
-    @contextmanager
-    def cursor(self):
-        with psy_raw(self.engine) as conn:
-            register_vector(conn)
-            with conn.cursor() as cursor:
-                yield cursor
-            conn.commit()
-
-    @contextmanager
-    def connection(self, commit=False):
-        with self.engine.connect() as connection:
-            yield connection
-            if commit:
-                connection.commit()
-
-    @contextmanager
-    def session(self, commit=False):
-        with self.SessionLocal() as session:
-            yield session
-            if commit:
-                session.commit()
-
-    def execute(self, stmt, commit=False):
-        with self.connection(commit) as session:
-            return session.execute(stmt)
-
-    def add(self, stmt):
-        with self.session(commit=True) as session:
-            return session.add(stmt)
-
-    def upsert(self, stmt, index: str, set_values: Dict[str, Any]):
-        with self.connection(commit=True) as session:
-            on_conflict_stmt = stmt.on_conflict_do_update(
-                index_elements=[index],
-                set_=set_values,
-            )
-            return session.execute(on_conflict_stmt)
-
-    def insert_many_objects(self, objects: List[Base]):
-        with self.session(commit=True) as session:
-            return session.bulk_save_objects(objects)
-
-    def insert_many_mappings(self, table: Base, values: List[Dict[str, Any]]):
-        with self.session(commit=True) as session:
-            return session.bulk_insert_mappings(table, values)
-
-    @contextmanager
-    def transaction(
-        self,
-        raw_connection: bool = False,
-    ):
-        if not raw_connection:
-            with self.SessionLocal.begin() as tx:
-                yield tx
-                tx.commit()
-        else:
-            with psy_raw(self.engine) as connection:
-                register_vector(connection)
-                with connection.cursor() as cursor:
-                    with connection.transaction():
-                        yield cursor
-                connection.commit()
-
-    def select(
-        self,
-        table: str,
-        columns: List[str],
-        where: Optional[List[Tuple[str, str, Any]]] = None,
-    ):
-        with self.cursor() as cursor:
-            whereClause = sql.Literal("TRUE")
-            if where and len(where) > 0:
-                whereClause = sql.SQL(" and ").join(
-                    sql.Composed(
-                        [
-                            sql.Identifier(column),
-                            sql.SQL(operator),  # type: ignore
-                            sql.Literal(value),
-                        ]
-                    )
-                    for column, operator, value in where
-                )
-            query = sql.SQL("SELECT {} FROM {} WHERE {}").format(
-                sql.SQL(", ").join(sql.Identifier(c) for c in columns),
-                sql.Identifier(table),
-                whereClause,
-            )
-            cursor.execute(query)
-            return cursor.fetchall()
-
-    def copy_from(
-        self,
-        cursor,
-        table: str,
-        columns: List[str],
-        data: Iterable[List[Any]],
-    ):
-        copy_sql = sql.SQL("COPY {} ({}) FROM STDIN").format(
-            sql.Identifier(table),
-            sql.SQL(", ").join(sql.Identifier(c) for c in columns),
+def create_text_annotation_embedding_index():
+    with raw_cursor() as cursor:
+        cursor.execute(
+            'CREATE INDEX IF NOT EXISTS "text_annotation_embedding_index" ON "text_annotations" USING hnsw ("embedding" halfvec_cosine_ops);'
         )
 
-        with cursor.copy(copy_sql) as copy:
-            for row in data:
-                copy.write_row(row)
 
-        gc.collect()
-
-    def get_config_value(
-        self, config_name: str, default_value: Optional[Any] = None
-    ) -> Any:
-        with self.SessionLocal() as session:
-            result = (
-                session.query(ConfigurationTable)
-                .filter(ConfigurationTable.name == config_name)
-                .one_or_none()
-            )
-            if result:
-                return result.value
-            return default_value
+def refresh_topic_views():
+    with raw_cursor() as cursor:
+        cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_sentences;")
+        cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_documents;")
 
 
-# def prepare_value(v: Any) -> Any:
-#     """Prepare a Python value for PostgreSQL COPY."""
-#     if v is None:
-#         return None
-#     elif isinstance(v, (dict, list)):
-#         return json.dumps(v)  # proper JSON encoding
-#     elif hasattr(v, "__iter__") and not isinstance(v, (str, bytes)):
-#         # likely a pgvector or numpy array
-#         return "[" + ", ".join(map(str, v)) + "]"
-#     else:
-#         return v
+def execute(stmt):
+    with get_session() as session:
+        return session.execute(stmt)
+
+
+def upsert(stmt, indexes: list[Any]):
+    with get_session() as session:
+        on_conflict_stmt = stmt.on_conflict_do_update(
+            index_elements=indexes,
+            set_=stmt.excluded.values(),
+        )
+        return session.execute(on_conflict_stmt)
+
+
+def insert_many_objects(objects: list[Base]):
+    with get_session() as session:
+        return session.bulk_save_objects(objects)
+
+
+def copy_from(
+    cursor: DBAPICursor,
+    table: str,
+    columns: list[str],
+    data: Iterable[list[Any]],
+):
+    copy_sql = sql.SQL("COPY {} ({}) FROM STDIN").format(
+        sql.Identifier(table),
+        sql.SQL(", ").join(sql.Identifier(c) for c in columns),
+    )
+
+    with cursor.copy(copy_sql) as copy:
+        for row in data:
+            copy.write_row(row)
+
+    gc.collect()
+
+
+def get_config_value(config_name: str, default_value: Any | None = None) -> Any:
+    with get_session() as session:
+        result = (
+            session.query(ConfigurationTable)
+            .filter(ConfigurationTable.name == config_name)
+            .one_or_none()
+        )
+        if result:
+            return result.value
+        return default_value
 
 
 def prepare_value(v: Any) -> Any:

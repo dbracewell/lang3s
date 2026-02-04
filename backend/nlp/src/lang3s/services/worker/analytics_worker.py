@@ -4,7 +4,7 @@ import os
 import tempfile
 import traceback
 
-from lang3s.data.db.filestore import FILE_STORE
+from lang3s.data.filestore import FILE_STORE
 from lang3s.nlp.shared_types import Metadata
 from lang3s.services.client.redis_client import DUCKDB_QUEUE_NAME, redis_batch_generator
 from lang3s.services.service.analytics_service import (
