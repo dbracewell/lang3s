@@ -12,7 +12,7 @@ import torch
 from lang3s_job_service import File, Job, JobService, JobStatus
 
 import lang3s.config as config
-from lang3s.data.db import TextDatabase, db
+from lang3s.data.db import db, text_db
 from lang3s.logs import initialize_logging
 from lang3s.models import Embedder, MultiTaskTransformer
 from lang3s.pipeline import pipeline
@@ -34,7 +34,6 @@ logger = logging.getLogger("NLP_WORKER")
 pid = os.getpid()
 job_service = JobService(api_key=config.SYSTEM_API_KEY, api_host=config.NODEJS_HOST)
 redis_client = RedisClient()
-text_db = TextDatabase()
 topic_model = TopicModelClient()
 
 

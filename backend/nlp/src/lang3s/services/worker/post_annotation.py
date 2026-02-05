@@ -9,7 +9,7 @@ from sqlalchemy.sql.functions import func
 from lang3s.agent import Agent
 from lang3s.agent.llm import Desc, tool
 from lang3s.agent.strategy import DiscoveryStrategy
-from lang3s.data.db import TextDatabase, db
+from lang3s.data.db import db, text_db
 from lang3s.data.db.models import (
     DocumentsTable,
     MetadataTable,
@@ -24,8 +24,6 @@ from lang3s.services.service_logging import get_logger
 
 @tool(description="Searches the database for results similar to the given query.")
 def search_database(query: Annotated[str, Desc("The query to search.")]):
-    text_db = TextDatabase()
-
     if query == "*":
         return text_db.random_sentences(500)
 
@@ -41,11 +39,11 @@ def search_database(query: Annotated[str, Desc("The query to search.")]):
         "life",
         "entertainment",
     ):
-        return text_db.search(query=query, limit=5)
+        return text_db.fts_sentence_search(query=query, limit=5)
 
     embedder = Embedder()
     embedding = embedder([query]).sentence_embeddings[0]
-    results = text_db.sentence_search(embedding, 0.3, limit=5)
+    results = text_db.semantic_sentence_search(embedding, 0.3, limit=5)
     return results
 
 

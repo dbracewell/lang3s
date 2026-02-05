@@ -2,6 +2,7 @@ import enum
 import gzip
 import json
 from pathlib import Path
+from typing import Iterable
 
 from lang3s import config
 from lang3s.nlp.shared_types.document import Document

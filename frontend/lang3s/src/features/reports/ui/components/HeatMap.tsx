@@ -9,6 +9,9 @@ import React, { CSSProperties, useEffect, useRef, useState } from "react";
 import { select } from "d3-selection";
 import * as d3 from "d3";
 import { truncateLabel } from "@/features/reports/utils";
+import { Button } from "@/components/ui/button";
+import html2canvas from "html2canvas-pro";
+import { useSvgExport } from "@/features/common/hooks/useSvgExport";
 
 type HeatMapProps = {
   data: ChartData;
@@ -35,6 +38,15 @@ export const HeatMap = ({
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [dimensions, setDimensions] = useState({ width: 400, height: 400 });
+  const { exportSvg } = useSvgExport();
+
+  const saveSvg = async () => {
+    await exportSvg(svgRef.current, {
+      filename: `heatmap-${Date.now()}.png`,
+      backgroundColor: "#020617", // Matches your Tailwind slate-950
+      scale: 3,
+    });
+  };
 
   useEffect(() => {
     if (data.length == 0) return;
@@ -143,7 +155,7 @@ export const HeatMap = ({
       })
       .style("stroke-width", 2)
       .style("stroke", "none")
-      .style("opacity", 0.8)
+      // .style("opacity", 0.8)
       .on("mouseover", function (_, d: ChartSeries) {
         tooltip
           .style("visibility", "visible")
@@ -176,7 +188,7 @@ export const HeatMap = ({
       })
       .on("mouseout", function (d: ChartSeries) {
         tooltip.style("opacity", 0).style("visibility", "hidden");
-        d3.select(this).style("stroke", "none").style("opacity", 0.8);
+        d3.select(this).style("stroke", "none").style("opacity", 1.0);
       });
   }, [data, dimensions, styles]);
 
@@ -199,22 +211,26 @@ export const HeatMap = ({
   }, []);
 
   return (
-    <div
-      ref={wrapperRef}
-      className="relative h-full min-h-0 w-full flex-1 grow"
-    >
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
-        className={cn(
-          "m-auto h-full w-full opacity-0 transition-opacity duration-300 ease-in",
-          dimensions && "opacity-100",
-          className,
-        )}
-        style={svgStyle}
-        preserveAspectRatio="xMidYMid meet"
-      />
-      <div ref={tooltipRef} />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <Button onClick={saveSvg}>Save</Button>
+      <div
+        ref={wrapperRef}
+        id="wrapperDiv"
+        className="relative h-full min-h-0 w-full flex-1 grow"
+      >
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
+          className={cn(
+            "m-auto h-full w-full opacity-0 transition-opacity duration-300 ease-in",
+            dimensions && "opacity-100",
+            className,
+          )}
+          style={svgStyle}
+          preserveAspectRatio="xMidYMid meet"
+        />
+        <div ref={tooltipRef} />
+      </div>
     </div>
   );
 };

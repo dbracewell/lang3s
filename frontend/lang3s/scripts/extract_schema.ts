@@ -24,7 +24,7 @@ import {
   Project,
   PropertyAssignment,
   SyntaxKind,
-  VariableDeclaration
+  VariableDeclaration,
 } from "ts-morph";
 import path from "path";
 import fs from "fs";
@@ -422,7 +422,10 @@ function main() {
       if (!init || !Node.isCallExpression(init)) continue;
 
       const exprText = init.getExpression().getText();
-      if (exprText !== "pgTable") continue;
+      console.log(exprText);
+      // if (exprText !== "pgTable") continue;
+      if (!["pgTable", "pgMaterializedView", "pgView"].includes(exprText))
+        continue;
 
       const table = extractTableFromDeclaration(init, enumVarsByName);
       if (table) {

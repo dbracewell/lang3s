@@ -1,5 +1,4 @@
 import lang3s.data.db.database as db
+import lang3s.data.db.text_database as text_db
 
-from .text_database import TextDatabase as TextDatabase
-
-__all__ = ["db", "TextDatabase"]
+__all__ = ["db", "text_db"]

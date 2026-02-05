@@ -1,6 +1,6 @@
 import gc
 import json
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 from typing import Any, Generator, Iterable
 
 import numpy as np
