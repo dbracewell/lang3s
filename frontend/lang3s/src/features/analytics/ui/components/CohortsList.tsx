@@ -36,7 +36,7 @@ export const CohortsList = ({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col gap-2">
+    <div className="m-1 flex h-full min-h-0 flex-1 flex-col gap-2">
       <InputGroup className="max-w-md">
         <InputGroupInput
           value={params.q}

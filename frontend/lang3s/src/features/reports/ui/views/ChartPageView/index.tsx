@@ -1,24 +1,16 @@
-"use client";
-
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { DualAxisForm } from "@/features/reports/ui/views/ChartPageView/AxisForm";
-import { ChartSchemaType } from "@/features/reports/schema";
-import { useState } from "react";
-import { ChartView } from "@/features/reports/ui/views/ChartPageView/Chart";
+import { ChartView } from "@/features/reports/ui/views/ChartPageView/ChartView";
 
 export const ChartViewPage = () => {
-  const [axis, setAxis] = useState<ChartSchemaType | undefined>(undefined);
   return (
-    <ScrollableBox.Container>
+    <ScrollableBox.Container className="relative m-1">
       <ScrollableBox.Header>
-        <h1>Chart Page</h1>
-        <p className="pageSubheading">Something...</p>
+        <h1>Chart Wizard</h1>
+        <p className="pageSubheading">Select what you want to plot.</p>
       </ScrollableBox.Header>
-      {axis != null ? (
-        <ChartView chart={axis} />
-      ) : (
-        <DualAxisForm setAxis={setAxis} />
-      )}
+      {/*<ChartView />*/}
+      <DualAxisForm />
     </ScrollableBox.Container>
   );
 };

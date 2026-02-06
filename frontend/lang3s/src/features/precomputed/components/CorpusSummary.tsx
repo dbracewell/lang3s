@@ -20,7 +20,7 @@ export const CorpusSummary = ({ summary }: { summary?: string }) => {
     );
   }
   return (
-    <Card className="h-[99%] w-full lg:w-1/2">
+    <Card className="w-full lg:w-1/2">
       <CardContent className="scrollable prose dark:prose-invert flex min-h-0 min-w-full flex-1 flex-col">
         <ReactMarkdown
           rehypePlugins={[rehypeRaw]}

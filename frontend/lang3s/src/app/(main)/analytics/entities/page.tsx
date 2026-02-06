@@ -13,7 +13,7 @@ const EntitiesPage = async (props: PageProps<"/analytics/entities">) => {
     path: ONTOLOGY_ENTITY_ROOT,
   });
   return (
-    <ScrollableBox.Container className="relative">
+    <ScrollableBox.Container className="relative m-1">
       <ScrollableBox.Header className="flex flex-col items-start gap-y-2 lg:flex-row">
         <div className="flex flex-col">
           <h1>Entities</h1>

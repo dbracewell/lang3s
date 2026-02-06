@@ -69,7 +69,7 @@ class ChartingService:
                         FROM X_MAPPED as X 
                         INNER JOIN Y_MAPPED as Y on {inner_join_on}
                         GROUP BY X.text, Y.text, X.value, Y.value
-                        ORDER BY X.text, X.value, Y.text, Y.value
+                        ORDER BY X.text, Y.text, X.value, Y.value
             """
 
         results = (

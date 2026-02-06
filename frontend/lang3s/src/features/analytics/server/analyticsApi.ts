@@ -64,7 +64,7 @@ type TopicEntity = {
 };
 
 export const topicInformation = async (topic_id: string) => {
-  return getJson<TopicEntity>(`${BASE_PATH}/topic/${topic_id}`);
+  return getJson<TopicEntity[]>(`${BASE_PATH}/topic/${topic_id}`);
 };
 
 export const cohortSupportInformation = async (ids: string[]) => {
@@ -93,7 +93,7 @@ export const updateAnalytics = async () => {
 };
 
 export const cohorts = async () => {
-  return postJson<Cohorts>(`${BASE_PATH}/cohorts`);
+  return postJson<Cohorts[]>(`${BASE_PATH}/cohorts`);
 };
 
 export const annotationAffinity = async (values: string[]) => {

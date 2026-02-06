@@ -2,7 +2,7 @@ import { DataTypeCategory } from "@/features/common/types";
 import { capitalize } from "@/lib/utils/formatters";
 import { SelectOptionItem } from "@/components/form-controls/select-form-field";
 import { Column, sql, SQL } from "drizzle-orm";
-import { SeriesType } from "@/features/reports/schema";
+import { SeriesFormType } from "@/features/reports/schema";
 import Aliased = SQL.Aliased;
 
 export const SERIES_SOURCES = [
@@ -14,7 +14,7 @@ export const SERIES_SOURCES = [
 ] as const;
 const COUNT_TYPES = ["document", "sentence", "mention"] as const;
 
-const CHART_TYPES = [
+export const CHART_TYPES = [
   "heatmap",
   "barchart",
   "linechart",
@@ -65,6 +65,19 @@ const SourceToCountType: Record<
     SENTENCE_METADATA: ["sentence"],
     ANNOTATION_METADATA: ["mention"],
   },
+};
+
+export const getChartTypeTitle = (chartType: ChartType) => {
+  switch (chartType) {
+    case "barchart":
+      return "Bar Chart";
+    case "linechart":
+      return "Line Chart";
+    case "heatmap":
+      return "Heatmap";
+    default:
+      return "Scatterplot";
+  }
 };
 
 const DataTypeToChart: Record<
@@ -215,7 +228,7 @@ export const Chart = {
         return "Documents";
     }
   },
-  getAxisLabel: function (axis: SeriesType) {
+  getAxisLabel: function (axis: SeriesFormType) {
     switch (axis.type) {
       case "TOPIC":
         return "Topics";

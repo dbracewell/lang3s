@@ -11,8 +11,8 @@ from lang3s import config
 from lang3s.services.api.agent_api import router as agent_router
 from lang3s.services.api.analytics_api import analytics_lifecycle
 from lang3s.services.api.analytics_api import router as analytics_router
-from lang3s.services.api.charting_service import charting_lifecycle
-from lang3s.services.api.charting_service import router as charting_router
+from lang3s.services.api.charting_api import charting_lifecycle
+from lang3s.services.api.charting_api import router as charting_router
 from lang3s.services.api.embedding_api import (
     embedding_lifecycle,
 )

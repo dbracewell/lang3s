@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const TopicsPage = async () => {
   return (
-    <ScrollableBox.Container className="gap-3">
+    <ScrollableBox.Container className="m-1 gap-3">
       <div className="flex flex-col">
         <h1>Topics</h1>
         <p className="pageSubheading">

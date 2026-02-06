@@ -13,7 +13,7 @@ const UserPage = async () => {
     "model:create",
   ]);
   return (
-    <div className="flex h-full flex-1 flex-col gap-5 overflow-hidden p-2">
+    <div className="m-1 flex h-full flex-1 flex-col gap-5 overflow-hidden p-2">
       <AccountHeader user={user} />
       <UserInformation user={user} />
       <div className="scrollable bg-card flex min-h-0 flex-1 flex-col gap-6">

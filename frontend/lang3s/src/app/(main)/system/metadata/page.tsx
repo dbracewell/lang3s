@@ -19,7 +19,7 @@ const Page = async () => {
   ]);
   return (
     <>
-      <ScrollableBox.Container>
+      <ScrollableBox.Container className="m-1">
         <ScrollableBox.Header>
           <h1>Metadata Editor</h1>
           <p className="pageSubheading">

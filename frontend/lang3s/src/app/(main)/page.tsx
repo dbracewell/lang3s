@@ -20,7 +20,7 @@ export default async function Home() {
   })) as CorpusSummaryType;
 
   return (
-    <ScrollableBox.Container>
+    <ScrollableBox.Container className="m-1">
       <ScrollableBox.Header>
         <h1>Corpus Summary</h1>
       </ScrollableBox.Header>

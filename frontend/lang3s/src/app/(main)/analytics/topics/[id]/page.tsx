@@ -32,7 +32,7 @@ const SuspensedPage = async ({ id }: { id: string }) => {
         sentences={data.sentences.map((s) => s.content)}
         entities={data.entities}
       />
-      <Card className="animate-zoomin flex flex-1 flex-col gap-2 overflow-hidden">
+      <Card className="animate-zoomin m-1 flex flex-1 flex-col gap-2 overflow-hidden">
         <CardHeader>
           <CardTitle>
             <h1 className="">

@@ -6,6 +6,7 @@ import { jsonAgg, jsonBuildObject } from "@/lib/db/helpers/json";
 import { MetadataConfiguration, MetadataItem } from "@/features/metadata/types";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { orderAsc } from "@/lib/db/helpers/ordering";
 
 export const getMetadataBySourceAndName = async (
   source: MetadataSource,
@@ -46,11 +47,13 @@ export const getMetadata = async () => {
             linkedName: selfJoin.name,
             linkedSource: selfJoin.source,
           }),
+          orderAsc(sql`${MetadataTable.name}`),
         ),
       })
       .from(MetadataTable)
       .leftJoin(selfJoin, eq(MetadataTable.linksToMetadataId, selfJoin.id))
-      .groupBy(MetadataTable.source);
+      .groupBy(MetadataTable.source)
+      .orderBy((t) => t.source);
   });
 
   const metadataConfig: MetadataConfiguration = {

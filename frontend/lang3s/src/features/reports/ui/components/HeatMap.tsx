@@ -9,9 +9,6 @@ import React, { CSSProperties, useEffect, useRef, useState } from "react";
 import { select } from "d3-selection";
 import * as d3 from "d3";
 import { truncateLabel } from "@/features/reports/utils";
-import { Button } from "@/components/ui/button";
-import html2canvas from "html2canvas-pro";
-import { useSvgExport } from "@/features/common/hooks/useSvgExport";
 
 type HeatMapProps = {
   data: ChartData;
@@ -34,22 +31,13 @@ export const HeatMap = ({
   countType,
   svgStyle,
 }: HeatMapProps) => {
-  const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [dimensions, setDimensions] = useState({ width: 400, height: 400 });
-  const { exportSvg } = useSvgExport();
-
-  const saveSvg = async () => {
-    await exportSvg(svgRef.current, {
-      filename: `heatmap-${Date.now()}.png`,
-      backgroundColor: "#020617", // Matches your Tailwind slate-950
-      scale: 3,
-    });
-  };
-
+  const svgRef = useRef<SVGSVGElement | null>(null);
   useEffect(() => {
     if (data.length == 0) return;
+    if (svgRef == null) return;
 
     const {
       backgroundColor = "var(--color-background)",
@@ -59,8 +47,8 @@ export const HeatMap = ({
 
     const svg = select(svgRef.current);
     svg.selectAll("*").remove(); // Clear previous content
-    const adjustedWith = dimensions.width;
-    const adjustedHeight = dimensions.height;
+    const adjustedWith = dimensions.width - 20;
+    const adjustedHeight = dimensions.height - 20;
     svg
       .attr("width", adjustedHeight)
       .attr("height", adjustedHeight)
@@ -79,8 +67,10 @@ export const HeatMap = ({
       .style("opacity", "0")
       .style("pointer-events", "none");
 
-    const xGroup = [...new Set(data.map((d) => String(d.text1)))];
-    const yGroup = [...new Set(data.map((d) => String(d.text2)))];
+    const xGroup = [...new Set(data.map((d) => String(d.text1)))].sort();
+    const yGroup = [...new Set(data.map((d) => String(d.text2)))]
+      .sort()
+      .reverse();
     const maxvalue = Math.max(
       ...data.map((d) =>
         d.text1 === d.text2 ? 0 : Chart.getCount(d, countType),
@@ -88,9 +78,10 @@ export const HeatMap = ({
     );
     const x = d3
       .scaleBand()
-      .range([180, adjustedWith - 20])
+      .range([200, adjustedWith])
       .domain(xGroup)
       .padding(0.05);
+
     svg
       .append("g")
       .style("font-size", 14)
@@ -100,14 +91,16 @@ export const HeatMap = ({
         d3
           .axisBottom(x)
           .tickSize(0)
-          .tickFormat((d, i) => truncateLabel(d, 12)),
+          .tickPadding(10)
+          .tickFormat((d, _) => truncateLabel(d, 12)),
       )
-      .style("transform", "translateY(75px)")
+      .style("transform", "translateY(90px)")
       .select(".domain")
       .remove();
+
     const y = d3
       .scaleBand()
-      .range([adjustedHeight - 20, 100])
+      .range([adjustedHeight - 20, 120])
       .domain(yGroup)
       .padding(0.05);
     svg
@@ -118,9 +111,10 @@ export const HeatMap = ({
         d3
           .axisLeft(y)
           .tickSize(0)
-          .tickFormat((d, i) => truncateLabel(d, 20)),
+          .tickPadding(10)
+          .tickFormat((d, _) => truncateLabel(d, 20)),
       )
-      .style("transform", "translateX(170px)")
+      .style("transform", "translateX(195px)")
       .select(".domain")
       .remove();
 
@@ -186,7 +180,7 @@ export const HeatMap = ({
             `${yPosition >= bounds.height - tooltipHeight ? yPosition - tooltipHeight - 17 : yPosition}px`,
           );
       })
-      .on("mouseout", function (d: ChartSeries) {
+      .on("mouseout", function (_: ChartSeries) {
         tooltip.style("opacity", 0).style("visibility", "hidden");
         d3.select(this).style("stroke", "none").style("opacity", 1.0);
       });
@@ -212,7 +206,6 @@ export const HeatMap = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <Button onClick={saveSvg}>Save</Button>
       <div
         ref={wrapperRef}
         id="wrapperDiv"

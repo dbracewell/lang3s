@@ -1,6 +1,8 @@
 "use server";
 import { postJson } from "@/lib/utils/superFetch";
-import { ChartType } from "@/features/reports/types";
+import { ChartType, CountType } from "@/features/reports/types";
+import { DataTypeCategory } from "@/features/common/types";
+import { ChartSeriesParamType } from "@/features/reports/schema";
 import { DataType } from "@/lib/db/schemas/metadata";
 
 const BASE_PATH = `${process.env.EMBEDDING_SERVER}/charts`;
@@ -18,6 +20,8 @@ export type ChartData = {
 export type ChartResult = {
   x_total: number;
   y_total: number;
+  x_data_type: DataTypeCategory;
+  y_data_type: DataTypeCategory | null;
   x_next_page: number | null;
   y_next_page: number | null;
   x_prev_page: number | null;
@@ -26,23 +30,20 @@ export type ChartResult = {
   results: ChartData[];
 };
 
-type SeriesInformation = {
-  type: string;
-  value: string;
-  page: number;
+type ChartApiSeries = ChartSeriesParamType & {
   page_size: number;
   data_type: DataType;
-  formatter: string | undefined;
+  formatter: string | null;
 };
 
-export type ChartDataRequest = {
+type ChartApiRequest = {
   chart_type: ChartType;
-  x: SeriesInformation;
-  y?: SeriesInformation;
-  count_type: "document" | "sentence" | "mention";
+  count_type: CountType;
+  x: ChartApiSeries;
+  y?: ChartApiSeries;
 };
 
-export const getChartData = async (chartData: ChartDataRequest) => {
+export const getChartData = async (chartData: ChartApiRequest) => {
   return postJson<ChartResult>(`${BASE_PATH}`, {
     ...chartData,
   });

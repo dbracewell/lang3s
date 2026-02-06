@@ -1,12 +1,10 @@
 import math
 from collections import defaultdict
-from typing import Any, Literal
 
 import networkx as nx
 import numpy as np
 
 from lang3s.data.db.analytics_db import AnalyticsDB, get_analytics_db
-from lang3s.data.db.query_template import QueryTemplateEngine
 from lang3s.services.model.analytics_models import *
 from lang3s.utils.maths import remap
 

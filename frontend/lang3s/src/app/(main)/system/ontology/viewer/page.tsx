@@ -5,7 +5,7 @@ import { OntologyViewer } from "@/features/ontology/ui/components/OntologyViewer
 const OntologyPage = async (props: PageProps<"/system/ontology/viewer">) => {
   const searchParams = await props.searchParams;
   return (
-    <ScrollableBox.Container>
+    <ScrollableBox.Container className="m-1">
       <ScrollableBox.Header>
         <h1>Ontology Viewer</h1>
         <p className="pageSubheading">View and explore the system ontology</p>

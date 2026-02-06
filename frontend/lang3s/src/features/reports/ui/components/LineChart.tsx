@@ -1,5 +1,5 @@
 import { Chart, ChartData, CountType } from "@/features/reports/types";
-import { SeriesType } from "@/features/reports/schema";
+import { SeriesFormType } from "@/features/reports/schema";
 import {
   CartesianGrid,
   Label,
@@ -17,13 +17,15 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { useMemo } from "react";
+import { DataTypeCategory } from "@/features/common/types";
 
 type LineChartProps = {
   data: ChartData;
-  xSeries: SeriesType;
-  ySeries?: SeriesType;
+  xSeries: SeriesFormType;
+  ySeries?: SeriesFormType;
   className?: string;
   countType: CountType;
+  xDataType: DataTypeCategory;
 };
 
 function generateRainbowColors(n: number): string[] {
@@ -41,6 +43,7 @@ const chartConfig = {} satisfies ChartConfig;
 export const LineChart = ({
   data,
   xSeries,
+  xDataType,
   ySeries,
   className,
   countType,
@@ -51,13 +54,13 @@ export const LineChart = ({
         ySeries ? d.text2 : Chart.formatCountTypeName(countType),
       ),
     ),
-  ];
+  ].sort();
 
   const morphed = useMemo(() => {
     return Object.values(
       data.reduce(
         (agg, d) => {
-          const series = xSeries.dataType === "number" ? d.value1 : d.text1;
+          const series = xDataType === "number" ? d.value1 : d.text1;
           if (agg[series] == null) {
             agg[series] = {
               series,
@@ -85,6 +88,7 @@ export const LineChart = ({
   }, [countType, data]);
 
   const myColor = generateRainbowColors(uniqueSeries.length);
+
   return (
     <ChartContainer config={chartConfig} className={cn("min-h-0", className)}>
       <RechartsLineChart
@@ -111,7 +115,7 @@ export const LineChart = ({
         ))}
         <XAxis
           dataKey="series"
-          type={xSeries.dataType === "number" ? "number" : "category"}
+          type={xDataType === "number" ? "number" : "category"}
           tick={true}
           hide={false}
           label={

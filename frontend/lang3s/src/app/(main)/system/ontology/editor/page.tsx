@@ -16,7 +16,7 @@ const OntologyEditorPage = async (
     );
   }
   return (
-    <ScrollableBox.Container>
+    <ScrollableBox.Container className="m-1">
       <ScrollableBox.Header>
         <h1>Ontology Editor</h1>
         <p className="pageSubheading">Edit the system Ontology</p>

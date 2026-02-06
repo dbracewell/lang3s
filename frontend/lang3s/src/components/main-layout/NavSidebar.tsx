@@ -43,7 +43,7 @@ export const NavSidebar = ({ isOpen, setIsOpen }: NavSidebarProps) => {
     <div
       ref={sheetRef}
       className={cn(
-        "mobile:w-[300px] shadow-shadow scrollable bg-sidebar-light fixed top-0 left-0 z-50 flex h-screen w-full flex-col border-r transition-all",
+        "mobile:w-75 shadow-shadow scrollable bg-sidebar-light fixed top-0 left-0 z-500 flex h-screen w-full flex-col border-r transition-all",
         isOpen ? "animate-in translate-x-0 shadow-2xl" : "-translate-x-full",
       )}
     >

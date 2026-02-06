@@ -1,6 +1,7 @@
+"use client";
 import { FieldValues, Path, useForm, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChartSchema, ChartSchemaType } from "@/features/reports/schema";
+import { ChartFormSchema, ChartFormType } from "@/features/reports/schema";
 import { Form } from "@/components/ui/form";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -10,18 +11,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { MinusIcon, PlusIcon } from "lucide-react";
 import { useTRPCQuery } from "@/lib/trpc/use-queries";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Chart, SeriesSourceType } from "@/features/reports/types";
 import {
   DefaultOntologyTrigger,
   OntologySelectorDialog,
 } from "@/features/ontology/ui/components/OntologySelectorDialog";
 import { MetadataConfiguration, MetadataItem } from "@/features/metadata/types";
-
-type DualAxisFormProps = {
-  defaultValues?: ChartSchemaType;
-  setAxis: (axis: ChartSchemaType) => void;
-};
+import { useChartParams } from "@/features/reports/hooks/useChartParams";
+import { useRouter } from "next/navigation";
+import { formatURL } from "@/lib/utils/formatters";
 
 const getMetadataOptions = (
   metadata: MetadataConfiguration,
@@ -44,101 +43,160 @@ const getMetadataOptions = (
   );
 };
 
-export const DualAxisForm = ({ defaultValues, setAxis }: DualAxisFormProps) => {
+export const DualAxisForm = () => {
+  const router = useRouter();
+  const [params] = useChartParams();
+
   const { data: metadata } = useTRPCQuery((trpc) =>
     trpc.system.getMetadata.queryOptions(),
   );
+
   const form = useForm({
-    resolver: zodResolver(ChartSchema),
+    resolver: zodResolver(ChartFormSchema),
     defaultValues: {
-      x: defaultValues?.x ?? {
-        type: "ANNOTATION",
-        value: "ALL.Entity",
+      x: {
+        type: params.xType ?? "ANNOTATION",
+        value: params.xValue ?? "ALL.Entity",
       },
-      y: defaultValues?.y,
-      count: "mention",
+      y: params.yType
+        ? {
+            type: params.yType,
+            value: params.yValue,
+          }
+        : undefined,
+      count: params.count || "mention",
     },
   });
 
+  const onSubmit = (values: ChartFormType) => {
+    router.push(
+      formatURL("/reports/charts/view", {
+        xPage: params.xPage,
+        yPage: params.yPage,
+        xType: values.x.type,
+        xValue: values.x.value,
+        yType: values.y ? values.y.type : "",
+        yValue: values.y ? values.y.value : "",
+        count: values.count,
+      }),
+    );
+  };
+
   const x = form.watch("x");
   const y = form.watch("y");
+  const countType = form.watch("count");
 
   const countTypeOptions = useMemo(() => {
     return Chart.getCountSelectOptions(x.type, y?.type);
   }, [x.type, y?.type]);
 
+  useEffect(() => {
+    const currentCountType = form.getValues("count");
+    if (!!currentCountType) return;
+    const possibleTypes = Chart.getCountTypes(x.type, y?.type);
+    form.setValue("count", possibleTypes[0]);
+  }, [x, y, countTypeOptions, form]);
+
+  const updateCountType = (
+    xType: SeriesSourceType,
+    yType?: SeriesSourceType,
+  ) => {
+    const possibleTypes = Chart.getCountTypes(xType, yType);
+    if (possibleTypes.length === 1 || !possibleTypes.includes(countType)) {
+      form.setValue("count", possibleTypes[0]);
+    }
+  };
+
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(setAxis)}
-        className="bg-card mx-auto w-full max-w-xl space-y-4 rounded-lg border p-2"
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="bg-card m-auto flex h-full w-full max-w-4xl flex-col space-y-4 rounded-lg border p-5 shadow-sm lg:h-120"
       >
-        <h1>Chart Wizard</h1>
-        {JSON.stringify(form.formState.errors)}
-        <div
-          className={cn("grid grid-cols-1", y != null && "grid-cols-2! gap-4")}
-        >
-          <div className="space-y-4 rounded-lg border p-2">
-            <h3 className="font-bold">Series 1</h3>
-            <SeriesInformation
-              typeField={"x.type"}
-              valueField={"x.value"}
-              form={form}
-              axisType={form.watch("x.type")}
-              metadata={
-                metadata ?? { document: {}, annotation: {}, sentence: {} }
-              }
-            />
-          </div>
-          {y != null && (
-            <div className="space-y-4 rounded-lg border p-2">
-              <h3 className="font-bold">Series 2</h3>
+        <h1>Define your Chart series</h1>
+        <div className={cn("flex items-center justify-start")}>
+          {y == null ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={async () => {
+                updateCountType(x.type, "ANNOTATION");
+                form.setValue("y.type", "ANNOTATION");
+                form.setValue("y.value", "");
+              }}
+            >
+              <PlusIcon /> Add Series
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="destructiveGhost"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                form.setValue("y", undefined);
+              }}
+            >
+              <MinusIcon /> Remove Series 2
+            </Button>
+          )}
+        </div>
+        <div className="flex flex-1 flex-col justify-between gap-4">
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-4",
+              y != null && "lg:grid-cols-2!",
+            )}
+          >
+            <div className="bg-alternate-row space-y-4 rounded-lg border p-2">
+              <h3 className="font-bold">Series 1</h3>
               <SeriesInformation
-                typeField={"y.type"}
-                valueField={"y.value"}
+                typeField={"x.type"}
+                valueField={"x.value"}
+                onTypeChange={(newX) => {
+                  updateCountType(newX, y?.type);
+                }}
                 form={form}
-                axisType={form.watch("y.type") ?? "TOPIC"}
+                axisType={form.watch("x.type")}
                 metadata={
                   metadata ?? { document: {}, annotation: {}, sentence: {} }
                 }
               />
             </div>
-          )}
-        </div>
-        <div className="flex items-center">
-          <SelectFormField
-            options={countTypeOptions}
-            reactHookForm={form}
-            name="count"
-            label="Count By"
-            selectTriggerClassName="w-[200px]"
-          />
-        </div>
-        <div className={cn("flex items-center justify-between")}>
-          {y == null ? (
-            <Button
-              type="button"
-              size="sm"
-              onClick={async () => {
-                form.setValue("count", Chart.getCountTypes(x.type)[0]);
-                form.setValue("y.type", "ANNOTATION");
-                form.setValue("y.value", "ENTITY");
-              }}
-            >
-              <PlusIcon /> Series
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => {
-                form.setValue("y", undefined);
-              }}
-            >
-              <MinusIcon /> Series
-            </Button>
-          )}
-          <Button>Submit</Button>
+            {y != null && (
+              <div className="bg-alternate-row space-y-4 rounded-lg border p-2">
+                <h3 className="flex items-center justify-between font-bold">
+                  <span>Series 2</span>
+                </h3>
+                <SeriesInformation
+                  typeField={"y.type"}
+                  valueField={"y.value"}
+                  onTypeChange={(newY) => {
+                    updateCountType(x.type, newY);
+                  }}
+                  form={form}
+                  axisType={form.watch("y.type") ?? "TOPIC"}
+                  metadata={
+                    metadata ?? { document: {}, annotation: {}, sentence: {} }
+                  }
+                />
+              </div>
+            )}
+          </div>
+          <div className="flex items-end justify-between gap-3">
+            <div className="flex items-center">
+              <SelectFormField
+                options={countTypeOptions}
+                reactHookForm={form}
+                name="count"
+                label="Count By"
+                selectTriggerClassName="w-[200px]"
+              />
+            </div>
+            <Button>Create Chart</Button>
+          </div>
         </div>
       </form>
     </Form>
@@ -151,12 +209,14 @@ const SeriesInformation = <T extends FieldValues>({
   form,
   metadata,
   axisType,
+  onTypeChange,
 }: {
   typeField: Path<T>;
   valueField: Path<T>;
   form: UseFormReturn<T>;
   metadata: MetadataConfiguration;
   axisType: SeriesSourceType;
+  onTypeChange: (newType: SeriesSourceType) => void;
 }) => {
   const metadataOptions = useMemo(
     () => getMetadataOptions(metadata, axisType),
@@ -171,17 +231,9 @@ const SeriesInformation = <T extends FieldValues>({
         reactHookForm={form}
         name={typeField}
         label="Series Element"
-        onValueChange={async (v) => {
-          switch (v as SeriesSourceType) {
-            case "TOPIC":
-              form.setValue(valueField, "TOPIC" as any);
-              break;
-            case "ANNOTATION":
-              form.setValue(valueField, "ENTITY" as any);
-              break;
-            default:
-              form.setValue(valueField, "" as any);
-          }
+        onValueChange={(v) => {
+          form.setValue(valueField, "" as any);
+          onTypeChange(v as SeriesSourceType);
         }}
       />
       {axisType === "ANNOTATION" && (
@@ -193,7 +245,16 @@ const SeriesInformation = <T extends FieldValues>({
               form.setValue(valueField, v.join(",") as any);
             }}
           />
-          <div>{selected.join(" ")}</div>
+          <div className="scrollable flex h-20 flex-col gap-1 text-sm">
+            <h3>Selected Ontology Concepts</h3>
+            {selected.length === 0 ? (
+              <span className="text-muted-foreground">
+                No Ontology Concepts Selected
+              </span>
+            ) : (
+              selected.map((v) => <div key={v}>• {v}</div>)
+            )}
+          </div>
         </>
       )}
       {[

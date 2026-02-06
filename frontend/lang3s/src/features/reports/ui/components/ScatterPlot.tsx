@@ -1,5 +1,5 @@
 import { Chart, ChartData, CountType } from "@/features/reports/types";
-import { SeriesType } from "@/features/reports/schema";
+import { SeriesFormType } from "@/features/reports/schema";
 import {
   CartesianGrid,
   Label,
@@ -15,14 +15,17 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { useMemo } from "react";
+import { RefObject, useMemo } from "react";
+import { DataTypeCategory } from "@/features/common/types";
 
 type LineChartProps = {
   data: ChartData;
-  xSeries: SeriesType;
-  ySeries: SeriesType;
+  xSeries: SeriesFormType;
+  ySeries: SeriesFormType;
   className?: string;
   countType: CountType;
+  xDataType: DataTypeCategory;
+  yDataType: DataTypeCategory;
 };
 
 const chartConfig = {} satisfies ChartConfig;
@@ -32,6 +35,8 @@ export const ScatterPlotChart = ({
   ySeries,
   className,
   countType,
+  xDataType,
+  yDataType,
 }: LineChartProps) => {
   const morphed = useMemo(() => {
     return data.map((d) => ({
@@ -45,10 +50,10 @@ export const ScatterPlotChart = ({
       <ReactsScatterPlot
         data={morphed}
         margin={{
-          top: 50,
+          top: 20,
           right: 20,
           left: 10,
-          bottom: 100,
+          bottom: 20,
         }}
       >
         <CartesianGrid strokeDasharray="3 3" />
@@ -59,9 +64,9 @@ export const ScatterPlotChart = ({
           tick={true}
           hide={false}
           writingMode="sideways-lr"
-          allowDuplicatedCategory={xSeries.dataType === "number"}
+          allowDuplicatedCategory={xDataType === "number"}
           textAnchor="end"
-          type={xSeries.dataType === "number" ? "number" : "category"}
+          type={xDataType === "number" ? "number" : "category"}
           label={
             <Label
               value={Chart.getAxisLabel(xSeries)}
@@ -78,8 +83,8 @@ export const ScatterPlotChart = ({
           dataKey={"y"}
           tick={true}
           hide={false}
-          type={ySeries.dataType === "number" ? "number" : "category"}
-          allowDuplicatedCategory={ySeries.dataType === "number"}
+          type={yDataType === "number" ? "number" : "category"}
+          allowDuplicatedCategory={yDataType === "number"}
           label={
             <Label
               angle={-90}

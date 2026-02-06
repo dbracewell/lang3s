@@ -72,7 +72,7 @@ export const JobPageView = () => {
   });
 
   return (
-    <ScrollableBox.Container className="gap-2">
+    <ScrollableBox.Container className="m-1 gap-2">
       <ScrollableBox.Header>
         <h1>Jobs</h1>
         <p className="pageSubheading">View and manage jobs.</p>

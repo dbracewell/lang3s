@@ -18,7 +18,7 @@ const DocumentIdPage = async (props: PageProps<"/documents/[id]">) => {
 
   return (
     <div className="animate-zoomin flex h-full flex-1 overflow-hidden">
-      <Card className="flex min-h-0 flex-1 flex-col">
+      <Card className="m-1 flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <CardTitle>{documentData.title}</CardTitle>
           <CardDescription className="text-muted-foreground flex flex-wrap gap-2 text-xs">
