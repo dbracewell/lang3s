@@ -2,8 +2,15 @@ from typing import List, Optional
 
 from pydantic import ValidationError
 
-from lang3s.agent.helpers import get_valid_next_actions
-from lang3s.agent.shared_types import Plan, QueryPlan, StepResult, AgentState, PersonaAwareStep, PersonaMode
+from lang3s.agent.old.helpers import get_valid_next_actions
+from lang3s.agent.old.shared_types import (
+    AgentState,
+    PersonaAwareStep,
+    PersonaMode,
+    Plan,
+    QueryPlan,
+    StepResult,
+)
 
 
 class PlanStep(PersonaAwareStep):

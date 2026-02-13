@@ -6,7 +6,7 @@ from sqlalchemy import ScalarResult, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.sql.functions import func
 
-from lang3s.agent.agent import Agent
+from lang3s.agent import Agent, Session
 from lang3s.agent.strategy import DiscoveryStrategy
 from lang3s.data.db import db, text_db
 from lang3s.data.db.models import (
@@ -16,7 +16,7 @@ from lang3s.data.db.models import (
     TextAnnotationsTable,
     TopicsTable,
 )
-from lang3s.llm.tools import Desc, tool
+from lang3s.llm import Desc, tool
 from lang3s.models import Embedder
 from lang3s.nlp.shared_types import Metadata
 from lang3s.utils.logger.service_logging import get_logger
@@ -47,20 +47,26 @@ def search_database(query: Annotated[str, Desc("The query to search.")]):
     return results
 
 
-logger = get_logger(__name__)
+logger = get_logger("POST_ANNOTATION")
 
 
 def generate_corpus_summary():
     logger.info("Starting to process: discovery")
     corpus_discovery = DiscoveryStrategy(
-        search_tool="search_database", rounds=1, queries_per_round=3
+        search_tool="search_database",
+        rounds=3,
+        queries_per_round=3,
     )
     agent = Agent(
-        strategy=corpus_discovery,
-        tools=[search_database],
+        session=Session(
+            available_tools=[search_database],
+            context_window=10000,
+        )
     )
-    response = agent.invoke(
-        prompt="Determine the main topics of the corpus. The corpus is comprised of news articles."
+
+    response = agent.sync_run(
+        task="Determine the main topics of the corpus. The corpus is comprised of news articles.",
+        strategy=corpus_discovery,
     )
     logger.info("Finished discovery")
     logger.info("Starting collecting statistics")
@@ -94,8 +100,7 @@ def generate_corpus_summary():
     logger.info("Saving results")
     with db.get_session() as session:
         if response.exception:
-            print(response.exception)
-            print(response.trace)
+            response.print_exception()
             return
         stmt = insert(PrecomputedStatsTable).values(
             {
@@ -213,3 +218,6 @@ def probe_metadata():
                 index_elements=[MetadataTable.source, MetadataTable.name]
             )
         )
+
+
+generate_corpus_summary()

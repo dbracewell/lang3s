@@ -1,12 +1,11 @@
 import json
 import textwrap
 
-from lang3s.agent.helpers import clean_thinking
-from lang3s.agent.shared_types import AgentState, AgentStep, StepResult
+from lang3s.agent.old.helpers import clean_thinking
+from lang3s.agent.old.shared_types import AgentState, AgentStep, StepResult
 
 
 class CategorizationStep(AgentStep):
-
     def __init__(self, name: str = "CategorizationStep"):
         AgentStep.__init__(self, name)
 
@@ -19,14 +18,18 @@ class CategorizationStep(AgentStep):
         last_output = clean_thinking(state.last_output)
 
         if last_output is None:
-            state.update({"role": "user",
-                          "content": textwrap.dedent(f"""
+            state.update(
+                {
+                    "role": "user",
+                    "content": textwrap.dedent(f"""
                                    {state.create_base_prompt()}
                                    
                                    No data was given to categorize. 
                                    Please either generate examples or retrieve data to be categorized.
                                    """),
-                          "status": "failed"})
+                    "status": "failed",
+                }
+            )
             resp = agent.orchestrator.chat(state.get_llm_messages())
             return StepResult(output=resp["content"])
 

@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from lang3s.llm.chat_model import ChatModel
+from lang3s.llm.old.chat_model import ChatModel
 from lang3s.nlp.shared_types import Document
 
 

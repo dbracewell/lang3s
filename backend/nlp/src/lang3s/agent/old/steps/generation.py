@@ -1,12 +1,19 @@
 import textwrap
-from typing import Optional, Type, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Type
 
 if TYPE_CHECKING:
     from lang3s.agent import Agent
 
 from pydantic.main import BaseModel
 
-from lang3s.agent.shared_types import AgentState, AgentStep, ExampleList, StepResult, PersonaMode, PersonaAwareStep
+from lang3s.agent.old.shared_types import (
+    AgentState,
+    AgentStep,
+    ExampleList,
+    PersonaAwareStep,
+    PersonaMode,
+    StepResult,
+)
 
 
 class GenerationStep(PersonaAwareStep):

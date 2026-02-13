@@ -7,7 +7,7 @@ from functools import partial
 import lang3s.data.db.database as db
 from lang3s import config
 from lang3s.data.db.models import ClaimsTable
-from lang3s.llm.chat_model import ChatModel
+from lang3s.llm.old.chat_model import ChatModel
 from lang3s.models import Embedder
 from lang3s.nlp.claim_extractor import ClaimDocument, extract_claims
 from lang3s.services.client.redis_client import CLAIM_EXTRACT_QUEUE_NAME, RedisClient

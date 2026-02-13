@@ -3,11 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import BaseModel
 
-from lang3s.llm.tools import ToolCall, ToolResult
+if TYPE_CHECKING:
+    from lang3s.llm import ToolCall, ToolResult
 
 
 class AgentEventType(StrEnum):

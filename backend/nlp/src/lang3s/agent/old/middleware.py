@@ -4,15 +4,14 @@ from typing import TYPE_CHECKING, Any
 
 import redis
 
+from lang3s import config
 from lang3s.llm.tools import ToolCall
-
-from .. import config
-from ..utils.logger import get_logger
+from lang3s.utils.logger import get_logger
 
 if TYPE_CHECKING:
-    from ..llm.chat_model import ChatModelResponse
-    from .agent import Agent
-    from .shared_types import AgentResult, AgentState
+    from lang3s.agent.old.agent import Agent
+    from lang3s.agent.old.shared_types import AgentResult, AgentState
+    from lang3s.llm.old.chat_model import ChatModelResponse
 
 
 class Middleware:

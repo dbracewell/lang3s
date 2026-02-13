@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import textwrap
-from typing import Type, TypeVar, Unpack
+from typing import TYPE_CHECKING, Type, TypeVar, Unpack
 
 from pydantic import BaseModel
 
-from lang3s.agent.ref.session import Session
 from lang3s.llm.client import ChatCompletionParams
 
 from .strategy import Strategy, StrategyResult
+
+if TYPE_CHECKING:
+    from ..session import Session
 
 T = TypeVar("T", bound=BaseModel)
 

@@ -2,16 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import (
-    Any,
-    Dict,
-    Literal,
-    Optional,
-)
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
 
 from lang3s import config
 
-from .tools import ToolCall
+if TYPE_CHECKING:
+    from .tools import ToolCall
 
 
 @dataclass

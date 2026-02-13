@@ -1,10 +1,15 @@
-from typing import Type, TypeVar
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Type, TypeVar
 
 from pydantic import BaseModel
 
-from ..events import AgentEventType
-from ..session import Session
+from lang3s.agent.events import AgentEventType
+
 from .strategy import Strategy, StrategyResult
+
+if TYPE_CHECKING:
+    from ..session import Session
 
 DEFAULT_PLANNING_PROMPT = """USER QUESTION: {task}
 

@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import (
-    Any,
-    TypeVar,
-)
+from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import BaseModel
 
-from .tools import ToolCall
+if TYPE_CHECKING:
+    from .tools import ToolCall
 
 T = TypeVar("T", bound=BaseModel)
 

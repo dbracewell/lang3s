@@ -2,19 +2,22 @@ from __future__ import annotations
 
 import asyncio
 import json
+import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import AsyncGenerator, Generic, Type, TypeVar, Unpack
+from typing import TYPE_CHECKING, AsyncGenerator, Generic, Type, TypeVar, Unpack
 
 from pydantic import BaseModel
 
-from lang3s.agent.ref.events import AgentEvent, AgentEventType
-from lang3s.agent.ref.session import Session
-from lang3s.llm.client import ChatCompletionParams
-from lang3s.llm.events import (
-    LLMEventType,
-)
-from lang3s.llm.tools import ToolCall, ToolResult
+from lang3s.llm import LLMEventType, ToolCall, ToolResult
+
+from ..events import AgentEvent, AgentEventType
+
+if TYPE_CHECKING:
+    from lang3s.llm.client import ChatCompletionParams
+
+    from ..session import Session
+
 
 STRATEGY_RESPONSE_TYPE = TypeVar("STRATEGY_RESPONSE_TYPE", bound=BaseModel)
 
@@ -24,6 +27,12 @@ class StrategyResult(Generic[STRATEGY_RESPONSE_TYPE]):
     content: list[str] = field(default_factory=list)
     parsed: list[STRATEGY_RESPONSE_TYPE] = field(default_factory=list)
     exception: Exception | None = field(default=None)
+
+    def print_exception(self) -> None:
+        print(self.exception)
+        traceback.print_tb(self.exception.__traceback__)
+        if self.exception.__cause__:
+            traceback.print_tb(self.exception.__cause__.__traceback__)
 
     @staticmethod
     def from_exception(exception: Exception) -> StrategyResult[STRATEGY_RESPONSE_TYPE]:

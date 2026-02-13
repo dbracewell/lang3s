@@ -1,19 +1,20 @@
 from __future__ import annotations
 
 import json
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 import shortuuid
 
 from lang3s import config
-from lang3s.agent.ref.events import AgentEvent
-from lang3s.llm.client import LLMClient
-from lang3s.llm.events import LLMEvent, LLMEventType
-from lang3s.llm.messages import Message
+from lang3s.llm import LLMClient, Message
 from lang3s.llm.token_estimator import estimate_tokens
-from lang3s.llm.tools import ToolCall
+
+if TYPE_CHECKING:
+    from lang3s.llm import LLMEvent, LLMEventType, ToolCall
+
+    from .events import AgentEvent
+    from .middleware.base import Middleware
 
 
 @dataclass
@@ -57,23 +58,18 @@ class State:
 DEFAULT_SYSTEM_MESSAGE = "You are a helpful agent."
 
 
-class Middleware(ABC):
-    @abstractmethod
-    def __call__(self, event: AgentEvent, state: State) -> None:
-        pass
-
-
 @dataclass
 class Session:
     session_id: str = field(default_factory=lambda: shortuuid.uuid())
     model_name: str = field(default=config.LLM_MODEL)
     system_message: str = field(default=DEFAULT_SYSTEM_MESSAGE)
-    context_window: int = field(default=4000)
+    context_window: int = field(default=10000)
     max_history: int = field(default=50)
     available_tools: list[Callable[..., Any]] | None = field(default=None)
     _state: State | None = field(default=None, init=False)
     client: LLMClient = field(init=False)
     middleware: list[Middleware] = field(default_factory=list)
+    initial_messages: list[Message] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.client = LLMClient(self.model_name)
@@ -83,6 +79,7 @@ class Session:
         if self._state is None:
             self._state = State(model_name=self.model_name)
             self._state.add_system_message(content=self.system_message)
+            self._state.messages.extend(self.initial_messages)
         return self._state
 
     @classmethod

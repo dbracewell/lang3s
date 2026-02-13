@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type
 
-from lang3s.llm.chat_model import ChatModelResponse
+from lang3s.llm.old.chat_model import ChatModelResponse
 from lang3s.llm.token_estimator import TokenEstimator
 
 if TYPE_CHECKING:

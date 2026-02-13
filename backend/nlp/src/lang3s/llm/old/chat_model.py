@@ -21,8 +21,7 @@ from pydantic import BaseModel
 
 from lang3s import config
 from lang3s.llm.messages import to_message
-
-from .tools import LLMTool, ToolCall
+from lang3s.llm.tools import LLMTool, ToolCall
 
 T = TypeVar("T", bound=BaseModel)
 

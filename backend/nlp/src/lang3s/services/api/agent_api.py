@@ -4,8 +4,11 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from lang3s.agent.agent import Agent, PlanningStrategy
-from lang3s.agent.middleware import LoggingMiddleware
+from lang3s.agent.agent import Agent
+from lang3s.agent.middleware.logging_middleware import LoggingMiddleware
+from lang3s.agent.session import Session
+from lang3s.agent.strategy.tool_calling import ToolCallingStrategy
+from lang3s.llm.messages import Message
 from lang3s.services.api.agent_tools import document_search, topics_search
 
 router = APIRouter(
@@ -29,10 +32,12 @@ class AgentResponse(BaseModel):
 @router.post("/")
 async def chat(request: AgentRequest):
     agent = Agent(
-        strategy=PlanningStrategy(),
-        tools=[document_search, topics_search],
-        middleware=[LoggingMiddleware()],
-        system_message="You are a helpful assistant that answers users' questions.",
+        session=Session(
+            initial_messages=[Message(**d) for d in request.messages],
+            available_tools=[document_search, topics_search],
+            middleware=[LoggingMiddleware()],
+            system_message="You are a helpful assistant that answers users' questions.",
+        )
     )
     prompt = f"""
     Using the supplied context (also referred to as a document). Do NOT provide any other information outside of the context or tools unless explicitly asked for by the user.
@@ -52,7 +57,8 @@ async def chat(request: AgentRequest):
     CONTEXT:
     {request.context}
     """
-    response = await agent.async_invoke(prompt, messages=request.messages)
-    if not response.success:
+
+    response = agent.sync_run(prompt, strategy=ToolCallingStrategy())
+    if response.exception:
         return JSONResponse(content=str(response.exception), status_code=500)
     return AgentResponse(response=response.content[-1])

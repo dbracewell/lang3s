@@ -29,11 +29,10 @@ from lang3s.utils.decorators import retry_async_gen
 from .events import (
     LLMEvent,
     LLMEventType,
-    ToolCall,
     ToolCallDelta,
 )
 from .messages import Message, format_messages_for_model
-from .tools import LLMTool, parse_tool_call_arguments
+from .tools import LLMTool, ToolCall, parse_tool_call_arguments
 
 T = TypeVar("T", bound=BaseModel)
 

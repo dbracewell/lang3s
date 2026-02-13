@@ -1,8 +1,19 @@
-from typing import List, Callable, Optional
+from typing import Callable, List, Optional
 
-from lang3s.agent.shared_types import AgentState, Plan, StepResult, AgentStep, RetrievalResult
-from lang3s.agent.steps.generation import AnalysisStep, ExampleGenerationStep, PerspectiveStep, \
-    SummarizationStep
+from lang3s.agent.old.shared_types import (
+    AgentState,
+    AgentStep,
+    Plan,
+    RetrievalResult,
+    StepResult,
+)
+from lang3s.agent.old.steps.generation import (
+    AnalysisStep,
+    ExampleGenerationStep,
+    PerspectiveStep,
+    SummarizationStep,
+)
+
 from .extraction import CategorizationStep
 from .retrieval import RetrievalStep
 from .tools import ToolStep

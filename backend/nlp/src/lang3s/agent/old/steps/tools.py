@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 from pydantic import BaseModel
 
-from lang3s.agent.shared_types import AgentState, AgentStep, StepResult
+from lang3s.agent.old.shared_types import AgentState, AgentStep, StepResult
 from lang3s.llm import RegisteredTool
 
 
@@ -69,24 +69,23 @@ async def _tool_caller(
         except Exception as validation_error:
             error_text = f"Invalid tool arguments: {str(validation_error)}. Please fix the arguments."
             instr = instruction_builder(
-                tool_name=tool.name,
-                tool_schema=schema,
-                error=error_text
+                tool_name=tool.name, tool_schema=schema, error=error_text
             )
 
             state.update({"role": "user", "content": instr, "status": "failed"})
             regen = await agent.orchestrator.achat(
-                state.get_llm_messages(),
-                response_model=None
+                state.get_llm_messages(), response_model=None
             )
 
             try:
                 current_args = json.loads(regen["content"])
             except Exception:
-                state.update({
-                    "role": "assistant",
-                    "content": "Invalid argument regeneration. Trying again."
-                })
+                state.update(
+                    {
+                        "role": "assistant",
+                        "content": "Invalid argument regeneration. Trying again.",
+                    }
+                )
                 continue
 
             continue
@@ -99,22 +98,24 @@ async def _tool_caller(
         except Exception as exec_error:
             error_text = f"Tool execution failed: {str(exec_error)}. Try adjusting the arguments."
             instr = instruction_builder(
-                tool_name=tool.name,
-                tool_schema=schema,
-                error=error_text
+                tool_name=tool.name, tool_schema=schema, error=error_text
             )
 
             state.update({"role": "user", "content": instr, "status": "failed"})
-            regen = agent.orchestrator.chat(state.get_llm_messages(), response_model=None)
+            regen = agent.orchestrator.chat(
+                state.get_llm_messages(), response_model=None
+            )
 
             try:
                 current_args = json.loads(regen["content"])
             except Exception:
-                state.update({
-                    "role": "assistant",
-                    "content": "Invalid regenerated arguments. Trying again.",
-                    "status": "failed",
-                })
+                state.update(
+                    {
+                        "role": "assistant",
+                        "content": "Invalid regenerated arguments. Trying again.",
+                        "status": "failed",
+                    }
+                )
                 continue
 
             continue
@@ -151,24 +152,21 @@ async def _async_tool_caller(
         except Exception as validation_error:
             error_text = f"Invalid tool arguments: {str(validation_error)}. Please fix the arguments."
             instr = instruction_builder(
-                tool_name=tool.name,
-                tool_schema=schema,
-                error=error_text
+                tool_name=tool.name, tool_schema=schema, error=error_text
             )
 
             state.append({"role": "user", "content": instr})
-            regen = agent.orchestrator.chat(
-                state,
-                response_model=None
-            )
+            regen = agent.orchestrator.chat(state, response_model=None)
 
             try:
                 current_args = json.loads(regen["content"])
             except Exception:
-                state.append({
-                    "role": "assistant",
-                    "content": "Invalid argument regeneration. Trying again."
-                })
+                state.append(
+                    {
+                        "role": "assistant",
+                        "content": "Invalid argument regeneration. Trying again.",
+                    }
+                )
                 continue
 
             continue
@@ -186,9 +184,7 @@ async def _async_tool_caller(
         except Exception as exec_error:
             error_text = f"Tool execution failed: {str(exec_error)}. Try adjusting the arguments."
             instr = instruction_builder(
-                tool_name=tool.name,
-                tool_schema=schema,
-                error=error_text
+                tool_name=tool.name, tool_schema=schema, error=error_text
             )
 
             state.append({"role": "user", "content": instr})
@@ -197,10 +193,12 @@ async def _async_tool_caller(
             try:
                 current_args = json.loads(regen["content"])
             except Exception:
-                state.append({
-                    "role": "assistant",
-                    "content": "Invalid regenerated arguments. Trying again."
-                })
+                state.append(
+                    {
+                        "role": "assistant",
+                        "content": "Invalid regenerated arguments. Trying again.",
+                    }
+                )
                 continue
 
             continue
@@ -220,12 +218,11 @@ async def _async_tool_caller(
 
 
 class ToolStep(AgentStep):
-
     def __init__(
         self,
         max_retries: int = 3,
         name: str = "ToolStep",
-        helper_instructions: Optional[str] = None
+        helper_instructions: Optional[str] = None,
     ):
         AgentStep.__init__(self, name=name)
         self.max_retries = max_retries
@@ -240,18 +237,19 @@ class ToolStep(AgentStep):
         if plan.tool is None or plan.args is None:
             return StepResult(success=False, output=None)
 
-        response = await _tool_caller(agent=agent,
-                                      tool=agent.orchestrator.registry.get(plan.tool),
-                                      max_retries=self.max_retries,
-                                      state=state,
-                                      provided_args=plan.args)
+        response = await _tool_caller(
+            agent=agent,
+            tool=agent.orchestrator.registry.get(plan.tool),
+            max_retries=self.max_retries,
+            state=state,
+            provided_args=plan.args,
+        )
 
         state.update(response)
         return StepResult(output=response if response["status"] == "success" else None)
 
 
 class AutoToolStep(AgentStep):
-
     def __init__(self, max_retries: int, name: str = "AutoToolStep"):
         AgentStep.__init__(self, name)
         self.max_retries = max_retries
@@ -309,11 +307,13 @@ class AutoToolStep(AgentStep):
             tool_name = tool_call["name"]
             tool = agent.orchestrator.registry.get(tool_name)
             args = tool_call["args"]
-            response = await _tool_caller(agent=agent,
-                                          tool=tool,
-                                          max_retries=self.max_retries,
-                                          state=state,
-                                          provided_args=args)
+            response = await _tool_caller(
+                agent=agent,
+                tool=tool,
+                max_retries=self.max_retries,
+                state=state,
+                provided_args=args,
+            )
             all_results[tool_name] = response["content"]
             state.update(response)
 

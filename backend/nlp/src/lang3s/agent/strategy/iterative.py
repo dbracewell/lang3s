@@ -1,9 +1,13 @@
-from typing import Callable, Type, Unpack
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, Type, Unpack
 
 from lang3s.llm.client import ChatCompletionParams
 
-from ..session import Session
 from .strategy import STRATEGY_RESPONSE_TYPE, Strategy, StrategyResult
+
+if TYPE_CHECKING:
+    from ..session import Session
 
 type ResultCombiner[STRATEGY_RESPONSE_TYPE] = Callable[
     [STRATEGY_RESPONSE_TYPE, STRATEGY_RESPONSE_TYPE],

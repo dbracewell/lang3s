@@ -1,39 +1,26 @@
-import time
 import traceback
 from collections import Counter, defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated
 
-import sqlalchemy
 import umap
 from pydantic import BaseModel
 from sklearn.cluster._hdbscan import hdbscan
-from sqlalchemy import Boolean, cast, distinct, func, select, text
-from tqdm import tqdm
+from sqlalchemy import Boolean, cast, func, select, text
 
 import lang3s.data.db.database as db
 import lang3s.data.db.text_database as text_db
-from lang3s import config
-from lang3s.agent.ref.agent import Agent
-from lang3s.agent.ref.events import AgentEvent, AgentEventType
-from lang3s.agent.ref.session import Middleware, Session, State
-from lang3s.agent.ref.strategy.iterative import IterativeStrategy
-from lang3s.agent.ref.strategy.one_shot import OneShotStrategy
+from lang3s.agent import Agent, Session
+from lang3s.agent.strategy import IterativeStrategy, OneShotStrategy
 from lang3s.app import Application
 from lang3s.data.db.database import get_session
 from lang3s.data.db.models import (
     ClaimsTable,
-    KeywordsTable,
     TextAnnotationsTable,
-    TopicsTable,
 )
 from lang3s.llm.client import LLMClient
-from lang3s.llm.events import LLMEventType
-from lang3s.llm.messages import Message, format_messages_for_model
+from lang3s.llm.messages import Message
 from lang3s.llm.tools import Desc, tool
 from lang3s.models import Embedder
-from lang3s.nlp.topics import Lang3sTopicModel
-from lang3s.nlp.topics.model import topic_model
 
 
 @tool(description="Searches the database for results similar to the given query.")
@@ -60,20 +47,6 @@ def search_database(query: Annotated[str, Desc("The query to search.")]):
         results = text_db.semantic_sentence_search(embedding, 0.3, limit=5)
 
     return results
-
-
-class LoggingMiddleware(Middleware):
-    def __call__(self, event: AgentEvent, state: State) -> None:
-        if event.type == AgentEventType.TEXT_DELTA:
-            return
-        total_chars = sum(
-            len(msg["content"])
-            for msg in format_messages_for_model(state.messages)
-            if "content" in msg
-        )
-        print(
-            f"{event.type.value}: Total Tokens: {state.total_token_count}, Total Chars: {total_chars}"
-        )
 
 
 class Examples(BaseModel):
@@ -146,25 +119,9 @@ class Test(Application):
                 print(response.content, topn)
 
     def run(self):
-        topic_model = Lang3sTopicModel()
-        topics = [
-            topic.embedding for topic in topic_model.topics
-        ]  # your list of 300 centroids
-
-        start = time.perf_counter()
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            results = list(executor.map(get_topic_count, topics))
-        end = time.perf_counter()
-        print(f"{end - start:2f} seconds")
-        # for r, t in zip(results, topic_model.topics):
-        #     print(f"{r}: {t.name}")
-
-        return
-        agent = Agent(
-            Session(available_tools=[search_database], middleware=[LoggingMiddleware()])
-        )
+        agent = Agent(Session(available_tools=[search_database]))
         r = agent.sync_run(
-            task="Generate example sentences that talk about cats and their lifes. Do not repeat sentences.",
+            task="Generate example sentences that talk about cats and their lives. Do not repeat sentences.",
             strategy=IterativeStrategy[Examples](
                 iteration_task="Generate 5 example sentences about cats.",
                 substrategy=OneShotStrategy[Examples](

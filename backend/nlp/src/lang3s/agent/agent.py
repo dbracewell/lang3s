@@ -1,110 +1,83 @@
-import traceback
-from typing import Any, Callable, Dict, List, Optional, Type
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Optional, overload
 
 from pydantic import BaseModel
 
-from lang3s import config
-from lang3s.agent.middleware import Middleware
-from lang3s.llm.chat_model import ChatModel
-from lang3s.llm.token_estimator import TokenEstimator
+from lang3s.utils.async_helper import run_sync
 
-from .shared_types import AgentResult, AgentState, Persona, PersonaMode
-from .strategy import OneShotStrategy, PlanningStrategy, Strategy
+from .events import AgentEvent
+from .session import Session
+from .strategy.one_shot import OneShotStrategy
+
+if TYPE_CHECKING:
+    from .strategy.strategy import (
+        STRATEGY_RESPONSE_TYPE,
+        Strategy,
+        StrategyResult,
+    )
 
 
-class Agent:
+class Agent[AGENT_PARSED_TYPE]:
     def __init__(
         self,
-        *,
-        strategy: Optional[Strategy] = None,
-        model: Optional[ChatModel] = None,
-        system_message: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_output_tokens: Optional[int] = None,
-        max_input_tokens: Optional[int] = None,
-        max_history: int = 50,
-        tools: Optional[List[Callable[..., Any]]] = None,
-        output_format: Optional[Type[BaseModel]] = None,
-        persona: Optional[Persona] = None,
-        middleware: Optional[List[Middleware]] = None,
-    ):
-        self.__starting_state = AgentState(
-            system_message=system_message,
-            temperature=temperature,
-            max_output_tokens=max_output_tokens,
-            max_input_tokens=max_input_tokens or 1000000,
-            tools=tools,
-            output_format=output_format,
-            persona=persona,
-            max_history=max_history,
-            task="",
-        )
-        self.middleware = middleware or []
-        self.model = model or ChatModel(config.LLM_MODEL)
+        session: Session | None = None,
+    ) -> None:
+        self._session = session if session is not None else Session()
 
-        self.token_estimator: TokenEstimator = TokenEstimator(
-            model_name=model or config.LLM_MODEL,
-        )
-        self.strategy: Strategy
-        if strategy is None:
-            if self.__starting_state.tools is None:
-                self.strategy = OneShotStrategy()
-            else:
-                self.strategy = PlanningStrategy()
-        else:
-            self.strategy = strategy
-        self.strategy.set_middleware(self.middleware)
+    @overload
+    async def run(
+        self, task: str, strategy: None = None
+    ) -> StrategyResult[BaseModel]: ...
 
-    def invoke(
+    @overload
+    async def run(
+        self, task: str, strategy: Strategy[STRATEGY_RESPONSE_TYPE]
+    ) -> StrategyResult[STRATEGY_RESPONSE_TYPE]: ...
+
+    async def run(
         self,
-        prompt: str,
-        *,
-        messages: Optional[List[Dict[str, Any]]] = None,
-        persona_mode: Optional[PersonaMode] = None,
-    ) -> AgentResult:
-        state = AgentState.from_existing(
-            self.__starting_state, task=prompt, persona_mode=persona_mode
-        )
-        state.begin_agent()
-        if messages is not None:
-            state.messages.extend(messages)
-            state.truncate(self.token_estimator)
+        task: str,
+        strategy: Optional[Strategy[Any]] = None,
+    ) -> StrategyResult[Any]:
+        self._session.state.task = task
 
-        for middleware in self.middleware:
-            middleware.before_agent(self, state)
+        self._session.forward_event(AgentEvent.start_event())
+        strategy = strategy if strategy is not None else OneShotStrategy()
+
+        error = None
         try:
-            result = self.strategy.run(self, state)
-            for middleware in self.middleware:
-                middleware.after_agent(self, state, result)
-            return result
+            result = await strategy.run(session=self._session)
         except Exception as e:
-            print(e)
-            traceback.print_exc()
-            return AgentResult(exception=e)
+            error = e
+            result = StrategyResult.from_agent_event(AgentEvent.error_event(e))
 
-    async def async_invoke(
+        self._session.forward_event(
+            AgentEvent.end_event(
+                total_tokens=self._session.state.total_token_count,
+                exception=error,
+            )
+        )
+
+        return result
+
+    @overload
+    def sync_run(
+        self, task: str, strategy: None = None
+    ) -> StrategyResult[BaseModel]: ...
+
+    @overload
+    def sync_run(
+        self, task: str, strategy: Strategy[STRATEGY_RESPONSE_TYPE]
+    ) -> StrategyResult[STRATEGY_RESPONSE_TYPE]: ...
+
+    def sync_run(
         self,
-        prompt: str,
-        *,
-        messages: Optional[List[Dict[str, Any]]] = None,
-        persona_mode: Optional[PersonaMode] = None,
-    ) -> AgentResult:
-        state = AgentState.from_existing(
-            self.__starting_state, task=prompt, persona_mode=persona_mode
-        )
-        state.begin_agent()
-        if messages is not None:
-            state.messages.extend(messages)
-            state.truncate(self.token_estimator)
+        task: str,
+        strategy: Optional[Strategy[Any]] = None,
+    ) -> StrategyResult[Any]:
+        result = run_sync(self.run(task=task, strategy=strategy))
+        return result
 
-        for middleware in self.middleware:
-            middleware.before_agent(self, state)
-        try:
-            result = await self.strategy.async_run(self, state)
-            for middleware in self.middleware:
-                middleware.after_agent(self, state, result)
-            return result
-        except Exception as e:
-            print(e)
-            traceback.print_exc()
-            return AgentResult(exception=e)
+    def reset(self):
+        self._session.reset_state()

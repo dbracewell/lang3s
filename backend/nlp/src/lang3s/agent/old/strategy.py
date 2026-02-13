@@ -5,15 +5,15 @@ from typing import TYPE_CHECKING, Callable, Counter, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel
 
-from lang3s.agent.middleware import Middleware
-from lang3s.agent.shared_types import AgentResult, AgentState
-from lang3s.llm.chat_model import ChatModelResponse
+from lang3s.agent.old.middleware import Middleware
+from lang3s.agent.old.shared_types import AgentResult, AgentState
+from lang3s.llm.old.chat_model import ChatModelResponse
 from lang3s.llm.tools import LLMTool, ToolCall
 from lang3s.nlp.core_nlp import CoreLanguageProcessor
 from lang3s.pipeline.langdetect import detect_language
 
 if TYPE_CHECKING:
-    from .agent import Agent
+    from lang3s.agent.old.agent import Agent
 
 from lang3s.utils.async_helper import run_sync
 

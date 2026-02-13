@@ -1,15 +1,19 @@
-from typing import Counter
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Counter
 
 from pydantic import BaseModel
 from spacy.tokens import Doc
 
+from lang3s.agent.events import AgentEvent
 from lang3s.llm.tools import ToolCall
 from lang3s.nlp.core_nlp import CoreLanguageProcessor
 from lang3s.pipeline.langdetect import detect_language
 
-from ..events import AgentEvent
-from ..session import Session
 from .strategy import Strategy, StrategyResult
+
+if TYPE_CHECKING:
+    from ..session import Session
 
 
 class QueryFormat(BaseModel):
