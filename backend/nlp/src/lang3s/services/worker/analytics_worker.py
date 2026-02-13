@@ -6,11 +6,18 @@ import traceback
 
 from lang3s.data.filestore import FILE_STORE
 from lang3s.nlp.shared_types import Metadata
-from lang3s.services.client.redis_client import DUCKDB_QUEUE_NAME, redis_batch_generator
+from lang3s.services.client.redis_client import (
+    DUCKDB_QUEUE_NAME,
+    process_messages_for_status,
+    redis_batch_generator,
+)
 from lang3s.services.service.analytics_service import (
     AnalyticsService,
     get_analytics_service,
 )
+from lang3s.utils.logger.service_logging import get_logger
+
+logger = get_logger("ANALYTICS_WORKER")
 
 
 def analytics_worker(shared_state):
@@ -18,16 +25,9 @@ def analytics_worker(shared_state):
     try:
         while not getattr(shared_state, "should_exit", False):
             for batch in redis_batch_generator(DUCKDB_QUEUE_NAME, 200, batch_timeout=5):
+                batch, completed_message = process_messages_for_status(batch)
                 if batch:
-                    if (
-                        len(batch) == 1
-                        and isinstance(batch[0], dict)
-                        and batch[0].get("status", "") == "completed"
-                    ):
-                        service.finish_data_ingestion()
-                        continue
-
-                    print(f"WRITING {len(batch)} documents to duckdb")
+                    logger.info(f"💽 WRITING {len(batch)} documents to duckdb")
                     try:
                         temp_file = None
                         with tempfile.NamedTemporaryFile(
@@ -64,10 +64,12 @@ def analytics_worker(shared_state):
                         service.ingest_annotation_batch_from_file(temp_file)
                         os.remove(temp_file)
                     except Exception as e:
-                        print(e)
                         traceback.print_exc()
+                if completed_message:
+                    service.finish_data_ingestion()
+                    logger.info("🏁 Finishing analytics data ingestion")
+
     except asyncio.CancelledError:
-        print("👷 Worker: Cancelled during shutdown")
+        logger.info("👷 Worker: Cancelled during shutdown")
     except Exception as e:
-        print(e)
         traceback.print_exc()

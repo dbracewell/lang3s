@@ -21,7 +21,7 @@ from lang3s.services.api.embedding_api import (
 )
 from lang3s.services.api.topics_api import router as topic_router
 from lang3s.services.api.topics_api import topics_lifecycle
-from lang3s.services.service_logging import get_logger
+from lang3s.utils.logger.service_logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -70,7 +70,7 @@ app.include_router(charting_router)
 
 if __name__ == "__main__":
     current_dir = Path(__file__).parent
-    reload_dir = current_dir / "src" / "lang3s"
+    reload_dir = current_dir / "api"
     if not reload_dir.exists():
         reload_dirs = [str(current_dir)]
     else:
@@ -82,4 +82,5 @@ if __name__ == "__main__":
         port=config.FASTAPI_PORT,
         reload=True,
         reload_dirs=reload_dirs,
+        access_log=False,
     )

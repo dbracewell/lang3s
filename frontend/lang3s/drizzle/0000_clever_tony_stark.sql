@@ -179,6 +179,21 @@ CREATE TABLE "text"
     "updated_at" timestamp DEFAULT now()
 );
 
+
+DROP TABLE IF EXISTS "claims" CASCADE;
+CREATE TABLE "claims"
+(
+    "id"           UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
+    "sentence_aid" text         NOT NULL,
+    "doc_id"       text         NOT NULL,
+    "text"         text         NOT NULL,
+    "embedding"    halfvec(384) NOT NULL,
+    "source"       text,
+    "entities"     text[]       NOT NULL DEFAULT '{}',
+    "created_at"   timestamp             DEFAULT now(),
+    "updated_at"   timestamp             DEFAULT now()
+);
+
 DROP TABLE IF EXISTS "annotation_to_ontology" CASCADE;
 CREATE TABLE "annotation_to_ontology"
 (
@@ -357,6 +372,12 @@ CREATE INDEX IF NOT EXISTS "metadata_link_index" on "metadata" USING btree ("lin
 CREATE INDEX IF NOT EXISTS "keywords_embedding_index" ON "keywords" USING hnsw ("embedding" halfvec_cosine_ops);
 CREATE INDEX IF NOT EXISTS "keywords_document_id" ON "keywords" USING btree ("document_id");
 
+
+CREATE INDEX IF NOT EXISTS "claims_content_fts_index" ON "claims" USING pgroonga ("text");
+CREATE INDEX IF NOT EXISTS "claims_sentence_aid_idx" ON "claims" USING btree ("sentence_aid");
+CREATE INDEX IF NOT EXISTS "claims_embedding_index" ON "claims" USING hnsw ("embedding" halfvec_cosine_ops);
+
+
 CREATE UNIQUE INDEX IF NOT EXISTS "precomputed_stats_name_unique" ON "precomputed_stats" USING btree ("name");
 
 DROP VIEW IF EXISTS "public"."annotation_with_ontology" CASCADE;
@@ -392,96 +413,8 @@ from "topics"
 where (1 - cosine_distance("topics"."embedding", "text_annotations"."embedding"::halfvec)::float) >= 0.65)
 WITH DATA;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS "public"."topic_documents" AS
-(
-select "topic_id", "doc_id", "text_id", AVG("similarity") as "similarity", count(distinct "sentence_aid") as "score"
-from "topic_sentences"
-group by "topic_sentences"."doc_id", "topic_sentences"."text_id", "topic_id"
-having count(distinct "topic_sentences"."sentence_aid") > 2)
-WITH DATA;
-
-CREATE MATERIALIZED VIEW "public"."annotation_counts" AS
-(
-select "normalized_text",
-       "path",
-       count(distinct "doc_id")       as "document_count",
-       count(distinct "sentence_aid") as "sentence_count",
-       count(*)                       as "mention_count"
-from "annotation_with_ontology"
-where "path" <@ 'ALL.Entity'
-group by "normalized_text", "annotation_with_ontology"."path"
-having count(distinct "doc_id") >= 5)
-WITH DATA;
-
-CREATE MATERIALIZED VIEW annotation_co_occurrence AS
-WITH EntityStats AS (SELECT normalized_path,
-                            normalized_text,
-                            path,
-                            COUNT(0)                    as mention_count,
-                            COUNT(DISTINCT doc_id)      as document_count,
-                            COUNT(DISTINCT sentence_id) as sentence_count
-                     FROM annotation_with_ontology
-                     GROUP BY normalized_text, path, normalized_path)
-SELECT a.id              as source_id,
-       a.normalized_text as source,
-       a.path            as source_type,
-       a.normalized_path as source_norm,
-       es.sentence_count as source_sentence_count,
-       es.document_count as source_document_count,
-       es.mention_count  as source_mention_count,
-       a.sentence_aid,
-       a.doc_id,
-       b.id              as target_id,
-       b.normalized_text as target,
-       b.path            as target_type,
-       b.normalized_path as target_norm,
-       b.sentence_count  as target_sentence_count,
-       b.document_count  as target_document_count,
-       b.mention_count   as target_mention_count
-FROM annotation_with_ontology a
-         JOIN EntityStats es
-              ON a.normalized_text = es.normalized_text
-                  and a.path = es.path
-         LEFT JOIN
-     (SELECT b.id,
-             b.normalized_path,
-             b.normalized_text,
-             b.path,
-             sentence_aid,
-             mention_count,
-             sentence_count,
-             document_count
-      FROM annotation_with_ontology b
-               inner join EntityStats es2 ON b.normalized_text = es2.normalized_text and b.path = es2.path) b
-     on a.sentence_aid = b.sentence_aid and a.normalized_path != b.normalized_path;
-
-
--- CREATE MATERIALIZED VIEW IF NOT EXISTS "public"."annotation_co_occurrence" AS
--- (
--- SELECT t1.normalized_text              as "source",
---        t2.normalized_text              as "target",
---        t1.path                         as "source_type",
---        t2.path                         as "target_type",
---        count(distinct t1.doc_id)       as "document_count",
---        count(distinct t1.sentence_aid) as "sentence_count"
--- FROM annotation_with_ontology t1
---          INNER JOIN annotation_with_ontology t2 on t1.doc_id = t2.doc_id and t1.normalized_text < t2.normalized_text
--- WHERE t1."path" <@ 'ALL.Entity'
---   and t2."path" <@ 'ALL.Entity'
--- GROUP BY 1, 2, 3, 4
--- HAVING count(distinct t1.doc_id) > 1
---     )
--- WITH DATA;
-
-
-CREATE UNIQUE INDEX IF NOT EXISTS annotation_counts_unique_idx ON annotation_counts (normalized_text, path);
--- CREATE UNIQUE INDEX IF NOT EXISTS annotation_co_occurrence_unique_idx ON annotation_co_occurrence (source, source_type, target, target_type);
-CREATE UNIQUE INDEX IF NOT EXISTS annotation_co_occurrence_unique_idx ON annotation_co_occurrence (source_id, target_id);
 CREATE INDEX IF NOT EXISTS topic_sentences_sentence_aid ON topic_sentences (sentence_aid);
 CREATE INDEX IF NOT EXISTS topic_sentences_topic_id ON topic_sentences (topic_id);
 CREATE INDEX IF NOT EXISTS topic_sentences_text_id ON topic_sentences (text_id);
 CREATE UNIQUE INDEX IF NOT EXISTS topic_sentences_sentence_topic_id ON topic_sentences (sentence_aid, topic_id);
-CREATE INDEX IF NOT EXISTS topic_documents_topic_id ON topic_documents (topic_id);
-CREATE INDEX IF NOT EXISTS topic_documents_text_id ON topic_documents (text_id);
-CREATE UNIQUE INDEX IF NOT EXISTS topic_documents_topic_text ON topic_documents (topic_id, text_id);
 

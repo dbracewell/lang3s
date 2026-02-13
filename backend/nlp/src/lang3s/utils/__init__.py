@@ -1,16 +1,34 @@
 import itertools
 import math
+from contextlib import contextmanager
 from typing import (
     Awaitable,
+    Callable,
     Generator,
     Iterable,
     List,
     Optional,
+    Type,
     TypeVar,
     cast,
 )
 
 T = TypeVar("T")
+
+
+@contextmanager
+def try_catch(
+    on_error: Callable[[Exception], None] | None = None,
+    raise_exception: bool = True,
+    handled_exceptions: tuple[Type[Exception], ...] = (Exception,),
+):
+    try:
+        yield
+    except handled_exceptions as e:
+        if on_error:
+            on_error(e)
+        if raise_exception:
+            raise e
 
 
 def get_or_default(value: T, default: Optional[T] = None) -> Optional[T]:
@@ -23,7 +41,7 @@ def filter_none(array: Iterable[T | None]) -> List[T]:
     return [x for x in array if x is not None]
 
 
-def flatten(a: List[List[T]]) -> List[T]:
+def flatten(a: Iterable[List[T]]) -> List[T]:
     return list(a for a in itertools.chain(*a))
 
 

@@ -80,7 +80,10 @@ def expand_argument(annotation: TextAnnotation) -> TextAnnotation:
                 start = min(start, child.start)
                 end = max(end, child.end)
         return annotation.owner.create_span(
-            start=start, end=end, value="VERB", source="rb_event_extractor"
+            start=start,
+            end=end,
+            value="VERB",
+            source="rb_event_extractor",
         )
 
     chunks = [chunk for chunk in annotation.noun_chunks]
@@ -92,7 +95,10 @@ def expand_argument(annotation: TextAnnotation) -> TextAnnotation:
             start = min(start, t.start)
             end = max(end, t.end)
         span = annotation.owner.create_span(
-            start=start, end=end, value="VERB", source="rb_event_extractor"
+            start=start,
+            end=end,
+            value="VERB",
+            source="rb_event_extractor",
         )
         entity = first(span.entities, None)
         if entity is not None:
@@ -106,7 +112,10 @@ def expand_argument(annotation: TextAnnotation) -> TextAnnotation:
         start = min(start, t.start)
         end = max(end, t.end)
     span = annotation.owner.create_span(
-        start=start, end=end, value="VERB", source="rb_event_extractor"
+        start=start,
+        end=end,
+        value="VERB",
+        source="rb_event_extractor",
     )
     entity = first(span.entities, None)
     if entity is not None:
@@ -133,6 +142,7 @@ def extract_events(doc: Document) -> List[Event]:
             type, value = mapping.split(":")
             trigger.type = type
             trigger.value = value
+            trigger.source = "rb_event_extractor"
             event = Event(trigger)
             trigger_children: List[TextAnnotation] = []
             trigger_parents: List[Tuple[str, TextAnnotation | None]] = []
@@ -166,7 +176,7 @@ def extract_events(doc: Document) -> List[Event]:
             objs = [
                 child
                 for child in trigger_children
-                if child.dep in ("dobj", "obj", "pobj")
+                if child.dep in ("dobj", "obj", "pobj", "ccomp")
             ]
             for o in objs:
                 for tok in get_conjucts(o):
@@ -213,6 +223,6 @@ def extract_events(doc: Document) -> List[Event]:
 
             event.A0 = process_a0_a1(event.A0)
             event.A1 = process_a0_a1(event.A1)
-
-            events.append(event)
+            if event.A1 or event.A0:
+                events.append(event)
     return events

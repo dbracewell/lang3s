@@ -1,5 +1,4 @@
 import io
-import logging
 import time
 from typing import Iterable, List, NamedTuple
 
@@ -9,8 +8,9 @@ import requests
 from lang3s import config
 from lang3s.nlp.shared_types import Document
 from lang3s.services.api.topics_api import TopicData
+from lang3s.utils.logger import get_logger
 
-logger = logging.getLogger("TopicModelClient")
+logger = get_logger("TOPIC_MODEL_CLIENT")
 
 
 class Status(NamedTuple):

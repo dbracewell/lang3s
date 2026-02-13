@@ -50,6 +50,7 @@ def main():
             ],
         )
     )
+    # scripts.append(("lang3s.services.worker.claim_extraction_worker", []))
     scripts.append(("lang3s.services.app", []))
 
     processes: List[Optional[subprocess.Popen[str]]] = [None] * len(scripts)

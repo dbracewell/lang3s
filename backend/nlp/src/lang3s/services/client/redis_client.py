@@ -1,13 +1,15 @@
 import json
 import time
-from typing import Any
+from typing import Any, Tuple
 
 import redis
 
 from lang3s import config
+from lang3s.utils import try_catch
 
 DUCKDB_QUEUE_NAME = "db_queue"
 ANNOTATION_QUEUE_NAME = "annotation_queue"
+CLAIM_EXTRACT_QUEUE_NAME = "claim_extract_queue"
 
 
 class RedisClient(object):
@@ -41,6 +43,32 @@ class RedisClient(object):
         self._client.close()
 
 
+def create_completed_status_message(**kwargs):
+    kwargs.pop("__status", None)
+    return {**kwargs, "__status": "completed"}
+
+
+def is_status_completed(message: dict[str, Any] | None) -> bool:
+    if not message:
+        return False
+    if not isinstance(message, dict):
+        return False
+    return message.get("__status", "") == "completed"
+
+
+def process_messages_for_status(
+    messages: list[dict[str, Any]],
+) -> Tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    completed_message = None
+    final_messages = []
+    for message in messages:
+        if "__status" not in message:
+            final_messages.append(message)
+        elif "__status" in message:
+            completed_message = message
+    return final_messages, completed_message
+
+
 def redis_batch_generator(
     queue_name,
     batch_size=250,
@@ -56,18 +84,34 @@ def redis_batch_generator(
             ) < batch_size:
                 msg = redis_client.dequeue(queue_name)
 
-                if not msg:
-                    continue
-
-                msg_doc = json.loads(msg)
-                if (
-                    isinstance(msg_doc, dict)
-                    and msg_doc.get("status", "") == "completed"
-                ):
+                if msg is None:
                     if batch:
                         yield batch
-                    yield [msg_doc]
-                else:
-                    batch.append(msg_doc)
+                        batch = []
+                    break
+
+                msg_doc = json.loads(msg)
+                batch.append(msg_doc)
 
             yield batch
+
+
+def redis_get_message_batch(
+    queue_name,
+    batch_size=250,
+    batch_timeout=30,
+) -> Tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    with RedisClient() as redis_client:
+        batch = []
+        start_time = time.time()
+
+        while (time.time() - start_time) < batch_timeout and len(batch) < batch_size:
+            msg = redis_client.dequeue(queue_name)
+
+            if msg is None:
+                return process_messages_for_status(batch)
+
+            msg_doc = json.loads(msg)
+            batch.append(msg_doc)
+
+        return process_messages_for_status(batch)

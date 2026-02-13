@@ -5,9 +5,9 @@ from pydantic import BaseModel
 
 from lang3s import config
 from lang3s.agent.middleware import Middleware
-from lang3s.agent.token_estimator import TokenEstimator
+from lang3s.llm.chat_model import ChatModel
+from lang3s.llm.token_estimator import TokenEstimator
 
-from .llm import ChatModel
 from .shared_types import AgentResult, AgentState, Persona, PersonaMode
 from .strategy import OneShotStrategy, PlanningStrategy, Strategy
 
@@ -41,6 +41,7 @@ class Agent:
         )
         self.middleware = middleware or []
         self.model = model or ChatModel(config.LLM_MODEL)
+
         self.token_estimator: TokenEstimator = TokenEstimator(
             model_name=model or config.LLM_MODEL,
         )

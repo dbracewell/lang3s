@@ -12,18 +12,15 @@ class SubDirectory(str, enum.Enum):
     DOCUMENTS_DIR = "documents"
     ANNOTATIONS_FILE_DIR = "annotations"
     MODELS_DIR = "models"
+    AGENT_SESSIONS_DIR = "agent_sessions"
 
 
 class FileStore:
     def __init__(self):
         self._base = Path(config.FILESTORE_ROOT)
         self._base.mkdir(parents=True, exist_ok=True)
-        (self._base / SubDirectory.DOCUMENTS_DIR.value).mkdir(
-            parents=True, exist_ok=True
-        )
-        (self._base / SubDirectory.ANNOTATIONS_FILE_DIR.value).mkdir(
-            parents=True, exist_ok=True
-        )
+        for subdir in SubDirectory:
+            (self._base / subdir).mkdir(parents=True, exist_ok=True)
 
     def write_document(self, doc: Document):
         import msgpack

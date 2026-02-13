@@ -12,12 +12,10 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Dataset
 
 from lang3s import config
-from lang3s.logs import initialize_logging
 from lang3s.models.embedder import Embedder
 from lang3s.models.transformer.shared_types import TaskType
 from lang3s.models.transformer.task import Task
-
-initialize_logging()
+from lang3s.utils.logger import get_logger
 
 
 class TrainerParams(BaseModel):
@@ -35,21 +33,13 @@ class TrainerParams(BaseModel):
     num_epochs: int = Field(
         default=40, description="Number of epochs to train the model"
     )
-    patience: int = Field(
-        default=5, description="The patience of the optimizer"
-    )
-    batch_size: int = Field(
-        default=16, description="The batch size of the optimizer"
-    )
+    patience: int = Field(default=5, description="The patience of the optimizer")
+    batch_size: int = Field(default=16, description="The batch size of the optimizer")
     device: str = Field(
         default=config.TRAINING_DEVICE, description="The device of the model"
     )
-    label: str = Field(
-        default="label", description="The label field in the dataset"
-    )
-    text: str = Field(
-        default="text", description="The text field in the dataset"
-    )
+    label: str = Field(default="label", description="The label field in the dataset")
+    text: str = Field(default="text", description="The text field in the dataset")
     save_results: bool = Field(
         default=True,
         description="Whether to save the evaluation results of the training",
@@ -72,7 +62,7 @@ class Lang3sDataset(Dataset):
         raise NotImplementedError()
 
 
-logger = logging.getLogger("Trainer")
+logger = get_logger(__name__)
 
 
 class Trainer:
@@ -206,9 +196,7 @@ class Trainer:
                         annotation_type=self.annotation_type,
                         file=fp,
                     )
-                    print(
-                        f"Finished training in {last_epoch + 1} epochs", file=fp
-                    )
+                    print(f"Finished training in {last_epoch + 1} epochs", file=fp)
                     self.print_metrics(metrics, epoch=-1, file=fp)
 
         if not self.is_trial:

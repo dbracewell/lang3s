@@ -41,3 +41,10 @@ export const createRemoveStatusAtom = <T extends EventType, K>(
   atom(null, (_, set, ids: K[]) => {
     set(statusAtom, (prev) => prev.filter((j) => !ids.includes(keyFn(j))));
   });
+
+export const createClearStatusAtom = <T extends EventType>(
+  statusAtom: PrimitiveAtom<EventPayload<T>[]>,
+) =>
+  atom(null, (_, set) => {
+    set(statusAtom, []);
+  });

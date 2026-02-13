@@ -9,6 +9,7 @@ from psycopg.types.json import Jsonb
 
 from lang3s import config
 
+from ...utils import flatten
 from .db_columns import TextAnnotationRow
 from .metadata import AnnotationTypes, Metadata
 from .text_object import TextObject
@@ -64,6 +65,10 @@ class TextAnnotation(TextObject):
         if metadata is not None:
             self.metadata.update(metadata)
 
+    @property
+    def is_eventive(self):
+        return len(self.get(Metadata.A1, [])) > 0 or len(self.get(Metadata.A0, [])) > 0
+
     def __ensure_tokens(self):
         if self._tokens is None:
             self._tokens = []
@@ -81,6 +86,18 @@ class TextAnnotation(TextObject):
             for a in owner.sentences:
                 if self.overlaps(a):  # type:ignore
                     self._annotations[a.type].append(a)
+
+    @property
+    def annotations(self) -> List["TextAnnotation"]:
+        self.__ensure_annotations()
+        return flatten(self._annotations.values())
+
+    def text_with_coref(self):
+        parts = []
+        for token in self.tokens:
+            coref = token.coref
+            parts.append(coref.text)
+        return " ".join(parts)
 
     @property
     def tokens(self) -> List[TextAnnotation]:

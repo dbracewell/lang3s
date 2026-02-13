@@ -4,7 +4,8 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from lang3s.agent import Agent, LoggingMiddleware, PlanningStrategy
+from lang3s.agent.agent import Agent, PlanningStrategy
+from lang3s.agent.middleware import LoggingMiddleware
 from lang3s.services.api.agent_tools import document_search, topics_search
 
 router = APIRouter(

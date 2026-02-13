@@ -1,5 +1,4 @@
 import itertools
-import logging
 from typing import Iterable, List, Optional
 
 import numpy as np
@@ -12,9 +11,10 @@ from lang3s.nlp.event_extraction import extract_events
 from lang3s.nlp.keyword_extraction import extract_keywords
 from lang3s.nlp.shared_types import Document, Event, Metadata, TextAnnotation
 from lang3s.utils import filter_none
+from lang3s.utils.logger import get_logger
 from lang3s.utils.maths import normalize
 
-logger = logging.getLogger(__name__)
+logger = get_logger("HEAVY_NLP")
 
 
 embedding_dtype = np.float16
@@ -51,7 +51,10 @@ def heavy_nlp(
     extract_events_for_doc(doc)
 
     for annotation in doc.text.annotations:
-        embed_annotation(annotation)
+        if annotation.is_eventive:
+            embed_event_annotation(annotation)
+        else:
+            embed_annotation(annotation)
 
     keywords = extract_keywords(doc.text, top_n=10)
     doc.text.keywords = keywords
@@ -66,7 +69,7 @@ def _to_mean_array(
 
 
 def embed_event_annotation(annotation: TextAnnotation):
-    event: Event = annotation.events[0]
+    event: Event = annotation.frames[0]
     trigger_embedding = np.array([t.embedding for t in annotation.tokens]).mean(axis=0)
 
     a0_embedding = _to_mean_array([[t.embedding for t in a.tokens] for a in event.A0])
@@ -87,15 +90,11 @@ def embed_event_annotation(annotation: TextAnnotation):
 def embed_annotation(annotation: TextAnnotation):
     if np.sum(annotation.embedding) != 0:
         return
-
-    if annotation.type == "event":
-        embed_event_annotation(annotation)
-    else:
-        annotation.embedding = (
-            np.array([t.embedding for t in annotation.tokens])
-            .mean(axis=0)
-            .astype(embedding_dtype)
-        )
+    annotation.embedding = (
+        np.array([t.embedding for t in annotation.tokens])
+        .mean(axis=0)
+        .astype(embedding_dtype)
+    )
     if np.any(np.isnan(annotation.embedding)):
         logger.error(
             f"Error: NaN value in embedding for {annotation.text} {[t.text for t in annotation.tokens]} ",
@@ -192,6 +191,7 @@ def extract_events_for_doc(doc: Document):
     for event in events:
         if len(event.A0) == 0 and len(event.A1) == 0:
             continue
+
         doc.text.add_annotation(
             text=event.trigger.text,
             start=event.trigger.start,

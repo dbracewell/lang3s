@@ -1,4 +1,5 @@
 import {
+  createClearStatusAtom,
   createGetStatusById,
   createLocalStorageStatusAtom,
   createRemoveStatusAtom,
@@ -16,6 +17,9 @@ export const upsertJobStatusAtom = createUpsertStatusAtom<"job:update", number>(
   jobStatusAtom,
   (item) => item.jobId,
 );
+
+export const clearJobStatuses =
+  createClearStatusAtom<"job:update">(jobStatusAtom);
 
 export const removeJobStatusAtom = createRemoveStatusAtom<"job:update", number>(
   jobStatusAtom,

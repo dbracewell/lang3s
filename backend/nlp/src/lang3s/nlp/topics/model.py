@@ -1,15 +1,17 @@
 import datetime
-import logging
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Iterable, List
 
 from sqlalchemy.orm import Session
+from tqdm import tqdm
 
 from lang3s import config
 from lang3s.nlp.topics.reducer import OnlineReducer
 from lang3s.nlp.topics.topic import Topic
 from lang3s.nlp.topics.topic_index import TopicIndex
+from lang3s.utils.logger import get_logger
 
 if TYPE_CHECKING:
     pass
@@ -19,7 +21,7 @@ import shortuuid
 import sqlalchemy
 from numpy.typing import NDArray
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sqlalchemy import Boolean, Select, cast, delete, select
+from sqlalchemy import Boolean, Select, cast, delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 
 from lang3s.data.db import db
@@ -29,7 +31,7 @@ from lang3s.utils import flatten
 from lang3s.utils.maths import cosine, normalize
 from lang3s.utils.meta import SingletonMeta
 
-logger = logging.getLogger("TopicModel")
+logger = get_logger("TOPIC_MODEL")
 
 
 DB_COLUMNS = [
@@ -192,6 +194,7 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
             is_fixed=False,
             reducer=self.reducer,
             min_sim_threshold=self.sim_threshold,
+            last_updated=datetime.datetime.now(),
         )
         topic.doc_ids.add(doc_id)
         self._next_topic_id += 1
@@ -238,6 +241,7 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                         (best_topic.embedding * best_topic.support + emb) / new_support
                     )
                     best_topic.support = new_support
+                    best_topic.last_updated = datetime.datetime.now()
                     self.topic_index.update_topic(best_idx, best_topic.centroid)
                     self.topic_index.topic_map[best_idx].doc_ids.add(doc_id)
                     continue
@@ -310,11 +314,21 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
 
         to_delete = []
         to_upsert = []
+        not_updated = []
         final_topics = []
 
-        for topic_label, topic in topics:
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            sentence_counts = list(
+                executor.map(_get_topic_count, [t[1].embedding for t in topics])
+            )
+
+        for sentence_count, (topic_label, topic) in tqdm(zip(sentence_counts, topics)):
+            if not topic.last_updated:
+                not_updated.append(topic)
+                continue
+
             if (
-                topic.sentence_count < self.min_support
+                sentence_count < self.min_support
                 and topic.doc_count < self.min_document_count
                 and not topic.is_fixed
             ):
@@ -322,15 +336,13 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                 self.topic_index.remove_topic(topic_label)
                 continue
 
-            # 2. ID Generation
             if topic.id.startswith("topic-"):
                 topic.id = shortuuid.uuid()
 
-            # 3. Prepare Batch Data
             values = {
                 "id": topic.id,
                 "name": topic.name,
-                "support": topic.sentence_count,
+                "support": sentence_count,
                 "doc_support": topic.doc_count,
                 "embedding": topic.embedding.tolist(),
                 "updated_at": datetime.datetime.now(datetime.timezone.utc),
@@ -342,8 +354,16 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
             topic.doc_ids.clear()
             final_topics.append((topic_label, topic))
 
-        with db.get_session() as session:
-            if to_upsert:
+        if to_delete:
+            with db.get_session() as session:
+                # First transaction delete merged topics
+                session.execute(
+                    delete(TopicsTable).where(TopicsTable.id.in_(to_delete))
+                )
+
+        if to_upsert:
+            with db.get_session() as session:
+                # second transaction upsert topics
                 stmt = insert(TopicsTable).values(to_upsert)
                 upsert_stmt = stmt.on_conflict_do_update(
                     index_elements=[TopicsTable.id],
@@ -355,17 +375,16 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                 )
                 session.execute(upsert_stmt)
 
-            if to_delete:
-                session.execute(
-                    delete(TopicsTable).where(TopicsTable.id.in_(to_delete))
-                )
-
-            session.commit()
-
-        self.topic_index.rebuild(final_topics)
+        # Save the online PCA
         self.reducer.save()
+
+        # Rebuild the topic index
+        self.topic_index.rebuild(final_topics)
+
+        # Update the topic views (topic_sentences, topic_documents)
         db.refresh_topic_views()
-        logger.info(f"Saved {len(topics) - len(to_delete)} topics")
+
+        logger.info(f"💾 Saved {len(topics) - len(to_delete)} topics")
 
     def get_topic(self, topic_id: int | str) -> Topic:
         if isinstance(topic_id, int):
@@ -390,6 +409,24 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
             words = np.array(vectorizer.get_feature_names_out())
             topic.name = ", ".join(words[np.argsort(tfidf_scores)[-5:]][::-1])
             logger.info(f"Topic {topic.id} = {topic.name}")
+
+
+def _get_topic_count(embedding: np.ndarray):
+    with db.get_session() as session:
+        session.execute(text("SET jit = off;"))
+        session.execute(text("SET hnsw.ef_search = 100;"))
+        stmt = select(func.count()).select_from(
+            select(TextAnnotationsTable.id)
+            .where(
+                TextAnnotationsTable.type_ == "sentence",
+                cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean).is_(False),
+                TextAnnotationsTable.embedding.cosine_distance(embedding) < 0.35,
+            )
+            .order_by(TextAnnotationsTable.embedding.cosine_distance(embedding))
+            .limit(25000)
+            .subquery()
+        )
+        return session.scalar(stmt)
 
 
 topic_model: Lang3sTopicModel = None  # type:ignore

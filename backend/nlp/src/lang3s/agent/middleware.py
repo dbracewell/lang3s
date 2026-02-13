@@ -4,13 +4,14 @@ from typing import TYPE_CHECKING, Any
 
 import redis
 
-from lang3s.agent.llm.tools import ToolCall
+from lang3s.llm.tools import ToolCall
 
 from .. import config
+from ..utils.logger import get_logger
 
 if TYPE_CHECKING:
+    from ..llm.chat_model import ChatModelResponse
     from .agent import Agent
-    from .llm import ChatModelResponse
     from .shared_types import AgentResult, AgentState
 
 
@@ -94,7 +95,7 @@ class ProgressMonitor(Middleware):
 
 class LoggingMiddleware(Middleware):
     def __init__(self, level: int = logging.DEBUG):
-        self.logger = logging.getLogger("lang3s.agent")
+        self.logger = get_logger("lang3s.agent")
         self.level = level
 
     def before_agent(self, agent: "Agent", state: "AgentState"):

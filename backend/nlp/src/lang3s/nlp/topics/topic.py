@@ -1,4 +1,5 @@
 import traceback
+from datetime import datetime
 from typing import Optional, Sequence
 
 import numpy as np
@@ -26,6 +27,7 @@ class Topic:
         is_fixed: bool = False,
         name: Optional[str] = None,
         doc_support: int = 0,
+        last_updated: Optional[datetime] = None,
     ) -> None:
         self.id = id
         if isinstance(id, Topic):
@@ -39,6 +41,7 @@ class Topic:
         self.is_fixed = is_fixed
         self.name = name if name is not None else id
         self.doc_ids = set()
+        self.last_updated = last_updated
 
     @property
     def doc_count(self) -> int:
@@ -50,10 +53,11 @@ class Topic:
             stmt = select(
                 sqlalchemy.func.count(distinct(TextAnnotationsTable.id))
             ).where(
-                TextAnnotationsTable.type_ == "sentence",
-                (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding))
-                >= config.FULL_EMBEDDING_THRESHOLD,
-                cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False,
+                TextAnnotationsTable.type_ == "sentence"
+                and (1 - TextAnnotationsTable.embedding.cosine_distance(self.embedding))
+                >= config.FULL_EMBEDDING_THRESHOLD
+                and cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean)
+                == False,
             )
             return session.scalar(stmt)
 
@@ -71,6 +75,7 @@ class Topic:
             )
         )
         self.support += other.support
+        self.last_updated = datetime.now()
 
     def copy(self) -> "Topic":
         return Topic(
@@ -81,6 +86,7 @@ class Topic:
             is_fixed=self.is_fixed,
             reducer=self.reducer,
             min_sim_threshold=self.min_sim_threshold,
+            last_updated=self.last_updated,
         )
 
     def get_sentences(self, limit: int = 1000):

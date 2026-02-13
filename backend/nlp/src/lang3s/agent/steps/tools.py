@@ -1,15 +1,15 @@
 import asyncio
 import json
 from functools import partial
-from typing import Any, List, Optional, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from lang3s.agent import Agent
 
 from pydantic import BaseModel
 
-from lang3s.agent.shared_types import AgentState, StepResult, AgentStep
-from lang3s.agent.llm import RegisteredTool
+from lang3s.agent.shared_types import AgentState, AgentStep, StepResult
+from lang3s.llm import RegisteredTool
 
 
 def instruction_builder(

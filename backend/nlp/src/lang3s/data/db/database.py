@@ -6,27 +6,44 @@ from typing import Any, Generator, Iterable
 import numpy as np
 from pgvector.psycopg import register_vector
 from psycopg import sql
-from sqlalchemy import NullPool, create_engine, event
+from sqlalchemy import Engine, NullPool, create_engine, event
 from sqlalchemy.engine.interfaces import DBAPIConnection, DBAPICursor
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from lang3s import config
 from lang3s.data.db.models import Base, ConfigurationTable
 
-engine = create_engine(config.DB_URL, poolclass=NullPool, echo=False, future=True)
-session_local = sessionmaker(
-    bind=engine, autoflush=False, autocommit=False, future=True
-)
+_engine: Engine = None  # type: ignore
+_session_local: sessionmaker[Session] = None  # type: ignore
 
 
-@event.listens_for(engine, "connect")
-def connect(dbapi_connection, connection_record):
-    register_vector(dbapi_connection)
+def _init_db():
+    global _engine
+    global _session_local
+
+    if _engine is None:
+        _engine = create_engine(
+            config.DB_URL,
+            pool_size=20,
+            max_overflow=10,
+            pool_timeout=30,
+        )
+
+        @event.listens_for(_engine, "connect")
+        def connect(dbapi_connection, connection_record):
+            register_vector(dbapi_connection)
+
+    if _session_local is None:
+        _session_local = sessionmaker(
+            bind=_engine, autoflush=False, autocommit=False, future=True
+        )
 
 
 @contextmanager
 def get_session():
-    session = session_local()
+    global _session_local
+    _init_db()
+    session = _session_local()
     try:
         yield session
         session.commit()
@@ -60,7 +77,9 @@ def transaction(
 
 @contextmanager
 def raw_connection() -> Generator[DBAPIConnection, Any, None]:
-    raw = engine.raw_connection()
+    global _engine
+    _init_db()
+    raw = _engine.raw_connection()
     connection = raw.dbapi_connection
 
     if connection is None:
@@ -89,7 +108,9 @@ def raw_cursor() -> Generator[DBAPICursor, Any, None]:
 
 @contextmanager
 def connection(commit=False):
-    with engine.connect() as connection:
+    global _engine
+    _init_db()
+    with _engine.connect() as connection:
         try:
             yield connection
             if commit:
@@ -115,14 +136,6 @@ def alias_identifier(ident, alias=None):
 MAX_INSERT_SIZE = 60000
 
 
-def refresh_annotation_views():
-    with raw_cursor() as cursor:
-        cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  annotation_counts;")
-        cursor.execute(
-            "REFRESH MATERIALIZED VIEW CONCURRENTLY  annotation_co_occurrence;"
-        )
-
-
 def create_text_annotation_embedding_index():
     with raw_cursor() as cursor:
         cursor.execute(
@@ -133,7 +146,6 @@ def create_text_annotation_embedding_index():
 def refresh_topic_views():
     with raw_cursor() as cursor:
         cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_sentences;")
-        cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_documents;")
 
 
 def execute(stmt):

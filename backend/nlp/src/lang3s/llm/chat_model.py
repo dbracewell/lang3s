@@ -20,7 +20,7 @@ from openai.types.shared.reasoning_effort import ReasoningEffort
 from pydantic import BaseModel
 
 from lang3s import config
-from lang3s.agent.llm.messages import to_message
+from lang3s.llm.messages import to_message
 
 from .tools import LLMTool, ToolCall
 
@@ -36,6 +36,65 @@ class ChatModelResponse(Generic[T]):
     exception: Optional[Exception] = None
 
 
+def format_messages_for_model(messages) -> List[Dict[str, Any]]:
+    if config.LLM_SUPPORTS_SYSTEM_PROMPT and config.LLM_NATIVE_TOOL_SUPPORT:
+        return [to_message(**msg) for msg in messages]
+    formatted = []
+    tool_buffer = []
+    system_content = ""
+
+    for msg in messages:
+        if msg["role"] == "system":
+            system_content = msg["content"]
+            break
+
+    def flush_tool_buffer():
+        if tool_buffer:
+            combined_content = "\n\n".join(tool_buffer)
+            formatted.append(
+                {
+                    "role": "user",
+                    "content": f"### SYSTEM OBSERVATIONS\n{combined_content}",
+                }
+            )
+            tool_buffer.clear()
+
+    # 2. Process User/Assistant/Tool turns
+    for msg in messages:
+        if msg["role"] == "system":
+            if config.LLM_SUPPORTS_SYSTEM_PROMPT:
+                formatted.append(to_message(**msg))
+            continue
+
+        if msg["role"] == "tool":
+            if config.LLM_NATIVE_TOOL_SUPPORT:
+                formatted.append(to_message(**msg))
+            else:
+                tool_result = f"**Source:** {msg['name']} (ID: {msg['tool_call_id']})\n**Result:** {msg['content']}"
+                tool_buffer.append(tool_result)
+
+        else:
+            flush_tool_buffer()
+
+            if msg["role"] == "user":
+                # If this is the FIRST user message, attach the system rules
+                if not config.LLM_SUPPORTS_SYSTEM_PROMPT and not any(
+                    m["role"] == "user" for m in formatted
+                ):
+                    content = f"SYSTEM RULES:\n{system_content}\n\nUSER TASK:\n{msg['content']}"
+                else:
+                    content = msg["content"]
+                formatted.append({"role": "user", "content": content})
+
+            elif msg["role"] == "assistant":
+                msg_copy = msg.copy()
+                msg_copy["content"] = msg_copy.get("content") or "Processing..."
+                formatted.append(to_message(**msg_copy))
+
+    flush_tool_buffer()
+    return formatted
+
+
 class ChatModel:
     def __init__(self, model_name: str):
         self.model = model_name
@@ -48,6 +107,7 @@ class ChatModel:
             api_key=config.LLM_API_KEY,
             base_url=f"{config.LLM_HOST}/v1/",
         )
+        self.supports_tools = config.LLM_SUPPORTS_SYSTEM_PROMPT
 
     @staticmethod
     def _prepare_tools(tools: Optional[List[Callable[..., Any]]]):
@@ -68,11 +128,16 @@ class ChatModel:
         tools: Optional[List[LLMTool]] = None,
         response_model: Optional[Type[BaseModel]] = None,
         force_tool_call: bool = False,
+        supports_tools: bool = False,
         **kwargs,
     ) -> Dict[str, Any]:
+        updated_messages = format_messages_for_model(
+            messages,
+        )
+
         payload: Dict[str, Any] = {
             "model": self.model,
-            "messages": [to_message(**m) for m in messages],
+            "messages": updated_messages,
             **kwargs,
         }
 
@@ -159,6 +224,7 @@ class ChatModel:
             reasoning_effort=reasoning_effort,
             max_completion_tokens=max_tokens,
             temperature=temperature,
+            supports_tools=self.supports_tools,
         )
         response = self.sync_client.chat.completions.create(**payload)
         return ChatModel._parse_response(response, response_model, tool_definitions)
@@ -183,6 +249,7 @@ class ChatModel:
             reasoning_effort=reasoning_effort,
             max_completion_tokens=max_tokens,
             temperature=temperature,
+            supports_tools=self.supports_tools,
         )
         response = await self.async_client.chat.completions.create(**payload)
         return ChatModel._parse_response(response, response_model, tool_definitions)

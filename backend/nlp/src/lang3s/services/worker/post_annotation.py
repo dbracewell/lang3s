@@ -6,8 +6,7 @@ from sqlalchemy import ScalarResult, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.sql.functions import func
 
-from lang3s.agent import Agent
-from lang3s.agent.llm import Desc, tool
+from lang3s.agent.agent import Agent
 from lang3s.agent.strategy import DiscoveryStrategy
 from lang3s.data.db import db, text_db
 from lang3s.data.db.models import (
@@ -17,9 +16,10 @@ from lang3s.data.db.models import (
     TextAnnotationsTable,
     TopicsTable,
 )
+from lang3s.llm.tools import Desc, tool
 from lang3s.models import Embedder
 from lang3s.nlp.shared_types import Metadata
-from lang3s.services.service_logging import get_logger
+from lang3s.utils.logger.service_logging import get_logger
 
 
 @tool(description="Searches the database for results similar to the given query.")
@@ -93,6 +93,10 @@ def generate_corpus_summary():
     logger.info("Finished collecting statistics")
     logger.info("Saving results")
     with db.get_session() as session:
+        if response.exception:
+            print(response.exception)
+            print(response.trace)
+            return
         stmt = insert(PrecomputedStatsTable).values(
             {
                 "name": "corpus_summary",

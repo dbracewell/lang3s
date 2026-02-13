@@ -23,6 +23,16 @@ from lang3s.utils.async_helper import run_sync
 from lang3s.utils.decorators import async_retry
 
 
+def parse_tool_call_arguments(arguments: str) -> dict[str, Any]:
+    if not arguments:
+        return {}
+
+    try:
+        return json.loads(arguments)
+    except json.JSONDecodeError:
+        return {"raw_arguments": arguments}
+
+
 @dataclass
 class LLMTool:
     name: str
@@ -33,16 +43,19 @@ class LLMTool:
 
 
 @dataclass
-class ToolResultMessage:
+class ToolResult:
     tool_call_id: str
     content: str
-    is_error: bool = False
+    name: str
+    raw_result: Any
+    is_empty: bool
 
-    def to_message(self) -> dict[str, Any]:
+    def to_message(self):
         return {
             "role": "tool",
             "tool_call_id": self.tool_call_id,
             "content": self.content,
+            "name": self.name,
         }
 
 
@@ -55,16 +68,26 @@ class ToolCall:
     is_async: bool
     function: Callable[..., Any]
 
+    def to_dict(self) -> dict:
+        return {
+            "id": self.tool_call_id,
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "arguments": json.dumps(self.arguments),
+            },
+        }
+
     def invoke(self, max_retries: int = 3) -> Dict[str, Any]:
         return run_sync(self.async_invoke(max_retries=max_retries))
 
-    async def async_invoke(self, max_retries: int = 3) -> Dict[str, Any]:
+    async def async_invoke(self, max_retries: int = 3) -> ToolResult:
         @async_retry(
             max_retries=max_retries,
-            on_exceed_attempts=lambda last_exception: RuntimeError(
+            on_exceed_attempts=lambda last_exception: Exception(
                 f"Tool '{self.name}' failed after {max_retries} attempts.\n"
                 f"Arguments: {self.arguments}\n"
-                f"Error: {last_exception}"
+                f"Error: {last_exception}",
             ),
         )
         async def call_tool():
@@ -96,14 +119,13 @@ class ToolCall:
                 content = json.dumps({"result": str(raw_result)})
                 is_empty = len(str(raw_result)) == 0
 
-            return {
-                "role": "tool",
-                "name": self.name,
-                "tool_call_id": self.tool_call_id,
-                "raw_result": raw_result,
-                "is_empty": is_empty,
-                "content": content,
-            }
+            return ToolResult(
+                tool_call_id=self.tool_call_id,
+                content=content,
+                name=self.name,
+                raw_result=raw_result,
+                is_empty=is_empty,
+            )
 
         return await call_tool()
 

@@ -1,8 +1,8 @@
-import logging
 import time
 from collections import defaultdict
 from typing import Dict, Iterable, List, Optional
 
+from joblib import Parallel, delayed
 from lang3s_job_service import File
 
 from lang3s.models import Embedder, MultiTaskTransformer
@@ -11,10 +11,12 @@ from lang3s.nlp.heavy_nlp import heavy_nlp
 from lang3s.nlp.shared_types import Document, Metadata
 from lang3s.pipeline.langdetect import detect_language
 from lang3s.utils import partition_generator
+from lang3s.utils.logger import get_logger
 
+from ..utils.formatters import format_duration
 from .doc_builder import document_generator
 
-logger = logging.getLogger(__name__)
+logger = get_logger("PIPELINE")
 
 
 def _group_documents_by_language(docs: List[Document]):
@@ -34,6 +36,7 @@ def pipeline(
     tasks: Optional[Iterable[str]] = None,
     embedder: Optional[Embedder] = None,
     mtask: Optional[MultiTaskTransformer] = None,
+    log: bool = True,
 ) -> List[Document]:
     """
     Processes raw text into annotated documents.
@@ -43,24 +46,39 @@ def pipeline(
     for batch in partition_generator(document_generator(files), batch_size):
         docs_by_language = _group_documents_by_language(batch)
 
-        start = time.perf_counter()
-        logger.info(
-            f"✍️ Starting annotation on {len(batch)} documents in {len(docs_by_language)} language(s)."
-        )
-
+        start_time = time.perf_counter()
         for language, language_docs in docs_by_language.items():
             core_nlp(language, language_docs)
 
-        for doc in batch:
-            try:
-                heavy_nlp(doc, tasks, embedder=embedder, mtask=mtask)
-            except Exception:
-                logger.error("Error Processing Document: ", exc_info=True)
+        if log:
+            logger.info(
+                f"Processed {len(batch)} documents for core processing. {format_duration(start_time, time.perf_counter())}"
+            )
 
-        end = time.perf_counter()
-        logger.info(
-            f"✅ Finished annotation of {len(batch)} documents: {(end - start):.2f}s"
+        start_time = time.perf_counter()
+        Parallel(n_jobs=-1)(
+            delayed(heavy_nlp)(doc, tasks, embedder, mtask) for doc in batch
         )
+
+        # worker_func = partial(heavy_nlp, tasks=tasks, embedder=embedder, mtask=mtask)
+        # with multiprocessing.Pool(processes=2) as pool:
+        #     pool.map(worker_func, batch)
+        # for doc in batch:
+        #     try:
+        #         heavy_nlp(
+        #             doc,
+        #             tasks,
+        #             embedder=embedder,
+        #             mtask=mtask,
+        #         )
+        #     except Exception:
+        #         logger.error("Error Processing Document: ", exc_info=True)
+
+        if log:
+            logger.info(
+                f"Processed {len(batch)} documents for heavy processing. {format_duration(start_time, time.perf_counter())}"
+            )
+
         docs.extend(batch)
 
     return docs

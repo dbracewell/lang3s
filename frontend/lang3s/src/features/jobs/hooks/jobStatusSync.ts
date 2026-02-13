@@ -2,6 +2,7 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 import {
+  clearJobStatuses,
   jobStatusAtom,
   removeJobStatusAtom,
 } from "@/features/events/stores/job-stores";
@@ -12,6 +13,7 @@ export function useJobStatusSync(
 ) {
   const status = useAtomValue(jobStatusAtom);
   const remove = useSetAtom(removeJobStatusAtom);
+  const clear = useSetAtom(clearJobStatuses);
   const lastNew = useRef<number[]>([]);
 
   useEffect(() => {
@@ -35,10 +37,10 @@ export function useJobStatusSync(
 
     if (completed.length > 0) {
       refetch().then(() => {
-        remove(completed.map((j) => j.jobId));
+        clear();
       });
     } else if (newJobs.length > 0) {
-      refetch();
+      refetch().then(() => clear());
       lastNew.current = newJobs.map((j) => j.jobId);
     }
   }, [status, data, refetch, remove]);

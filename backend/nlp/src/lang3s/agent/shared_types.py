@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Callable, List, Optional, Any, Dict, Tuple, TYPE_CHECKING, Type
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type
 
-from lang3s.agent.llm.chat_model import ChatModelResponse
-from lang3s.agent.token_estimator import TokenEstimator
+from lang3s.llm.chat_model import ChatModelResponse
+from lang3s.llm.token_estimator import TokenEstimator
 
 if TYPE_CHECKING:
     pass
@@ -17,11 +17,18 @@ class AgentResult:
     parsed: List[Any] = field(default_factory=list)
     exception: Optional[Exception] = field(default=None)
     success: bool = field(default=True)
-    trace: List[Tuple[List[Dict[str, Any]], ChatModelResponse]] = field(default_factory=list)
+    trace: List[Tuple[List[Dict[str, Any]], ChatModelResponse]] = field(
+        default_factory=list
+    )
 
-    def update(self, chat_model_response: ChatModelResponse, messages: List[Dict[str, Any]]) -> "AgentResult":
-        if not chat_model_response.tool_calls and chat_model_response.content and len(
-            chat_model_response.content.strip()) > 0:
+    def update(
+        self, chat_model_response: ChatModelResponse, messages: List[Dict[str, Any]]
+    ) -> "AgentResult":
+        if (
+            not chat_model_response.tool_calls
+            and chat_model_response.content
+            and len(chat_model_response.content.strip()) > 0
+        ):
             self.content.append(chat_model_response.content.strip())
         if chat_model_response.parsed:
             self.parsed.append(chat_model_response.parsed)
@@ -32,7 +39,11 @@ class AgentResult:
         return self
 
     def merge(self, agent_result: "AgentResult") -> None:
-        if agent_result.content is None and agent_result.parsed is None and agent_result.exception is None:
+        if (
+            agent_result.content is None
+            and agent_result.parsed is None
+            and agent_result.exception is None
+        ):
             return
         self.content.extend(agent_result.content)
         self.parsed.extend(agent_result.parsed)
@@ -90,16 +101,16 @@ class PersonaMode(Enum):
 
         if self is PersonaMode.QUERY_PLANNING:
             return (
-                'Generate search or retrieval queries shaped by the persona’s perspective. '
-                'Queries should reflect what the persona prioritizes or questions while '
-                'remaining objective and non-inflammatory.'
+                "Generate search or retrieval queries shaped by the persona’s perspective. "
+                "Queries should reflect what the persona prioritizes or questions while "
+                "remaining objective and non-inflammatory."
             )
 
         if self is PersonaMode.PLANNING:
             return (
-                'Determine the best action to take to answer the user as the persona. '
-                'Actions should reflect what the persona prioritizes or questions while '
-                'remaining objective and non-inflammatory.'
+                "Determine the best action to take to answer the user as the persona. "
+                "Actions should reflect what the persona prioritizes or questions while "
+                "remaining objective and non-inflammatory."
             )
 
         if self is PersonaMode.SUMMARIZATION:
@@ -158,8 +169,12 @@ class Persona(BaseModel):
             parts.append(self.tone_instructions.strip())
             parts.append("")
 
-        elif mode in (PersonaMode.PERSPECTIVE, PersonaMode.ANALYSIS,
-                      PersonaMode.SUMMARIZATION, PersonaMode.QUERY_PLANNING):
+        elif mode in (
+            PersonaMode.PERSPECTIVE,
+            PersonaMode.ANALYSIS,
+            PersonaMode.SUMMARIZATION,
+            PersonaMode.QUERY_PLANNING,
+        ):
             parts.append("Persona Worldview Instructions:")
             parts.append(self.worldview_instructions.strip())
             parts.append("")
@@ -194,9 +209,9 @@ class AgentState:
     max_progress: int = field(default=0)
 
     @classmethod
-    def from_existing(cls, state: "AgentState",
-                      task: str,
-                      persona_mode: Optional[PersonaMode] = None) -> "AgentState":
+    def from_existing(
+        cls, state: "AgentState", task: str, persona_mode: Optional[PersonaMode] = None
+    ) -> "AgentState":
         new_state = cls(**state.__dict__)
         new_state.messages = []
         new_state.task = task
@@ -210,7 +225,12 @@ class AgentState:
         self.terminated = False
         self.max_progress = 0
         self.progress = 0
-        self.messages.append({"role": "system", "content": self.system_message or "You are a helpful agent."})
+        # self.messages.append(
+        #     {
+        #         "role": "system",
+        #         "content": self.system_message or "You are a helpful agent.",
+        #     }
+        # )
 
     def update(self, messages: dict | List[dict]):
         if isinstance(messages, list):
@@ -237,14 +257,14 @@ class AgentState:
             return
 
         self.remove_messages_if(
-            lambda m: m.get("is_plan", False) or (
-                m["role"] == "tool" and m.get("is_empty", False)
-            ))
+            lambda m: m.get("is_plan", False)
+            or (m["role"] == "tool" and m.get("is_empty", False))
+        )
 
         system_msg = self.messages[0] if self.messages[0]["role"] == "system" else None
         history = self.messages[1:] if system_msg else self.messages[:]
         if len(history) > self.max_history:
-            history = history[-self.max_history:]
+            history = history[-self.max_history :]
 
         new_messages = []
         if system_msg:

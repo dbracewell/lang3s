@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple, override
 
 import numpy as np
@@ -103,16 +102,22 @@ class Text(TextObject):
                 to_return.append(annotation)
         return to_return
 
-    def remove_annotations(self, sources: List[str]):
-        source_set = set(sources)
+    def remove_annotations(
+        self, sources: List[str] | None = None, types: List[str] | None = None
+    ) -> None:
+        source_set = set(sources or [])
+        types_set = set(types or [])
         remaining = []
         for ann in self._annotations:
-            if ann.source in source_set:
+            if ann.source in source_set or ann.type in types_set:
                 ann.detach()
                 del ann
             else:
                 remaining.append(ann)
         self._annotations = remaining
+        for ann in self._annotations:
+            ann._annotations = None
+            ann._tokens = None
 
     def detach(self):
         if self._tokens is not None:
@@ -285,7 +290,7 @@ class Text(TextObject):
         annotation = TextAnnotation(
             id=shortuuid.uuid(),
             owner=self,
-            text=" ".join((t.text for t in span_tokens)),
+            text=self.text[span_tokens[0]["start_char"] : span_tokens[-1]["end_char"]],
             start=start,
             end=end,
             source=source,

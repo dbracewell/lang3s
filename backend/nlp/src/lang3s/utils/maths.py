@@ -1,10 +1,7 @@
-import logging
 from typing import Tuple
 
 import numpy as np
 from numpy.typing import NDArray
-
-logger = logging.getLogger(__name__)
 
 
 def remap(value, old_min, old_max, new_min, new_max):

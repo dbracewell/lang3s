@@ -11,8 +11,8 @@ from lang3s.services.service.analytics_service import (
     init_analytics_service,
     shutdown_analytics_service,
 )
-from lang3s.services.service_logging import get_logger
 from lang3s.services.worker.analytics_worker import analytics_worker
+from lang3s.utils.logger.service_logging import get_logger
 
 logger = get_logger(__name__)
 

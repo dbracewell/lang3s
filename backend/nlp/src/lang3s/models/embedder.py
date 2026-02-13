@@ -15,7 +15,7 @@ import torch
 from numpy.typing import NDArray
 from transformers import AutoTokenizer
 
-import lang3s.config as config
+from lang3s import config
 from lang3s.models.base_transformer_model import ForkedBaseModel
 from lang3s.utils.meta import SingletonMeta
 

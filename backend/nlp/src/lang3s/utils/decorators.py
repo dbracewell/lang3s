@@ -3,9 +3,12 @@ import functools
 import logging
 import os
 import time
-from typing import Callable, Type, TypeVar
+from dataclasses import dataclass
+from typing import Callable, Generic, Optional, Type, TypeVar
 
 import psutil
+
+from lang3s.utils.logger import get_logger
 
 try:
     from typing import ParamSpec
@@ -14,28 +17,68 @@ except ImportError:
 
 P = ParamSpec("P")
 T = TypeVar("T")
+ReturnType = TypeVar("ReturnType")
 
 
 def trace_mem(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        logger = logging.getLogger(func.__module__)
+        logger = get_logger("ROOT")
         process = psutil.Process(os.getpid())
         mem_before = process.memory_info().rss / (1024**2)  # Convert to MB
-        logger.info(f"\n[MEM] Entering {func.__name__} | Current: {mem_before:.2f} MB")
+        logger.info(f"Entering {func.__name__} | Current: {mem_before:.2f} MB")
 
         result = func(*args, **kwargs)
 
         mem_after = process.memory_info().rss / (1024**2)
         logger.info(
-            f"[MEM] Exiting {func.__name__} | Delta: +{mem_after - mem_before:.2f} MB | Total: {mem_after:.2f} MB"
+            f"Exiting {func.__name__} | Delta: {mem_after - mem_before:+.2f} MB | Total: {mem_after:.2f} MB"
         )
         return result
 
     return wrapper
 
 
-ReturnType = TypeVar("ReturnType")
+@dataclass
+class Result(Generic[ReturnType]):
+    value: Optional[ReturnType]
+    error: Optional[Exception]
+
+    @property
+    def is_ok(self) -> bool:
+        return self.error is None
+
+
+DecoratedCallable = Callable[P, Result[ReturnType]]
+
+
+def sneaky_throws(
+    logger: logging.Logger | None,
+    formatter: Callable[..., str] | None = None,
+) -> Callable[[Callable[P, ReturnType]], Callable[P, Result[ReturnType]]]:
+    final_logger = logger if logger else get_logger("ROOT")
+
+    def decorator(
+        func: Callable[P, ReturnType],
+    ) -> DecoratedCallable[P, ReturnType]:
+        @functools.wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> Result[ReturnType]:
+            try:
+                result = func(*args, **kwargs)
+                return Result(value=result, error=None)
+            except Exception as e:
+                if formatter:
+                    final_logger.error(formatter(e, *args, **kwargs), exc_info=True)
+                else:
+                    final_logger.error(e, exc_info=True)
+                return Result(value=None, error=e)
+
+        wrapper.__name__ = func.__name__
+        wrapper.__doc__ = func.__doc__
+        wrapper.__module__ = func.__module__
+        return wrapper
+
+    return decorator
 
 
 def retry(
@@ -92,7 +135,7 @@ def async_retry(
                         await asyncio.sleep(delay_base**attempt)
 
             if on_exceed_throw_exception:
-                raise on_exceed_attempts(last_exception)
+                raise on_exceed_attempts(last_exception) from last_exception
             return on_exceed_attempts(last_exception)
 
         return wrapper

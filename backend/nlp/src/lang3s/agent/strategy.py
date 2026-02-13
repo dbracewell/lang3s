@@ -1,13 +1,14 @@
+import json
 import traceback
 from textwrap import dedent
 from typing import TYPE_CHECKING, Callable, Counter, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel
 
-from lang3s.agent.llm import ChatModelResponse
-from lang3s.agent.llm.tools import LLMTool, ToolCall
 from lang3s.agent.middleware import Middleware
 from lang3s.agent.shared_types import AgentResult, AgentState
+from lang3s.llm.chat_model import ChatModelResponse
+from lang3s.llm.tools import LLMTool, ToolCall
 from lang3s.nlp.core_nlp import CoreLanguageProcessor
 from lang3s.pipeline.langdetect import detect_language
 
@@ -79,8 +80,26 @@ class Strategy:
         priority: Optional[int] = None,
         include_no_results: bool = True,
     ) -> bool:
-        state.max_progress += len(response.tool_calls or [])
-        for tool_call in response.tool_calls or []:
+        if not response.tool_calls:
+            return False
+        state.max_progress += len(response.tool_calls) + 1
+        assistant_message = {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": tc.tool_call_id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.name,
+                        "arguments": json.dumps(tc.arguments),
+                    },
+                }
+                for tc in response.tool_calls
+            ],
+        }
+        state.update(assistant_message)
+        for tool_call in response.tool_calls:
             if self._run_middleware(
                 "before_tool_call",
                 agent=agent,
@@ -89,7 +108,6 @@ class Strategy:
                 progress=progress,
             ):
                 return True
-
             tool_response = await tool_call.async_invoke()
             if not tool_response["is_empty"] or include_no_results:
                 if priority is not None:
@@ -808,15 +826,6 @@ class DiscoveryStrategy(Strategy):
         tool_id = 0
         try:
             results = AgentResult()
-            state.update(
-                {
-                    "role": "user",
-                    "content": (
-                        f"You must explore the corpus using only the search tool. "
-                        f"No prior knowledge is available. Begin generating probe queries."
-                    ),
-                }
-            )
             state.max_progress += self.rounds * 3 + 1
 
             for round_idx in range(self.rounds):
@@ -827,6 +836,8 @@ class DiscoveryStrategy(Strategy):
                 probe_prompt = (
                     f"User Task:\n{state.task.strip()}\n"
                     f"You are exploring an unknown corpus.\n"
+                    f"You must explore the corpus using only the search tool. "
+                    f"No prior knowledge is available. Begin generating probe queries."
                     f"Based on all previous discoveries, generate {self.queries_per_round} "
                     f"new search queries that are **diverse** and **exploratory**.\n"
                     f"If no clues exist, start with extremely broad probes such as: "
@@ -879,6 +890,9 @@ class DiscoveryStrategy(Strategy):
                 ):
                     return results
 
+                await self._async_chat(
+                    agent=agent, state=state, progress=results, use_tools=False
+                )
                 summary_prompt = (
                     f"Based on the new results, summarize what we learned about the corpus.\n"
                     f"Identify new topics, entity types, recurring formats, or other patterns.\n\n"

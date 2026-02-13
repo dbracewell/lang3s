@@ -217,6 +217,21 @@ export const jobsRouter = createTRPCRouter({
       }
 
       await publishJobStatus(updatedJob);
+
+      if (metadata != null && metadata["all_documents_sent"] == true) {
+        try {
+          const redis = await getGlobalConnection();
+          const task = {
+            job_id: job_id,
+            __status: "completed",
+          };
+          await redis.rPush(ANNOTATION_QUEUE, JSON.stringify(task));
+        } catch (err) {
+          console.error(err);
+          return job;
+        }
+      }
+
       return updatedJob;
     }),
   delete: apiProcedure
@@ -345,6 +360,7 @@ export const jobsRouter = createTRPCRouter({
 
 const publishJobStatus = async (job: typeof JobsTable.$inferSelect) => {
   const progress = job.total > 0 ? (job.completed + job.failed) / job.total : 0;
+  console.log(progress, job.status);
   try {
     await publishMessage({
       messageType: "job:update",

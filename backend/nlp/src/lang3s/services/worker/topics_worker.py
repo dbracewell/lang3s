@@ -2,7 +2,7 @@ import queue
 import time
 
 from lang3s.nlp.topics import model as topics
-from lang3s.services.service_logging import get_logger
+from lang3s.utils.logger.service_logging import get_logger
 
 logger = get_logger(__name__)
 

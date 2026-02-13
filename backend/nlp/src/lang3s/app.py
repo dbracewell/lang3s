@@ -1,14 +1,8 @@
+import argparse
 import json
-import logging
 import sys
 import traceback
 import types
-
-from .logs import initialize_logging
-
-initialize_logging()
-
-import argparse
 from typing import (
     Any,
     ClassVar,
@@ -23,6 +17,8 @@ from typing import (
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from lang3s.utils.logger import get_logger
 
 
 def _unwrap_optional(annotation):
@@ -264,7 +260,7 @@ class Application(BaseModel):
                 else:
                     logger_value = leftover[i + 1]
                     i += 1
-                logging.getLogger(logger_name).setLevel(logger_value.upper().strip())
+                get_logger(logger_name).setLevel(logger_value.upper().strip())
 
         # Subcommand handling
         if cls.subcommands:

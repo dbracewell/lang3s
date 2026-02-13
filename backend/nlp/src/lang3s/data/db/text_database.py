@@ -76,21 +76,26 @@ def document_count(self):
         return session.query(DocumentsTable).count()
 
 
-def random_sentences(count: int) -> List[str]:
+def random_sentences(count: int) -> List[dict[str, str]]:
     with db.get_session() as session:
-        annotations: List[TextAnnotationsTable] = (
-            session.query(TextAnnotationsTable)
-            .options(noload("*"))
-            .filter(
+        annotations = session.execute(
+            select(
+                TextAnnotationsTable.content,
+                TextAnnotationsTable.documentId,
+                DocumentsTable.title,
+            )
+            .join(DocumentsTable, TextAnnotationsTable.documentId == DocumentsTable.id)
+            .where(
                 TextAnnotationsTable.type_ == "sentence"
                 and TextAnnotationsTable.metadata_["is_stopword"] is False
             )
             .order_by(func.random())
             .limit(count)
-            .all()
-        )  # type:ignore
-
-        return [a.text for a in annotations]  # type: ignore
+        ).all()
+        return [
+            {"content": content, "title": title, "document_id": documentId}
+            for content, documentId, title in annotations
+        ]
 
 
 def get_documents(
@@ -151,6 +156,7 @@ def fts_sentence_search(query: str, limit: int = 3) -> List[Dict[str, str]]:
                                                                 pgroonga_score(tableoid,ctid) as rank
                                                 FROM text_annotations
                         WHERE type = 'sentence'
+                            and metadata->>'is_stopword' = 'false'
                           and text &@~ (%s, ARRAY [1], ARRAY ['scorer_tf_idf($index)'], 'ml_text_annotation_search_index')::pgroonga_full_text_search_condition_with_scorers
                         )
                         SELECT text, title, doc_id, rank
@@ -179,12 +185,15 @@ def semantic_sentence_search(
     stmt = (
         select(TextAnnotationsTable.content)
         .where(
-            (1 - TextAnnotationsTable.embedding.cosine_distance(embedding))
-            >= min_similarity
+            (
+                (1 - TextAnnotationsTable.embedding.cosine_distance(embedding))
+                >= min_similarity
+            )
+            & (TextAnnotationsTable.metadata_["is_stopword"].astext == "false")
         )
         .limit(limit)
     )
 
     with db.get_session() as session:
         results = session.scalars(stmt).all()
-        return [r.content for r in results]
+        return [r for r in results]

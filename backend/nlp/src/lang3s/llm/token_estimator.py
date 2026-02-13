@@ -1,6 +1,6 @@
-from typing import Any
-
 from transformers import AutoTokenizer
+
+from .messages import Message, format_messages_for_model
 
 
 def _resolve_tokenizer(model_id: str):
@@ -30,13 +30,22 @@ _cache = {}
 def _get_tokenizer(model_name: str):
     tokenizer_name = _resolve_tokenizer(model_name)
     if not tokenizer_name in _cache:
-        _cache[tokenizer_name] = AutoTokenizer.from_pretrained(model_name)
+        _cache[tokenizer_name] = AutoTokenizer.from_pretrained(tokenizer_name)
     return _cache[tokenizer_name]
 
 
-def estimate_tokens(model_name: str, messages: list[dict[str, Any]]) -> int:
+def count_tokens(model_name: str, content: str | None) -> int:
     tokenizer = _get_tokenizer(model_name)
-    return len(tokenizer(messages, tokenize=True))
+    return len(tokenizer(content)["input_ids"]) if content else 0
+
+
+def estimate_tokens(model_name: str, messages: list[Message]) -> int:
+    tokenizer = _get_tokenizer(model_name)
+    total_tokens = 0
+    for msg in format_messages_for_model(messages):
+        if "content" in msg:
+            total_tokens += sum(tokenizer(msg["content"])["attention_mask"])
+    return total_tokens
 
 
 class TokenEstimator:

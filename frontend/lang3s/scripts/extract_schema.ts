@@ -238,6 +238,8 @@ type ColumnSchema = {
   drizzleType: string;
   nullable: boolean;
   primaryKey: boolean;
+  defaultRandom: boolean;
+  array: boolean;
   unique: boolean;
   hasDefault: boolean;
   vectorDims?: number;
@@ -273,9 +275,11 @@ function extractColumn(
   let primaryKey = false;
   let unique = false;
   let hasDefault = false;
+  let array = false;
   let vectorDims: number | undefined;
   let enumVar: string | undefined;
   let fk: ForeignKeyInfo | undefined;
+  let defaultRandom = false;
 
   // detect enum var: if ctor is a varName of a pgEnum
   if (enumVarsByName.has(rootCtorName)) {
@@ -304,7 +308,11 @@ function extractColumn(
 
     const nameText = expr.getName();
 
-    if (nameText === "notNull") {
+    if (nameText === "defaultRandom") {
+      defaultRandom = true;
+    } else if (nameText === "array") {
+      array = true;
+    } else if (nameText === "notNull") {
       nullable = false;
     } else if (nameText === "primaryKey") {
       primaryKey = true;
@@ -347,6 +355,8 @@ function extractColumn(
     name,
     dbName,
     drizzleType,
+    defaultRandom,
+    array,
     nullable,
     primaryKey,
     unique,
@@ -422,7 +432,6 @@ function main() {
       if (!init || !Node.isCallExpression(init)) continue;
 
       const exprText = init.getExpression().getText();
-      console.log(exprText);
       // if (exprText !== "pgTable") continue;
       if (!["pgTable", "pgMaterializedView", "pgView"].includes(exprText))
         continue;

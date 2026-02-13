@@ -1,7 +1,7 @@
 from typing import Annotated
 
-from lang3s.agent.llm import Desc, tool
 from lang3s.data.db import text_db
+from lang3s.llm.tools import Desc, tool
 
 
 @tool(description="Searches for information related to the given query.")

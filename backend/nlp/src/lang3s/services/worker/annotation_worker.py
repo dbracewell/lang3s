@@ -1,62 +1,97 @@
+"""
+This module implements a batched worker for processing annotation tasks, handling
+ML pipeline operations, job management, and integration with external services
+including Redis and database systems.
+
+It includes functionalities to initialize the worker, process job batches,
+update job statuses, and finalize tasks through database and Redis client
+executions. It supports fault handling and logging to facilitate tracing errors
+and monitoring worker performance.
+"""
+
 import argparse
 import gc
-import logging
-import multiprocessing
 import os
 import sys
 import time
 import traceback
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
+from joblib import Parallel, delayed
 from lang3s_job_service import File, Job, JobService, JobStatus
 
-import lang3s.config as config
+from lang3s import config
 from lang3s.data.db import db, text_db
-from lang3s.logs import initialize_logging
 from lang3s.models import Embedder, MultiTaskTransformer
+from lang3s.nlp.claim_extractor import create_sentence_context
 from lang3s.pipeline import pipeline
 from lang3s.services.client.redis_client import (
     ANNOTATION_QUEUE_NAME,
+    CLAIM_EXTRACT_QUEUE_NAME,
     DUCKDB_QUEUE_NAME,
     RedisClient,
-    redis_batch_generator,
+    create_completed_status_message,
+    redis_get_message_batch,
 )
 from lang3s.services.client.topic_model_client import TopicModelClient
-from lang3s.utils.decorators import trace_mem
+from lang3s.utils import try_catch
+from lang3s.utils.decorators import Result, trace_mem
+from lang3s.utils.formatters import format_duration
+from lang3s.utils.logger.service_logging import get_logger
 
 from .post_annotation import generate_corpus_summary, probe_metadata
 
-initialize_logging(filename="nlp_worker.log")
-
-
-logger = logging.getLogger("NLP_WORKER")
 pid = os.getpid()
-job_service = JobService(api_key=config.SYSTEM_API_KEY, api_host=config.NODEJS_HOST)
-redis_client = RedisClient()
-topic_model = TopicModelClient()
 
-
-worker_embedder = None
-worker_mtask = None
+embedder: Embedder | None = None
+mtask_transformer: MultiTaskTransformer | None = None
 
 
 def init_worker():
-    global worker_embedder, worker_mtask
-    worker_embedder = Embedder()
-    worker_mtask = MultiTaskTransformer()
-    logger.info(f"👷 Batched Worker {pid} started...")
+    logger = get_logger("NLP_WORKER")
+    global embedder
+    global mtask_transformer
+    logger.info(f"👷🏻 Worker {pid} Started.")
+    embedder = Embedder()
+    mtask_transformer = MultiTaskTransformer()
 
 
-def get_job(job_id: int) -> Optional[Job]:
+@dataclass
+class WorkerResult:
+    """
+    Represents the result state of a worker's processing tasks.
+
+    This class is a dataclass that encapsulates information about the number of
+    completed and failed tasks, the currently active job ID (if any), and whether
+    the most recent job has been completed.
+    """
+
+    completed_count: int = field(default=0)
+    failed_count: int = field(default=0)
+    active_job_id: int | None = field(default=None)
+    job_completed: bool = field(default=False)
+
+
+def get_job(job_id: int) -> Result[Job]:
+    """
+    Retrieves the job with the given job ID.
+    """
+    logger = get_logger("NLP_WORKER")
+    job_service = JobService(api_key=config.SYSTEM_API_KEY, api_host=config.NODEJS_HOST)
     try:
-        return job_service.get_job(job_id)
+        return Result(value=job_service.get_job(job_id), error=None)
     except Exception as e:
-        logger.error(f"WORKER {pid}: ❌ Error getting job: {job_id} with error: {e}.")
-        return None
+        logger.error(f"WORKER {pid}: Error getting Job: {e}")
+        return Result(value=None, error=e)
 
 
 def convert_tasks_to_files(batch: List[Dict]) -> List[File]:
+    """
+    Converts a batch of tasks into a list of Files.
+    """
+    logger = get_logger("NLP_WORKER")
     files = []
     for task in batch:
         try:
@@ -76,7 +111,12 @@ def update_job(
     failed: Optional[int] = None,
     metadata: Optional[dict[str, Any]] = None,
 ) -> None:
-    try:
+    """
+    Updates the job with the given job ID.
+    """
+    logger = get_logger("NLP_WORKER")
+    job_service = JobService(api_key=config.SYSTEM_API_KEY, api_host=config.NODEJS_HOST)
+    with try_catch(on_error=logger.error):
         job_service.update_job(
             job_id,
             total_inc=total_inc,
@@ -84,69 +124,94 @@ def update_job(
             failed_inc=failed,
             metadata=metadata,
         )
-    except Exception as e:
-        logger.error(
-            f"WORKER {pid}: ❌ Failed to update job: {job_id} with error: {e}."
-        )
 
 
 @trace_mem
-def process_batch(batch, embedder, mtask):
+def process_batch(batch):
+    """
+    Processes a batch of documents through a defined pipeline and updates job status accordingly.
+
+    This function processes a batch of documents for a specific job. It runs the provided documents through
+    predefined pipeline tasks, handles file processing, tracks completed and failed documents, and updates
+    external systems with the results. Resources are cleaned up post-execution, and any relevant topic models
+    are updated if applicable.
+
+    Parameters:
+        batch (list[dict]): A list of documents to be processed. Each document must include the key "job_id".
+
+    Returns:
+        tuple[int, int]: A tuple containing the count of successfully completed documents and the count of
+        failed documents.
+    """
+    global embedder
+    global mtask_transformer
+    topic_model = TopicModelClient()
+    logger = get_logger("NLP_WORKER")
+
+    logger.info(f"🆕 Worker {pid} | Begin processing {len(batch)} documents.")
+
     job_id = batch[0]["job_id"]
-    job = get_job(job_id)
     completed = 0
     failed = 0
+    start_time = time.perf_counter()
 
-    if not job:
+    files = convert_tasks_to_files(batch)
+    failed += len(batch) - len(files)
+
+    result = get_job(job_id)
+    if not result.is_ok or len(files) == 0:
         logger.info(
-            f"WORKER {pid}: ❌ Failed to process with {len(batch)} documents failed."
+            f"❌ Worker {pid} | Completed: {0} | Failed: {len(batch)} | {format_duration(start_time, time.perf_counter())}"
         )
+        update_job(job_id, failed=len(batch))
         return 0, len(batch)
 
+    job = result.value
     metadata = job.metadata
     tasks = metadata.get("tasks", None)
     if tasks:
         tasks = set(tasks)
 
-    files = convert_tasks_to_files(batch)
-    failed += len(batch) - len(files)
-
-    if len(files) == 0:
-        logger.info(
-            f"WORKER {pid}: ❌ Failed to process with {len(batch)} documents failed."
-        )
-        update_job(job_id, failed=len(batch))
-        return 0, len(batch)
-
     try:
-        with torch.inference_mode():
+        with (
+            torch.inference_mode()
+        ):  # Paranoia to make sure we are in inference mode everywhere
             docs = pipeline(
                 files,
                 tasks=tasks,
                 batch_size=len(files),
                 embedder=embedder,
-                mtask=mtask,
+                mtask=mtask_transformer,
+            )
+            logger.info(
+                f"WORKER {pid}: 📝 Annotated {len(docs)} documents: {format_duration(start_time, time.perf_counter())}"
             )
         completed += len(docs)
 
-        start = time.perf_counter()
-        logger.info(
-            f"WORKER {pid}: 💽 Starting writing of {len(docs)} documents to database"
-        )
+        # Add the annotated documents to the database
+        # and persist them in msgpack to the filestore
         text_db.add_documents(docs)
-        end = time.perf_counter()
-        logger.info(
-            f"WORKER {pid}: ✅ Finished writing {len(docs)} documents to database: {(end - start):.2f}s"
-        )
 
-        try:
+        # Forward the documents to the claim extraction module
+        for doc in docs:
+            redis_client = RedisClient()
+            redis_client.enqueue(
+                CLAIM_EXTRACT_QUEUE_NAME, create_sentence_context(doc).model_dump()
+            )
+
+        with try_catch(
+            on_error=lambda e: logger.error(
+                f"WORKER {pid}: ❌ Error processing topics: {e}"
+            )
+        ):
+            # Send the documents to the topic model
             topic_model.partial_fit(docs)
-        except Exception as e:
-            logger.error(f"WORKER {pid}: ❌ Error processing topics: {e}")
 
+        # Force memory to be freed
         for doc in docs or []:
             doc.detach()
 
+        # Force memory cleaning
         gc.collect()
         if torch.backends.mps.is_available():
             torch.mps.empty_cache()
@@ -154,9 +219,8 @@ def process_batch(batch, embedder, mtask):
             torch.cuda.empty_cache()
 
     except Exception as e:
-        logger.error(f"WORKER ❌ {pid}: Error: {e}")
         logger.info(
-            f"WORKER {pid}: ❌ Failed to process with {len(files)} documents failed."
+            f"❌ Worker {pid} | Completed: {0} | Failed: {len(files)} | {format_duration(start_time, time.perf_counter())}"
         )
         traceback.print_exc(file=sys.stdout)
         update_job(job_id, failed=len(files))
@@ -164,126 +228,105 @@ def process_batch(batch, embedder, mtask):
 
     update_job(job_id, completed=completed, failed=failed)
     logger.info(
-        f"WORKER {pid}: ✅ Finished processing batch {completed} successful, {failed} failed."
+        f"{'❌' if failed > 0 else '✅'} Worker {pid} | Completed: {completed} | Failed: {failed} | {format_duration(start_time, time.perf_counter())}"
     )
     return completed, failed
 
 
-def check_for_completion(job_id: Optional[int] = None) -> bool:
-    if job_id is None:
-        return False
+def complete_job(job_id: int) -> None:
+    """
+    Marks a job as complete by performing a series of operations such as status updating,
+    database updates, and generating summaries. Certain operations are attempted in
+    a fault-tolerant way, logging relevant errors or skipping specific operations when
+    errors occur. The function ensures appropriate final status updates for the job
+    based on its outcome.
 
-    job = get_job(job_id)
-    if job is None:
-        return True
+    Parameters:
+        job_id (int): The unique identifier for the job to be completed.
 
+    Raises:
+        Ensures fault tolerance for most errors during execution and logs them accordingly.
+        This function does not raise unhandled exceptions.
+    """
+    result = get_job(job_id)
+    if not result.is_ok:
+        return
+
+    job = result.value
     if job.status in ["failed", "complete"]:
-        return True
+        return
 
-    if job.metadata.get("is_finalizing", False):
-        return True
+    logger = get_logger("NLP_WORKER")
 
-    if job.completed + job.failed >= job.total:
-        job = job_service.get_job(job_id)
-        if job.metadata.get("is_finalizing", False):
-            return True
+    with RedisClient() as redis_client:
+        redis_client.enqueue(DUCKDB_QUEUE_NAME, create_completed_status_message())
 
-        update_job(
-            job_id,
-            total_inc=20,
-            metadata={"is_finalizing": True},
+    job_service = JobService(api_key=config.SYSTEM_API_KEY, api_host=config.NODEJS_HOST)
+    job_service.update_job(job_id, total_inc=20)
+
+    logger.info(f"WORKER {pid}: 🏁 Finishing job {job_id}")
+    try:
+        logger.info(f"WORKER {pid}: Enabling embedding index")
+        db.create_text_annotation_embedding_index()
+    except Exception as e:
+        if "pg_class_relname_nsp_index" in str(e):
+            return
+        logger.error(
+            f"WORKER {pid}: Error creating text annotation embeddings index: {e}"
         )
 
-        redis_client.enqueue(DUCKDB_QUEUE_NAME, {"status": "completed"})
+    with try_catch(on_error=lambda e: f"WORKER {pid}: Error finalizing topics: {e}"):
+        logger.info(f"WORKER {pid}: Finalizing topic model")
+        topic_model = TopicModelClient()
+        topic_model.finalize()
 
-        logger.info(f"WORKER {pid}: Finishing job {job_id}")
-        try:
-            logger.info(f"WORKER {pid}: Enabling embedding index")
-            db.create_text_annotation_embedding_index()
-        except Exception as e:
-            if "pg_class_relname_nsp_index" in str(e):
-                return True
-            logger.error(
-                f"WORKER {pid}: Error creating text annotation embeddings index: {e}"
-            )
+    with try_catch(
+        on_error=lambda e: f"WORKER {pid}: Error generating corpus summary: {e}"
+    ):
+        logger.info(f"WORKER {pid}: Generating corpus summary")
+        probe_metadata()
+        generate_corpus_summary()
+        logger.info(f"WORKER {pid}: Completed generating corpus summary")
 
-        try:
-            logger.info(f"WORKER {pid}: Finalizing topic model")
-            topic_model.finalize()
-        except Exception as e:
-            logger.error(f"WORKER {pid}: Error finalizing topics: {e}")
-
-        try:
-            logger.info(f"WORKER {pid}: Refreshing views")
-            db.refresh_annotation_views()
-            logger.info(f"WORKER {pid}: Completed refreshing views")
-        except Exception as e:
-            logger.error(f"WORKER {pid}: Error constructing materialized views: {e}")
-
-        try:
-            logger.info(f"WORKER {pid}: Generating corpus summary")
-            probe_metadata()
-            generate_corpus_summary()
-            logger.info(f"WORKER {pid}: Completed generating corpus summary")
-        except Exception as e:
-            logger.error(f"WORKER {pid}: Error generating corpus summary: {e}")
-
-        status = JobStatus.FAILED if job.failed > 0 else JobStatus.COMPLETE
-        job_service.update_job(job_id, completed_inc=20, status=status)
-        logger.info(f"WORKER {pid}: 🏁 Job {job.id} finished with status; {status}")
-
-        return True
-
-    return False
+    status = JobStatus.FAILED if job.failed > 0 else JobStatus.COMPLETE
+    job_service.update_job(job_id, completed_inc=20, status=status)
+    logger.info(f"WORKER {pid}: 🏁 Job {job.id} finished with status; {status}")
 
 
-def worker_loop(params: Tuple[int, int]):
-    active_job_id = params[1]
-    batch_size = params[0]
+def worker_loop(params: Tuple[int, int]) -> WorkerResult:
+    active_job_id = params[0]
+    batch_size = params[1]
+    job_ids = []
 
-    for batch in redis_batch_generator(ANNOTATION_QUEUE_NAME, batch_size):
-        if batch:
-            # We only allow one annotation job to run at a time
-            # Make sure this is true
-            job_ids = {doc["job_id"] for doc in batch}
+    batch, completed_message = redis_get_message_batch(
+        ANNOTATION_QUEUE_NAME,
+        batch_size,
+    )
 
-            # If for some reason we have more than one unique job_id, kill them all
-            if len(job_ids) > 1:
-                logger.error(
-                    f"WORKER {pid}:  ❌ Found more than one job id: {job_ids}. Can only annotate one job at a time"
-                )
-                continue
+    job_completed = False
+    if completed_message:
+        # Note we ignore that the status says complete to ensure the job is marked as complete
+        job_completed = True
+        job_ids.append(completed_message["job_id"])
 
-            # Keep track of the active job id
-            active_job_id = list(job_ids)[0]
+    if not batch:
+        return WorkerResult(
+            active_job_id=active_job_id,
+            job_completed=job_completed,
+        )
 
-            # Send things off to be processed
-            logger.info(f"WORKER {pid}: Sending {len(batch)} documents for processing")
+    job_ids.extend(doc["job_id"] for doc in batch if doc["job_id"] not in job_ids)
+    completed, failed = process_batch(batch)
 
-            try:
-                if torch.backends.mps.is_available():
-                    torch.mps.empty_cache()
-
-                completed, failed = process_batch(batch, worker_embedder, worker_mtask)
-
-            finally:
-                if torch.backends.mps.is_available():
-                    torch.mps.empty_cache()
-
-            # Check to see if we are done
-            if check_for_completion(active_job_id):
-                time.sleep(60)
-                return None, completed, failed
-            return active_job_id, completed, failed
-        else:
-            if check_for_completion(active_job_id):
-                return None, 0, 0
-            return active_job_id, 0, 0
-
-    return None
+    return WorkerResult(
+        active_job_id=job_ids[0],
+        job_completed=job_completed,
+        completed_count=completed,
+        failed_count=failed,
+    )
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--num_workers",
@@ -301,39 +344,44 @@ if __name__ == "__main__":
     active_job_id = None
     total_docs_completed = 0
     total_docs_failed = 0
+    logger = get_logger("NLP_WORKER")
 
-    while True:
-        while redis_client.queue_length(ANNOTATION_QUEUE_NAME) == 0:
-            time.sleep(5)
+    with RedisClient() as redis_client:
+        while True:
+            while redis_client.queue_length(ANNOTATION_QUEUE_NAME) == 0:
+                # If Redis is empty, just sleep
+                time.sleep(5)
 
-        with multiprocessing.Pool(
-            processes=args.num_workers,
-            initializer=init_worker,
-        ) as pool:
-            try:
+            with Parallel(
+                n_jobs=args.num_workers,
+                backend="loky",
+                inner_max_num_threads=1,
+                initializer=init_worker,
+            ) as parallel:
+                # Limit a process to a life of 5 cycles to prevent memory creep
                 for i in range(5):
-                    results = pool.map(
-                        worker_loop,
-                        [(args.batch_size, active_job_id)] * args.num_workers,
-                    )
-                    for result in results:
-                        if result is not None:
-                            active_job_id = result[0]
-                            total_docs_completed += result[1]
-                            total_docs_failed += result[2]
+                    tasks = [
+                        delayed(worker_loop)((active_job_id, args.batch_size))
+                        for _ in range(args.num_workers)
+                    ]
+                    results = parallel(tasks)
 
+                    active_job_id = next(result.active_job_id for result in results)
+                    is_job_completed = any(result.job_completed for result in results)
+                    total_docs_completed += sum(
+                        result.completed_count for result in results
+                    )
+                    total_docs_failed += sum(result.failed_count for result in results)
                     logger.info(
-                        f"Total Documents Completed: {total_docs_completed}, Total Documents Failed: {total_docs_failed}"
+                        f"📈 Total Documents Completed: {total_docs_completed}, Total Documents Failed: {total_docs_failed}, Job Completed: {is_job_completed}, active_job_id: {active_job_id}"
                     )
 
-                    if active_job_id is not None:
-                        if check_for_completion(active_job_id):
-                            break
-                    else:
-                        time.sleep(60)
+                    if is_job_completed:
+                        complete_job(active_job_id)
+                        active_job_id = None
+                        total_docs_completed = 0
+                        total_docs_failed = 0
 
-            except KeyboardInterrupt:
-                print("Shutting down...")
-                pool.terminate()
-                pool.join()
-                exit(0)
+
+if __name__ == "__main__":
+    main()

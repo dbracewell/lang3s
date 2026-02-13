@@ -110,18 +110,27 @@ class TextObject(abc.ABC):
         raise NotImplementedError()
 
     @property
-    def events(self) -> List['Event']:
+    def annotations(self) -> List["TextAnnotation"]:
+        return [a for a in self.owner.annotations if a.overlaps(self)]
+
+    @property
+    def frames(self) -> List["Event"]:
         from .event import Event
+
         events = []
-        triggers = self.annotations_of_type(AnnotationTypes.EVENT.value)  # type: ignore
-        for trigger in triggers:  # type: ignore
+        if getattr(self, "is_eventive", False):
+            triggers = [self]
+        else:
+            triggers = [a for a in self.annotations if a.is_eventive]
+
+        for trigger in triggers:
             a0 = trigger[Metadata.A0.value] or []
             a1 = trigger[Metadata.A1.value] or []
             loc = self.owner.get_annotation(trigger[Metadata.LOC.value])
             time = self.owner.get_annotation(trigger[Metadata.TIME.value])
             events.append(
                 Event(
-                    trigger=trigger,
+                    trigger=trigger,  # type:ignore
                     a0=filter_none(self.owner.get_annotation(aid) for aid in a0),
                     a1=filter_none(self.owner.get_annotation(aid) for aid in a1),
                     time=time,

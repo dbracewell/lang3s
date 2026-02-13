@@ -10,12 +10,12 @@ from fastapi.responses import JSONResponse
 
 from lang3s.nlp.topics import model as topics
 from lang3s.services.model.topics_models import *
-from lang3s.services.service_logging import get_logger
 from lang3s.services.worker.topics_worker import (
     finished_queue,
     topics_worker,
     work_queue,
 )
+from lang3s.utils.logger.service_logging import get_logger
 
 logger = get_logger(__name__)
 

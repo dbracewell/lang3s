@@ -23,17 +23,17 @@ from openai.types.shared_params.response_format_json_schema import JSONSchema
 from pydantic import BaseModel
 
 from lang3s import config
-from lang3s.agent.llm.chat_completion_events import (
-    ChatCompletionEvent,
-    ChatCompletionEventType,
-    TokenCompletionUsage,
-    ToolCall,
-    ToolCallDelta,
-    parse_tool_call_arguments,
-)
-from lang3s.agent.llm.tools import LLMTool
 from lang3s.utils.async_helper import async_generator_to_sync
 from lang3s.utils.decorators import retry_async_gen
+
+from .events import (
+    LLMEvent,
+    LLMEventType,
+    ToolCall,
+    ToolCallDelta,
+)
+from .messages import Message, format_messages_for_model
+from .tools import LLMTool, parse_tool_call_arguments
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -50,7 +50,7 @@ class ChatCompletionParams(TypedDict):
     stop: NotRequired[str | Sequence[str]]
 
 
-class LlmClient:
+class LLMClient:
     def __init__(
         self,
         model_name: str = config.LLM_MODEL,
@@ -70,7 +70,7 @@ class LlmClient:
         )
 
     @staticmethod
-    def _error_to_event(e: Exception) -> ChatCompletionEvent:
+    def _error_to_event(e: Exception) -> LLMEvent:
         text: str = str(e)
         if isinstance(e, APIError):
             text = "API Error: " + text
@@ -79,27 +79,29 @@ class LlmClient:
         elif isinstance(e, RateLimitError):
             text = "Rate Limit Error: " + text
 
-        return ChatCompletionEvent(
-            type=ChatCompletionEventType.ERROR,
-            error=text,
+        return LLMEvent(
+            type=LLMEventType.ERROR,
+            content=text,
+            exception=e,
         )
 
     async def chat_completion(
         self,
-        messages: list[dict[str, Any]],
+        messages: list[Message],
         tools: list[Callable[..., Any]] | None = None,
         force_tool_call: bool = False,
         stream: bool = False,
         response_model: Type[T] | None = None,
         **kwargs: Unpack[ChatCompletionParams],
-    ) -> AsyncGenerator[ChatCompletionEvent[T], None]:
-        available_tools = LlmClient._prepare_tools(tools)
+    ) -> AsyncGenerator[LLMEvent[T], None]:
+        available_tools = LLMClient._prepare_tools(tools)
+        if not messages:
+            return
 
         completion_args: dict[str, Any] = {
             "model": self.model_name,
-            "messages": messages,
+            "messages": format_messages_for_model(messages),
             "stream": stream,
-            "stream_options": {"include_usage": True},
             **kwargs,
         }
 
@@ -128,11 +130,11 @@ class LlmClient:
         )
         async def perform_chat(
             async_client: AsyncOpenAI,
-        ) -> AsyncGenerator[ChatCompletionEvent[T], None]:
+        ) -> AsyncGenerator[LLMEvent[T], None]:
             method = self._stream_completion if stream else self._no_stream_completion
             async for chunk in method(
                 client=async_client,
-                tools=available_tools,
+                tool_map=available_tools,
                 response_model=response_model,
                 **completion_args,
             ):
@@ -179,11 +181,11 @@ class LlmClient:
             | ChatCompletionMessageCustomToolCall
             | dict[str, Any]
         ],
-    ) -> Generator[ChatCompletionEvent[T], None, None]:
+    ) -> Generator[LLMEvent[T], None, None]:
         for tc in tool_calls:
             llm_tool = tools[tc["name"]]
-            yield ChatCompletionEvent(
-                type=ChatCompletionEventType.TOOL_CALL_COMPLETE,
+            yield LLMEvent(
+                type=LLMEventType.TOOL_CALL_COMPLETE,
                 tool_call=ToolCall(
                     tool_call_id=tc["id"],
                     name=tc["name"],
@@ -200,34 +202,29 @@ class LlmClient:
         final_response: str,
         finish_reason: str,
         usage: CompletionUsage | None,
-    ) -> Generator[ChatCompletionEvent[T], None, None]:
-        parsed = LlmClient._parse_response(response_model, final_response)
+    ) -> Generator[LLMEvent[T], None, None]:
+        parsed = LLMClient._parse_response(response_model, final_response)
         if parsed and isinstance(parsed, Exception):
-            yield ChatCompletionEvent[T](
+            yield LLMEvent[T](
                 content=final_response,
                 finish_reason=finish_reason,
-                error=str(parsed),
+                exception=parsed,
                 parsed=None,
-                type=ChatCompletionEventType.PARSE_ERROR,
+                type=LLMEventType.PARSE_ERROR,
+                total_tokens=usage.total_tokens if usage else None,
             )
-        yield ChatCompletionEvent[T](
+        yield LLMEvent[T](
             content=final_response,
             finish_reason=finish_reason,
             parsed=parsed if parsed and not isinstance(parsed, Exception) else None,
-            usage=TokenCompletionUsage(
-                prompt_tokens=usage.prompt_tokens,
-                completion_tokens=usage.completion_tokens,
-                total_tokens=usage.total_tokens,
-            )
-            if usage
-            else None,
-            type=ChatCompletionEventType.COMPLETE,
+            type=LLMEventType.COMPLETE,
+            total_tokens=usage.total_tokens if usage else None,
         )
 
     @staticmethod
     async def _stream_completion(
         client: AsyncOpenAI,
-        tools: dict[str, LLMTool],
+        tool_map: dict[str, LLMTool],
         response_model: Type[T] | None = None,
         **kwargs,
     ):
@@ -253,9 +250,9 @@ class LlmClient:
             if delta.content:
                 content = delta.content
                 final_response += content
-                yield ChatCompletionEvent[T](
+                yield LLMEvent[T](
                     content=content,
-                    type=ChatCompletionEventType.TEXT_DELTA,
+                    type=LLMEventType.TEXT_DELTA,
                 )
 
             if delta.tool_calls:
@@ -272,8 +269,8 @@ class LlmClient:
                     if tool_delta.function:
                         if tool_delta.function.name:
                             tool_calls[idx]["name"] = tool_delta.function.name
-                            yield ChatCompletionEvent[T](
-                                type=ChatCompletionEventType.TOOL_CALL_START,
+                            yield LLMEvent[T](
+                                type=LLMEventType.TOOL_CALL_START,
                                 tool_call_delta=ToolCallDelta(**tool_calls[idx]),
                             )
 
@@ -281,17 +278,17 @@ class LlmClient:
                             tool_calls[idx]["arguments"] += (
                                 tool_delta.function.arguments
                             )
-                            yield ChatCompletionEvent[T](
-                                type=ChatCompletionEventType.TOOL_CALL_DELTA,
+                            yield LLMEvent[T](
+                                type=LLMEventType.TOOL_CALL_DELTA,
                                 tool_call_delta=ToolCallDelta(**tool_calls[idx]),
                             )
 
-        for tool_call_event in LlmClient._prepare_tool_calls(
-            tools, list(tool_calls.values())
+        for tool_call_event in LLMClient._prepare_tool_calls(
+            tool_map, list(tool_calls.values())
         ):
             yield tool_call_event
 
-        for event in LlmClient._finish_structured_outputs(
+        for event in LLMClient._finish_structured_outputs(
             response_model=response_model,
             final_response=final_response,
             finish_reason=finish_reason,
@@ -302,7 +299,7 @@ class LlmClient:
     @staticmethod
     async def _no_stream_completion(
         client: AsyncOpenAI,
-        tools: dict[str, LLMTool],
+        tool_map: dict[str, LLMTool],
         response_model: Type[T] | None = None,
         **kwargs,
     ):
@@ -310,10 +307,12 @@ class LlmClient:
         choice = event.choices[0]
         message = choice.message
 
-        for tool_call_event in LlmClient._prepare_tool_calls(tools, message.tool_calls):
+        for tool_call_event in LLMClient._prepare_tool_calls(
+            tool_map, message.tool_calls
+        ):
             yield tool_call_event
 
-        for event in LlmClient._finish_structured_outputs(
+        for event in LLMClient._finish_structured_outputs(
             response_model=response_model,
             final_response=message.content,
             finish_reason=choice.finish_reason,
@@ -321,13 +320,37 @@ class LlmClient:
         ):
             yield event
 
-    def sync_chat_completion(
+    def sync_chat_completion_last_event(
         self,
-        messages: list[dict[str, Any]],
+        messages: list[Message],
         stream: bool = False,
         response_model: Type[T] | None = None,
         **kwargs: Unpack[ChatCompletionParams],
-    ) -> Generator[ChatCompletionEvent[T], None, None]:
+    ):
+        result: LLMEvent[T] | None = None
+        for event in self.sync_chat_completion(
+            messages=messages, stream=stream, response_model=response_model, **kwargs
+        ):
+            if event.type == LLMEventType.COMPLETE:
+                result = event
+            elif (
+                event.type == LLMEventType.ERROR
+                or event.type == LLMEventType.PARSE_ERROR
+            ):
+                return event
+        if result:
+            return result
+        return LLMEvent(
+            type=LLMEventType.ERROR, exception=Exception("LLM did not complete")
+        )
+
+    def sync_chat_completion(
+        self,
+        messages: list[Message],
+        stream: bool = False,
+        response_model: Type[T] | None = None,
+        **kwargs: Unpack[ChatCompletionParams],
+    ) -> Generator[LLMEvent[T], None, None]:
         for event in async_generator_to_sync(
             lambda: self.chat_completion(
                 messages=messages,
