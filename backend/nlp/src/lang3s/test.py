@@ -1,144 +1,107 @@
-import traceback
-from collections import Counter, defaultdict
-from typing import Annotated
+import asyncio
+import random
+import re
+import time
 
-import umap
-from pydantic import BaseModel
-from sklearn.cluster._hdbscan import hdbscan
-from sqlalchemy import Boolean, cast, func, select, text
+import jsonlines
+from lang3s_job_service import File
 
-import lang3s.data.db.database as db
-import lang3s.data.db.text_database as text_db
-from lang3s.agent import Agent, Session
-from lang3s.agent.strategy import IterativeStrategy, OneShotStrategy
 from lang3s.app import Application
-from lang3s.data.db.database import get_session
-from lang3s.data.db.models import (
-    ClaimsTable,
-    TextAnnotationsTable,
-)
-from lang3s.llm.client import LLMClient
-from lang3s.llm.messages import Message
-from lang3s.llm.tools import Desc, tool
-from lang3s.models import Embedder
+from lang3s.data.db import text_db
+from lang3s.llm import LLMClient, Message
+from lang3s.models.coref_ranker import create_coref_mention
+from lang3s.nlp.ner import NamedEntityRecognition
+from lang3s.nlp.shared_types import AnnotationTypes
+from lang3s.pipeline import pipeline
 
 
-@tool(description="Searches the database for results similar to the given query.")
-def search_database(query: Annotated[str, Desc("The query to search.")]):
-    if query == "*":
-        results = text_db.random_sentences(25)
-
-    elif query in (
-        "a",
-        "the",
-        "data",
-        "report",
+async def generate():
+    topics = [
+        "politics",
         "sports",
-        "economy",
-        "business",
-        "computers",
+        "beauty",
         "life",
-        "entertainment",
-    ):
-        results = text_db.fts_sentence_search(query=query, limit=5)
-    else:
-        embedder = Embedder()
-        embedding = embedder([query]).sentence_embeddings[0]
-        results = text_db.semantic_sentence_search(embedding, 0.3, limit=5)
+        "technology",
+        "business",
+        "stocks",
+        "gaming",
+        "travel",
+    ]
 
-    return results
+    client = LLMClient()
+    with jsonlines.open("/Users/ik/prj/coref_data.jsonl", "a") as writer:
+        for i in range(100):
+            response = None
+            topic = random.choice(topics)
+            prompt = f"""
+                   Please generate a paragraph of text that resembles a news article about the topic "{topic}". 
+                   Make the text read like a real news article from a top news outlet with correct formal grammar.
+                   Use named entities and their coreferring nominals and pronouns.
+                   The named entities should include people, organizations, locations, works of art, nationalities, etc.
+                   Use multiple different entities in the text and for each entity have 0 or more coreferring nominals and pronouns.
+                   Also include instances of "it" and "its" that do not refer to an entity. 
+                   Label coreferring entities like <m c="COREF_ID">MENTION</m>
+                   Only output the text with the <m c="COREF_ID">MENTION</m> annotations and nothing else.
+                   """
+            async for event in client.chat_completion(
+                messages=[Message.user(prompt)], temperature=0.4
+            ):
+                response = event
+            if response:
+                if response.exception:
+                    print(response.exception)
+                else:
+                    post = response.content
+                    post = re.sub(r"</?r>", "", post).strip()
+                    print(post)
+                    writer.write(
+                        {"generated_text": post, "genre": "redit", "model": "gpt5.1"}
+                    )
 
-
-class Examples(BaseModel):
-    examples: list[str]
-
-
-def get_topic_count(topic_centroid):
-    # It is critical to use a fresh session or connection per thread
-    with get_session() as session:
-        # 1. Disable JIT for this thread's connection
-        session.execute(text("SET jit = off;"))
-        session.execute(text("SET hnsw.ef_search = 100;"))
-
-        # 2. Run your optimized HNSW query
-        stmt = select(func.count()).select_from(
-            select(TextAnnotationsTable.id)
-            .where(
-                TextAnnotationsTable.type_ == "sentence",
-                cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean).is_(False),
-                TextAnnotationsTable.embedding.cosine_distance(topic_centroid) < 0.35,
-            )
-            .order_by(TextAnnotationsTable.embedding.cosine_distance(topic_centroid))
-            .limit(25000)
-            .subquery()
-        )
-        return session.scalar(stmt)
+            if i % 5 == 0:
+                time.sleep(2)
 
 
 class Test(Application):
-    def keyword_clustering(self):
-        stmt = select(ClaimsTable).execution_options(yield_per=100)
-        keywords = []
-        embeddings = []
-        with db.get_session() as session:
-            keyword: ClaimsTable
-            for keyword in session.execute(stmt).scalars():
-                keywords.append(keyword.content)
-                embeddings.append(keyword.embedding.to_numpy())
-
-        reducer = umap.UMAP(
-            n_neighbors=15,
-            n_components=32,
-            metric="cosine",
-        )
-        reduced = reducer.fit_transform(embeddings)
-
-        clusterer = hdbscan.HDBSCAN(min_cluster_size=20, metric="cosine")
-        labels = clusterer.fit_predict(reduced)
-
-        clusters = defaultdict(list)
-        for label, keyword in zip(labels, keywords):
-            if label == -1:
-                continue
-            clusters[label].append(keyword)
-
-        client = LLMClient()
-        for label, keywords in clusters.items():
-            cnt = Counter(keywords)
-            topn = [c for c, v in cnt.most_common(50)]
-            prompt = f"""
-                Given the following list of keywords come up with a short noun phrase no more than four words describing the concept/topic. Give no explanation or reasoning for your answer only the answer and in plain text NO MARKUP.
-                
-                Keywords:
-                {"\n".join(topn)}
-            """
-            response = client.sync_chat_completion_last_event([Message.user(prompt)])
-            if response.exception:
-                print(response.exception)
-            else:
-                print(response.content, topn)
-
     def run(self):
-        agent = Agent(Session(available_tools=[search_database]))
-        r = agent.sync_run(
-            task="Generate example sentences that talk about cats and their lives. Do not repeat sentences.",
-            strategy=IterativeStrategy[Examples](
-                iteration_task="Generate 5 example sentences about cats.",
-                substrategy=OneShotStrategy[Examples](
-                    temperature=23, response_model=Examples
-                ),
-                iterations=2,
-            ),
-        )
-        if r.exception:
-            print(r.exception)
-            traceback.print_tb(r.exception.__traceback__)
-            traceback.print_tb(r.exception.__cause__.__traceback__)
-        else:
-            for ex in r.parsed:
-                for e in ex.examples:
-                    print(e)
+        processed = 0
+        ner = NamedEntityRecognition()
+        for doc in text_db.get_documents():
+            doc.text.remove_annotations(
+                [
+                    "ner",
+                    "corefrb_event_extractor",
+                ]
+            )
+            ner.process([doc])
+            print(doc.text)
+            for entity in doc.text.interleave("entity"):
+                metadata = create_coref_mention(entity)
+                metadata.pop("emb")
+                if entity.type == AnnotationTypes.TOKEN and entity.value == "PRON":
+                    print(
+                        f"Pronoun: {entity} ID: {entity.id} COREF: {entity.coref} COREF_ID: {entity.coref.id} METADATA: {metadata}"
+                    )
+                elif entity.type == AnnotationTypes.ENTITY:
+                    print(
+                        f" Entity: {entity}  ID: {entity.id} ({entity.value}) COREF: {entity.coref} COREF_ID: {entity.coref.id} METADATA: {metadata}"
+                    )
+            print()
+            processed += 1
+            if processed >= 10:
+                break
+
+        return
+        files = [
+            File(
+                content="""Henman to face Saulnier test British number one Tim Henman will face France's Cyril Saulnier in the first round of next week's Australian Open. Greg Rusedski, the British number two, is in the same quarter of the draw and could face Andy Roddick in the second round if he beats Swede Jonas Bjorkman. Local favourite Lleyton Hewitt will meet France's Arnaud Clement, while defending champion and world number one Roger Federer faces Fabrice Santoro. Women's top seed Lindsay Davenport drew Spanish veteran Conchita Martinez. Henman came from two sets down to defeat Saulnier in the first round of the French Open last year, so he knows he faces a tough test in Melbourne. The seventh seed, who has never gone beyond the quarter-finals in the year's first major and is lined up to meet Roddick in the last eight, is looking forward to the match. "He's tough player on any surface, he's got a lot of ability," he said. "We had a really tight one in Paris that went my way so I'm going to need to play well from the outset because he's a dangerous competitor." Switzerland's Federer, seeded one, is the hot favourite having won three of the four grand slam titles in 2004. He has beaten Santoro in five of their seven previous encounters, but is taking nothing for granted. "It's a tricky match," Federer said. "I played him at the US Open and won quite comfortably then. But you never know, if the rhythm is a bit off, he can keep you guessing and make it difficult. "The most important thing, though, is to get used to playing five-set matches and winning them." The 23-year-old could meet four-time champion Andre Agassi in the quarter-finals before meeting Russian Marat Safin, the player he beat in last year's final. Eighth-seeded American Agassi is set to play a qualifier in round one if he can shake off a hip injury which ruled him out of the Kooyong Classic. Second seed Andy Roddick will open his campaign against Irakli Labadze of Georgia. The American could meet Rusedski in the second round, seventh seed Henman in the quarter-finals and Hewitt in the last four. Hewitt is hoping to become the first Australian man to win the event since Mark Edmondson in 1976. The 23-year-old has never been beyond round four in eight attempts at Melbourne Park but has at least secured the opposite half of the draw to Federer, who beat him in the Australian Open, Wimbledon and US Open last year. Safin, seeded four, opens his campaign against a qualifier with 16th seed Tommy Haas, the player he beat in the semi-finals in 2002, a possible fourth-round opponent. In the women's draw, Davenport could encounter eighth-seeded Venus Williams in the quarter-finals and third-ranked Anastasia Myskina, the French Open champion, in the semi-finals. Bronchitis ruled Davenport, the 2000 Australian Open champion, out of her Sydney quarter-final on Thursday. Venus Williams, who lost to younger sister Serena in the Melbourne final two years ago, opens against Eleni Daniilidou of Greece. Serena Williams, who won her fourth consecutive grand slam at the 2003 Australian Open, was drawn in the bottom quarter with second seed Amelie Mauresmo, a runner-up in 1999. Serena will open against another Frenchwoman Camille Pin, while Mauresmo plays Australia's Samantha Stosur. Wimbledon champion Maria Sharapova, seeded fourth, drew a qualifier in the first round but could meet fellow Russian Svetlana Kuznetsova, the US Open winner, in the last eight 1 Roger Federer (Switzerland) 2 Andy Roddick (US) 3 Lleyton Hewitt (Australia) 4 Marat Safin (Russia) 5 Carlos Moya (Spain) 6 Guillermo Coria (Argentina) 7 Tim Henman (Britain) 8 Andre Agassi (US) 9 David Nalbandian (Argentina) 10 Gaston Gaudio (Argentina) 11 Joachim Johansson (Sweden) 12 Guillermo Canas (Argentina) 13 Tommy Robredo (Spain) 14 Sebastien Grosjean (France) 15 Mikhail Youzhny (Russia) 16 Tommy Haas (Germany) 17 Andrei Pavel (Romania) 18 Nicolas Massu (Chile) 19 Vincent Spadea (US) 20 Dominik Hrbaty (Slovakia) 21 Nicolas Kiefer (Germany) 22 Ivan Ljubicic (Croatia) 23 Fernando Gonzalez (Chile) 24 Feliciano Lopez (Spain) 25 Juan Ignacio Chela (Argentina) 26 Nikolay Davydenko (Russia) 27 Paradorn Srichaphan (Thailand) 28 Mario Ancic (Croatia) 29 Taylor Dent (US) 30 Thomas Johansson (Sweden) 31 Juan Carlos Ferrero (Spain) 32 Jurgen Melzer (Austria) 1 Lindsay Davenport (US) 2 Amelie Mauresmo (France) 3 Anastasia Myskina (Russia) 4 Maria Sharapova (Russia) 5 Svetlana Kuznetsova (Russia) 6 Elena Dementieva (Russia) 7 Serena Williams (US) 8 Venus Williams (US) 9 Vera Zvonareva (Russia) 10 Alicia Molik (Australia) 11 Nadia Petrova (Russia) 12 Patty Schnyder (Switzerland) 13 Karolina Sprem (Croatia) 14 Francesca Schiavone (Italy) 15 Silvia Farina Elia (Italy) 16 Ai Sugiyama (Japan) 17 Fabiola Zuluaga (Colombia) 18 Elena Likhovtseva (Russia) 19 Nathalie Dechy (France) 20 Tatiana Golovin (France) 21 Amy Frazier (US) 22 Magdalena Maleeva (Bulgaria) 23 Jelena Jankovic (Serbia and Montenegro) 24 Mary Pierce (France) 25 Lisa Raymond (US) 26 Daniela Hantuchova (Slovakia) 27 Anna Smashnova (Israel) 28 Shinobu Asagoe (Japan) 29 Gisela Dulko (Argentina) 30 Flavia Pennetta (Italy) 31 Jelena Kostanic (Croatia) 32 Iveta Benesova (Czech Republic)"""
+            )
+        ]
+        doc = pipeline(files)[0]
+        for entity in doc.text.entities:
+            print(entity, entity.coref)
 
 
 if __name__ == "__main__":
     Test.from_cli().run()
+    # asyncio.run(generate())

@@ -8,7 +8,6 @@ import numpy as np
 from numpy.typing import NDArray
 from psycopg import sql
 from sqlalchemy import func, select
-from sqlalchemy.orm import noload
 
 import lang3s.data.db.database as db
 from lang3s.data.db.models import DocumentsTable, TextAnnotationsTable
@@ -100,18 +99,24 @@ def random_sentences(count: int) -> List[dict[str, str]]:
 
 def get_documents(
     last_id: str | None = None,
-    limit: int = 1000,
+    limit: int = 100,
 ) -> Generator[Document, None, None]:
+    last_doc_id = last_id
     with db.get_session() as session:
-        stmt = select(DocumentsTable.id).order_by(DocumentsTable.id)
+        while True:
+            stmt = select(DocumentsTable.id).order_by(DocumentsTable.id)
 
-        if last_id is not None:
-            stmt = stmt.where(DocumentsTable.id > last_id)
+            if last_doc_id is not None:
+                stmt = stmt.where(DocumentsTable.id > last_doc_id)
 
-        stmt = stmt.limit(limit)
+            stmt = stmt.limit(limit)
+            docs = session.execute(stmt).scalars().all()
+            if not docs:
+                break
 
-        for doc_id in session.execute(stmt).scalars().all():
-            yield FILE_STORE.read_document(doc_id)
+            for doc_id in docs:
+                last_doc_id = doc_id
+                yield FILE_STORE.read_document(doc_id)
 
 
 def fts_topic_search(query: str, limit: int = 3) -> List[Dict[str, str]]:

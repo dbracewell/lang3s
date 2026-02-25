@@ -1,7 +1,7 @@
 "use client";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { Sentence } from "@/features/documents/ui/components/Sentence";
-import { Lan3gsDocument } from "@/features/common/classes";
+import { Lan3gsDocument } from "@/features/nlp/classes";
 import { memo, useEffect } from "react";
 import { OntologySelectorDialog } from "@/features/ontology/ui/components/OntologySelectorDialog";
 import { PaletteIcon } from "lucide-react";

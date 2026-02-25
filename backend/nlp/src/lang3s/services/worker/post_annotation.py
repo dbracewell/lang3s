@@ -25,7 +25,7 @@ from lang3s.utils.logger.service_logging import get_logger
 @tool(description="Searches the database for results similar to the given query.")
 def search_database(query: Annotated[str, Desc("The query to search.")]):
     if query == "*":
-        return text_db.random_sentences(500)
+        return text_db.random_sentences(50)
 
     if query in (
         "a",
@@ -54,13 +54,12 @@ def generate_corpus_summary():
     logger.info("Starting to process: discovery")
     corpus_discovery = DiscoveryStrategy(
         search_tool="search_database",
-        rounds=3,
+        rounds=2,
         queries_per_round=3,
     )
     agent = Agent(
         session=Session(
             available_tools=[search_database],
-            context_window=10000,
         )
     )
 
@@ -218,6 +217,3 @@ def probe_metadata():
                 index_elements=[MetadataTable.source, MetadataTable.name]
             )
         )
-
-
-generate_corpus_summary()

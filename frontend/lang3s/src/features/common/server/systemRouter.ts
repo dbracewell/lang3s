@@ -10,11 +10,11 @@ import {
 import { db } from "@/lib/db";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
-import { MetadataSchema } from "@/features/common/schemas";
 import { TRPCError } from "@trpc/server";
 import { getMetadata } from "@/features/common/server/queries";
 import z from "zod";
 import { requirePermissions } from "@/features/auth/server/actions";
+import { MetadataSchema } from "@/features/common/schemas";
 
 const formatableDataTypes = new Set(["float", "date", "datetime"]);
 

@@ -22,7 +22,7 @@ export const Wrapper = ({ children }: { children: React.ReactNode }) => {
   return (
     <>
       <NavSidebar isOpen={isMenuOpen} setIsOpen={setIsMenuOpen} />
-      <div className="from-sidebar-light to-sidebar-dark flex h-screen w-screen flex-col overflow-hidden bg-linear-to-b">
+      <div className="from-sidebar-light to-sidebar-dark flex h-screen min-h-200 w-screen min-w-255 flex-col overflow-hidden bg-linear-to-b">
         <MenuBar setIsMenuOpen={setIsMenuOpen} />
         <div className="min-h-0 flex-1 overflow-hidden p-1 pt-0!">
           <div className="bg-background inset-shadow-insert-shadow-border flex h-full min-h-0 w-full flex-col rounded-b-2xl border p-2 inset-shadow-xs">

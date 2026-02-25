@@ -3,8 +3,7 @@ import { t3env } from "@/lib/t3env";
 import path from "path";
 import zlib from "node:zlib";
 import { promises as fs } from "fs";
-import { DocumentSchema } from "@/features/common/schemas";
-import { Lang3sFile } from "@/features/common/classes";
+import { DocumentSchema, Lang3sFile } from "@/features/nlp/schemas";
 import z from "zod";
 import { decode } from "@msgpack/msgpack";
 

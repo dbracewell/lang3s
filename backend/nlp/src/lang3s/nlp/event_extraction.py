@@ -59,7 +59,7 @@ def process_a0_a1(array: List[TextAnnotation]):
             else:
                 if is_person_pronoun(item):
                     item.type = "entity"
-                    item.value = "PERSON"
+                    item.value = "Person"
                 else:
                     item.type = "entity"
                     item.value = "MISC"
@@ -186,7 +186,14 @@ def extract_events(doc: Document) -> List[Event]:
             sent_locs: List[TextAnnotation] = []
             for span in event.A1:
                 for ent in span.entities:
-                    if ent.value in ("GPE", "LOC", "FAC"):
+                    if ent.value in (
+                        "GPE",
+                        "LOC",
+                        "FAC",
+                        "GEO_POLITICAL_ENTITY",
+                        "LOCATION",
+                        "FACILITY",
+                    ):
                         sent_locs.append(ent)
 
             for child in trigger_children:
@@ -196,9 +203,16 @@ def extract_events(doc: Document) -> List[Event]:
                         span = expand_argument(span)
 
                         for ent in span.entities:
-                            if ent.value in ("GPE", "LOC", "FAC"):
+                            if ent.value.upper() in (
+                                "GPE",
+                                "LOC",
+                                "FAC",
+                                "GEO_POLITICAL_ENTITY",
+                                "LOCATION",
+                                "FACILITY",
+                            ):
                                 sent_locs.append(ent)
-                            elif ent.value in ("DATE", "TIME"):
+                            elif ent.value.upper() in ("DATE", "TIME"):
                                 sent_times.append(ent)
 
             event.LOC = first(sent_locs, None)
@@ -208,7 +222,7 @@ def extract_events(doc: Document) -> List[Event]:
                     event.LOC = entity
                 else:
                     event.LOC.type = "entity"
-                    event.LOC.value = "LOC"
+                    event.LOC.value = "Location"
                     doc.text.attach_annotation(event.LOC)
 
             event.TIME = first(sent_times, None)
@@ -218,7 +232,7 @@ def extract_events(doc: Document) -> List[Event]:
                     event.TIME = entity
                 else:
                     event.TIME.type = "entity"
-                    event.TIME.value = "TIME"
+                    event.TIME.value = "Time"
                     doc.text.attach_annotation(event.TIME)
 
             event.A0 = process_a0_a1(event.A0)

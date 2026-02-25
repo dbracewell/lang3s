@@ -1,11 +1,13 @@
-import enum
+from enum import StrEnum
 
 
-class Metadata(str, enum.Enum):
+class Metadata(StrEnum):
     LANGUAGE = "language"
     MIME_TYPE = "mime-type"
     PATH = "path"
     LEMMA = "lemma"
+    GENDER = "gender"
+    NUMBER = "number"
     IS_STOPWORD = "is_stopword"
     START_CHAR = "start_char"
     END_CHAR = "end_char"
@@ -24,23 +26,11 @@ class Metadata(str, enum.Enum):
     LOC_TEXT = "LOC_TEXT"
     SOURCE = "source"
 
-    def __str__(self) -> str:
-        return self.value
 
-    def __repr__(self) -> str:
-        return self.value
-
-
-class AnnotationTypes(str, enum.Enum):
+class AnnotationTypes(StrEnum):
     TOKEN = "token"
     SENTENCE = "sentence"
     ENTITY = "entity"
     PHRASE_CHUNK = "phrase_chunk"
     NOUN_CHUNK = "noun_chunk"
     EVENT = "event"
-
-    def __str__(self) -> str:
-        return self.value
-
-    def __repr__(self) -> str:
-        return self.value

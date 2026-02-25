@@ -10,10 +10,11 @@ import {
 import { GoBackButton } from "@/components/buttons/GoBackButton";
 import { CircleQuestionMarkIcon, XIcon } from "lucide-react";
 import { Hint } from "@/components/hint";
-import React, { Suspense } from "react";
+import React, { Suspense, useMemo } from "react";
 import { TopicIdContext } from "@/features/analytics/ui/components/TopicIdContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/Spinner";
+import { cn } from "@/lib/utils/cn";
 
 const Page = async (props: PageProps<"/analytics/topics/[id]">) => {
   const { id } = await props.params;
@@ -32,7 +33,7 @@ const SuspensedPage = async ({ id }: { id: string }) => {
         sentences={data.sentences.map((s) => s.content)}
         entities={data.entities}
       />
-      <Card className="animate-zoomin m-1 flex flex-1 flex-col gap-2 overflow-hidden">
+      <Card className="animate-zoomin m-1 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         <CardHeader>
           <CardTitle>
             <h1 className="">
@@ -52,9 +53,12 @@ const SuspensedPage = async ({ id }: { id: string }) => {
             </GoBackButton>
           </CardAction>
         </CardHeader>
-        <CardContent className="flex min-h-0 flex-col overflow-hidden p-2!">
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 text-sm md:grid-cols-[2fr_0.5fr]">
-            <SentenceSection sentences={data.sentences} />
+        <CardContent className="scrollable flex flex-col p-2!">
+          <div className="flex min-h-0 flex-1 flex-col gap-6 text-sm md:flex-row">
+            <div className="flex flex-1 flex-col gap-y-6">
+              <KeywordSection keywords={data.keywords} />
+              <SentenceSection sentences={data.sentences} />
+            </div>
             <EntitySection entities={data.entities} />
           </div>
         </CardContent>
@@ -64,13 +68,51 @@ const SuspensedPage = async ({ id }: { id: string }) => {
 };
 export default Page;
 
+const KeywordSection = ({
+  keywords,
+}: {
+  keywords: { category: string | null; count: number }[];
+}) => {
+  const normalizer = useMemo(
+    () => Math.max(...keywords.map((k) => k.count)),
+    [keywords],
+  );
+  const r = useMemo(
+    () => keywords.sort((a, b) => Math.random() - Math.random()),
+    [keywords],
+  );
+  return (
+    <div className="flex flex-col gap-1">
+      <h2 className="pb-2 text-xl font-semibold">
+        Top {keywords.length} concepts
+      </h2>
+      <div className="bg-muted/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border p-4">
+        {r.map((k, i) => (
+          <div
+            key={k.category}
+            className={cn(
+              "text-sm lowercase",
+              i % 2 === 0 ? "text-dodger-blue-500" : "text-muted-foreground",
+            )}
+            style={{
+              fontSize: `${Math.max(14, Math.ceil((k.count / normalizer) * 28))}px`,
+            }}
+          >
+            {k.category}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const SentenceSection = ({
   sentences,
 }: {
-  sentences: { content: string }[];
+  sentences: { content: string; similarity: number }[];
 }) => {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-1">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-1">
       <h2 className="pb-2 text-xl font-semibold">
         Top {sentences.length} topic sentences
       </h2>
@@ -97,8 +139,8 @@ const EntitySection = ({
   }[];
 }) => {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-1">
-      <h2 className="mb-2 text-center text-xl font-semibold">Top Entities</h2>
+    <div className="flex h-full flex-col gap-1 md:max-w-80">
+      <h2 className="mb-2 text-xl font-semibold">Top Entities</h2>
       <div className="flex min-h-0 flex-1 flex-col overflow-clip rounded-lg border">
         <div className="scrollable flex flex-col gap-1">
           <table className="w-full">

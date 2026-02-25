@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import weakref
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -78,8 +79,10 @@ class TextAnnotation(TextObject):
         if self._annotations is None:
             self._annotations = defaultdict(list)
             owner = self._owner_ref()
-            if self.type != AnnotationTypes.TOKEN.value:
-                self._annotations[self.type].append(self)
+
+            # if self.type != AnnotationTypes.TOKEN:
+            #     self._annotations[self.type].append(self)
+
             for a in owner.annotations:
                 if self.overlaps(a):  # type:ignore
                     self._annotations[a.type].append(a)
@@ -101,16 +104,16 @@ class TextAnnotation(TextObject):
 
     @property
     def tokens(self) -> List[TextAnnotation]:
-        if self.type == AnnotationTypes.TOKEN.value:
+        if self.type == AnnotationTypes.TOKEN:
             return [self]
         self.__ensure_tokens()
         return self._tokens
 
     def annotations_of_type(self, annotation_type: str) -> List[TextAnnotation]:
-        if annotation_type == AnnotationTypes.TOKEN.value:
+        if annotation_type == AnnotationTypes.TOKEN:
             return self.tokens
         self.__ensure_annotations()
-        return self._annotations[annotation_type]
+        return self._annotations.get(annotation_type, [])
 
     @property
     def owner(self) -> "Text":
@@ -121,36 +124,56 @@ class TextAnnotation(TextObject):
 
     @property
     def is_stopword(self) -> bool:
-        v = self.metadata.get(Metadata.IS_STOPWORD.value, None)
+        v = self.metadata.get(Metadata.IS_STOPWORD, None)
         if v is not None:
             return v
 
-        if self.type == AnnotationTypes.TOKEN.value:
+        if self.type == AnnotationTypes.TOKEN:
             return False
 
         return all(t.is_stopword for t in self.tokens)
 
+    def clear_cache(self):
+        if self.type == AnnotationTypes.TOKEN:
+            if self._annotations:
+                for other in itertools.chain.from_iterable(self._annotations.values()):
+                    other.clear_cache()
+        self._tokens = None
+        self._annotations = None
+
     @property
     def parent(self) -> Optional[TextAnnotation]:
-        if self.type == AnnotationTypes.TOKEN.value:
-            head = self.metadata.get(Metadata.HEAD.value, None)
+        if self.type == AnnotationTypes.TOKEN:
+            head = self.metadata.get(Metadata.HEAD, None)
             if head is None or head == self.start:
                 return None
             return self.owner.tokens[head]
 
         span_set = set((token.start for token in self.tokens))
         for token in self.tokens:
-            head = token.metadata.get(Metadata.HEAD.value, None)
+            head = token.metadata.get(Metadata.HEAD, None)
             if head is not None and (head not in span_set or head == token.start):
                 return self.owner.tokens[head]
         return None
 
     @property
+    def head(self) -> TextAnnotation:
+        if self.type == AnnotationTypes.TOKEN:
+            return self
+
+        span_set = set((token.start for token in self.tokens))
+        for token in self.tokens:
+            head = token.metadata.get(Metadata.HEAD, None)
+            if head is not None and (head not in span_set or head == token.start):
+                return token
+        return self.tokens[-1]
+
+    @property
     def children(self) -> List[TextAnnotation]:
         children: List[TextAnnotation] = []
-        if self.type == AnnotationTypes.TOKEN.value:
+        if self.type == AnnotationTypes.TOKEN:
             for token in self.sentence.tokens:
-                if token[Metadata.HEAD.value] == self.start and token.id != self.id:
+                if token[Metadata.HEAD] == self.start and token.id != self.id:
                     children.append(token)
         else:
             for token in self.tokens:
@@ -176,9 +199,7 @@ class TextAnnotation(TextObject):
 
     @property
     def coref(self) -> TextAnnotation:
-        coref_id = self.metadata.get(
-            Metadata.COREF.value,
-        )
+        coref_id = self.metadata.get(Metadata.COREF)
         if coref_id is None:
             return self
         for ann in self.owner.annotations:
@@ -192,12 +213,32 @@ class TextAnnotation(TextObject):
 
     @property
     def lemma(self) -> str:
-        lemma_str = self.metadata.get(Metadata.LEMMA.value, None)
+        lemma_str = self.metadata.get(Metadata.LEMMA, None)
         if lemma_str is None:
-            if self.type == AnnotationTypes.TOKEN.value:
+            if self.type == AnnotationTypes.TOKEN:
                 return self.text.lower()
             lemma_str = " ".join(t.lemma for t in self.tokens)
         return lemma_str
+
+    @property
+    def normalized_text(self) -> str:
+        if self.type == AnnotationTypes.SENTENCE:
+            return self.text
+        return (
+            self.metadata.get(Metadata.COREF_TEXT)
+            or self.metadata.get(Metadata.LEMMA)
+            or self.text
+        ).upper()
+
+    def previous_token(self) -> Optional[TextAnnotation]:
+        if self.start == 0:
+            return None
+        return self.owner.tokens[self.start - 1]
+
+    def next_token(self) -> Optional[TextAnnotation]:
+        if self.end == len(self.owner.tokens):
+            return None
+        return self.owner.tokens[self.end]
 
     def insert_values(self):
         if self.embedding is None:
@@ -211,11 +252,7 @@ class TextAnnotation(TextObject):
 
         sent = self.sentence
 
-        normalized_text = (
-            self.metadata.get(Metadata.COREF_TEXT.value)
-            or self.metadata.get(Metadata.LEMMA.value)
-            or self.text
-        ).upper()
+        normalized_text = self.normalized_text
 
         if len(normalized_text) > 1000:
             normalized_text = normalized_text[:1000]
@@ -244,13 +281,17 @@ class TextAnnotation(TextObject):
         )
 
     @property
+    def mapping(self) -> str:
+        return f"{self.type}:{self.value}"
+
+    @property
     def dep(self):
-        if self.type == AnnotationTypes.TOKEN.value:
-            return self.metadata.get(Metadata.RELATION.value, "ROOT")
+        if self.type == AnnotationTypes.TOKEN:
+            return self.metadata.get(Metadata.RELATION, "ROOT")
         parent = self.parent
         if parent is None:
             return "ROOT"
-        return parent.metadata.get(Metadata.RELATION.value, "ROOT")
+        return parent.metadata.get(Metadata.RELATION, "ROOT")
 
     def to_json(self) -> Dict[str, Any]:
         emb = self.embedding

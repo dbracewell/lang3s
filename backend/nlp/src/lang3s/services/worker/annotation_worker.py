@@ -13,24 +13,30 @@ import argparse
 import gc
 import os
 import sys
+import threading
 import time
 import traceback
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import torch
 from joblib import Parallel, delayed
 from lang3s_job_service import File, Job, JobService, JobStatus
+from sqlalchemy import update
 
 from lang3s import config
 from lang3s.data.db import db, text_db
-from lang3s.models import Embedder, MultiTaskTransformer
+from lang3s.data.db.models import KeywordsTable
 from lang3s.nlp.claim_extractor import create_sentence_context
+from lang3s.nlp.keyword_extraction import generate_keyword_categories
+from lang3s.nlp.ner import get_ner_model
+from lang3s.ontology import ontology
 from lang3s.pipeline import pipeline
 from lang3s.services.client.redis_client import (
     ANNOTATION_QUEUE_NAME,
     CLAIM_EXTRACT_QUEUE_NAME,
     DUCKDB_QUEUE_NAME,
+    ONTOLOGY_UPDATE_TOPIC,
     RedisClient,
     create_completed_status_message,
     redis_get_message_batch,
@@ -43,19 +49,33 @@ from lang3s.utils.logger.service_logging import get_logger
 
 from .post_annotation import generate_corpus_summary, probe_metadata
 
-pid = os.getpid()
+pid = None
 
-embedder: Embedder | None = None
-mtask_transformer: MultiTaskTransformer | None = None
+
+def ontology_listener():
+    logger = get_logger("NLP_WORKER")
+    while True:
+        try:
+            with RedisClient() as client:
+                p = client.subscribe(ONTOLOGY_UPDATE_TOPIC)
+                for message in p.listen():
+                    if message["type"] == "message":
+                        if message["data"] == "update":
+                            logger = get_logger("NLP_WORKER")
+                            logger.info("🛜 Updating ontology")
+                            ontology.refresh()
+                            get_ner_model().refresh()
+        except Exception as e:
+            logger.error(f"Redis link dropped: {e}")
+            time.sleep(5)
 
 
 def init_worker():
     logger = get_logger("NLP_WORKER")
-    global embedder
-    global mtask_transformer
+    global pid
+    pid = os.getpid()
     logger.info(f"👷🏻 Worker {pid} Started.")
-    embedder = Embedder()
-    mtask_transformer = MultiTaskTransformer()
+    threading.Thread(target=ontology_listener, daemon=True).start()
 
 
 @dataclass
@@ -143,8 +163,7 @@ def process_batch(batch):
         tuple[int, int]: A tuple containing the count of successfully completed documents and the count of
         failed documents.
     """
-    global embedder
-    global mtask_transformer
+    global pid
     topic_model = TopicModelClient()
     logger = get_logger("NLP_WORKER")
 
@@ -166,7 +185,7 @@ def process_batch(batch):
         update_job(job_id, failed=len(batch))
         return 0, len(batch)
 
-    job = result.value
+    job: Job = cast(Job, result.value)
     metadata = job.metadata
     tasks = metadata.get("tasks", None)
     if tasks:
@@ -180,8 +199,6 @@ def process_batch(batch):
                 files,
                 tasks=tasks,
                 batch_size=len(files),
-                embedder=embedder,
-                mtask=mtask_transformer,
             )
             logger.info(
                 f"WORKER {pid}: 📝 Annotated {len(docs)} documents: {format_duration(start_time, time.perf_counter())}"
@@ -248,11 +265,12 @@ def complete_job(job_id: int) -> None:
         Ensures fault tolerance for most errors during execution and logs them accordingly.
         This function does not raise unhandled exceptions.
     """
+    global pid
     result = get_job(job_id)
     if not result.is_ok:
         return
 
-    job = result.value
+    job: Job = cast(Job, result.value)
     if job.status in ["failed", "complete"]:
         return
 
@@ -275,13 +293,29 @@ def complete_job(job_id: int) -> None:
             f"WORKER {pid}: Error creating text annotation embeddings index: {e}"
         )
 
-    with try_catch(on_error=lambda e: f"WORKER {pid}: Error finalizing topics: {e}"):
+    with try_catch(
+        on_error=lambda e: logger.error(
+            f"WORKER {pid}: Error categorizing keywords: {e}"
+        )
+    ):
+        logger.info(f"WORKER {pid}: Generating keyword categories")
+        updates = generate_keyword_categories()
+        stmt = update(KeywordsTable)
+        with db.get_session() as session:
+            session.execute(stmt, updates)
+        logger.info(f"WORKER {pid}: Completed generating keyword categories")
+
+    with try_catch(
+        on_error=lambda e: logger.error(f"WORKER {pid}: Error finalizing topics: {e}")
+    ):
         logger.info(f"WORKER {pid}: Finalizing topic model")
         topic_model = TopicModelClient()
         topic_model.finalize()
 
     with try_catch(
-        on_error=lambda e: f"WORKER {pid}: Error generating corpus summary: {e}"
+        on_error=lambda e: logger.error(
+            f"WORKER {pid}: Error generating corpus summary: {e}"
+        )
     ):
         logger.info(f"WORKER {pid}: Generating corpus summary")
         probe_metadata()
@@ -326,6 +360,20 @@ def worker_loop(params: Tuple[int, int]) -> WorkerResult:
     )
 
 
+def worker_loop_wrapper(params: Tuple[int, int]) -> WorkerResult:
+    global pid
+    if pid is None:
+        init_worker()
+    try:
+        return worker_loop(params)
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        return WorkerResult(
+            active_job_id=params[0],
+        )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -341,46 +389,79 @@ def main():
         type=int,
     )
     args = parser.parse_args()
-    active_job_id = None
+    active_job_id: Optional[int] = None
     total_docs_completed = 0
     total_docs_failed = 0
     logger = get_logger("NLP_WORKER")
 
-    with RedisClient() as redis_client:
-        while True:
-            while redis_client.queue_length(ANNOTATION_QUEUE_NAME) == 0:
-                # If Redis is empty, just sleep
+    while True:
+        is_job_completed = False
+
+        with RedisClient() as redis_client:
+            try:
+                while redis_client.queue_length(ANNOTATION_QUEUE_NAME) == 0:
+                    # If Redis is empty, just sleep
+                    time.sleep(5)
+            except Exception as e:
+                logger.error(f"Redis link dropped: {e}")
                 time.sleep(5)
+                continue
 
             with Parallel(
                 n_jobs=args.num_workers,
                 backend="loky",
-                inner_max_num_threads=1,
+                inner_max_num_threads=2,
                 initializer=init_worker,
             ) as parallel:
                 # Limit a process to a life of 5 cycles to prevent memory creep
-                for i in range(5):
+                for _ in range(5):
                     tasks = [
-                        delayed(worker_loop)((active_job_id, args.batch_size))
+                        delayed(worker_loop_wrapper)((active_job_id, args.batch_size))
                         for _ in range(args.num_workers)
                     ]
                     results = parallel(tasks)
 
-                    active_job_id = next(result.active_job_id for result in results)
-                    is_job_completed = any(result.job_completed for result in results)
-                    total_docs_completed += sum(
-                        result.completed_count for result in results
+                    # Filter out any unexpected None results and ensure correct typing
+                    valid_results = [r for r in results if isinstance(r, WorkerResult)]
+
+                    if not valid_results:
+                        logger.warning(
+                            "No valid worker results returned from parallel execution."
+                        )
+                        continue
+
+                    # Determine the active job id from the returned results, prefer non-None values
+                    active_job_id = next(
+                        (
+                            r.active_job_id
+                            for r in valid_results
+                            if r.active_job_id is not None
+                        ),
+                        active_job_id,
                     )
-                    total_docs_failed += sum(result.failed_count for result in results)
+
+                    is_job_completed = any(r.job_completed for r in valid_results)
+                    total_docs_completed += sum(
+                        r.completed_count for r in valid_results
+                    )
+                    total_docs_failed += sum(r.failed_count for r in valid_results)
                     logger.info(
                         f"📈 Total Documents Completed: {total_docs_completed}, Total Documents Failed: {total_docs_failed}, Job Completed: {is_job_completed}, active_job_id: {active_job_id}"
                     )
-
                     if is_job_completed:
-                        complete_job(active_job_id)
-                        active_job_id = None
-                        total_docs_completed = 0
-                        total_docs_failed = 0
+                        break  # break the loop to kill the processes
+
+            if is_job_completed:
+                if active_job_id is not None:
+                    complete_job(active_job_id)
+                else:
+                    logger.error(
+                        "Job marked as completed by workers but active_job_id is None; skipping complete_job."
+                    )
+                active_job_id = None
+                total_docs_completed = 0
+                total_docs_failed = 0
+                break
 
 
 if __name__ == "__main__":

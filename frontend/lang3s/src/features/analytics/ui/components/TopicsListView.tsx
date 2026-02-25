@@ -21,6 +21,7 @@ export const TopicsListView = ({ points }: DataProps) => {
   );
   const [tab] = useTopicsTabParams();
   const { setContext } = useChatContext();
+
   useEffect(() => {
     const context = points
       .map((p) => `TopicId: ${p.id} TopicName: ${p.name}`)
@@ -89,7 +90,10 @@ const TopicRow = ({
             <SearchIcon />
           </Link>
         </Hint>
-        <Link href={`/analytics/topics/${topic.id}`} className="link">
+        <Link
+          href={`/analytics/topics/${topic.id}`}
+          className="hover:text-dodger-blue-500 hover:underline"
+        >
           {topic.name}
         </Link>
       </div>

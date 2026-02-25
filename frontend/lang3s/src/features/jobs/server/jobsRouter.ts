@@ -9,13 +9,13 @@ import {
   isSystemApiKey,
   requirePermissions,
 } from "@/features/auth/server/actions";
-import { Lang3sFile } from "@/features/common/classes";
 import { BasicUserInfo } from "@/features/common/types";
 import { apiProcedure, createTRPCRouter } from "@/lib/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { and, AnyColumn, count, desc, eq, ne, or, sql } from "drizzle-orm";
 import z from "zod";
 import { publishMessage } from "@/lib/events/publish";
+import { Lang3sFile } from "@/features/nlp/schemas";
 
 const increment = (
   column: AnyColumn,

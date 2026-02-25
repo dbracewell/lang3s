@@ -20,6 +20,7 @@ import {
   ZoomOutIcon,
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
+import { useResizeObserver } from "@/components/charts/useResizeObserver";
 
 // ---------------- Types ----------------
 
@@ -95,7 +96,9 @@ export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
   const zoomBehaviorRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(
     null,
   );
-  const [dimensions, setDimensions] = useState({ width: 400, height: 400 });
+  const { dimensions } = useResizeObserver({
+    wrapperRef,
+  });
 
   useEffect(() => {
     if (!data?.points?.length) return;
@@ -229,7 +232,10 @@ export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
           // 1. Clear existing content (crucial for re-renders/updates)
           this.textContent = "";
 
-          const lines = splitLabels ? d.name.split(splitLabels) : [d.name];
+          const lines = (
+            splitLabels ? d.name.split(splitLabels) : [d.name]
+          ).slice(0, 4);
+          lines[lines.length - 1] = lines[lines.length - 1] + "...";
           const lineHeight = 1.2; // em
           const ns = "http://www.w3.org/2000/svg"; // Required for creating SVG elements
 
@@ -314,24 +320,6 @@ export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
       svg.selectAll("*").remove();
     };
   }, [data, dimensions, showLabels, styles, onNodeClick]);
-
-  useEffect(() => {
-    const element = wrapperRef.current;
-    if (!element) return;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry?.contentRect) {
-        setDimensions({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height,
-        });
-      }
-    });
-
-    resizeObserver.observe(element);
-    return () => resizeObserver.disconnect();
-  }, []);
 
   // --- Zoom controls
   const handleZoomIn = () => {

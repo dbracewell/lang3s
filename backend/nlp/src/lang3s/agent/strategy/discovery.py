@@ -103,7 +103,7 @@ class DiscoveryStrategy(Strategy[BaseModel]):
                     tool_id += 1
 
                 await self._async_run_tools(session, tool_calls)
-                await session.compact()
+                session.compact()
                 result = await self._chat_to_completion(session)
                 if result.exception:
                     return StrategyResult.from_exception(result.exception)
@@ -120,7 +120,7 @@ class DiscoveryStrategy(Strategy[BaseModel]):
 
                 discovered_terms.update(self.extract_terms(result.content or ""))
                 session.state.progress += 1
-                await session.compact()
+                session.compact()
 
             final_prompt = (
                 f"Using all exploration rounds, produce a final characterization of the corpus.\n"

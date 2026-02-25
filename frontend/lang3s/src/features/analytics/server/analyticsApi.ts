@@ -41,7 +41,7 @@ type AnnotationLoaner = {
 type Cohorts = {
   edges: { id1: string; id2: string; similarity: number }[];
   nodes: { id: string; name: string; support: number; r: number }[];
-  clusters: { id: string; name: string; type: string }[];
+  clusters: { id: string; name: string; type: string }[][];
   id_cid: Record<string, string>;
 };
 
@@ -93,7 +93,7 @@ export const updateAnalytics = async () => {
 };
 
 export const cohorts = async () => {
-  return postJson<Cohorts[]>(`${BASE_PATH}/cohorts`);
+  return postJson<Cohorts>(`${BASE_PATH}/cohorts`);
 };
 
 export const annotationAffinity = async (values: string[]) => {

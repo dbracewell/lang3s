@@ -1,8 +1,17 @@
+import textwrap
+from collections import Counter, defaultdict
 from typing import Tuple
 
 import numpy as np
+import umap
+from joblib import Parallel, delayed
+from sklearn.cluster._hdbscan import hdbscan
 from sklearn.metrics.pairwise import cosine_similarity
+from sqlalchemy import select
 
+import lang3s.data.db.database as db
+from lang3s.data.db.models import KeywordsTable
+from lang3s.llm import LLMClient, Message
 from lang3s.nlp.shared_types import Text
 
 
@@ -124,3 +133,64 @@ def extract_keywords(text: Text, top_n=5, diversity=0.5):
         diversity=diversity,
     )
     return keywords
+
+
+def _create_label(keywords: list[Tuple[str, str, np.ndarray]]) -> list[Tuple[str, str]]:
+    client = LLMClient()
+    cnt = Counter(k[1] for k in keywords)
+    topn = [c for c, v in cnt.most_common(100)]
+    prompt = textwrap.dedent(f"""
+                    Given the following list of keywords come up with a short noun phrase no more than four words describing the concept/topic. 
+                    Make the noun phrase generic and not specific to ONE keyword it should be generic enough to cover any keyword in the category.
+                    Give no explanation or reasoning for your answer only the answer and in plain text NO MARKUP.
+
+                    Keywords:
+                    {"\n".join(topn)}
+                """).strip()
+    response = client.sync_chat_completion_last_event([Message.user(prompt)])
+    if response.exception:
+        return [(k[0], k[1]) for k in keywords]
+    else:
+        return [(k[0], response.content) for k in keywords]
+
+
+def generate_keyword_categories():
+    stmt = select(KeywordsTable).execution_options(yield_per=100)
+    keywords = []
+    with db.get_session() as session:
+        keyword: KeywordsTable
+        for keyword in session.execute(stmt).scalars():
+            keywords.append((keyword.id, keyword.keyword, keyword.embedding.to_numpy()))
+
+    reducer = umap.UMAP(
+        n_neighbors=15,
+        n_components=64,
+        metric="cosine",
+    )
+    reduced = reducer.fit_transform([k[2] for k in keywords])
+
+    clusterer = hdbscan.HDBSCAN(
+        min_cluster_size=10,
+        min_samples=5,
+        metric="cosine",
+    )
+    labels = clusterer.fit_predict(reduced)
+
+    clusters = defaultdict(list)
+    for label, keyword in zip(labels, keywords):
+        if label == -1:
+            continue
+        clusters[label].append(keyword)
+
+    with Parallel(
+        n_jobs=-1,
+        backend="loky",
+        inner_max_num_threads=1,
+    ) as parallel:
+        results = parallel([delayed(_create_label)(v) for _, v in clusters.items()])
+
+    updates = []
+    for r in results:
+        for kid, category in r:
+            updates.append({"id": kid, "category": category})
+    return updates

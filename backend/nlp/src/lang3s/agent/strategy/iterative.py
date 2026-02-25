@@ -89,7 +89,7 @@ class IterativeStrategy(Strategy[STRATEGY_RESPONSE_TYPE]):
                     if event.parsed:
                         result_parsed.append(event.parsed)
 
-                await session.compact()
+                session.compact()
 
             return StrategyResult(content=result_contents, parsed=result_parsed)
         except Exception as e:

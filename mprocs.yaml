@@ -1,0 +1,16 @@
+procs:
+  caddy:
+    shell: "caddy run --config ./Caddyfile"
+    autostart: true
+
+  python-server:
+    shell: "python ../run.py --num_workers 5 --batch_size 100"
+    cwd: "./backend/nlp"
+    env:
+      MODELS_DIR=models:
+    autostart: true
+
+  nextjs-server:
+    shell: "pnpm dev"
+    cwd: "./frontend/lang3s"
+    autostart: true

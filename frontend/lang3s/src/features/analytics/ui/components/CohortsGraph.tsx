@@ -1,9 +1,6 @@
 "use client";
-import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { useTopicsTabParams } from "@/features/analytics/hooks/useTopicsTabParams";
 import { ForceGraph, Point, Similarity } from "@/components/charts/ForceGraph";
 import React from "react";
-import { parseAsString, useQueryState } from "nuqs";
 import { useCohortsParams } from "@/features/analytics/hooks/useCohortsParams";
 
 export const CohortsGraph = ({
@@ -23,7 +20,7 @@ export const CohortsGraph = ({
       data={data}
       linkScaleFactor={2}
       showLabels={true}
-      minSupportToShowLabel={5}
+      minSupportToShowLabel={25}
       onNodeClick={async (node) => {
         await setParams({ q: node.name, tab: "list" });
       }}

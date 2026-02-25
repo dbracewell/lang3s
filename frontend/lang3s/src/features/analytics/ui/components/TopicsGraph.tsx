@@ -23,7 +23,7 @@ export const TopicsGraph = ({ data }: DataProps) => {
     <ForceGraph
       data={data}
       showLabels={true}
-      splitLabels=", "
+      splitLabels=" "
       onNodeClick={(node) => router.push(`/analytics/topics/${node.id}`)}
       styles={{
         backgroundColor: "transparent",
@@ -35,7 +35,7 @@ export const TopicsGraph = ({ data }: DataProps) => {
         linkColor: "transparent",
         tooltipBg: "#111827",
         tooltipTextColor: "#f9fafb",
-        labelFontSize: 10,
+        labelFontSize: 8,
         labelColor: theme.theme === "dark" ? "#fff" : "#000",
       }}
       className="flex-1"

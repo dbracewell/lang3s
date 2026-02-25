@@ -43,13 +43,19 @@ const create_node = async (node: Node, parent?: Node) => {
       })
       .returning();
     node.id = r.id;
+    node.mappings.push(`entity:${node.name.split(".").slice(-1)[0]}`);
+
     node.name = r.path;
     if (node.mappings.length > 0) {
       await db
         .insert(AnnotationToOntology)
-        .values(
-          node.mappings.map((m) => ({ ontologyId: r.id, annotation: m })),
-        );
+        .values(node.mappings.map((m) => ({ ontologyId: r.id, annotation: m })))
+        .onConflictDoNothing({
+          target: [
+            AnnotationToOntology.ontologyId,
+            AnnotationToOntology.annotation,
+          ],
+        });
     }
 
     for (const child of node.children ?? []) {

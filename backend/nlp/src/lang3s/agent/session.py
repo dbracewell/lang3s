@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import json
+import traceback
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable
 
 import shortuuid
 
 from lang3s import config
-from lang3s.llm import LLMClient, Message
+from lang3s.llm import LLMClient, Message, ToolCall
 from lang3s.llm.token_estimator import estimate_tokens
 
-if TYPE_CHECKING:
-    from lang3s.llm import LLMEvent, LLMEventType, ToolCall
+from ..utils.logger import get_logger
 
+if TYPE_CHECKING:
     from .events import AgentEvent
     from .middleware.base import Middleware
 
@@ -57,13 +58,15 @@ class State:
 
 DEFAULT_SYSTEM_MESSAGE = "You are a helpful agent."
 
+logger = get_logger("AGENT_SESSION")
+
 
 @dataclass
 class Session:
     session_id: str = field(default_factory=lambda: shortuuid.uuid())
     model_name: str = field(default=config.LLM_MODEL)
     system_message: str = field(default=DEFAULT_SYSTEM_MESSAGE)
-    context_window: int = field(default=10000)
+    context_window: int = field(default=config.LLM_CONTEXT_WINDOW)
     max_history: int = field(default=50)
     available_tools: list[Callable[..., Any]] | None = field(default=None)
     _state: State | None = field(default=None, init=False)
@@ -112,20 +115,19 @@ class Session:
     def reset_state(self) -> None:
         self._state = None
 
-    async def compact(self) -> None:
+    def compact(self) -> None:
         if self._state is None:
             return
         state = self.state
         total_tokens = self.state.total_token_count
 
-        if (
+        while (
             total_tokens >= (0.8 * self.context_window)
             or len(state.messages) > self.max_history
         ):
             to_summarize = self.state.messages[1:-4]
             keep_recent = self.state.messages[-4:]
-            response: LLMEvent | None = None
-            async for event in self.client.chat_completion(
+            response = self.client.sync_chat_completion_last_event(
                 messages=[
                     Message.system(
                         content="""
@@ -143,12 +145,14 @@ class Session:
                         )
                     ),
                 ]
-            ):
-                if event.type == LLMEventType.COMPLETE:
-                    response = event
+            )
 
             if response is None or response.exception:
-                raise RuntimeError(response.exception or "Error compacting memory")
+                logger.error(response.content, exc_info=True)
+                traceback.print_exc()
+                response.content = "\n".join(
+                    [msg.content for msg in to_summarize[-3:] if msg.content != ""]
+                )
 
             first_message = (
                 self.state.messages[0]
@@ -161,3 +165,5 @@ class Session:
                 ),
                 *keep_recent,
             ]
+
+            total_tokens = self.state.total_token_count

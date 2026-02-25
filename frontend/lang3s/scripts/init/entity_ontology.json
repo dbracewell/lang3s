@@ -36,7 +36,12 @@
                     "description": "A geographical area governed by a specific political structure and possesses the authority to make decisions affecting its population and territory.",
                     "mappings": ["entity:GPE"],
                     "properties": {
-                      "isAgentive": "true"
+                      "isAgentive": {
+                        "value": true,
+                        "dataType": "boolean",
+                        "inherit": true,
+                        "display": false
+                      }
                     }
                   },
                   {
@@ -88,7 +93,26 @@
                 "name": "NORP",
                 "description": "Identifies people or groups defined by their shared heritage, faith, or political affiliation, as well as the adjectival forms of these identities.",
                 "mappings": ["entity:NORP"],
-                "children": []
+                "children": [
+                  {
+                    "name": "Nationality",
+                    "description": "The legal status or formal,,membership a person holds in a specific nation-state or country, usually acquired through birth, descent, or naturalization, which identifies them as a citizen of that country",
+                    "mappings": [""],
+                    "children": []
+                  },
+                  {
+                    "name": "Religious_Group",
+                    "description": "A collection of individuals united by shared beliefs, doctrines, practices, or rituals centered around a common faith or spiritual tradition.",
+                    "mappings": [""],
+                    "children": []
+                  },
+                  {
+                    "name": "Political_Group",
+                    "description": "Organized association of individuals, such as a political party or coalition, that shares similar ideological views, promotes specific policies, and works to influence government or win public office.",
+                    "mappings": [""],
+                    "children": []
+                  }
+                ]
               }
             ]
           },
@@ -175,6 +199,14 @@
                 "name": "Digital_Identifier",
                 "description": "A standardized sequence of characters or symbols used to uniquely reference, address, or categorize an entity, resource, or concept within a specific digital namespace or protocol.",
                 "mappings": [],
+                "properties": {
+                  "ml_tagged": {
+                    "value": false,
+                    "dataType": "boolean",
+                    "inherit": true,
+                    "display": false
+                  }
+                },
                 "children": [
                   {
                     "name": "Handle",

@@ -131,6 +131,9 @@ class Strategy(ABC, Generic[STRATEGY_RESPONSE_TYPE]):
         use_tools: bool = False,
         **kwargs: Unpack[ChatCompletionParams],
     ) -> AsyncGenerator[AgentEvent[STRATEGY_RESPONSE_TYPE], None]:
+        if "max_tokens" not in kwargs:
+            kwargs["max_tokens"] = session.context_window
+
         async for event in session.client.chat_completion(
             messages=session.state.messages,
             stream=True,

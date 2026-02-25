@@ -273,6 +273,7 @@ DROP TABLE IF EXISTS "keywords" CASCADE;
 CREATE TABLE "keywords"
 (
     "id"          uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "category"    text,
     "keyword"     text                                       NOT NULL,
     "document_id" text                                       NOT NULL,
     "text_id"     text                                       NOT NULL,
@@ -371,6 +372,7 @@ CREATE INDEX IF NOT EXISTS "topics_embeddingIndex" ON "topics" USING hnsw ("embe
 CREATE INDEX IF NOT EXISTS "metadata_link_index" on "metadata" USING btree ("links_to_document_id");
 CREATE INDEX IF NOT EXISTS "keywords_embedding_index" ON "keywords" USING hnsw ("embedding" halfvec_cosine_ops);
 CREATE INDEX IF NOT EXISTS "keywords_document_id" ON "keywords" USING btree ("document_id");
+CREATE INDEX IF NOT EXISTS "keywords_category_idx" ON "keywords" USING btree ("category");
 
 
 CREATE INDEX IF NOT EXISTS "claims_content_fts_index" ON "claims" USING pgroonga ("text");

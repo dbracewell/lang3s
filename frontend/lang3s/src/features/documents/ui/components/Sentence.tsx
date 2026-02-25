@@ -1,6 +1,6 @@
 import { TextAnnotation } from "@/features/documents/ui/components/TextAnnotation";
 import { cn } from "@/lib/utils/cn";
-import { Lang3sTextAnnotation } from "@/features/common/classes";
+import { Lang3sTextAnnotation } from "@/features/nlp/classes";
 import { memo } from "react";
 
 type SentenceProps = {

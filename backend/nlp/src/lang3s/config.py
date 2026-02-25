@@ -42,7 +42,7 @@ class Config:
             return value
         return os.environ.get(key, default)
 
-    def _get_dynamic(self, key: str, default: Any) -> Any:
+    def get_config_value(self, key: str, default: Any) -> Any:
         # 1. Check Secret
         value = self._read_docker_secret(key)
         if value is not None:
@@ -70,7 +70,11 @@ class Config:
     #####################################################################################
     @property
     def FASTAPI_PORT(self) -> int:
-        return int(self._get_static("FAST_API_PORT", 8003))
+        return int(self._get_static("FAST_API_PORT", 9000))
+
+    @property
+    def FAST_API_ANALYTICS_PORT(self) -> int:
+        return int(self._get_static("FAST_API_ANALYTICS_PORT", 9001))
 
     #####################################################################################
 
@@ -164,25 +168,29 @@ class Config:
     #####################################################################################
     @property
     def LLM_HOST(self) -> str:
-        return self._get_dynamic("LLM_HOST", "http://localhost:1234")
+        return self.get_config_value("LLM_HOST", "http://localhost:1234")
 
     @property
     def LLM_MODEL(self) -> str:
-        return self._get_dynamic("LLM_MODEL", "qwen/qwen3-4b-2507")
+        return self.get_config_value("LLM_MODEL", "qwen/qwen3-4b-2507")
 
     @property
     def LLM_API_KEY(self) -> str:
-        return self._get_dynamic("LLM_API_KEY", "")
+        return self.get_config_value("LLM_API_KEY", "")
 
     @property
     def LLM_NATIVE_TOOL_SUPPORT(self) -> bool:
-        val = self._get_dynamic("LLM_NATIVE_TOOL_SUPPORT", True)
+        val = self.get_config_value("LLM_NATIVE_TOOL_SUPPORT", True)
         return str(val).lower() == "true" if isinstance(val, str) else bool(val)
 
     @property
     def LLM_SUPPORTS_SYSTEM_PROMPT(self) -> bool:
-        val = self._get_dynamic("LLM_SUPPORTS_SYSTEM_PROMPT", True)
+        val = self.get_config_value("LLM_SUPPORTS_SYSTEM_PROMPT", True)
         return str(val).lower() == "true" if isinstance(val, str) else bool(val)
+
+    @property
+    def LLM_CONTEXT_WINDOW(self) -> int:
+        return int(self.get_config_value("LLM_CONTEXT_WINDOW", 4000))
 
     #####################################################################################
 
@@ -191,20 +199,35 @@ class Config:
     #####################################################################################
     @property
     def INFERENCE_BATCH_SIZE(self) -> int:
-        return int(self._get_dynamic("INFERENCE_BATCH_SIZE", 32))
+        return int(self.get_config_value("INFERENCE_BATCH_SIZE", 32))
 
     @property
     @lru_cache(maxsize=1)
     def TRAINING_DEVICE(self) -> str:
         # Default device is calculated only if not overridden in DB/Env
         default_dev = self._get_best_device(is_inference=False)
-        return self._get_dynamic("TRAINING_DEVICE", default_dev)
+        return self.get_config_value("TRAINING_DEVICE", default_dev)
 
     @property
     @lru_cache(maxsize=1)
     def INFERENCE_DEVICE(self) -> str:
         default_dev = self._get_best_device(is_inference=True)
-        return self._get_dynamic("INFERENCE_DEVICE", default_dev)
+        return self.get_config_value("INFERENCE_DEVICE", default_dev)
+
+    @property
+    @lru_cache(maxsize=1)
+    def NER_INFERENCE_DEVICE(self) -> str:
+        default_dev = self._get_best_device(is_inference=True)
+        return self.get_config_value("NER_INFERENCE_DEVICE", default_dev)
+
+    #####################################################################################
+    # NER PARAMETERS
+    #####################################################################################
+
+    @property
+    @lru_cache(maxsize=1)
+    def NER_CONFIDENCE_THRESHOLD(self) -> float:
+        return self.get_config_value("NER_CONFIDENCE_THRESHOLD", 0.3)
 
     #####################################################################################
 

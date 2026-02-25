@@ -1,13 +1,18 @@
+from __future__ import annotations
+
 import datetime
+import textwrap
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Iterable, List
 
+from joblib import Parallel, delayed
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
 from lang3s import config
+from lang3s.llm import LLMClient, Message
 from lang3s.nlp.topics.reducer import OnlineReducer
 from lang3s.nlp.topics.topic import Topic
 from lang3s.nlp.topics.topic_index import TopicIndex
@@ -21,7 +26,7 @@ import shortuuid
 import sqlalchemy
 from numpy.typing import NDArray
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sqlalchemy import Boolean, Select, cast, delete, func, select, text
+from sqlalchemy import Boolean, Select, cast, delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
 from lang3s.data.db import db
@@ -43,28 +48,59 @@ DB_COLUMNS = [
 ]
 
 
+def create_topic_name(topic: Topic) -> str:
+    client = LLMClient()
+    sentences = [t.text for t in topic.get_sentences(limit=10)]
+    prompt = textwrap.dedent(f"""
+                    Given the following sentences and list of keywords generate a short phrase that defines the topic.
+                    Make the phrase generic and not specific to ONE keyword or sentence it should be generic enough to cover the entier set of sentences and keywords.
+                    Give no explanation or reasoning for your answer only the answer and in plain text NO MARKUP.
+
+                    Keywords:
+                    {topic.name}
+
+                    Sentences:
+                    {"\n".join(sentences)}
+                """).strip()
+    response = client.sync_chat_completion_last_event([Message.user(prompt)])
+    if response.exception:
+        return topic.name
+    return response.content.title()
+
+
+def topic_naming(topics: list[Topic]):
+    with Parallel(
+        n_jobs=-1,
+        backend="loky",
+        inner_max_num_threads=1,
+    ) as parallel:
+        return parallel([delayed(create_topic_name)(v) for v in topics])
+
+
 class Lang3sTopicModel(metaclass=SingletonMeta):
     def __init__(
         self,
     ):
-        self.sim_threshold: float = db.get_config_value(
+        self.sim_threshold: float = config.get_config_value(
             "topics_similarity_threshold", 0.45
         )
-        self.fixed_sim_threshold: float = db.get_config_value(
+        self.fixed_sim_threshold: float = config.get_config_value(
             "topics_fixed_similarity_threshold", 0.6
         )
-        self.merge_threshold: float = db.get_config_value(
+        self.merge_threshold: float = config.get_config_value(
             "topics_merge_threshold", 0.65
         )
-        self.fixed_merge_threshold: float = db.get_config_value(
+        self.fixed_merge_threshold: float = config.get_config_value(
             "topics_fixed_merge_threshold", 0.75
         )
-        self.min_support: int = db.get_config_value("topics_min_support", 10)
-        self.min_document_count: int = db.get_config_value(
+        self.min_support: int = config.get_config_value("topics_min_support", 10)
+        self.min_document_count: int = config.get_config_value(
             "topics_min_document_count", 4
         )
-        self.batch_size: int = db.get_config_value("topics_batch_size", 100)
-        self.merge_frequency: int = db.get_config_value("topics_merge_frequency", 400)
+        self.batch_size: int = config.get_config_value("topics_batch_size", 100)
+        self.merge_frequency: int = config.get_config_value(
+            "topics_merge_frequency", 400
+        )
 
         self.docs_added: int = 0
         self._batch_docs: int = 0
@@ -375,14 +411,14 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                 )
                 session.execute(upsert_stmt)
 
+        # Update the topic views (topic_sentences)
+        db.refresh_topic_views()
+
         # Save the online PCA
         self.reducer.save()
 
         # Rebuild the topic index
         self.topic_index.rebuild(final_topics)
-
-        # Update the topic views (topic_sentences, topic_documents)
-        db.refresh_topic_views()
 
         logger.info(f"💾 Saved {len(topics) - len(to_delete)} topics")
 
@@ -400,14 +436,24 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         vectorizer = TfidfVectorizer()
         text = [[s.clean for s in topic.get_sentences()] for topic in self.topics]
         vectorizer.fit(flatten(text))
+        to_name = []
         for sentences, (topic_idx, topic) in zip(text, self.topic_index.topics()):
             if topic.is_fixed:
                 logger.info("SKIPPING: ", topic.id)
                 continue
+
+            to_name.append(topic)
             X = vectorizer.transform(sentences)
             tfidf_scores = np.asarray(X.mean(axis=0)).flatten()  # type: ignore
             words = np.array(vectorizer.get_feature_names_out())
             topic.name = ", ".join(words[np.argsort(tfidf_scores)[-5:]][::-1])
+
+        results = topic_naming(to_name)
+        for topic, name in zip(to_name, results):
+            print(topic.id, topic.is_fixed, topic.name, name)
+            if not topic.is_fixed:
+                topic.name = name
+                self.topic_index.topics()
             logger.info(f"Topic {topic.id} = {topic.name}")
 
 

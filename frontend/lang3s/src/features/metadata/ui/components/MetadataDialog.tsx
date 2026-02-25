@@ -15,7 +15,6 @@ import {
 import { parseAsBoolean } from "nuqs/server";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { MetadataSchema, MetadataSchemaType } from "@/features/common/schemas";
 import { Form } from "@/components/ui/form";
 import { InputFormField } from "@/components/form-controls/input-form-field";
 import {
@@ -30,6 +29,7 @@ import { cn } from "@/lib/utils/cn";
 import { useEffect, useMemo } from "react";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { DataTypeNames, MetadataSources } from "@/lib/db/schemas/metadata";
+import { MetadataSchema, MetadataSchemaType } from "@/features/common/schemas";
 
 const SourceOptions = MetadataSources.map(
   (source) =>

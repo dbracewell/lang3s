@@ -9,11 +9,18 @@ from numpy.typing import NDArray
 from psycopg.types.json import Jsonb
 
 from lang3s import config
+from lang3s.utils.binary_search import binary_search
 
 from .db_columns import TextRow
 from .metadata import AnnotationTypes
 from .text_annotation import TextAnnotation
 from .text_object import TextObject
+
+
+def _token_offset_match(target: int, low: int, high: int) -> int:
+    if low <= target < high:
+        return 0
+    return -1 if target < low else 1
 
 
 class Text(TextObject):
@@ -92,9 +99,9 @@ class Text(TextObject):
         return self
 
     def annotations_of_type(self, annotation_type: str) -> List[TextAnnotation]:
-        if annotation_type == AnnotationTypes.TOKEN.value:
+        if annotation_type == AnnotationTypes.TOKEN:
             return self._tokens
-        elif annotation_type == AnnotationTypes.SENTENCE.value:
+        elif annotation_type == AnnotationTypes.SENTENCE:
             return self._sentences
         to_return = []
         for annotation in self._annotations:
@@ -135,7 +142,7 @@ class Text(TextObject):
         self._tokens.clear()
         self._sentences.clear()
         self._annotations.clear()
-        self.embedding = None
+        self.embedding = None  # type:ignore
         self.metadata.clear()
         self.keywords.clear()
 
@@ -190,6 +197,8 @@ class Text(TextObject):
             embedding = np.array(json.loads(embedding))
         elif isinstance(embedding, list):
             embedding = np.array(embedding)
+        elif isinstance(embedding, tuple):
+            embedding = np.array(embedding)
 
         text = Text(
             id=text_dict["id"],
@@ -201,11 +210,13 @@ class Text(TextObject):
 
         for annotation in text_dict.get("annotations", []):
             emb = annotation.get("embedding")
-            if emb is not None:
+            if emb:
                 if isinstance(emb, str):
                     emb = np.array(json.loads(emb), dtype=np.float16)
                 elif isinstance(emb, list):
                     emb = np.array(emb, dtype=np.float16)
+                elif isinstance(emb, tuple):
+                    emb = np.array(list(emb), dtype=np.float16)
 
             text.add_annotation(
                 id=annotation["id"],
@@ -215,6 +226,7 @@ class Text(TextObject):
                 sentence_id=annotation["sentence_id"],
                 type=annotation["type"],
                 value=annotation["value"],
+                source=annotation["source"],
                 embedding=emb,
                 metadata=annotation.get("metadata", {}),
             )
@@ -222,6 +234,27 @@ class Text(TextObject):
         text._tokens = sorted(text._tokens, key=lambda token: token.start)
         text._sentences = sorted(text._sentences, key=lambda s: s.start)
         return text
+
+    def get_token_for_char_offset(self, char_offset: int) -> TextAnnotation:
+        match_fn = lambda token: _token_offset_match(
+            char_offset, token["start_char"], token["end_char"]
+        )
+        index = binary_search(
+            self.tokens,
+            match_fn,
+        )
+        return self.tokens[index]
+
+    def clear_cache(self):
+        for token in self._tokens:
+            token.clear_cache()
+
+    def get_annotation_sources(self):
+        sources = set()
+        sources.add(self._tokens[0].source)
+        for a in self._annotations:
+            sources.add(a.source)
+        return sources
 
     def add_annotation(
         self,
@@ -231,10 +264,11 @@ class Text(TextObject):
         sentence_id: int,
         type: str,
         value: str,
+        source: str,
         id: str | None = None,
-        source: str = "UNKNOWN",
         embedding: np.ndarray | None = None,
         metadata: Dict[str, Any] | None = None,
+        mark_dirty: bool = False,
     ) -> TextAnnotation:
         annotation = TextAnnotation(
             owner=self,
@@ -256,6 +290,10 @@ class Text(TextObject):
             self._sentences.append(annotation)
         else:
             self._annotations.append(annotation)
+            if mark_dirty:
+                for token in annotation.tokens:
+                    token.clear_cache()
+
         return annotation
 
     def attach_annotation(self, annotation) -> TextAnnotation:
@@ -271,6 +309,21 @@ class Text(TextObject):
         else:
             self._annotations.append(annotation)
         return annotation
+
+    def find(self, text: str, start: int = 0):
+        try:
+            index = self.text.index(text, start)
+            start_token = self.get_token_for_char_offset(index)
+            end_token = self.get_token_for_char_offset(index + len(text) + 1)
+            return self.create_span(
+                start_token.start,
+                end_token.end,
+                "find",
+                "span",
+                metadata={"SEARCH": text},
+            )
+        except ValueError:
+            return None
 
     def create_span(
         self,
@@ -294,6 +347,7 @@ class Text(TextObject):
             start=start,
             end=end,
             source=source,
+            embedding=np.mean([t.embedding for t in span_tokens], axis=0),
             sentence_id=min((t.sentence_id for t in span_tokens)),
             type=type if type is not None else "span",
             value=value if value is not None else "",

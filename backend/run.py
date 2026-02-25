@@ -52,6 +52,7 @@ def main():
     )
     # scripts.append(("lang3s.services.worker.claim_extraction_worker", []))
     scripts.append(("lang3s.services.app", []))
+    scripts.append(("lang3s.services.analytics_app", []))
 
     processes: List[Optional[subprocess.Popen[str]]] = [None] * len(scripts)
     try:
@@ -64,7 +65,7 @@ def main():
                 if p.poll() is not None:
                     print(f"{scripts[i]} terminated unexpectedly. Restarting...")
                     processes[i] = start_process(i)
-                    print(scripts[i], cast(subprocess.Popen[str], processes[i]).pid)
+                    print(scripts[i], processes[i].pid)
 
     except KeyboardInterrupt:
         print("Ctrl+C detected. Terminating all subprocesses...")

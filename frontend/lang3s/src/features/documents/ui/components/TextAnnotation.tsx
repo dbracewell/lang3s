@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { formatURL } from "@/lib/utils/formatters";
 import { cn } from "@/lib/utils/cn";
-import { Lang3sTextAnnotation } from "@/features/common/classes";
+import { Lang3sTextAnnotation } from "@/features/nlp/classes";
 import {
   AnnotationColors,
   DEFAULT_MIN_SIMILARITY,
@@ -63,6 +63,7 @@ const highlightGroup = (
       "border-dashed",
       "relative",
       "z-1",
+      "scale-102",
     );
     div.classList.remove(opacity);
     if (data != null) {
@@ -71,11 +72,7 @@ const highlightGroup = (
   });
 };
 
-const unhighlightGroup = (
-  attribute: string,
-  groupName: string,
-  data?: string,
-) => {
+const unhighlightGroup = (attribute: string, groupName: string) => {
   const divsWithAttribute = document.querySelectorAll(
     `div[data-${attribute}="${groupName}"]`,
   );
@@ -88,10 +85,9 @@ const unhighlightGroup = (
       "border-dashed",
       "relative",
       "z-1",
+      "scale-102",
     );
-    if (data != null) {
-      div.dataset.annotationType = data;
-    }
+    div.dataset.annotationType = div.dataset.type;
   });
 };
 
@@ -115,6 +111,7 @@ export const TextAnnotation = memo(
               ? annotation.value.split(".").slice(-1)[0]
               : ""
           }
+          data-type={annotation.value.split(".").slice(-1)[0]}
           data-annotation={true}
           data-entity={getGroupName(annotation)}
           data-event={getGroupName(annotation, true)}
@@ -155,44 +152,40 @@ export const TextAnnotation = memo(
             unblurSentence();
             unhighlightGroup(
               isEventive(annotation.value) ? "event" : "entity",
-              getGroupName(annotation, isEventive(annotation.type)),
+              getGroupName(annotation, isEventive(annotation.value)),
             );
             annotation.A0().map((a) => {
               unhighlightGroup(
                 isEventive(annotation.value) ? "event" : "entity",
                 getGroupName(a, true),
-                annotation.type,
               );
             });
             annotation.A1().map((a) => {
               unhighlightGroup(
                 isEventive(annotation.value) ? "event" : "entity",
                 getGroupName(a, true),
-                annotation.type,
               );
             });
             unhighlightGroup(
               isEventive(annotation.value) ? "event" : "entity",
               getGroupName(annotation.TIME(), true),
-              annotation.type,
             );
             unhighlightGroup(
               isEventive(annotation.value) ? "event" : "entity",
               getGroupName(annotation.LOC(), true),
-              annotation.type,
             );
           }}
           className={cn(
-            "entity flex flex-col text-black",
-            annotation.type !== "token"
-              ? "cursor-pointer overflow-clip rounded-md border border-amber-500 bg-amber-100 px-2 text-center after:-mx-2 after:bg-amber-500 after:p-px after:text-center after:text-[10px] after:text-white after:uppercase"
-              : "pt-0.5",
+            "text-black",
             annotation.type === "token"
-              ? "text-foreground"
-              : AnnotationColors[annotation.color],
+              ? "text-foreground pt-0.5"
+              : "entity cursor-pointer rounded-md border border-amber-500 bg-amber-100 after:bg-amber-500 after:p-px after:text-center after:text-[10px] after:text-white after:uppercase",
+            annotation.type !== "token" && AnnotationColors[annotation.color],
           )}
         >
-          {annotation.text}
+          <div className={cn(annotation.type !== "token" && "px-2")}>
+            {annotation.text}{" "}
+          </div>
         </div>
         <div className="absolute -top-2 -right-2 z-5 hidden group-hover:flex">
           <Button

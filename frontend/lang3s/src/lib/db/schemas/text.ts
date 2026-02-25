@@ -1,14 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  halfvec,
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { halfvec, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const SEMANTIC_EMBEDDING_DIMENSION = 384;
 
@@ -170,6 +161,7 @@ export const KeywordsTable = pgTable(
   "keywords",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    category: text("category"),
     keyword: text("keyword").notNull(),
     documentId: text("document_id")
       .references(() => DocumentsTable.id, { onDelete: "cascade" })
@@ -186,6 +178,7 @@ export const KeywordsTable = pgTable(
       "hnsw",
       table.embedding.op("halfvec_cosine_ops"),
     ),
+    index("keywords_category_idx").on(table.category),
     index("keywords_document_id").on(table.documentId),
     index("keywords_text_id").on(table.textId),
   ],

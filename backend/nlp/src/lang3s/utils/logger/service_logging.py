@@ -1,12 +1,21 @@
 import logging
 import os
 import sys
+import warnings
+from functools import partialmethod
 
+import transformers
 from uvicorn.logging import DefaultFormatter
 
 from lang3s.utils.logger.async_handler import AsyncQueueHandler
 
 _is_initialized = False
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["TQDM_DISABLE"] = "1"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+# from tqdm import tqdm
+# tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
+warnings.filterwarnings("ignore")
 
 
 def __initialize_logging():
@@ -17,6 +26,10 @@ def __initialize_logging():
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("fastcoref.modeling").setLevel(logging.WARNING)
+    transformers.logging.set_verbosity_error()
+    logging.getLogger("transformers").setLevel(logging.ERROR)
+    logging.getLogger("fastcoref").setLevel(logging.ERROR)
+    logging.getLogger("gliner").setLevel(logging.ERROR)
 
 
 __existing_loggers = {}

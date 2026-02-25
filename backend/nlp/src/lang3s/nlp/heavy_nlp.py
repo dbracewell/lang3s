@@ -1,4 +1,5 @@
 import itertools
+import traceback
 from typing import Iterable, List, Optional
 
 import numpy as np
@@ -9,6 +10,7 @@ from lang3s.models.transformer.multi_task_transformer import MultiTaskTransforme
 from lang3s.models.transformer.shared_types import TokenLabelResult
 from lang3s.nlp.event_extraction import extract_events
 from lang3s.nlp.keyword_extraction import extract_keywords
+from lang3s.nlp.ner import get_ner_model
 from lang3s.nlp.shared_types import Document, Event, Metadata, TextAnnotation
 from lang3s.utils import filter_none
 from lang3s.utils.logger import get_logger
@@ -20,14 +22,26 @@ logger = get_logger("HEAVY_NLP")
 embedding_dtype = np.float16
 
 
+def heavy_nlp_wrapper(
+    doc: Document,
+    tasks: Optional[Iterable[str]] = None,
+    is_reannotation: bool = False,
+    disable_ner: bool = False,
+):
+    try:
+        heavy_nlp(doc, tasks, is_reannotation, disable_ner)
+    except Exception as e:
+        logger.error(e)
+        traceback.print_exc()
+
+
 def heavy_nlp(
     doc: Document,
     tasks: Optional[Iterable[str]] = None,
     is_reannotation: bool = False,
-    embedder: Optional[Embedder] = None,
-    mtask: Optional[MultiTaskTransformer] = None,
+    disable_ner: bool = False,
 ):
-    embedder = embedder if embedder is not None else Embedder()
+    embedder = Embedder()
     embedder.model.eval()
 
     if doc.text is None:
@@ -42,12 +56,16 @@ def heavy_nlp(
     if not is_reannotation:
         create_core_embeddings(doc, result)
     else:
-        sources = ["rb_event_extractor"]
+        sources = ["rb_event_extractor", "ner", "coref"]
         if tasks is not None:
             sources += tasks
         doc.text.remove_annotations(sources)
 
-    perform_heavy_tagging(doc, sentences, result, tasks, mtask=mtask)
+    if not disable_ner:
+        ner = get_ner_model()
+        ner.process([doc])
+
+    perform_heavy_tagging(doc, sentences, result, tasks)
     extract_events_for_doc(doc)
 
     for annotation in doc.text.annotations:
@@ -153,9 +171,8 @@ def perform_heavy_tagging(
     sentences: List[List[str]],
     result: EmbeddingResult,
     tasks: Optional[Iterable[str]],
-    mtask: Optional[MultiTaskTransformer],
 ):
-    tagger = mtask if mtask is not None else MultiTaskTransformer()
+    tagger = MultiTaskTransformer()
     outputs = tagger.forward(
         result, sentences=sentences, language=doc.language, tasks=tasks
     )
@@ -203,12 +220,16 @@ def extract_events_for_doc(doc: Document):
             metadata={
                 Metadata.LEMMA: event.trigger.lemma,
                 Metadata.A0: [a0.id for a0 in event.A0],
-                Metadata.A0_TEXT: [a0.text for a0 in event.A0],
+                Metadata.A0_TEXT: [a0.normalized_text for a0 in event.A0],
                 Metadata.A1: [a1.id for a1 in event.A1],
-                Metadata.A1_TEXT: [a1.text for a1 in event.A1],
+                Metadata.A1_TEXT: [a1.normalized_text for a1 in event.A1],
                 Metadata.TIME: event.TIME.id if event.TIME is not None else None,
                 Metadata.LOC: event.LOC.id if event.LOC is not None else None,
-                Metadata.TIME_TEXT: event.TIME.text if event.TIME is not None else None,
-                Metadata.LOC_TEXT: event.LOC.text if event.LOC is not None else None,
+                Metadata.TIME_TEXT: event.TIME.normalized_text
+                if event.TIME is not None
+                else None,
+                Metadata.LOC_TEXT: event.LOC.normalized_text
+                if event.LOC is not None
+                else None,
             },
         )

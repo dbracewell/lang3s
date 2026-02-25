@@ -1,5 +1,3 @@
-import z from "zod";
-
 export type TextAnnotationProps = {
   id: string;
   text: string;
@@ -10,15 +8,6 @@ export type TextAnnotationProps = {
   color?: string;
   metadata: Record<string, unknown>;
 };
-
-export const Lang3sFile = z.object({
-  path: z.string().nullish(),
-  docId: z.string().nullish(),
-  mime_type: z.string(),
-  content: z.string(),
-  encoding: z.string().nullish(),
-  metadata: z.record(z.string(), z.any()).default({}).optional(),
-});
 
 export class Lang3sTextAnnotation {
   id: string;
@@ -133,13 +122,13 @@ export class Lang3sTextAnnotation {
 
     let ti = 0;
     let ai = 0;
-    const na = annotations.length;
-    const nt = tokens.length;
+    const numAnnotations = annotations.length;
+    const numTokens = tokens.length;
     let lastEnd = -1;
 
-    while (ti < nt || ai < na) {
-      if (ai >= na) {
-        tokens.slice(ti, nt).forEach((t) => toReturn.push(t));
+    while (ti < numTokens || ai < numAnnotations) {
+      if (ai >= numAnnotations) {
+        tokens.slice(ti, numTokens).forEach((t) => toReturn.push(t));
         break;
       }
       const token = tokens[ti];
@@ -151,7 +140,10 @@ export class Lang3sTextAnnotation {
       if (annotation.start <= token.start) {
         toReturn.push(annotation);
         ai += 1;
-        while (ti < nt && tokens[ti].start < annotation.end) {
+        while (ai < numAnnotations && annotations[ai].start < annotation.end) {
+          ai += 1;
+        }
+        while (ti < numTokens && tokens[ti].start < annotation.end) {
           ti += 1;
         }
         lastEnd = annotation.end;

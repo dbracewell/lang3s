@@ -3,6 +3,7 @@ import time
 from typing import Any, Tuple
 
 import redis
+from redis.client import PubSub
 
 from lang3s import config
 from lang3s.utils import try_catch
@@ -10,6 +11,7 @@ from lang3s.utils import try_catch
 DUCKDB_QUEUE_NAME = "db_queue"
 ANNOTATION_QUEUE_NAME = "annotation_queue"
 CLAIM_EXTRACT_QUEUE_NAME = "claim_extract_queue"
+ONTOLOGY_UPDATE_TOPIC = "ontology_update"
 
 
 class RedisClient(object):
@@ -38,6 +40,11 @@ class RedisClient(object):
 
     def publish_message(self, channel: str, message: Any) -> None:
         self._client.publish(channel, json.dumps(message))
+
+    def subscribe(self, channel: str) -> PubSub:
+        p = self._client.pubsub()
+        p.subscribe(channel)
+        return p
 
     def close(self) -> None:
         self._client.close()

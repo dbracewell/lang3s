@@ -18,6 +18,7 @@ function Checkbox({
         className,
       )}
       {...props}
+      suppressHydrationWarning
     >
       <CheckboxPrimitive.Indicator
         data-slot="checkbox-indicator"

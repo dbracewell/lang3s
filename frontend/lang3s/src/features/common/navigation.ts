@@ -46,10 +46,17 @@ export const NAVIGATION_LINKS: NavigationGroup[] = [
         icon: "UsersRoundIcon",
         exact: false,
       },
+      { separator: true },
       {
         href: "/analytics/topics",
         title: "Topics",
         icon: "ChartNoAxesGanttIcon",
+        exact: false,
+      },
+      {
+        href: "/analytics/concepts",
+        title: "Concepts",
+        icon: "MessageSquareIcon",
         exact: false,
       },
       { separator: true },
