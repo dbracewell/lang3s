@@ -9,6 +9,15 @@ from lang3s.services.model.analytics_models import *
 from lang3s.utils.maths import remap
 
 
+def truncate(text: str, max_length: int = 35) -> str:
+    if len(text) < max_length:
+        return text
+    truncated = text[: text.rindex(" ", 1, max_length)].strip()
+    if truncated:
+        return f"{truncated}..."
+    return f"{truncated[:max_length].strip()}..."
+
+
 def cluster_points(similarities):
     # 1. Build a Graph
     G = nx.Graph()
@@ -173,8 +182,18 @@ class AnalyticsService:
             ]:
                 if id not in seen:
                     seen.add(id)
-                    nodes.append({"id": id, "name": name, "support": support, "r": 20})
+                    nodes.append(
+                        {
+                            "id": id,
+                            "text": name,
+                            "display": truncate(name),
+                            "value": support,
+                            "r": 20,
+                        }
+                    )
         clusters, id_cid = cluster_points(edges)
+        for node in nodes:
+            node["cid"] = id_cid.get(node["id"], None)
         return {"edges": edges, "nodes": nodes, "clusters": clusters, "id_cid": id_cid}
 
     def get_annotation_cohort_information(
@@ -193,10 +212,10 @@ class AnalyticsService:
             grouped[s1_id].append(s2_id)
 
         ranked = [
-            {"id": entity_id, "support": len(neighbors)}
+            {"id": entity_id, "value": len(neighbors)}
             for entity_id, neighbors in grouped.items()
         ]
-        ranked.sort(key=lambda x: x["support"], reverse=True)
+        ranked.sort(key=lambda x: x["value"], reverse=True)
 
         return {"edges": edges, "ranked": ranked}
 

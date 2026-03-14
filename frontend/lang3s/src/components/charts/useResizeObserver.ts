@@ -13,16 +13,21 @@ export const useResizeObserver = ({ wrapperRef }: ResizeObserverProps) => {
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry?.contentRect) {
-        setDimensions({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height,
+        const { width, height } = entry.contentRect;
+        setDimensions((prev) => {
+          if (
+            Math.abs(prev.width - width) < 1 &&
+            Math.abs(prev.height - height) < 1
+          )
+            return prev;
+          return { width, height };
         });
       }
     });
 
     resizeObserver.observe(element);
     return () => resizeObserver.disconnect();
-  }, []);
+  }, [wrapperRef]);
   return {
     dimensions,
   };

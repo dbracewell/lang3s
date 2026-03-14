@@ -161,8 +161,8 @@ const CircularEdgeBundling: React.FC<CircularBundlingProps> = ({ data }) => {
                   "hover:text-foreground bg-row/50 cursor-pointer truncate rounded-none px-3 py-1 hover:font-bold hover:underline",
                   i % 2 == 1 && "bg-alternate-row/50",
                 )}
-                onMouseEnter={() => setHoveredNode(v.data.name)}
-                onMouseLeave={() => setHoveredNode(null)}
+                onSelect={() => setHoveredNode(v.data.name)}
+                // onMouseLeave={() => setHoveredNode(null)}
               >
                 {v.data.name}
               </CommandItem>
@@ -255,16 +255,16 @@ const CircularEdgeBundling: React.FC<CircularBundlingProps> = ({ data }) => {
         </g>
       </svg>
 
-      <div className="pointer-events-none absolute top-4 left-4 flex flex-col gap-2">
+      <div className="pointer-events-none absolute top-4 left-4 flex h-[calc(100vh-10rem)] min-h-0 flex-col gap-2 overflow-hidden">
         {hoveredNode ? (
-          <div className="bg-card/50 min-w-70 rounded-lg border pb-3 text-sm shadow-xl backdrop-blur">
+          <div className="bg-card/50 flex min-w-70 flex-1 flex-col overflow-hidden rounded-lg border pb-3 text-sm shadow-xl backdrop-blur">
             <div className="bg-heading mb-1 text-center text-lg font-bold">
               {hoveredNode}
             </div>
             <div className="text-muted-foreground mb-1 text-center text-sm">
-              Correlated Concepts
+              Related Concepts
             </div>
-            <div className="font-mono text-xs text-blue-400">
+            <div className="scrollable pointer-events-auto flex min-h-0 flex-1 flex-col font-mono text-xs text-blue-400">
               {[...activeNeighbors].map((v) => (
                 <div key={v} className="px-3">
                   {v}

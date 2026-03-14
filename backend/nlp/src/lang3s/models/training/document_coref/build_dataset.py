@@ -4,9 +4,7 @@ from collections import defaultdict
 
 import jsonlines
 import pandas as pd
-import spacy
 from lang3s_job_service import File
-from spacy.tokens import Doc
 from tqdm import tqdm
 
 from lang3s.models.coref_ranker import create_coref_mention
@@ -17,26 +15,11 @@ from lang3s.models.training.document_coref.coref_config import (
     WIKICOREF_DIR,
 )
 from lang3s.models.training.document_coref.io import save_preprocessed_data
-from lang3s.nlp.core_nlp import process_spacy_doc
-from lang3s.nlp.heavy_nlp import heavy_nlp
-from lang3s.nlp.ner import NamedEntityRecognition
 from lang3s.nlp.shared_types import Document, Metadata
 from lang3s.pipeline import pipeline
+from lang3s.pipeline.runner import pipeline_from_tokens
 
 os.environ["TQDM_DISABLE"] = "0"
-
-
-class PretokenizedTokenizer:
-    def __init__(self, vocab):
-        self.vocab = vocab
-
-    def __call__(self, words):
-        return Doc(self.vocab, words=words)
-
-
-ner = NamedEntityRecognition()
-nlp = spacy.load("en_core_web_sm", disable=["ner"])
-nlp.tokenizer = PretokenizedTokenizer(nlp.vocab)
 
 
 def parse_and_embed_synthetic_text(filepath):
@@ -274,12 +257,12 @@ def parse_conll_coref(filepath):
                         mention_counter += 1
 
         for doc, tokens in zip(documents, document_tokens):
-            spacy_doc = Doc(nlp.vocab, words=tokens)
-            for name, component in nlp.pipeline:
-                spacy_doc = component(spacy_doc)
-            lang3s_doc = process_spacy_doc(spacy_doc)
-            ner.process([lang3s_doc])
-            heavy_nlp(lang3s_doc, tasks=set())
+            lang3s_doc = pipeline_from_tokens(
+                [tokens],
+                language="en",
+                log=False,
+                tasks=set(),
+            )[0]
             output_document = []
 
             mention_span_set = set()
@@ -288,7 +271,7 @@ def parse_conll_coref(filepath):
 
             next_cluster_id = max(mention["cluster_id"] for mention in doc) + 1
             next_mention_id = max(mention["id"] for mention in doc) + 1
-            for token in doc.text.tokens:
+            for token in lang3s_doc.text.tokens:
                 if token.value == "PRON":
                     if (token.start, token.end) not in mention_span_set:
                         doc.append(

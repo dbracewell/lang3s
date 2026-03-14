@@ -1,6 +1,7 @@
 "use server";
 import { getJson, postJson, putJson } from "@/lib/utils/superFetch";
 import { PAGE_LIMIT } from "@/features/common/constants";
+import { ForceGraphPoint } from "@/components/d3/ForceGraph/types";
 
 const BASE_PATH = `${process.env.EMBEDDING_SERVER}/analytics`;
 
@@ -38,9 +39,13 @@ type AnnotationLoaner = {
   category: string;
 };
 
+export type CohortPoint = ForceGraphPoint & {
+  cid: string;
+};
+
 type Cohorts = {
   edges: { id1: string; id2: string; similarity: number }[];
-  nodes: { id: string; name: string; support: number; r: number }[];
+  nodes: CohortPoint[];
   clusters: { id: string; name: string; type: string }[][];
   id_cid: Record<string, string>;
 };

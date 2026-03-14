@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 
 from lang3s.llm.old.chat_model import ChatModel
 from lang3s.nlp.shared_types import Document
+from lang3s.utils import try_catch
+from lang3s.utils.logger import get_logger
 
 
 class ClaimDocument(BaseModel):
@@ -181,5 +183,12 @@ def extract_claims(client: ChatModel, document: ClaimDocument) -> list[Claim]:
             "content": json.dumps([s.model_dump_json() for s in document.sentences]),
         }
     )
-    response = client.chat(messages=messages, response_model=ClaimExtraction)
-    return [claim for claim in response.parsed.claims if claim.type == "CLAIM"]
+    logger = get_logger("CLAIM_EXTRACTOR")
+    with try_catch(on_error=lambda e: logger.error(e)):
+        response = client.chat(messages=messages, response_model=ClaimExtraction)
+        return [
+            claim
+            for claim in response.parsed.claims
+            if claim.type == "CLAIM" and claim.text.strip()
+        ]
+    return []

@@ -11,9 +11,16 @@ if TYPE_CHECKING:
 
 
 @dataclass
+class Content:
+    type: Literal["text", "image_url"]
+    text: str | None = None
+    image_url: dict[str, Any] | None = None
+
+
+@dataclass
 class Message:
     role: Literal["assistant", "user", "system", "tool"]
-    content: str
+    content: str | list[Content]
     tool_calls: list[ToolCall] = field(default_factory=list)
     pruned_at: datetime | None = field(default=None)
     extra_data: dict[str, Any] = field(default_factory=dict)
@@ -21,7 +28,7 @@ class Message:
     def __init__(
         self,
         role: Literal["assistant", "user", "system", "tool"],
-        content: str,
+        content: str | list[Content],
         tool_calls: list[ToolCall] | None = None,
         pruned_at: datetime | None = None,
         **kwargs,
@@ -52,10 +59,10 @@ class Message:
         if not self.content:
             raise RuntimeError(f"Invalid message: {self}")
 
-        return {"role": self.role, "content": self.content}
+        return {"role": self.role, "content": _convert_content(self.content)}
 
     @classmethod
-    def user(cls, content: str, **kwargs) -> Message:
+    def user(cls, content: str | list[Content], **kwargs) -> Message:
         return cls(role="user", content=content, **kwargs)
 
     @classmethod
@@ -135,7 +142,7 @@ def format_messages_for_model(messages: list[Message]) -> list[dict[str, Any]]:
                         f"SYSTEM RULES:\n{system_content}\n\nUSER TASK:\n{msg.content}"
                     )
                 else:
-                    content = msg.content
+                    content = _convert_content(msg.content)
                 formatted.append({"role": "user", "content": content})
 
             elif msg.role == "assistant":
@@ -147,9 +154,24 @@ def format_messages_for_model(messages: list[Message]) -> list[dict[str, Any]]:
     return formatted
 
 
+def _convert_content(content: str | list[Content]) -> str | list[dict[str, Any]]:
+    if isinstance(content, list):
+        output = []
+        for item in content:
+            c: dict[str, Any] = {"type": item.type}
+            if item.type == "text":
+                c["text"] = item.text
+            else:
+                c["image_url"] = item.image_url
+            output.append(c)
+        return output
+
+    return content
+
+
 def to_message(
     role: Literal["assistant", "user", "system", "tool"],
-    content: Optional[str] = None,
+    content: Optional[str | list[Content]] = None,
     tool_call_id: Optional[str] = None,
     name: Optional[str] = None,
     tool_calls: list[dict[str, Any]] | None = None,
@@ -160,7 +182,7 @@ def to_message(
     """
     base: Dict[str, Any] = {"role": role}
     if content is not None:
-        base["content"] = content
+        base["content"] = _convert_content(content)
     if tool_calls:
         base["tool_calls"] = tool_calls
     if role == "tool":
@@ -171,5 +193,4 @@ def to_message(
     else:
         if name is not None:
             base["name"] = name
-    # return cast(ChatCompletionMessageParam, cast(object, base))
     return base

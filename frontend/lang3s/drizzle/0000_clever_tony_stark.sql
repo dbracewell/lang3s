@@ -402,6 +402,7 @@ from "text_annotations"
                                          on "ontology"."id" = "annotation_to_ontology"."ontology_id") "Lp_LGMVaYx"
                     on "text_annotations"."mapping" = "Lp_LGMVaYx"."annotation_type_value");
 
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS "public"."topic_sentences" AS
 (
 select "topics"."id"                                                                               as "topic_id",
@@ -420,3 +421,83 @@ CREATE INDEX IF NOT EXISTS topic_sentences_topic_id ON topic_sentences (topic_id
 CREATE INDEX IF NOT EXISTS topic_sentences_text_id ON topic_sentences (text_id);
 CREATE UNIQUE INDEX IF NOT EXISTS topic_sentences_sentence_topic_id ON topic_sentences (sentence_aid, topic_id);
 
+CREATE MATERIALIZED VIEW IF NOT EXISTS "public"."concept_co_occurrence" AS
+(
+WITH keyword_doc_counts AS (SELECT category, COUNT(document_id) as count
+                            FROM keywords
+                            where category is not null
+                            group by category
+                            having COUNT(document_id) > 5),
+     keyword_documents as (select distinct a.category, document_id, b.count
+                           from keywords a
+                                    inner join keyword_doc_counts b on a.category = b.category
+                           where a.category is not null)
+SELECT a.category    as source,
+       b.category    as target,
+       a.document_id as document_id,
+       a.count       as source_count,
+       b.count       as target_count
+from keyword_documents as a
+         inner join keyword_documents b on a.document_id = b.document_id and a.category != b.category
+where a.category < b.category)
+WITH DATA;
+
+
+CREATE INDEX IF NOT EXISTS concept_co_occurrence_document_idx ON concept_co_occurrence (document_id);
+CREATE UNIQUE INDEX IF NOT EXISTS concept_co_occurrence_source_target_idx ON concept_co_occurrence (source, target, document_id);
+
+DROP VIEW IF EXISTS document_topic_concepts;
+CREATE VIEW document_topic_concepts AS
+(
+WITH TOPIC_DOCUMENTS AS (SELECT DISTINCT topic_id, doc_id
+                         FROM topic_sentences),
+     CONCEPTS AS (SELECT category    AS concept,
+                         document_id AS doc_id,
+                         keyword
+                  FROM keywords
+                  WHERE category IS NOT NULL),
+     TOPIC_TOTALS AS (SELECT topic_id, COUNT(DISTINCT doc_id) AS topic_count
+                      FROM TOPIC_DOCUMENTS
+                      GROUP BY topic_id),
+     CONCEPT_TOTALS AS (SELECT concept, COUNT(DISTINCT doc_id) AS concept_count
+                        FROM CONCEPTS
+                        GROUP BY concept),
+-- 1. Base overlapping data
+     OVERLAPPING_DOCS AS (SELECT t.topic_id,
+                                 c.concept,
+                                 t.doc_id,
+                                 c.keyword
+                          FROM TOPIC_DOCUMENTS t
+                                   JOIN CONCEPTS c ON t.doc_id = c.doc_id),
+-- 2. Calculate the overlap count safely away from the JSON
+     OVERLAP_COUNTS AS (SELECT topic_id,
+                               concept,
+                               COUNT(DISTINCT doc_id) AS overlap_count
+                        FROM OVERLAPPING_DOCS
+                        GROUP BY topic_id, concept),
+-- 3. Package the JSON instances
+     KEYWORD_ROLLUP AS (SELECT topic_id,
+                               concept,
+                               json_object_agg(keyword, kw_count) AS instances
+                        FROM (SELECT topic_id,
+                                     concept,
+                                     keyword,
+                                     COUNT(DISTINCT doc_id) AS kw_count
+                              FROM OVERLAPPING_DOCS
+                              GROUP BY topic_id, concept, keyword) sub
+                        GROUP BY topic_id, concept)
+-- 4. Bring it all together (No GROUP BY needed here!)
+SELECT oc.topic_id,
+       t.name as topic,
+       tt.topic_count,
+       oc.concept,
+       ct.concept_count,
+       oc.overlap_count,
+       kr.instances
+FROM OVERLAP_COUNTS oc
+         JOIN TOPICS t on t.id = oc.topic_id
+         JOIN TOPIC_TOTALS tt ON oc.topic_id = tt.topic_id
+         JOIN CONCEPT_TOTALS ct ON oc.concept = ct.concept
+         JOIN KEYWORD_ROLLUP kr ON oc.topic_id = kr.topic_id AND oc.concept = kr.concept
+ORDER BY oc.overlap_count DESC
+    );

@@ -1,5 +1,4 @@
 import itertools
-import traceback
 from typing import Iterable, List, Optional
 
 import numpy as np
@@ -20,19 +19,6 @@ logger = get_logger("HEAVY_NLP")
 
 
 embedding_dtype = np.float16
-
-
-def heavy_nlp_wrapper(
-    doc: Document,
-    tasks: Optional[Iterable[str]] = None,
-    is_reannotation: bool = False,
-    disable_ner: bool = False,
-):
-    try:
-        heavy_nlp(doc, tasks, is_reannotation, disable_ner)
-    except Exception as e:
-        logger.error(e)
-        traceback.print_exc()
 
 
 def heavy_nlp(
@@ -220,15 +206,23 @@ def extract_events_for_doc(doc: Document):
             metadata={
                 Metadata.LEMMA: event.trigger.lemma,
                 Metadata.A0: [a0.id for a0 in event.A0],
-                Metadata.A0_TEXT: [a0.normalized_text for a0 in event.A0],
+                Metadata.A0_TEXT: [a0.text.upper() for a0 in event.A0],
+                Metadata.A0_COREF_TEXT: [a0.normalized_text for a0 in event.A0],
                 Metadata.A1: [a1.id for a1 in event.A1],
-                Metadata.A1_TEXT: [a1.normalized_text for a1 in event.A1],
+                Metadata.A1_TEXT: [a1.text.upper() for a1 in event.A1],
+                Metadata.A1_COREF_TEXT: [a1.normalized_text for a1 in event.A1],
                 Metadata.TIME: event.TIME.id if event.TIME is not None else None,
                 Metadata.LOC: event.LOC.id if event.LOC is not None else None,
-                Metadata.TIME_TEXT: event.TIME.normalized_text
+                Metadata.TIME_TEXT: event.TIME.text.upper()
+                if event.TIME is not None
+                else None,
+                Metadata.TIME_COREF_TEXT: event.TIME.normalized_text.upper()
                 if event.TIME is not None
                 else None,
                 Metadata.LOC_TEXT: event.LOC.normalized_text
+                if event.LOC is not None
+                else None,
+                Metadata.LOC_COREF_TEXT: event.LOC.normalized_text
                 if event.LOC is not None
                 else None,
             },

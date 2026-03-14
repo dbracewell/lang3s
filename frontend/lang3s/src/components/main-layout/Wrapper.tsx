@@ -22,9 +22,9 @@ export const Wrapper = ({ children }: { children: React.ReactNode }) => {
   return (
     <>
       <NavSidebar isOpen={isMenuOpen} setIsOpen={setIsMenuOpen} />
-      <div className="from-sidebar-light to-sidebar-dark flex h-screen min-h-200 w-screen min-w-255 flex-col overflow-hidden bg-linear-to-b">
+      <div className="from-sidebar-light to-sidebar-dark flex w-full flex-1 flex-col overflow-hidden bg-linear-to-b">
         <MenuBar setIsMenuOpen={setIsMenuOpen} />
-        <div className="min-h-0 flex-1 overflow-hidden p-1 pt-0!">
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden p-1 pt-0!">
           <div className="bg-background inset-shadow-insert-shadow-border flex h-full min-h-0 w-full flex-col rounded-b-2xl border p-2 inset-shadow-xs">
             <ResizablePanelGroup
               orientation="horizontal"
@@ -33,7 +33,7 @@ export const Wrapper = ({ children }: { children: React.ReactNode }) => {
             >
               <ResizablePanel
                 className={cn(
-                  "@container flex min-h-0 flex-1 flex-col",
+                  "@container flex h-full min-h-0 flex-1 flex-col",
                   open && "pr-2",
                 )}
                 id="main-panel"

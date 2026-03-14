@@ -232,6 +232,10 @@
 }
 
 
+@utility tooltip {
+    @apply text-sm border-slate-900 bg-slate-700 shadow-sm text-white;
+}
+
 .entity {
     display: inline-grid;
     grid-template-rows: 1fr auto;

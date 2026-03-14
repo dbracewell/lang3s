@@ -6,6 +6,9 @@ import { t3env } from "@/lib/t3env";
 async function reset_db() {
   const db = drizzle(t3env.DATABASE_URL, { schema });
   await db.execute(sql`
+  DROP  VIEW IF EXISTS document_topic_concepts;
+  `);
+  await db.execute(sql`
   DROP MATERIALIZED VIEW IF EXISTS topic_documents;
   `);
   await db.execute(sql`

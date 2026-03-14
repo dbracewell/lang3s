@@ -125,76 +125,69 @@ class CoreLanguageProcessor(metaclass=SingletonMeta):
 
         self.pipelines[language] = nlp
         nlp.add_pipe("social_media_matcher", last=True)
-        patterns = self.patterns.get(language, [])
-        if len(patterns) > 0:
-            Token.set_extension("is_mwv", default=False, force=True)
-            Token.set_extension("lemma", default=False, force=True)
-            matcher = Matcher(nlp.vocab)
-            matcher.add("MWV", patterns)
-            self.matchers[language] = matcher
-            nlp.add_pipe("merge_mwv", last=True)
-            nlp.add_pipe("fix_mwv", last=True)
+        # patterns = self.patterns.get(language, [])
+
+        # if len(patterns) > 0:
+        # Token.set_extension("is_mwv", default=False, force=True)
+        # Token.set_extension("lemma", default=False, force=True)
+        # matcher = Matcher(nlp.vocab)
+        # matcher.add("MWV", patterns)
+        # self.matchers[language] = matcher
+        # nlp.add_pipe("merge_mwv", last=True)
+        # nlp.add_pipe("fix_mwv", last=True)
 
         return self.pipelines[language]
 
 
-@Language.component("merge_mwv")
-def merge_mwv(doc):
-    processor = CoreLanguageProcessor()
-    matcher = processor.get_matcher(doc.lang_)
-    if matcher is None:
-        return doc
-    matches = matcher(doc)
-    spans = [doc[start:end] for _, start, end in matches]
-
-    spans = filter_spans(spans)
-
-    with doc.retokenize() as retok:
-        for span in spans:
-            retok.merge(
-                span,
-                attrs={
-                    "_": {
-                        "is_mwv": True,
-                        "lemma": " ".join([t.lemma_ for t in span]),
-                    }
-                },
-            )
-    return doc
-
-
-@Language.component("fix_mwv")
-def fix_mwv(doc):
-    for token in doc:
-        if token._.is_mwv:
-            token.pos_ = "VERB"
-            token.tag_ = "VB"
-            token.lemma_ = token._.lemma
-    return doc
+# @Language.component("merge_mwv")
+# def merge_mwv(doc):
+#     processor = CoreLanguageProcessor()
+#     matcher = processor.get_matcher(doc.lang_)
+#     if matcher is None:
+#         return doc
+#     matches = matcher(doc)
+#     spans = [doc[start:end] for _, start, end in matches]
+#
+#     spans = filter_spans(spans)
+#
+#     with doc.retokenize() as retok:
+#         for span in spans:
+#             retok.merge(
+#                 span,
+#                 attrs={
+#                     "_": {
+#                         "is_mwv": True,
+#                         "lemma": " ".join([t.lemma_ for t in span]),
+#                     }
+#                 },
+#             )
+#     return doc
+#
+#
+# @Language.component("fix_mwv")
+# def fix_mwv(doc):
+#     for token in doc:
+#         if token._.is_mwv:
+#             token.pos_ = "VERB"
+#             token.tag_ = "VB"
+#             token.lemma_ = token._.lemma
+#     return doc
+#
 
 
 def core_nlp(language: str, texts: List[Document]):
     core = CoreLanguageProcessor()
     nlp = core.get_pipeline(language)
     with nlp.memory_zone():
-        _core_nlp(nlp, language, texts)
+        _core_nlp(nlp, texts)
 
 
-def process_spacy_doc(doc: Doc):
-    doc_id = shortuuid.uuid()
-    text = Text(doc_id=doc_id, content=doc.text)
-    lang3s_document = Document(
-        id=doc_id, text=text, metadata={}, title="Spacy Document"
-    )
-    _spacy_doc_to_lang3s_document(doc, lang3s_document)
-    return lang3s_document
-
-
-def _spacy_doc_to_lang3s_document(spacy_doc: Doc, lang3s_doc: Document):
+def convert_to_lang3s(spacy_doc: Doc, lang3s_doc: Document):
     all_mentions = []
     all_hashtags = []
     all_urls = []
     text = lang3s_doc.text
+    text[Metadata.LANGUAGE] = spacy_doc.lang_
 
     sentences = {
         s.start: i for i, s in enumerate(spacy_doc.sents) if s.text.strip() != ""
@@ -306,83 +299,14 @@ def _spacy_doc_to_lang3s_document(spacy_doc: Doc, lang3s_doc: Document):
         lang3s_doc["urls"] = all_urls
 
 
-def _core_nlp(nlp: Language, language: str, docs: List[Document]):
+def _core_nlp(nlp: Language, docs: List[Document]):
     batch_size = 50
     spacy_docs = nlp.pipe((doc.text.text for doc in docs), batch_size=batch_size)
 
     for lang3s_doc, spacy_doc in zip(docs, spacy_docs):
-        _spacy_doc_to_lang3s_document(spacy_doc, lang3s_doc)
+        convert_to_lang3s(spacy_doc, lang3s_doc)
 
     del spacy_docs
-
-
-def handle_coreference(language, doc, coref_map):
-    if language == "en" and config.USE_COREFERENCE:
-        for cluster in doc._.coref_clusters:
-            if cluster is None:
-                continue
-
-            spans: List[spacy.tokens.Span] = []
-            for span in filter_none(
-                doc.char_span(span[0], span[1], label="UNKNOWN")
-                for span in cluster
-                if span is not None
-            ):
-                span_ents = list(span.ents)
-                if len(span_ents) == 0:
-                    for ent in doc.ents:
-                        if ent.start <= span.end and ent.end > span.start:
-                            span_ents.append(ent)
-
-                if len(span_ents) == 0:
-                    spans.append(span)
-                elif len(span_ents) > 0:
-                    spans.append(span_ents[0])
-
-            if len(spans) == 0:
-                continue
-
-            most_common: str = first(
-                Counter(
-                    span.label_ for span in spans if span.label_ != "UNKNOWN"
-                ).most_common(1),
-                ["MISC", 1],
-            )[0]
-
-            if most_common == "MISC":
-                cannonical = max(
-                    spans,
-                    key=lambda s: s.end - s.start,
-                )
-            else:
-                cannonical = max(
-                    [span for span in spans if span.label_ == most_common],
-                    key=lambda s: s.end - s.start,
-                )
-
-            for span in spans:
-                start = span.start
-                if span.label_ == "UNKNOWN":
-                    add_ent = True
-                    for ent in doc.ents:
-                        if ent.start <= span.end and ent.end > span.start:
-                            span = ent
-                            start = span.start
-                            add_ent = False
-                            break
-
-                    if add_ent:
-                        new_ent = spacy.tokens.Span(
-                            doc,
-                            start=span.start,
-                            end=span.end,
-                            label=most_common
-                            if not is_person_pronoun(span)
-                            else "PERSON",
-                        )
-                        doc.ents = list(doc.ents) + [new_ent]
-
-                coref_map[start] = cannonical
 
 
 def is_token_stopword(token: spacy.tokens.Token) -> bool:

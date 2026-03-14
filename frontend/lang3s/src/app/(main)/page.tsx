@@ -24,13 +24,16 @@ export default async function Home() {
       <ScrollableBox.Header>
         <h1>Corpus Summary</h1>
       </ScrollableBox.Header>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-6 lg:flex-row">
+      <ScrollableBox.ScrollArea
+        outerClassName="rounded-none! border-0!"
+        className="flex min-h-0 w-full flex-1 flex-col gap-6 lg:h-full lg:flex-row"
+      >
         <CorpusSummary summary={data["corpus_summary"]} />
-        <div className="scrollable flex w-1/2 flex-col gap-6">
+        <div className="lg:scrollable flex flex-col gap-6 lg:w-1/2">
           <CorpusStats summary={data["overall_stats"]} />
           <TopicSummary summary={data["topic_summary"]} />
         </div>
-      </div>
+      </ScrollableBox.ScrollArea>
     </ScrollableBox.Container>
   );
 }

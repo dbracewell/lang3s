@@ -22,6 +22,8 @@ def caller(
         [sentence.sentence_aid for sentence in document.sentences]
     )
     claims = extract_claims(llm_client, document)
+    if not claims:
+        return
     embs = embedder([claim.text for claim in claims]).sentence_embeddings
     db.insert_many_objects(
         [

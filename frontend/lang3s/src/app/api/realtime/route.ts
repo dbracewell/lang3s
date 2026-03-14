@@ -4,11 +4,6 @@ import { enforceLimits, releaseConnection } from "@/lib/events/sseSecurity";
 import { redisFanout } from "@/lib/events/redisFanout";
 import { EventMessageSchema } from "@/lib/events/events";
 
-/**
- * IMPORTANT:
- * - SSE requires Node.js runtime (not Edge)
- * - Disable body parsing & caching implicitly by streaming
- */
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {

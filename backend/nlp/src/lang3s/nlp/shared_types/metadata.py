@@ -18,12 +18,16 @@ class Metadata(StrEnum):
     COREF_TEXT = "coref_text"
     A0 = "A0"
     A0_TEXT = "A0_TEXT"
+    A0_COREF_TEXT = "A0_COREF_TEXT"
     A1 = "A1"
     A1_TEXT = "A1_TEXT"
+    A1_COREF_TEXT = "A1_COREF_TEXT"
     TIME = "TIME"
     TIME_TEXT = "TIME_TEXT"
+    TIME_COREF_TEXT = "TIME_COREF_TEXT"
     LOC = "LOC"
     LOC_TEXT = "LOC_TEXT"
+    LOC_COREF_TEXT = "LOC_COREF_TEXT"
     SOURCE = "source"
 
 

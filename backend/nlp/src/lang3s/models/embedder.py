@@ -166,6 +166,14 @@ class Embedder(metaclass=SingletonMeta):
             self._device = config.INFERENCE_DEVICE
             self.model.to(self._device)
 
+        if not texts:
+            return EmbeddingResult(
+                word_embeddings=[],
+                sentence_embeddings=[],
+                token_embeddings=[],
+                mapping=[],
+            )
+
         if task == "search":
             if isinstance(texts[0], list):
                 texts = [[t.lower() for t in text] for text in texts]
@@ -180,6 +188,9 @@ class Embedder(metaclass=SingletonMeta):
         texts: Union[List[str], List[List[str]]],
         is_split_into_words: bool = False,
     ) -> ChunkResult:
+        if not texts:
+            return ChunkResult([], [])
+
         encodings = self.tokenizer(
             texts,
             truncation=False,

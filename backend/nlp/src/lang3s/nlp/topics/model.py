@@ -26,13 +26,13 @@ import shortuuid
 import sqlalchemy
 from numpy.typing import NDArray
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sqlalchemy import Boolean, Select, cast, delete, func, select, text, update
+from sqlalchemy import Boolean, Select, cast, delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 
 from lang3s.data.db import db
 from lang3s.data.db.models import TextAnnotationsTable, TopicsTable
 from lang3s.nlp.shared_types import Document
-from lang3s.utils import flatten
+from lang3s.utils import flatten, try_catch
 from lang3s.utils.maths import cosine, normalize
 from lang3s.utils.meta import SingletonMeta
 
@@ -69,12 +69,15 @@ def create_topic_name(topic: Topic) -> str:
 
 
 def topic_naming(topics: list[Topic]):
-    with Parallel(
-        n_jobs=-1,
-        backend="loky",
-        inner_max_num_threads=1,
-    ) as parallel:
-        return parallel([delayed(create_topic_name)(v) for v in topics])
+    with try_catch(on_error=lambda e: logger.error(e)):
+        with Parallel(
+            n_jobs=-1,
+            prefer="threads",
+            mmap_mode="shared",
+        ) as parallel:
+            return parallel([delayed(create_topic_name)(v) for v in topics])
+
+    return [t.name for t in topics]
 
 
 class Lang3sTopicModel(metaclass=SingletonMeta):

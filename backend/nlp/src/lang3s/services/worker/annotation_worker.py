@@ -303,6 +303,7 @@ def complete_job(job_id: int) -> None:
         stmt = update(KeywordsTable)
         with db.get_session() as session:
             session.execute(stmt, updates)
+        db.refresh_concept_views()
         logger.info(f"WORKER {pid}: Completed generating keyword categories")
 
     with try_catch(
@@ -461,7 +462,6 @@ def main():
                 active_job_id = None
                 total_docs_completed = 0
                 total_docs_failed = 0
-                break
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.className} ${poppins.variable} min-h-200 min-w-255 antialiased`}
+        className={`${inter.className} ${poppins.variable} min-h-[800] min-w-[800] antialiased`}
         style={{
           overflowAnchor: "none",
         }}

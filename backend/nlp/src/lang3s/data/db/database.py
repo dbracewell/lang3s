@@ -148,6 +148,11 @@ def refresh_topic_views():
         cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  topic_sentences;")
 
 
+def refresh_concept_views():
+    with raw_cursor() as cursor:
+        cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY  concept_co_occurrence;")
+
+
 def execute(stmt):
     with get_session() as session:
         return session.execute(stmt)

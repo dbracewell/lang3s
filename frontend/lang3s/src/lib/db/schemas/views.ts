@@ -1,5 +1,7 @@
 import {
   doublePrecision,
+  integer,
+  json,
   pgMaterializedView,
   pgView,
   text,
@@ -16,6 +18,24 @@ export const TopicSentences = pgMaterializedView("topic_sentences", {
   sentenceAid: text("sentence_aid").notNull(),
   sentence: text("sentence").notNull(),
   similarity: doublePrecision("similarity").notNull(),
+}).existing();
+
+export const DocumentTopicConcepts = pgView("document_topic_concepts", {
+  topicId: text("topic_id").notNull(),
+  topic: text("topic").notNull(),
+  topicCount: integer("topic_count").notNull(),
+  concept: text("concept").notNull(),
+  conceptCount: integer("concept_count").notNull(),
+  overlap: integer("overlap_count").notNull(),
+  instances: json().$type<Record<string, number>>().notNull(),
+}).existing();
+
+export const ConceptCoOccurrence = pgMaterializedView("concept_co_occurrence", {
+  source: text("source").notNull(),
+  target: text("target").notNull(),
+  sourceCount: integer("source_count").notNull(),
+  targetCount: integer("target_count").notNull(),
+  documentId: text("document_id").notNull(),
 }).existing();
 
 export const AnnotationWithOntologyView = pgView("annotation_with_ontology").as(

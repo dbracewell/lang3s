@@ -13,6 +13,8 @@ import lang3s.data.db.database as db
 from lang3s.data.db.models import KeywordsTable
 from lang3s.llm import LLMClient, Message
 from lang3s.nlp.shared_types import Text
+from lang3s.utils import try_catch
+from lang3s.utils.logger import get_logger
 
 
 def mmr_rank(
@@ -139,6 +141,7 @@ def _create_label(keywords: list[Tuple[str, str, np.ndarray]]) -> list[Tuple[str
     client = LLMClient()
     cnt = Counter(k[1] for k in keywords)
     topn = [c for c, v in cnt.most_common(100)]
+    logger = get_logger("KEYWORD_EXTRACTION")
     prompt = textwrap.dedent(f"""
                     Given the following list of keywords come up with a short noun phrase no more than four words describing the concept/topic. 
                     Make the noun phrase generic and not specific to ONE keyword it should be generic enough to cover any keyword in the category.
@@ -147,15 +150,22 @@ def _create_label(keywords: list[Tuple[str, str, np.ndarray]]) -> list[Tuple[str
                     Keywords:
                     {"\n".join(topn)}
                 """).strip()
-    response = client.sync_chat_completion_last_event([Message.user(prompt)])
-    if response.exception:
-        return [(k[0], k[1]) for k in keywords]
-    else:
-        return [(k[0], response.content) for k in keywords]
+    with try_catch(on_error=lambda e: logger.error(e)):
+        response = client.sync_chat_completion_last_event([Message.user(prompt)])
+        if response.exception:
+            return [(k[0], k[1]) for k in keywords]
+        else:
+            return [(k[0], response.content) for k in keywords]
+
+    return [(k[0], k[1]) for k in keywords]
 
 
 def generate_keyword_categories():
-    stmt = select(KeywordsTable).execution_options(yield_per=100)
+    stmt = (
+        select(KeywordsTable)
+        .where(KeywordsTable.category.is_(None))
+        .execution_options(yield_per=100)
+    )
     keywords = []
     with db.get_session() as session:
         keyword: KeywordsTable

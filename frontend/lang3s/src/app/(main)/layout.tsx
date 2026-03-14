@@ -5,7 +5,6 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import "../globals.css";
 import { UserRole } from "@/lib/auth/permissions";
-import { Suspense } from "react";
 
 const MainLayout = async (props: LayoutProps<"/">) => {
   const session = await auth.api.getSession({

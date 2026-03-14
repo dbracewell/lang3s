@@ -14,6 +14,12 @@ export const capitalize = (text: string, allWords: boolean = false): string => {
     .join(" ");
 };
 
+export const truncateText = (text: string, maxLength = 35) => {
+  if (text.length <= maxLength) return text;
+  const truncated = text.substring(0, text.lastIndexOf(" ", maxLength));
+  return `${truncated || text.substring(0, maxLength)}...`;
+};
+
 export const formatDuration = (milliseconds: number): string => {
   const totalSeconds = Math.floor(milliseconds / 1000);
   const hours = Math.floor(totalSeconds / 3600);

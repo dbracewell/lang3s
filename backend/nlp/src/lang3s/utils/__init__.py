@@ -19,7 +19,7 @@ T = TypeVar("T")
 @contextmanager
 def try_catch(
     on_error: Callable[[Exception], None] | None = None,
-    raise_exception: bool = True,
+    raise_exception: bool = False,
     handled_exceptions: tuple[Type[Exception], ...] = (Exception,),
 ):
     try:
