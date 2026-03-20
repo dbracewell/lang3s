@@ -18,7 +18,7 @@ from lang3s.data.db.models import (
 )
 from lang3s.llm import Desc, tool
 from lang3s.models import Embedder
-from lang3s.nlp.shared_types import Metadata
+from lang3s.nlp.metadata import Metadata
 from lang3s.utils.logger.service_logging import get_logger
 
 

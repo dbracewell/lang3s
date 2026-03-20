@@ -3,7 +3,7 @@ import os
 import shortuuid
 from lang3s_job_service import File
 
-from lang3s.nlp.shared_types import Metadata
+from lang3s.nlp.metadata import Metadata
 
 
 def get_or_create_doc_id(file: File):

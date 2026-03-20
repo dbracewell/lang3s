@@ -8,6 +8,7 @@ import {
   ZoomInIcon,
   ZoomOutIcon,
 } from "lucide-react";
+import { Hint } from "@/components/hint";
 
 export const NavigationBar = ({ className }: { className?: string }) => {
   const { getRef } = useD3Context();
@@ -53,30 +54,38 @@ export const NavigationBar = ({ className }: { className?: string }) => {
         className,
       )}
     >
-      <button
-        onClick={handleZoomIn}
-        className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
-      >
-        <ZoomInIcon className="size-4" />
-      </button>
-      <button
-        onClick={handleZoomOut}
-        className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
-      >
-        <ZoomOutIcon className="size-4" />
-      </button>
-      <button
-        onClick={handleResetZoom}
-        className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
-      >
-        <RotateCcwIcon className="size-4" />
-      </button>
-      <button
-        onClick={handleRecenter}
-        className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
-      >
-        <SquareSquareIcon className="size-4" />
-      </button>
+      <Hint hint="Zoom In" asChild>
+        <button
+          onClick={handleZoomIn}
+          className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
+        >
+          <ZoomInIcon className="size-4" />
+        </button>
+      </Hint>
+      <Hint hint="Zoom Out" asChild>
+        <button
+          onClick={handleZoomOut}
+          className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
+        >
+          <ZoomOutIcon className="size-4" />
+        </button>
+      </Hint>
+      <Hint hint="Reset Zoom" asChild>
+        <button
+          onClick={handleResetZoom}
+          className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
+        >
+          <RotateCcwIcon className="size-4" />
+        </button>
+      </Hint>
+      <Hint hint="Recenter" asChild>
+        <button
+          onClick={handleRecenter}
+          className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700"
+        >
+          <SquareSquareIcon className="size-4" />
+        </button>
+      </Hint>
     </div>
   );
 };

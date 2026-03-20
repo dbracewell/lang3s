@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Literal
+import os.path
+import re
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from lang3s.llm.old.chat_model import ChatModel
+from lang3s import config
+from lang3s.llm import LLMClient, Message
+from lang3s.models.text_generator import FineTunedLongT5
 from lang3s.nlp.shared_types import Document
-from lang3s.utils import try_catch
-from lang3s.utils.logger import get_logger
 
 
 class ClaimDocument(BaseModel):
@@ -24,7 +26,7 @@ class SentenceContext(BaseModel):
 class Claim(BaseModel):
     sentence_aid: str
     text: str
-    type: Literal["CLAIM", "SOURCE", "META"]
+    type: Literal["OBJECTIVE", "SUBJECTIVE", "CLAIM", "META"]
     source: str | None = Field(default=None)
     entities: list[str] = Field(default_factory=list)
 
@@ -32,27 +34,6 @@ class Claim(BaseModel):
 class ClaimExtraction(BaseModel):
     claims: list[Claim]
 
-
-__SYSTEM_PROMPT__ = """
-    You are an expert Knowledge Graph engineer. Your goal is to extract atomic facts from text for a database.
-
-    Follow these strict rules:
-    1. **SPLIT**: Break complex sentences into atomic, independent statements.
-    2. **RESOLVE**: Replace ALL pronouns ("It", "They", "He") with the specific entity names. Make SURE TO USE information from other sentences to resolve the entity names. ALL SENTENCES PROVIDED ARE FROM THE SAME DOCUMENT.
-       - BAD: "It is expecting growth."
-       - GOOD: "Wal-Mart is expecting growth."
-    3. **CLASSIFY**:
-       - `CLAIM`: Real-world events, actions, forecasts, or findings (e.g., "Prices rose", "Fed increased rates"). This should NOT include source statements like "Lynn said", "said by Lynn", "Lynn responded", etc.
-       - `SOURCE`: Pure attribution or metadata (e.g., "The survey said", "According to data", "Joe said", "Bush speculates").
-       - `META`: Text structure (e.g., "See Table 1").     
-    4. **ATTRIBUTE**:
-       - State the source of the claim.
-       - If NO source can be attributed, reply with null 
-    5. **EXTRACT**:
-       - Extract the entities involved in the claim.
-
-    Output a JSON list of objects.  
-"""
 
 __SYSTEM_PROMPT__ = """
 Please break down the following text into simple, self-contained propositions. Ensure that each proposition meets the following criteria:
@@ -142,23 +123,11 @@ __EXAMPLES = [
 ]
 
 
-def _get_prompt_and_examples() -> list[dict[str, Any]]:
-    messages = [
-        {"role": "system", "content": __SYSTEM_PROMPT__},
-    ]
+def _get_prompt_and_examples() -> list[Message]:
+    messages = [Message.system(__SYSTEM_PROMPT__)]
     for user, assistant in __EXAMPLES:
-        messages.append(
-            {
-                "role": "user",
-                "content": json.dumps(user),
-            }
-        )
-        messages.append(
-            {
-                "role": "assistant",
-                "content": assistant.model_dump_json(),
-            }
-        )
+        messages.append(Message.user(json.dumps(user)))
+        messages.append(Message.assistant(json.dumps(assistant.model_dump_json())))
     return messages
 
 
@@ -175,20 +144,68 @@ def create_sentence_context(document: Document) -> ClaimDocument:
     )
 
 
-def extract_claims(client: ChatModel, document: ClaimDocument) -> list[Claim]:
+def extract_claims(client: LLMClient, document: ClaimDocument) -> list[Claim]:
     messages = _base_messages.copy()
     messages.append(
-        {
-            "role": "user",
-            "content": json.dumps([s.model_dump_json() for s in document.sentences]),
-        }
+        Message.user(json.dumps([s.model_dump_json() for s in document.sentences]))
     )
-    logger = get_logger("CLAIM_EXTRACTOR")
-    with try_catch(on_error=lambda e: logger.error(e)):
-        response = client.chat(messages=messages, response_model=ClaimExtraction)
-        return [
-            claim
-            for claim in response.parsed.claims
-            if claim.type == "CLAIM" and claim.text.strip()
+
+    final_claims = []
+    x = []
+    for i in range(len(document.sentences)):
+        before_text = []
+        for j in range(max(0, i - 2), i):
+            before_text.append(document.sentences[j].text)
+        after_text = []
+        for j in range(i + 1, min(len(document.sentences), i + 3)):
+            after_text.append(document.sentences[j].text)
+
+        x.append(f"""Extract the claim from the TARGET given the TARGET and BEFORE and AFTER context:
+                                                     BEFORE: {" ".join(before_text)}
+                                                     TARGET: {document.sentences[i].text}
+                                                     AFTER: {" ".join(after_text)}""")
+
+    results = get_claim_model().generate(x)
+    for response, sentence in zip(results, document.sentences):
+        parts = [
+            p.strip() for p in re.split(r"CLAIM:|LABEL:|SOURCE:", response) if p.strip()
         ]
-    return []
+        if len(parts) < 3:
+            continue
+        text, label, source = parts
+        if label in ("SUBJECTIVE", "OBJECTIVE"):
+            claim = Claim(
+                sentence_aid=sentence.sentence_aid,
+                text=text,
+                type=label,
+                source=source,
+            )
+            final_claims.append(claim)
+
+    return final_claims
+
+    # logger = get_logger("CLAIM_EXTRACTOR")
+    # with try_catch(on_error=lambda e: logger.error(e)):
+    #     response = client.sync_chat_completion_last_event(
+    #         messages=messages,
+    #         response_model=ClaimExtraction,
+    #         max_tokens=4000,
+    #     )
+    #     return [
+    #         claim
+    #         for claim in response.parsed.claims
+    #         if claim.type == "CLAIM" and claim.text.strip()
+    #     ]
+    # return []
+
+
+_claim_model: FineTunedLongT5 | None = None
+
+
+def get_claim_model():
+    global _claim_model
+    if _claim_model is None:
+        _claim_model = FineTunedLongT5.load_model(
+            os.path.join(config.MODELS_DIR, "long_t5")
+        )
+    return _claim_model

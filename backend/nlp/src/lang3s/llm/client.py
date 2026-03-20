@@ -61,12 +61,8 @@ class LLMClient:
         self.base_url: str = f"{llm_host}/v1/"
         self.model_name: str = model_name
 
-    @staticmethod
-    def _get_client():
-        return AsyncOpenAI(
-            api_key=config.LLM_API_KEY,
-            base_url=f"{config.LLM_HOST}/v1/",
-        )
+    def _get_client(self):
+        return AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
 
     @staticmethod
     def _error_to_event(e: Exception) -> LLMEvent:

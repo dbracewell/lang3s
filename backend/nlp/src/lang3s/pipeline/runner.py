@@ -13,9 +13,10 @@ from lang3s.nlp.core_nlp import (
     core_nlp,
 )
 from lang3s.nlp.heavy_nlp import heavy_nlp
-from lang3s.nlp.shared_types import Document, Metadata, Text
+from lang3s.nlp.metadata import Metadata
+from lang3s.nlp.shared_types import Document, Text
 from lang3s.pipeline.langdetect import detect_language
-from lang3s.utils import partition, partition_generator
+from lang3s.utils import partition_generator
 from lang3s.utils.formatters import format_duration
 from lang3s.utils.logger import get_logger
 

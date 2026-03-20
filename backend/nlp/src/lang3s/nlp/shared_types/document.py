@@ -3,8 +3,9 @@ from typing import Any, Dict
 
 from psycopg.types.json import Jsonb
 
+from lang3s.nlp.metadata import Metadata
+
 from .db_columns import DocumentRow
-from .metadata import Metadata
 from .text import Text
 
 

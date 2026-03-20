@@ -35,6 +35,13 @@ export const NAVIGATION_LINKS: NavigationGroup[] = [
         exact: false,
       },
       {
+        href: "/analytics/explorer",
+        title: "Corpus Explorer",
+        icon: "BinocularsIcon",
+        exact: false,
+      },
+      { separator: true },
+      {
         href: "/analytics/entities",
         title: "Entities",
         icon: "HatGlassesIcon",
@@ -47,12 +54,6 @@ export const NAVIGATION_LINKS: NavigationGroup[] = [
         exact: false,
       },
       { separator: true },
-      {
-        href: "/analytics/topics",
-        title: "Topics",
-        icon: "ChartNoAxesGanttIcon",
-        exact: false,
-      },
       {
         href: "/analytics/concepts",
         title: "Concepts",

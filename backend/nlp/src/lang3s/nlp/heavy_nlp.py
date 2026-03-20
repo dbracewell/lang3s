@@ -9,8 +9,9 @@ from lang3s.models.transformer.multi_task_transformer import MultiTaskTransforme
 from lang3s.models.transformer.shared_types import TokenLabelResult
 from lang3s.nlp.event_extraction import extract_events
 from lang3s.nlp.keyword_extraction import extract_keywords
+from lang3s.nlp.metadata import Metadata
 from lang3s.nlp.ner import get_ner_model
-from lang3s.nlp.shared_types import Document, Event, Metadata, TextAnnotation
+from lang3s.nlp.shared_types import Document, Event, TextAnnotation
 from lang3s.utils import filter_none
 from lang3s.utils.logger import get_logger
 from lang3s.utils.maths import normalize
@@ -110,6 +111,8 @@ def embed_annotation(annotation: TextAnnotation):
 
 
 def create_core_embeddings(doc: Document, result: EmbeddingResult):
+    if not result.sentence_embeddings:
+        return
     doc_emb = np.zeros(result.sentence_embeddings[0].shape[-1], dtype=embedding_dtype)
 
     for sentence, word_embeddings, sentence_embedding in zip(

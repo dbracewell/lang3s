@@ -200,7 +200,12 @@ const ForceGraphBase = <Point extends ForceGraphPoint>({
       unknown
     >().on("zoom", (event) => {
       g.attr("transform", event.transform);
+      const tooltip = getRef("tooltip").current;
+      if (tooltip !== null) {
+        tooltip.style.visibility = "hidden";
+      }
     });
+
     svg.call(zoomBehavior as any);
     zoomBehaviorRef.current = zoomBehavior;
     registerRef("zoomBehavior", zoomBehaviorRef);
@@ -263,7 +268,7 @@ const ForceGraphBase = <Point extends ForceGraphPoint>({
           svgRef.current = node;
           registerRef("svg", svgRef);
         }}
-        className={cn("h-full w-full", svgClassName)}
+        className={cn("h-full w-full select-none", svgClassName)}
         preserveAspectRatio="xMidYMid meet"
       />
     </div>

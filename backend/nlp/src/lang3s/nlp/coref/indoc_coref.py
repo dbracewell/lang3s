@@ -12,7 +12,8 @@ from lang3s.models.coref_ranker import (
 from lang3s.nlp.coref.helper import should_perform_coref
 from lang3s.nlp.language import is_person_pronoun
 from lang3s.nlp.language.en import ACRONYM_EXPANSIONS
-from lang3s.nlp.shared_types import AnnotationTypes, Document, Metadata, TextAnnotation
+from lang3s.nlp.metadata import Metadata
+from lang3s.nlp.shared_types import AnnotationTypes, Document, TextAnnotation
 
 
 def _apply_nominal_sieve(mention, candidates, all_scores, threshold=-1.5):

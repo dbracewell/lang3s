@@ -2,31 +2,24 @@ import gzip
 import importlib.resources
 import json
 import re
-from collections import Counter
 from typing import Dict, List, Optional
 
 import numpy as np
-import shortuuid
-import spacy
 import spacy.tokens
-from more_itertools.more import first
 from sklearn.feature_extraction.text import TfidfVectorizer
 from spacy.language import Language
 from spacy.matcher import Matcher
-from spacy.tokens import Doc, Span, Token
+from spacy.tokens import Doc, Span
 from spacy.util import filter_spans
 from spacy_download import load_spacy
 
-from lang3s import config
 from lang3s.nlp.language import is_person_pronoun
+from lang3s.nlp.metadata import Metadata
 from lang3s.nlp.shared_types import (
     AnnotationTypes,
     Document,
-    Metadata,
-    Text,
     TextAnnotation,
 )
-from lang3s.utils import filter_none
 from lang3s.utils.meta import SingletonMeta
 from lang3s.utils.urls import normalize_url
 

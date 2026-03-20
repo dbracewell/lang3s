@@ -5,7 +5,8 @@ import torch
 import torch.nn as nn
 
 from lang3s import config
-from lang3s.nlp.shared_types import Metadata, TextAnnotation
+from lang3s.nlp.metadata import Metadata
+from lang3s.nlp.shared_types import TextAnnotation
 from lang3s.ontology import ontology
 from lang3s.ontology.core import is_ontology_type
 

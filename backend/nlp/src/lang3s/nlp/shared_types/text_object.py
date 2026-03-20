@@ -6,9 +6,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 import numpy as np
 import shortuuid
 
+from lang3s.nlp.metadata import AnnotationTypes, Metadata
 from lang3s.utils import filter_none
-
-from .metadata import AnnotationTypes, Metadata
 
 if TYPE_CHECKING:
     from .event import Event

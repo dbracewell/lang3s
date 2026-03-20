@@ -9,10 +9,11 @@ import numpy as np
 from psycopg.types.json import Jsonb
 
 from lang3s import config
+from lang3s.nlp.metadata import AnnotationTypes, Metadata
 
 from ...utils import flatten
+from ..language import uses_whitespace
 from .db_columns import TextAnnotationRow
-from .metadata import AnnotationTypes, Metadata
 from .text_object import TextObject
 
 if TYPE_CHECKING:
@@ -96,11 +97,17 @@ class TextAnnotation(TextObject):
         return flatten(self._annotations.values())
 
     def text_with_coref(self):
-        parts = []
+        parts = ""
+        last_start = self.tokens[0]["start_char"]
+        need_whitespace = uses_whitespace(self.owner["language"])
         for token in self.tokens:
             coref = token.coref
-            parts.append(coref.text)
-        return " ".join(parts)
+            if need_whitespace:
+                parts += " " * (token["start_char"] - last_start)
+                last_start = token["end_char"]
+            parts += coref.text
+
+        return parts.strip()
 
     @property
     def tokens(self) -> List[TextAnnotation]:

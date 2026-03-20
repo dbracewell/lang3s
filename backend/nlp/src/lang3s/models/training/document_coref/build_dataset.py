@@ -15,7 +15,8 @@ from lang3s.models.training.document_coref.coref_config import (
     WIKICOREF_DIR,
 )
 from lang3s.models.training.document_coref.io import save_preprocessed_data
-from lang3s.nlp.shared_types import Document, Metadata
+from lang3s.nlp.metadata import Metadata
+from lang3s.nlp.shared_types import Document
 from lang3s.pipeline import pipeline
 from lang3s.pipeline.runner import pipeline_from_tokens
 

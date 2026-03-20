@@ -73,6 +73,7 @@ sentence-transformers = "^5.2.2"
 joblib = "^1.5.3"
 rapidfuzz = "^3.14.3"
 gliner = "^0.2.25"
+peft = "^0.18.1"
 
 
 [tool.poetry.group.dev.dependencies]

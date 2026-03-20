@@ -14,7 +14,7 @@ export const CorpusMapTabs = () => {
         className="rounded-r-none"
         variant={params.tab === "chart" ? "default" : "outline"}
       >
-        Word Cloud
+        Visual Explorer
       </Button>
       <Button
         onClick={() => setParams({ tab: "list" })}

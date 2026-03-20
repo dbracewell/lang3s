@@ -1,8 +1,5 @@
 "use client";
-import {
-  useTRPCInfiniteQuery,
-  useTRPCSuspenseInfiniteQuery,
-} from "@/lib/trpc/use-queries";
+import { useTRPCSuspenseInfiniteQuery } from "@/lib/trpc/use-queries";
 import React, { Fragment, useMemo } from "react";
 import { InfiniteScroll } from "@/components/scrolling/InfiniteScroll";
 import { SearchSpinner } from "@/features/search/ui/components/SearchSpinner";

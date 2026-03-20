@@ -6,7 +6,8 @@ from typing import List, Tuple
 from more_itertools import first
 
 from lang3s.nlp.language import is_person_pronoun
-from lang3s.nlp.shared_types import Document, Event, Metadata, TextAnnotation
+from lang3s.nlp.metadata import Metadata
+from lang3s.nlp.shared_types import Document, Event, TextAnnotation
 from lang3s.utils.meta import SingletonMeta
 
 IGNORE_VERBS = {

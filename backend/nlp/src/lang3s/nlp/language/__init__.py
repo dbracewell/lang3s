@@ -1,6 +1,20 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from spacy.tokens import Span, Token
 
-from lang3s.nlp.shared_types import Metadata, TextAnnotation
+from lang3s.nlp.metadata import Metadata
+
+if TYPE_CHECKING:
+    from lang3s.nlp.shared_types import TextAnnotation
+
+
+def uses_whitespace(language: str) -> bool:
+    language = language.lower()
+    if language in ("zh", "ja"):
+        return False
+    return True
 
 
 def get_common_person_titles(language: str) -> set[str]:
@@ -44,11 +58,9 @@ def is_person_pronoun(
     if isinstance(word, str):
         return word.lower() in PERSON_PRONOUNS
 
-    if isinstance(word, TextAnnotation):
-        return len(word.tokens) == 1 and (
-            word.tokens[0].text.lower() in PERSON_PRONOUNS
+    if isinstance(word, Span):
+        return len(word) == 1 and (
+            word[0].tag_ == "PRP" or word.text.lower() in PERSON_PRONOUNS
         )
 
-    return len(word) == 1 and (
-        word[0].tag_ == "PRP" or word.text.lower() in PERSON_PRONOUNS
-    )
+    return len(word.tokens) == 1 and (word.tokens[0].text.lower() in PERSON_PRONOUNS)

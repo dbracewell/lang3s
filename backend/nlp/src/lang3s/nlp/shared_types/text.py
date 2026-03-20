@@ -9,10 +9,10 @@ from numpy.typing import NDArray
 from psycopg.types.json import Jsonb
 
 from lang3s import config
+from lang3s.nlp.metadata import AnnotationTypes
 from lang3s.utils.binary_search import binary_search
 
 from .db_columns import TextRow
-from .metadata import AnnotationTypes
 from .text_annotation import TextAnnotation
 from .text_object import TextObject
 

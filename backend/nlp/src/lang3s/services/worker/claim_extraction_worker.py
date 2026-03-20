@@ -5,9 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 
 import lang3s.data.db.database as db
-from lang3s import config
 from lang3s.data.db.models import ClaimsTable
-from lang3s.llm.old.chat_model import ChatModel
+from lang3s.llm import LLMClient
 from lang3s.models import Embedder
 from lang3s.nlp.claim_extractor import ClaimDocument, extract_claims
 from lang3s.services.client.redis_client import CLAIM_EXTRACT_QUEUE_NAME, RedisClient
@@ -16,7 +15,7 @@ from lang3s.services.client.redis_client import CLAIM_EXTRACT_QUEUE_NAME, RedisC
 def caller(
     document: ClaimDocument,
     embedder: Embedder,
-    llm_client: ChatModel,
+    llm_client: LLMClient,
 ) -> None:
     valid_sentence_aids = set(
         [sentence.sentence_aid for sentence in document.sentences]
@@ -54,7 +53,7 @@ def caller_wrapper(*args, **kwargs):
 
 def worker():
     redis_client = RedisClient()
-    llm_client = ChatModel(config.LLM_MODEL)
+    llm_client = LLMClient()
     embedder = Embedder()
     with ThreadPoolExecutor(max_workers=4) as thread_pool:
         while True:
