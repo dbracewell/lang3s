@@ -34,7 +34,7 @@ RUN pip install poetry
 #Install Job Service
 COPY jobs_service/ jobs_service
 COPY nlp/src/ nlp/src
-COPY nlp/pyproject.toml nlp/pyproject.toml
+COPY nlp/pyproject.toml.poetry nlp/pyproject.toml
 COPY nlp/setup.py nlp/setup.py
 COPY nlp/README.md nlp/README.md
 WORKDIR /app/nlp/

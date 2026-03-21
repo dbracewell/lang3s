@@ -1,0 +1,88 @@
+[project]
+name = "lang3s"
+version = "2025.10.3"
+description = "Lang3s"
+readme = "README.md"
+
+[tool.poetry]
+name = "lang3s"
+version = "2025.10.3"
+description = "Lang3s"
+authors = ["David Bracewell"]
+readme = "README.md"
+
+
+packages = [
+    { include = "lang3s", from = "src" }
+]
+
+include = [
+    { path = "**/*.so" },
+    { path = "**/*.pyd" },
+    { path = "**/*.dll" },
+]
+
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+transformers = "4.51.3"
+torch = "2.8.0"
+datasets = "*"
+scikit-learn = "*"
+evaluate = "*"
+seqeval = "*"
+accelerate = "*"
+shortuuid = "1.0.13"
+lingua_language_detector = "2.1.1"
+pgvector = "0.4.1"
+inngest = "0.5.9"
+fastapi = "*"
+spacy_download = "1.1.0"
+uvicorn = "*"
+redis = "7.0.0"
+lang3s-job-service = { path = "../jobs_service", develop = true }
+jsonlines = ">=4.0.0,<5.0.0"
+hnswlib = ">=0.8.0,<0.9.0"
+psycopg = { version = ">=3.2.12,<4.0.0", extras = ["binary", "pgvector"] }
+psycopg-pool = ">=3.2.7,<4.0.0"
+fastcoref = ">=2.1.6,<3.0.0"
+openai = ">=2.7.2,<3.0.0"
+more-itertools = ">=10.8.0,<11.0.0"
+numpy = "2.3.4"
+beautifulsoup4 = "^4.14.2"
+markdown = "^3.10"
+sqlalchemy = "^2.0.44"
+requests = ">=2.32.5,<3.0.0"
+pydantic = "2.11.4"
+pydantic-core = "2.33.2"
+sentencepiece = "^0.2.1"
+python-multipart = "^0.0.21"
+thinc-apple-ops = "^1.0.0"
+matplotlib = "^3.10.8"
+emoji = "^2.15.0"
+umap-learn = "^0.5.11"
+url-normalize = "^2.2.1"
+spacy = "^3.8.11"
+pandas = "^2.3.3"
+tables = "^3.10.2"
+nltk = "^3.9.2"
+duckdb = "^1.4.3"
+python-dotenv = "^1.2.1"
+jinja2 = "^3.1.6"
+sentence-transformers = "^5.2.2"
+joblib = "^1.5.3"
+rapidfuzz = "^3.14.3"
+gliner = "^0.2.25"
+peft = "^0.18.1"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+ruff = ">=0.14.3"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.ruff.lint]
+select = ["F401"]
+fixable = ["ALL"]

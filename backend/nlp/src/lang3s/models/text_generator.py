@@ -68,11 +68,11 @@ class FineTunedLongT5(nn.Module):
                 r=lora_r,
                 lora_alpha=lora_alpha,
                 lora_dropout=lora_dropout,
-                target_modules=["q", "k", "v", "o"],
+                use_dora=True,
+                target_modules="all-linear",
             )
             self.model = get_peft_model(self.base_model, peft_config)
 
-        # Ensure gradients can flow through the frozen input embeddings
         if hasattr(self.model, "enable_input_require_grads"):
             self.model.enable_input_require_grads()
         else:
