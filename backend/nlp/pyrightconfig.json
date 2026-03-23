@@ -1,12 +1,15 @@
 {
-	"reportPrivateImportUsage": "none",
-	"enableTypeIgnoreComments": true,
-	"include": ["src"],
-	"stubPath": "src",
-	"typeCheckingMode": "basic",
-	"reportReturnType": "warning",
-	"reportArgumentType": "warning",
-	"reportOperatorIssue": "warning",
-	"reportImportCycles": "warning",
-	"reportDuplicateImport": "warning",
+  "reportPrivateImportUsage": "none",
+  "enableTypeIgnoreComments": true,
+  "include": [
+    "src"
+  ],
+  "stubPath": "src",
+  "typeCheckingMode": "basic",
+  "reportReturnType": "warning",
+  "reportArgumentType": "warning",
+  "reportOperatorIssue": "warning",
+  "reportImportCycles": "warning",
+  "reportDuplicateImport": "warning",
+  "reportUnusedCallResult": "none"
 }

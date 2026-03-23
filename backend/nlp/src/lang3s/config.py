@@ -230,6 +230,14 @@ class Config:
         return self.get_config_value("NER_CONFIDENCE_THRESHOLD", 0.3)
 
     #####################################################################################
+    # LocalLLM PARAMETERS
+    #####################################################################################
+
+    @property
+    def LOCAL_LLM_DEVICE(self) -> str:
+        return self._get_static("LOCAL_LLM_DEVICE", "gpu")
+
+    #####################################################################################
 
     def _get_best_device(self, is_inference: bool = False) -> str:
         import torch

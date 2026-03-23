@@ -1,4 +1,3 @@
-import gc
 import os
 import pickle
 import random
@@ -72,8 +71,8 @@ class T5Dataset(Dataset):
 LEARNING_RATE = 3e-4
 TOTAL_EPOCHS = 5
 WARMUP_FACTOR = 0.01
-BATCH_SIZE = 16
-ACCUMULATION_STEPS = 3
+BATCH_SIZE = 32
+ACCUMULATION_STEPS = 2
 DEVICE = config.TRAINING_DEVICE
 
 
@@ -88,16 +87,10 @@ def main():
     train_size = int(0.9 * total_size)
     val_size = total_size - train_size
 
-    # collator = DataCollatorForSeq2Seq(
-    #     tokenizer=model.tokenizer,
-    #     model=model.model,  # Pass the underlying PEFT model
-    #     label_pad_token_id=-100,  # Automatically ignores padding in loss
-    #     padding="longest",
-    # )
-
     collator = DataCollatorForSeq2Seq(
         tokenizer=model.tokenizer,
-        model=model,
+        model=model.model,
+        label_pad_token_id=-100,
         padding=True,
     )
 
@@ -107,40 +100,46 @@ def main():
         generator=torch.Generator().manual_seed(42),  # Ensures the same split every run
     )
 
-    # 2. Initialize the custom sampler
-    # Assuming tokenized_data is the list you loaded from your pickle file
     batch_sampler = LengthGroupedBatchSampler(
         dataset=train_dataset,  # type:ignore
-        batch_size=BATCH_SIZE,  # Your BATCH_SIZE = 8
+        batch_size=BATCH_SIZE,
         drop_last=False,
     )
 
-    # 3. Create the DataLoader
-    # CRITICAL: Do not pass 'batch_size' or 'shuffle' here.
-    # The batch_sampler handles both.
     train_loader = DataLoader(
         train_dataset,
         batch_sampler=batch_sampler,
         collate_fn=collator,
     )
 
-    # train_loader = DataLoader(
-    #     train_dataset,
-    #     batch_size=BATCH_SIZE,
-    #     shuffle=True,  # Always shuffle training data
-    #     collate_fn=collator,
-    # )
-
     val_loader = DataLoader(
         val_dataset,
         batch_size=BATCH_SIZE,
-        shuffle=False,  # No need to shuffle validation data
+        shuffle=False,
         collate_fn=collator,
     )
 
     total_steps = len(train_loader) * TOTAL_EPOCHS
     warmup_steps = int(total_steps * WARMUP_FACTOR)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+
+    model.model.config.use_cache = False
+    model.model.gradient_checkpointing_enable(
+        gradient_checkpointing_kwargs={"use_reentrant": False}
+    )
+
+    def make_inputs_require_grad(module, input, output):
+        output.requires_grad_(True)
+
+    # Attach directly to the base input embeddings, bypassing any wrapper bugs
+    if hasattr(model.model, "get_input_embeddings"):
+        model.model.get_input_embeddings().register_forward_hook(
+            make_inputs_require_grad
+        )
+
+    model.model.enable_input_require_grads()
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(trainable_params, lr=LEARNING_RATE)
+
     scheduler = get_cosine_schedule_with_warmup(
         optimizer,
         num_warmup_steps=warmup_steps,
@@ -151,7 +150,6 @@ def main():
     for epoch in range(TOTAL_EPOCHS):
         loop = tqdm(train_loader, desc=f"Epoch {epoch}")
         total_loss = 0
-
         optimizer.zero_grad()
 
         for i, batch in enumerate(loop):
@@ -163,15 +161,18 @@ def main():
             outputs = model(
                 input_ids=input_ids, attention_mask=attention_mask, labels=labels
             )
-
             loss = outputs.loss / ACCUMULATION_STEPS
+
             loss.backward()
 
-            total_loss += loss.item() * ACCUMULATION_STEPS
+            loss_val = loss.item() * ACCUMULATION_STEPS
+            total_loss += loss_val
+
             del outputs
             del input_ids
             del attention_mask
             del labels
+            del loss
 
             if (i + 1) % ACCUMULATION_STEPS == 0 or (i + 1) == len(train_loader):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -182,21 +183,19 @@ def main():
 
                 global_step += 1
 
-                if torch.backends.mps.is_available():
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                if torch.mps.is_available():
                     torch.mps.empty_cache()
 
-                gc.collect()
-
                 current_lr = scheduler.get_last_lr()[0]
+                loop.set_postfix(loss=loss_val, lr=f"{current_lr:.6f}")
 
-                loop.set_postfix(
-                    loss=loss.item() * ACCUMULATION_STEPS, lr=f"{current_lr:.6f}"
-                )
-
-                if global_step % 5 == 0:  # Eval every 5 actual gradient updates
+                if global_step % 5 == 0:
                     model.eval()
                     try:
-                        with torch.no_grad():
+                        # 4. INFERENCE MODE: Stricter memory constraints than no_grad()
+                        with torch.inference_mode():
                             sample_input_ids = batch["input_ids"][0:1].to(DEVICE)
                             sample_attention_mask = batch["attention_mask"][0:1].to(
                                 DEVICE
@@ -214,22 +213,22 @@ def main():
                                 model.tokenizer.pad_token_id
                             )
                             actual_target = model.tokenizer.decode(
-                                sample_labels,
-                                skip_special_tokens=True,
+                                sample_labels, skip_special_tokens=True
                             )
 
                             print(f"\n[Step {global_step}]")
                             print(f"Actual: '{actual_target}'")
                             print(f"Debug Gen: '{output_text[0]}'")
 
+                            del sample_input_ids
+                            del sample_attention_mask
+                            del output_text
+
                     except Exception as e:
                         print(f"Debug gen failed: {e}")
                         traceback.print_exc()
 
-            if torch.backends.mps.is_available():
-                torch.mps.empty_cache()
-
-            del loss
+            del batch
 
         model.eval()
         val_loss = 0.0
@@ -248,6 +247,12 @@ def main():
 
                 val_loss += outputs.loss.item()
                 val_loop.set_postfix(loss=outputs.loss.item())
+
+                del outputs
+                del input_ids
+                del attention_mask
+                del labels
+                del batch
 
         avg_val_loss = val_loss / len(val_loader)
         print(

@@ -177,7 +177,7 @@ class LLMClient:
             | dict[str, Any]
         ],
     ) -> Generator[LLMEvent[T], None, None]:
-        for tc in tool_calls:
+        for tc in tool_calls or []:
             llm_tool = tools[tc["name"]]
             yield LLMEvent(
                 type=LLMEventType.TOOL_CALL_COMPLETE,

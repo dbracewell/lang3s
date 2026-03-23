@@ -293,7 +293,7 @@ def tokenize_data(
             max_length=max_source_length,
             truncation=True,
             padding=False,
-            return_tensors=None,  # Return lists instead of tensors for the collator
+            return_tensors=None,
         )
         labels = tokenizer(
             example["target"],

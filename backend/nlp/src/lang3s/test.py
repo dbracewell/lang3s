@@ -1,151 +1,45 @@
-import asyncio
-import base64
-import json
-import random
-import re
-import time
-import traceback
-from io import BytesIO
 from typing import Literal
 
-import jsonlines
-from lang3s_job_service import File
-from PIL import Image
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from lang3s.app import Application
-from lang3s.data.db import text_db
-from lang3s.data.io.serialization import deserialize, serialize
-from lang3s.llm import LLMClient, Message
-from lang3s.llm.messages import Content
-from lang3s.models.coref_ranker import create_coref_mention
-from lang3s.nlp.claim_extractor import create_sentence_context, extract_claims
-from lang3s.nlp.ner import NamedEntityRecognition
-from lang3s.nlp.shared_types import AnnotationTypes
-from lang3s.pipeline import pipeline
+from lang3s.data.io.serialization import deserialize
+from lang3s.llm.local_llm import LocalLLM
 
 
-async def generate():
-    topics = [
-        "politics",
-        "sports",
-        "beauty",
-        "life",
-        "technology",
-        "business",
-        "stocks",
-        "gaming",
-        "travel",
-    ]
-
-    client = LLMClient()
-    with jsonlines.open("/Users/ik/prj/coref_data.jsonl", "a") as writer:
-        for i in range(100):
-            response = None
-            topic = random.choice(topics)
-            prompt = f"""
-                   Please generate a paragraph of text that resembles a news article about the topic "{topic}". 
-                   Make the text read like a real news article from a top news outlet with correct formal grammar.
-                   Use named entities and their coreferring nominals and pronouns.
-                   The named entities should include people, organizations, locations, works of art, nationalities, etc.
-                   Use multiple different entities in the text and for each entity have 0 or more coreferring nominals and pronouns.
-                   Also include instances of "it" and "its" that do not refer to an entity. 
-                   Label coreferring entities like <m c="COREF_ID">MENTION</m>
-                   Only output the text with the <m c="COREF_ID">MENTION</m> annotations and nothing else.
-                   """
-            async for event in client.chat_completion(
-                messages=[Message.user(prompt)], temperature=0.4
-            ):
-                response = event
-            if response:
-                if response.exception:
-                    print(response.exception)
-                else:
-                    post = response.content
-                    post = re.sub(r"</?r>", "", post).strip()
-                    print(post)
-                    writer.write(
-                        {"generated_text": post, "genre": "redit", "model": "gpt5.1"}
-                    )
-
-            if i % 5 == 0:
-                time.sleep(2)
-
-
-class ClaimGeneration(BaseModel):
-    claim: str
-    label: Literal["SUBJECTIVE", "OBJECTIVE", "NO_CLAIM"]
-    source: str | None = None
+class RTEResponse(BaseModel):
+    reasoning: str = Field(description="Why did you choose this label?")
+    result: Literal["ENTAILMENT", "CONTRADICTION", "NEITHER"]
 
 
 class Test(Application):
     def run(self):
-        files = []
-        with open("/Users/ik/prj/data/reddit_style_corpus.json") as f:
-            all_files = json.load(f)
-            for obj in all_files:
-                if obj["text"].strip():
-                    files.append(
-                        File(
-                            content=obj["text"],
-                            docId=obj["id"],
-                            metadata={
-                                "source": obj["source"],
+        locallm = LocalLLM()
+        for doc in deserialize("/Users/ik/prj/data/kant.docs"):
+            claims = locallm.extract_claims(doc)
+            print(claims)
+            rte = []
+            sentence_pairs = []
+            for i in range(len(claims)):
+                for j in range(i + 1, min(len(claims), i + 4)):
+                    rte.append(
+                        [
+                            {
+                                "role": "system",
+                                "content": "You are a rigid logic engine. You MUST output raw JSON. You MUST provide a step-by-step 'reasoning' string BEFORE providing the final 'result'.",
                             },
-                        )
+                            {
+                                "role": "user",
+                                "content": f"Do the following two sentences show ENTAILMENT, CONTRADICTION, or NEITHER?  {claims[i]} and {claims[j]}",
+                            },
+                        ]
                     )
-        docs = pipeline(files)
-        serialize(docs, "/Users/ik/prj/data/reddit_style_corpus.docs")
-        # for doc in deserialize("/Users/ik/prj/data/news.docs"):
-        #     claim_document = create_sentence_context(doc)
-        #     print(doc.text.text)
-        #     print()
-        #     for sentence in claim_document.sentences:
-        #         print(sentence.text)
-        #
-        #     # claims = extract_claims(None, claim_document)
-        #     # for claim in claims:
-        #     #     print(claim)
-        #     break
-        # return
-        # processed = 0
-        # ner = NamedEntityRecognition()
-        # for doc in text_db.get_documents():
-        #     doc.text.remove_annotations(
-        #         [
-        #             "ner",
-        #             "corefrb_event_extractor",
-        #         ]
-        #     )
-        #     ner.process([doc])
-        #     print(doc.text)
-        #     for entity in doc.text.interleave("entity"):
-        #         metadata = create_coref_mention(entity)
-        #         metadata.pop("emb")
-        #         if entity.type == AnnotationTypes.TOKEN and entity.value == "PRON":
-        #             print(
-        #                 f"Pronoun: {entity} ID: {entity.id} COREF: {entity.coref} COREF_ID: {entity.coref.id} METADATA: {metadata}"
-        #             )
-        #         elif entity.type == AnnotationTypes.ENTITY:
-        #             print(
-        #                 f" Entity: {entity}  ID: {entity.id} ({entity.value}) COREF: {entity.coref} COREF_ID: {entity.coref.id} METADATA: {metadata}"
-        #             )
-        #     print()
-        #     processed += 1
-        #     if processed >= 10:
-        #         break
-        #
-        # return
-        # files = [
-        #     File(
-        #         content="""Henman to face Saulnier test British number one Tim Henman will face France's Cyril Saulnier in the first round of next week's Australian Open. Greg Rusedski, the British number two, is in the same quarter of the draw and could face Andy Roddick in the second round if he beats Swede Jonas Bjorkman. Local favourite Lleyton Hewitt will meet France's Arnaud Clement, while defending champion and world number one Roger Federer faces Fabrice Santoro. Women's top seed Lindsay Davenport drew Spanish veteran Conchita Martinez. Henman came from two sets down to defeat Saulnier in the first round of the French Open last year, so he knows he faces a tough test in Melbourne. The seventh seed, who has never gone beyond the quarter-finals in the year's first major and is lined up to meet Roddick in the last eight, is looking forward to the match. "He's tough player on any surface, he's got a lot of ability," he said. "We had a really tight one in Paris that went my way so I'm going to need to play well from the outset because he's a dangerous competitor." Switzerland's Federer, seeded one, is the hot favourite having won three of the four grand slam titles in 2004. He has beaten Santoro in five of their seven previous encounters, but is taking nothing for granted. "It's a tricky match," Federer said. "I played him at the US Open and won quite comfortably then. But you never know, if the rhythm is a bit off, he can keep you guessing and make it difficult. "The most important thing, though, is to get used to playing five-set matches and winning them." The 23-year-old could meet four-time champion Andre Agassi in the quarter-finals before meeting Russian Marat Safin, the player he beat in last year's final. Eighth-seeded American Agassi is set to play a qualifier in round one if he can shake off a hip injury which ruled him out of the Kooyong Classic. Second seed Andy Roddick will open his campaign against Irakli Labadze of Georgia. The American could meet Rusedski in the second round, seventh seed Henman in the quarter-finals and Hewitt in the last four. Hewitt is hoping to become the first Australian man to win the event since Mark Edmondson in 1976. The 23-year-old has never been beyond round four in eight attempts at Melbourne Park but has at least secured the opposite half of the draw to Federer, who beat him in the Australian Open, Wimbledon and US Open last year. Safin, seeded four, opens his campaign against a qualifier with 16th seed Tommy Haas, the player he beat in the semi-finals in 2002, a possible fourth-round opponent. In the women's draw, Davenport could encounter eighth-seeded Venus Williams in the quarter-finals and third-ranked Anastasia Myskina, the French Open champion, in the semi-finals. Bronchitis ruled Davenport, the 2000 Australian Open champion, out of her Sydney quarter-final on Thursday. Venus Williams, who lost to younger sister Serena in the Melbourne final two years ago, opens against Eleni Daniilidou of Greece. Serena Williams, who won her fourth consecutive grand slam at the 2003 Australian Open, was drawn in the bottom quarter with second seed Amelie Mauresmo, a runner-up in 1999. Serena will open against another Frenchwoman Camille Pin, while Mauresmo plays Australia's Samantha Stosur. Wimbledon champion Maria Sharapova, seeded fourth, drew a qualifier in the first round but could meet fellow Russian Svetlana Kuznetsova, the US Open winner, in the last eight 1 Roger Federer (Switzerland) 2 Andy Roddick (US) 3 Lleyton Hewitt (Australia) 4 Marat Safin (Russia) 5 Carlos Moya (Spain) 6 Guillermo Coria (Argentina) 7 Tim Henman (Britain) 8 Andre Agassi (US) 9 David Nalbandian (Argentina) 10 Gaston Gaudio (Argentina) 11 Joachim Johansson (Sweden) 12 Guillermo Canas (Argentina) 13 Tommy Robredo (Spain) 14 Sebastien Grosjean (France) 15 Mikhail Youzhny (Russia) 16 Tommy Haas (Germany) 17 Andrei Pavel (Romania) 18 Nicolas Massu (Chile) 19 Vincent Spadea (US) 20 Dominik Hrbaty (Slovakia) 21 Nicolas Kiefer (Germany) 22 Ivan Ljubicic (Croatia) 23 Fernando Gonzalez (Chile) 24 Feliciano Lopez (Spain) 25 Juan Ignacio Chela (Argentina) 26 Nikolay Davydenko (Russia) 27 Paradorn Srichaphan (Thailand) 28 Mario Ancic (Croatia) 29 Taylor Dent (US) 30 Thomas Johansson (Sweden) 31 Juan Carlos Ferrero (Spain) 32 Jurgen Melzer (Austria) 1 Lindsay Davenport (US) 2 Amelie Mauresmo (France) 3 Anastasia Myskina (Russia) 4 Maria Sharapova (Russia) 5 Svetlana Kuznetsova (Russia) 6 Elena Dementieva (Russia) 7 Serena Williams (US) 8 Venus Williams (US) 9 Vera Zvonareva (Russia) 10 Alicia Molik (Australia) 11 Nadia Petrova (Russia) 12 Patty Schnyder (Switzerland) 13 Karolina Sprem (Croatia) 14 Francesca Schiavone (Italy) 15 Silvia Farina Elia (Italy) 16 Ai Sugiyama (Japan) 17 Fabiola Zuluaga (Colombia) 18 Elena Likhovtseva (Russia) 19 Nathalie Dechy (France) 20 Tatiana Golovin (France) 21 Amy Frazier (US) 22 Magdalena Maleeva (Bulgaria) 23 Jelena Jankovic (Serbia and Montenegro) 24 Mary Pierce (France) 25 Lisa Raymond (US) 26 Daniela Hantuchova (Slovakia) 27 Anna Smashnova (Israel) 28 Shinobu Asagoe (Japan) 29 Gisela Dulko (Argentina) 30 Flavia Pennetta (Italy) 31 Jelena Kostanic (Croatia) 32 Iveta Benesova (Czech Republic)"""
-        #     )
-        # ]
-        # doc = pipeline(files)[0]
-        # for entity in doc.text.entities:
-        #     print(entity, entity.coref)
+                    sentence_pairs.append((claims[i], claims[j]))
+
+            results = locallm.generate(messages=rte, response_model=RTEResponse)
+            for ex, r in zip(sentence_pairs, results):
+                print(r, ex)
 
 
 if __name__ == "__main__":
     Test.from_cli().run()
-    # asyncio.run(generate())

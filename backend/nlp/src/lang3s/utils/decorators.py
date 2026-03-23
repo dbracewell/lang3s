@@ -3,6 +3,7 @@ import functools
 import logging
 import os
 import time
+import traceback
 from dataclasses import dataclass
 from typing import Callable, Generic, Optional, Type, TypeVar
 
@@ -158,7 +159,7 @@ def retry_async_gen(
                 try:
                     async for item in func(*args, **kwargs):
                         yield item
-                    return  # Success: Generator finished without error
+                    return
                 except Exception as e:
                     last_exception = e
                     if no_retry is not None:
@@ -169,6 +170,7 @@ def retry_async_gen(
                     if attempt < max_retries:
                         await asyncio.sleep(decay_base**attempt)
 
+            traceback.print_exc()
             yield on_exceed_attempts(last_exception)
 
         return wrapper
