@@ -6,22 +6,24 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from lang3s.models import Embedder
+from lang3s.models.embedder import Embedder
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class TestDataset(Dataset):
     def __init__(self, path):
-        with open(path, 'rb') as f:
+        with open(path, "rb") as f:
             data = pickle.load(f)
         self.q = data["query_text"]
-        self.p = torch.from_numpy(data['pos_vecs']).float()
-        self.n = torch.from_numpy(data['neg_vecs']).float()
+        self.p = torch.from_numpy(data["pos_vecs"]).float()
+        self.n = torch.from_numpy(data["neg_vecs"]).float()
 
-    def __len__(self): return len(self.q)
+    def __len__(self):
+        return len(self.q)
 
-    def __getitem__(self, i): return self.q[i], self.p[i], self.n[i]
+    def __getitem__(self, i):
+        return self.q[i], self.p[i], self.n[i]
 
 
 def short_test():
@@ -32,13 +34,13 @@ def short_test():
     distractors = [
         "It's really incredible - to get the winning point is really something.",
         "But certainly I think we can put the work in at the appropriate time.",
-        "What a great way to finish the year,"
+        "What a great way to finish the year,",
     ]
 
     # The "Target" (The actual fact we want)
     targets = [
         "The official re-election site of President George W Bush is blocking visits.",
-        "Tony Blair has said he looks forward to continuing his strong relationship with George Bush."
+        "Tony Blair has said he looks forward to continuing his strong relationship with George Bush.",
     ]
 
     corpus = distractors + targets
@@ -49,7 +51,9 @@ def short_test():
     # 3. Create Index (Passage Space)
     # We ALWAYS use the base embedder for documents (Frozen)
     print("Encoding Corpus...")
-    corpus_embeddings = embedder(corpus, task="nli").sentence_embeddings  # List of numpy arrays
+    corpus_embeddings = embedder(
+        corpus, task="nli"
+    ).sentence_embeddings  # List of numpy arrays
     corpus_matrix = np.stack(corpus_embeddings)  # [N, 384]
 
     # 4. Encode Query (The A/B Test)
@@ -96,7 +100,9 @@ def evaluate():
             p_raw = p_raw.to(DEVICE)
             n_raw = n_raw.to(DEVICE)
 
-            q_adapted = torch.tensor(np.array(model(q_raw, task="search").sentence_embeddings)).to(DEVICE)
+            q_adapted = torch.tensor(
+                np.array(model(q_raw, task="search").sentence_embeddings)
+            ).to(DEVICE)
             p_raw = F.normalize(p_raw, p=2, dim=1)
             n_raw = F.normalize(n_raw, p=2, dim=1)
 

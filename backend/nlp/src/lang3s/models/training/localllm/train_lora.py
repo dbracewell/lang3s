@@ -9,9 +9,7 @@ import argparse
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Unsloth Fine-tuning for Qwen 2.5"
-    )
+    parser = argparse.ArgumentParser(description="Unsloth Fine-tuning for Qwen 2.5")
     parser.add_argument(
         "--json_path",
         type=str,
@@ -97,7 +95,7 @@ def main():
     # 4. Trainer Configuration
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,  # Replaces 'tokenizer = tokenizer'
         train_dataset=dataset,
         dataset_text_field="text",  # Restored to satisfy SFTTrainer initialization
         max_seq_length=2048,

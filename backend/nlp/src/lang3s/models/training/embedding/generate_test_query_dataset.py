@@ -5,7 +5,7 @@ import torch
 from datasets import load_dataset
 from tqdm import tqdm
 
-from lang3s.models import Embedder
+from lang3s.models.embedder import Embedder
 
 # --- CONFIG ---
 # Crucial: Use the indices AFTER your training set

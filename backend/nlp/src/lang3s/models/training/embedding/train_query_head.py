@@ -6,11 +6,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-from transformers import get_linear_schedule_with_warmup, AutoTokenizer
+from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 
-from lang3s.models import Embedder
 from lang3s import config
 from lang3s.models.base_transformer_model import ForkedBaseModel
+from lang3s.models.embedder import Embedder
 
 # --- CONFIGURATION ---
 BATCH_SIZE = 128

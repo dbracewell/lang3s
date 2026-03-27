@@ -128,6 +128,7 @@ class Session:
             to_summarize = self.state.messages[1:-4]
             keep_recent = self.state.messages[-4:]
             response = self.client.sync_chat_completion_last_event(
+                max_tokens=int(self.context_window * 0.75),
                 messages=[
                     Message.system(
                         content="""
@@ -144,7 +145,7 @@ class Session:
                             [msg.content for msg in to_summarize if msg.content != ""]
                         )
                     ),
-                ]
+                ],
             )
 
             if response is None or response.exception:

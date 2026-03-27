@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from lang3s import config
 from lang3s.llm import LLMClient, Message
+from lang3s.llm.local_llm import LocalLLM
 from lang3s.models.text_generator import FineTunedLongT5
 from lang3s.nlp.shared_types import Document
 
@@ -144,68 +145,41 @@ def create_sentence_context(document: Document) -> ClaimDocument:
     )
 
 
-def extract_claims(client: LLMClient, document: ClaimDocument) -> list[Claim]:
-    messages = _base_messages.copy()
-    messages.append(
-        Message.user(json.dumps([s.model_dump_json() for s in document.sentences]))
+def _create_claim_prompt(context: list[str], sentence: str) -> list[dict[str, str]]:
+    return [
+        {
+            "role": "system",
+            "content": "You are a precise information extraction engine and an expert at extracting factual claims from text.",
+        },
+        {
+            "role": "user",
+            "content": f"Extract claim from: {' '.join(context)} {sentence}",
+        },
+    ]
+
+
+def extract_claims(client: LocalLLM, document: ClaimDocument) -> list[Claim]:
+    prompts = []
+    for i, sentence in enumerate(document.sentences):
+        context = [s.text for s in document.sentences[max(0, i - 2) : i]]
+        prompts.append(_create_claim_prompt(context, sentence.text))
+    claims: list[Claim] = []
+    generated_claims = client.generate(
+        prompts,
+        max_tokens=75,
+        adapter_name="claim",
+        temperature=0.0,
+        seed=42,
     )
-
-    final_claims = []
-    x = []
-    for i in range(len(document.sentences)):
-        before_text = []
-        for j in range(max(0, i - 2), i):
-            before_text.append(document.sentences[j].text)
-        after_text = []
-        for j in range(i + 1, min(len(document.sentences), i + 3)):
-            after_text.append(document.sentences[j].text)
-
-        x.append(f"""Extract the claim from the TARGET given the TARGET and BEFORE and AFTER context:
-                                                     BEFORE: {" ".join(before_text)}
-                                                     TARGET: {document.sentences[i].text}
-                                                     AFTER: {" ".join(after_text)}""")
-
-    results = get_claim_model().generate(x)
-    for response, sentence in zip(results, document.sentences):
-        parts = [
-            p.strip() for p in re.split(r"CLAIM:|LABEL:|SOURCE:", response) if p.strip()
-        ]
-        if len(parts) < 3:
+    for sentence, claim_example in zip(document.sentences, generated_claims):
+        if not claim_example:
             continue
-        text, label, source = parts
-        if label in ("SUBJECTIVE", "OBJECTIVE"):
-            claim = Claim(
+        claims.append(
+            Claim(
                 sentence_aid=sentence.sentence_aid,
-                text=text,
-                type=label,
-                source=source,
+                text=claim_example,
+                type="CLAIM",
+                source=None,
             )
-            final_claims.append(claim)
-
-    return final_claims
-
-    # logger = get_logger("CLAIM_EXTRACTOR")
-    # with try_catch(on_error=lambda e: logger.error(e)):
-    #     response = client.sync_chat_completion_last_event(
-    #         messages=messages,
-    #         response_model=ClaimExtraction,
-    #         max_tokens=4000,
-    #     )
-    #     return [
-    #         claim
-    #         for claim in response.parsed.claims
-    #         if claim.type == "CLAIM" and claim.text.strip()
-    #     ]
-    # return []
-
-
-_claim_model: FineTunedLongT5 | None = None
-
-
-def get_claim_model():
-    global _claim_model
-    if _claim_model is None:
-        _claim_model = FineTunedLongT5.load_model(
-            os.path.join(config.MODELS_DIR, "long_t5")
         )
-    return _claim_model
+    return claims

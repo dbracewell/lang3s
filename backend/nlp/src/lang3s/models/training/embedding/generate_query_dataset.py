@@ -1,10 +1,12 @@
 import pickle
+
 import numpy as np
 import torch
+from datasets import load_dataset
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from datasets import load_dataset
-from lang3s.models import Embedder
+
+from lang3s.models.embedder import Embedder
 
 
 # --- 1. DATASET CLASS (Fixed Keys) ---
@@ -29,7 +31,7 @@ class QueryDistillationDataset(Dataset):
         return {
             "query": self.anchors[idx],
             "target_vec": self.positive_embeddings[idx],
-            "negative_vec": self.negative_embeddings[idx]
+            "negative_vec": self.negative_embeddings[idx],
         }
 
 
@@ -48,11 +50,12 @@ def prepare_distillation_data(raw_records, output_path, batch_size):
         neg = record.get("negative")
 
         # FIX: Handle potential Lists in MS MARCO
-        if isinstance(pos, list): pos = pos[0] if len(pos) > 0 else ""
-        if isinstance(neg, list): neg = neg[0] if len(neg) > 0 else ""
+        if isinstance(pos, list):
+            pos = pos[0] if len(pos) > 0 else ""
+        if isinstance(neg, list):
+            neg = neg[0] if len(neg) > 0 else ""
 
-        if (anc and pos and neg and
-            is_clean(anc) and is_clean(pos) and is_clean(neg)):
+        if anc and pos and neg and is_clean(anc) and is_clean(pos) and is_clean(neg):
             anchors.append(anc)
             positive.append(pos)
             negative.append(neg)
@@ -73,15 +76,15 @@ def prepare_distillation_data(raw_records, output_path, batch_size):
     negative_embeddings = []
 
     for i in tqdm(range(0, len(anchors), batch_size)):
-        positive_embeddings.append(embed_batch(positive[i: i + batch_size]))
-        negative_embeddings.append(embed_batch(negative[i: i + batch_size]))
+        positive_embeddings.append(embed_batch(positive[i : i + batch_size]))
+        negative_embeddings.append(embed_batch(negative[i : i + batch_size]))
 
     # Save
     if len(anchors) > 0:
         payload = {
             "anchors": anchors,
             "positive_embeddings": torch.cat(positive_embeddings, dim=0).numpy(),
-            "negative_embeddings": torch.cat(negative_embeddings, dim=0).numpy()
+            "negative_embeddings": torch.cat(negative_embeddings, dim=0).numpy(),
         }
 
         with open(output_path, "wb") as f:
@@ -91,7 +94,8 @@ def prepare_distillation_data(raw_records, output_path, batch_size):
 
 
 def is_clean(text):
-    if not isinstance(text, str): return False
+    if not isinstance(text, str):
+        return False
     # Increased max len to 1200 because MS MARCO passages can be long
     if len(text) < 5 or len(text) > 1200:
         return False
@@ -107,16 +111,18 @@ if __name__ == "__main__":
         ds_marco = load_dataset(
             "sentence-transformers/msmarco-msmarco-MiniLM-L6-v3",
             "triplet",
-            split="train[:500000]"
+            split="train[:500000]",
         )
 
         raw_records = []
         for row in tqdm(ds_marco, desc="Loading"):
-            raw_records.append({
-                "anchor": row['query'],
-                "positive": row['positive'],
-                "negative": row['negative']
-            })
+            raw_records.append(
+                {
+                    "anchor": row["query"],
+                    "positive": row["positive"],
+                    "negative": row["negative"],
+                }
+            )
 
         print(f"Added {len(raw_records)} raw samples.")
 

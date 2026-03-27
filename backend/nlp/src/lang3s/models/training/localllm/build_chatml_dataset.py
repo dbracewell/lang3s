@@ -40,7 +40,7 @@ def main():
         "/Users/ik/prj/data/claim_extraction_chatml.jsonl", "w"
     ) as writer:
         for obj in dataset:
-            writer.write(obj)
+            writer.write({"messages": obj})
 
 
 if __name__ == "__main__":

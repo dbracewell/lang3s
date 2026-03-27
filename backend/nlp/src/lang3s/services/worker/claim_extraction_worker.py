@@ -1,13 +1,14 @@
 import json
 import multiprocessing
 import time
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 
 import lang3s.data.db.database as db
 from lang3s.data.db.models import ClaimsTable
-from lang3s.llm import LLMClient
-from lang3s.models import Embedder
+from lang3s.llm.local_llm import LocalLLM, get_local_llm
+from lang3s.models.embedder import Embedder
 from lang3s.nlp.claim_extractor import ClaimDocument, extract_claims
 from lang3s.services.client.redis_client import CLAIM_EXTRACT_QUEUE_NAME, RedisClient
 
@@ -15,7 +16,7 @@ from lang3s.services.client.redis_client import CLAIM_EXTRACT_QUEUE_NAME, RedisC
 def caller(
     document: ClaimDocument,
     embedder: Embedder,
-    llm_client: LLMClient,
+    llm_client: LocalLLM,
 ) -> None:
     valid_sentence_aids = set(
         [sentence.sentence_aid for sentence in document.sentences]
@@ -53,28 +54,43 @@ def caller_wrapper(*args, **kwargs):
 
 def worker():
     redis_client = RedisClient()
-    llm_client = LLMClient()
+    local_llm = get_local_llm()
     embedder = Embedder()
-    with ThreadPoolExecutor(max_workers=4) as thread_pool:
-        while True:
-            raw_document = redis_client.dequeue(CLAIM_EXTRACT_QUEUE_NAME)
-            if not raw_document:
-                time.sleep(1)
-                continue
 
-            try:
-                raw_document = json.loads(raw_document)
-                document = ClaimDocument.model_validate(raw_document)
-                thread_fn = partial(
-                    caller_wrapper,
-                    embedder=embedder,
-                    llm_client=llm_client,
-                    document=document,
-                )
-                thread_pool.submit(thread_fn)
+    while True:
+        raw_document = redis_client.dequeue(CLAIM_EXTRACT_QUEUE_NAME)
+        if not raw_document:
+            time.sleep(3)
+            continue
 
-            except Exception as e:
-                print(f"Error processing document: {e}")
+        try:
+            raw_document = json.loads(raw_document)
+            document = ClaimDocument.model_validate(raw_document)
+            caller(document=document, embedder=embedder, llm_client=local_llm)
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Error processing document: {e}")
+
+    # with ThreadPoolExecutor(max_workers=4) as thread_pool:
+    #     while True:
+    #         raw_document = redis_client.dequeue(CLAIM_EXTRACT_QUEUE_NAME)
+    #         if not raw_document:
+    #             time.sleep(1)
+    #             continue
+    #
+    #         try:
+    #             raw_document = json.loads(raw_document)
+    #             document = ClaimDocument.model_validate(raw_document)
+    #             thread_fn = partial(
+    #                 caller_wrapper,
+    #                 embedder=embedder,
+    #                 llm_client=local_llm,
+    #                 document=document,
+    #             )
+    #             thread_pool.submit(thread_fn)
+    #
+    #         except Exception as e:
+    #             print(f"Error processing document: {e}")
 
 
 if __name__ == "__main__":

@@ -60,6 +60,7 @@ dependencies = [
     "lxml>=6.0.2",
     "llama-cpp-python>=0.3.17",
     "instructor>=1.14.5",
+    "pip>=26.0.1",
 ]
 
 [project.optional-dependencies]
