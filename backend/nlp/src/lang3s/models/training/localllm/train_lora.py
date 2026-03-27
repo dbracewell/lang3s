@@ -1,18 +1,22 @@
-import argparse
+# ruff: noqa: I001
 import os
-
+from unsloth import FastLanguageModel, get_chat_template
 import torch
 from datasets import load_dataset
-from transformers import TrainingArguments
 from trl import SFTTrainer
-from unsloth import FastLanguageModel
-from unsloth.chat_templates import get_chat_template
+from transformers import TrainingArguments, DataCollatorForLanguageModeling
+import argparse
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Unsloth Fine-tuning for Qwen 2.5")
+    parser = argparse.ArgumentParser(
+        description="Unsloth Fine-tuning for Qwen 2.5"
+    )
     parser.add_argument(
-        "--json_path", type=str, required=True, help="Path to your ChatML JSON file"
+        "--json_path",
+        type=str,
+        required=True,
+        help="Path to your ChatML JSON file",
     )
     parser.add_argument(
         "--model_name",
@@ -28,9 +32,6 @@ def main():
     parser.add_argument("--lr", type=float, default=2e-4, help="Learning Rate")
     parser.add_argument(
         "--epochs", type=int, default=1, help="Number of training epochs"
-    )
-    parser.add_argument(
-        "--export_gguf", action="store_true", help="Export to GGUF at the end"
     )
     args = parser.parse_args()
 
@@ -60,7 +61,6 @@ def main():
         use_gradient_checkpointing="unsloth",
     )
 
-    # 3. Load and Format Dataset (ChatML)
     tokenizer = get_chat_template(tokenizer, chat_template="chatml")
 
     def formatting_prompts_func(examples):
@@ -71,18 +71,37 @@ def main():
             )
             for convo in convos
         ]
+        # Return pure text strings. We let SFTTrainer handle the tokenization.
         return {"text": texts}
 
     dataset = load_dataset("json", data_files=args.json_path, split="train")
-    dataset = dataset.map(formatting_prompts_func, batched=True)
+
+    # Crucial: Drop the 'messages' column so PyTorch's collator never sees nested dicts
+    dataset = dataset.map(
+        formatting_prompts_func,
+        batched=True,
+        remove_columns=dataset.column_names,
+    )
+
+    class CleanCollator(DataCollatorForLanguageModeling):
+        def __call__(self, features, return_tensors=None):
+            # Intercept the batch and delete the string columns that TRL refuses to drop
+            for feature in features:
+                feature.pop("text", None)
+                feature.pop("messages", None)
+            # Pass the cleaned integers to PyTorch for padding
+            return super().__call__(features, return_tensors)
+
+    data_collator = CleanCollator(tokenizer=tokenizer, mlm=False)
 
     # 4. Trainer Configuration
     trainer = SFTTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset,
-        dataset_text_field="text",
+        dataset_text_field="text",  # Restored to satisfy SFTTrainer initialization
         max_seq_length=2048,
+        data_collator=data_collator,
         args=TrainingArguments(
             per_device_train_batch_size=4,
             gradient_accumulation_steps=4,
@@ -104,17 +123,14 @@ def main():
     print("Starting training...")
     trainer.train()
 
-    # 6. Save LoRA Adapter
+    print("Exporting to GGUF...")
     model.save_pretrained(os.path.join(args.output_dir, "lora_adapter"))
-
-    # 7. Optional: Save to GGUF (Ready for llama-cpp-python)
-    if args.export_gguf:
-        print("Exporting to GGUF...")
-        model.save_pretrained_gguf(
-            os.path.join(args.output_dir, "gguf_model"),
-            tokenizer,
-            quantization_method="q4_k_m",
-        )
+    # model.save_pretrained_gguf(
+    # "my_lora_export",
+    # tokenizer,
+    # save_method="lora",
+    # quantization_method="f16",
+    # )
 
 
 if __name__ == "__main__":
