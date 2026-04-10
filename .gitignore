@@ -31,7 +31,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+docker/default.env
 
 # vercel
 .vercel
@@ -75,7 +75,7 @@ eggs/
 Thumbs.db
 
 # Environments
-.env
+docker/default.env
 venv/
 env/
 /site/

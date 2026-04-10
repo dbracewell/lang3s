@@ -1,3 +1,5 @@
+import re
+import textwrap
 from typing import (
     Any,
     AsyncGenerator,
@@ -31,10 +33,9 @@ from .events import (
     LLMEventType,
     ToolCallDelta,
 )
+from .formatters import to_structured_format
 from .messages import Message, format_messages_for_model
 from .tools import LLMTool, ToolCall, parse_tool_call_arguments
-
-T = TypeVar("T", bound=BaseModel)
 
 
 class ChatCompletionParams(TypedDict):
@@ -47,6 +48,9 @@ class ChatCompletionParams(TypedDict):
     presence_penalty: NotRequired[float]
     seed: NotRequired[int]
     stop: NotRequired[str | Sequence[str]]
+
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class LLMClient:
@@ -95,7 +99,6 @@ class LLMClient:
 
         completion_args: dict[str, Any] = {
             "model": self.model_name,
-            "messages": format_messages_for_model(messages),
             "stream": stream,
             **kwargs,
         }
@@ -105,17 +108,39 @@ class LLMClient:
             completion_args["tool_choice"] = "required" if force_tool_call else "auto"
 
         if response_model:
-            raw = response_model.model_json_schema()
-            description = raw.pop("description", None)
-            completion_args["response_format"] = ResponseFormatJSONSchema(
-                json_schema=JSONSchema(
-                    name=response_model.__name__,
-                    strict=False,
-                    description=description,
-                    schema=raw,
-                ),
-                type="json_schema",
-            )
+            if (
+                config.LLM_SUPPORTS_STRUCTURED_OUTPUT
+                and "gpt-oss" not in self.model_name.lower()
+            ):
+                raw = response_model.model_json_schema()
+                description = raw.pop("description", None)
+                completion_args["response_format"] = ResponseFormatJSONSchema(
+                    json_schema=JSONSchema(
+                        name=response_model.__name__,
+                        strict=False,
+                        description=description,
+                        schema=raw,
+                    ),
+                    type="json_schema",
+                )
+            else:
+                last_message = messages[-1]
+                if last_message.role not in ("user", "system"):
+                    raise ValueError(
+                        "Cannot set response format for a non system or user message"
+                    )
+                messages = messages[:-1]
+                messages.append(
+                    Message(
+                        role=last_message.role,
+                        content=textwrap.dedent(f"""{last_message.content}
+                    Respond only in JSON. The output must strictly follow this structure:
+                    {to_structured_format(response_model)}
+                    Do not include any preamble, thinking blocks, or markdown code fences."""),
+                    )
+                )
+
+        completion_args["messages"] = format_messages_for_model(messages)
 
         @retry_async_gen(
             on_exceed_attempts=lambda e: self._error_to_event(e),
@@ -150,6 +175,8 @@ class LLMClient:
     ) -> T | Exception | None:
         if content and response_model:
             try:
+                content: str = re.sub(r"^(```[a-z]+\n|')", "", content.strip())
+                content = re.sub(r"(```|')$", "", content.strip()).strip()
                 return response_model.model_validate_json(content)
             except Exception as e:
                 return e
@@ -193,11 +220,11 @@ class LLMClient:
 
     @staticmethod
     def _finish_structured_outputs(
-        response_model: Type[T] | None,
+        response_model: type[T] | None,
         final_response: str,
         finish_reason: str,
         usage: CompletionUsage | None,
-    ) -> Generator[LLMEvent[T], None, None]:
+    ):
         parsed = LLMClient._parse_response(response_model, final_response)
         if parsed and isinstance(parsed, Exception):
             yield LLMEvent[T](
@@ -211,7 +238,7 @@ class LLMClient:
         yield LLMEvent[T](
             content=final_response,
             finish_reason=finish_reason,
-            parsed=parsed if parsed and not isinstance(parsed, Exception) else None,
+            parsed=parsed if parsed and not isinstance(parsed, Exception) else None,  # type: ignore
             type=LLMEventType.COMPLETE,
             total_tokens=usage.total_tokens if usage else None,
         )
@@ -286,7 +313,7 @@ class LLMClient:
         for event in LLMClient._finish_structured_outputs(
             response_model=response_model,
             final_response=final_response,
-            finish_reason=finish_reason,
+            finish_reason=finish_reason or "unknown",
             usage=usage,
         ):
             yield event
@@ -303,13 +330,14 @@ class LLMClient:
         message = choice.message
 
         for tool_call_event in LLMClient._prepare_tool_calls(
-            tool_map, message.tool_calls
+            tool_map,
+            message.tool_calls,  # type: ignore
         ):
             yield tool_call_event
 
         for event in LLMClient._finish_structured_outputs(
             response_model=response_model,
-            final_response=message.content,
+            final_response=message.content or "",
             finish_reason=choice.finish_reason,
             usage=event.usage,
         ):
@@ -318,11 +346,12 @@ class LLMClient:
     def sync_chat_completion_last_event(
         self,
         messages: list[Message],
+        response_model: type[T] | None = None,
         stream: bool = False,
-        response_model: Type[T] | None = None,
         **kwargs: Unpack[ChatCompletionParams],
-    ):
+    ) -> LLMEvent[T]:
         result: LLMEvent[T] | None = None
+
         for event in self.sync_chat_completion(
             messages=messages, stream=stream, response_model=response_model, **kwargs
         ):
@@ -335,7 +364,7 @@ class LLMClient:
                 return event
         if result:
             return result
-        return LLMEvent(
+        return LLMEvent[T](
             type=LLMEventType.ERROR, exception=Exception("LLM did not complete")
         )
 

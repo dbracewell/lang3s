@@ -2,7 +2,7 @@ import argparse
 import os
 import subprocess
 import time
-from typing import List, Optional, cast
+from typing import List, Optional
 
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -50,7 +50,8 @@ def main():
             ],
         )
     )
-    scripts.append(("lang3s.services.worker.claim_extraction_worker", []))
+    # scripts.append(("lang3s.services.local_llm_app", []))
+    # scripts.append(("lang3s.services.worker.claim_extraction_worker", []))
     scripts.append(("lang3s.services.app", []))
     scripts.append(("lang3s.services.analytics_app", []))
 

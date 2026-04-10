@@ -33,9 +33,8 @@ RUN set -eux; \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Environment variables are set at runtime (via docker-compose)
-ENV POSTGRES_DB=${POSTGRES_DB}
-ENV POSTGRES_USER=${POSTGRES_USER}
+#ENV POSTGRES_DB=${POSTGRES_DB}
+#ENV POSTGRES_USER=${POSTGRES_USER}
 ENV PGDATA=/var/lib/postgresql/data
 
 

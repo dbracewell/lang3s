@@ -27,7 +27,7 @@ from sqlalchemy import update
 from lang3s import config
 from lang3s.data.db import db, text_db
 from lang3s.data.db.models import KeywordsTable
-from lang3s.nlp.claim_extractor import create_sentence_context
+from lang3s.nlp.claim_extractor import DocumentClaimRequest
 from lang3s.nlp.keyword_extraction import generate_keyword_categories
 from lang3s.nlp.ner import get_ner_model
 from lang3s.ontology import ontology
@@ -189,7 +189,7 @@ def process_batch(batch):
     metadata = job.metadata
     tasks = metadata.get("tasks", None)
     if tasks:
-        tasks = set(tasks)
+        tasks = set(tasks)  # type: ignore
 
     try:
         with (
@@ -213,7 +213,10 @@ def process_batch(batch):
         for doc in docs:
             redis_client = RedisClient()
             redis_client.enqueue(
-                CLAIM_EXTRACT_QUEUE_NAME, create_sentence_context(doc).model_dump()
+                CLAIM_EXTRACT_QUEUE_NAME,
+                DocumentClaimRequest(
+                    documentId=doc.id, text=doc.text.text
+                ).model_dump(),
             )
 
         with try_catch(

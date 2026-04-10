@@ -3,15 +3,55 @@ import time
 from typing import Any, Tuple
 
 import redis
+import redis.asyncio as async_redis
 from redis.client import PubSub
 
 from lang3s import config
-from lang3s.utils import try_catch
 
 DUCKDB_QUEUE_NAME = "db_queue"
 ANNOTATION_QUEUE_NAME = "annotation_queue"
 CLAIM_EXTRACT_QUEUE_NAME = "claim_extract_queue"
 ONTOLOGY_UPDATE_TOPIC = "ontology_update"
+
+
+class RedisAsyncClient(object):
+    def __init__(self):
+        self._client = async_redis.Redis(
+            host=config.REDIS_HOST,
+            port=config.REDIS_PORT,
+            db=config.REDIS_DB,
+            decode_responses=True,
+        )
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    async def enqueue(self, queue_name: str, item: Any) -> int:
+        return await self._client.rpush(queue_name, json.dumps(item))  # type: ignore
+
+    async def queue_length(self, queue_name: str) -> int:
+        return await self._client.llen(queue_name)  # type:ignore
+
+    async def dequeue(self, queue_name: str, timeout: int | None = None) -> Any:
+        result = await self._client.blpop([queue_name], timeout)  # type: ignore
+        if result:
+            _, data = result
+            return data
+        return None
+
+    async def publish_message(self, channel: str, message: Any) -> None:
+        await self._client.publish(channel, json.dumps(message))
+
+    async def subscribe(self, channel: str) -> PubSub:
+        p = self._client.pubsub()
+        await p.subscribe(channel)
+        return p
+
+    async def close(self) -> None:
+        await self._client.close()
 
 
 class RedisClient(object):
@@ -33,7 +73,7 @@ class RedisClient(object):
         self._client.rpush(queue_name, json.dumps(item))
 
     def queue_length(self, queue_name: str) -> int:
-        return self._client.llen(queue_name)
+        return self._client.llen(queue_name)  # type:ignore
 
     def dequeue(self, queue_name: str) -> Any:
         return self._client.lpop(queue_name)

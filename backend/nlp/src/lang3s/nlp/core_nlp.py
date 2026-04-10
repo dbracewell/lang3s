@@ -1,6 +1,7 @@
 import gzip
 import importlib.resources
 import json
+import os.path
 import re
 from typing import Dict, List, Optional
 
@@ -13,6 +14,7 @@ from spacy.tokens import Doc, Span
 from spacy.util import filter_spans
 from spacy_download import load_spacy
 
+from lang3s import config
 from lang3s.nlp.language import is_person_pronoun
 from lang3s.nlp.metadata import Metadata
 from lang3s.nlp.shared_types import (
@@ -111,10 +113,19 @@ class CoreLanguageProcessor(metaclass=SingletonMeta):
 
         model_name = SPACY_MODELS.get(language, SPACY_MODELS["en"])
         disabled = []
-        if language == "en":
-            disabled.append("ner")
+        # if language == "en":
+        #     disabled.append("ner")
 
         nlp = load_spacy(model_name, disable=disabled)
+        if language == "en":
+            verbs = spacy.load(
+                os.path.join(config.MODELS_DIR, "spacy", "en"),
+            )
+            for pipe in ["tok2vec", "ner"]:
+                if pipe in nlp.pipe_names:
+                    nlp.remove_pipe(pipe)
+            nlp.add_pipe("tok2vec", source=verbs, before="tagger")
+            nlp.add_pipe("ner", source=verbs, last=True)
 
         self.pipelines[language] = nlp
         nlp.add_pipe("social_media_matcher", last=True)
@@ -216,6 +227,7 @@ def convert_to_lang3s(spacy_doc: Doc, lang3s_doc: Document):
             embedding=None,
             metadata=metadata,
         )
+
     sentence_annotations = []
     for sentence in spacy_doc.sents:
         if sentence.text.strip() == "":
@@ -255,12 +267,15 @@ def convert_to_lang3s(spacy_doc: Doc, lang3s_doc: Document):
             metadata["url"] = normalize_url(entity.text)
             all_urls.append(metadata["url"])
 
+        annotation_type = AnnotationTypes.ENTITY.value
+        if spacy_doc.lang_ == "en":
+            annotation_type = AnnotationTypes.SENSE.value
         annotation = text.add_annotation(
             start=entity.start,
             end=entity.end,
             text=entity.text,
             sentence_id=sentences[entity.sent.start],
-            type=AnnotationTypes.ENTITY.value,
+            type=annotation_type,
             source="core",
             value=label,
             metadata=metadata,

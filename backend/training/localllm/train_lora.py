@@ -36,7 +36,7 @@ def main():
     # 1. Load Model and Tokenizer
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=args.model_name,
-        max_seq_length=2048,
+        max_seq_length=16_000,
         load_in_4bit=True,
     )
 
@@ -75,7 +75,7 @@ def main():
     dataset = load_dataset("json", data_files=args.json_path, split="train")
 
     # Crucial: Drop the 'messages' column so PyTorch's collator never sees nested dicts
-    dataset = dataset.map(
+    dataset = dataset.map(  # type: ignore
         formatting_prompts_func,
         batched=True,
         remove_columns=dataset.column_names,
@@ -98,7 +98,7 @@ def main():
         processing_class=tokenizer,  # Replaces 'tokenizer = tokenizer'
         train_dataset=dataset,
         dataset_text_field="text",  # Restored to satisfy SFTTrainer initialization
-        max_seq_length=2048,
+        max_seq_length=16_000,
         data_collator=data_collator,
         args=TrainingArguments(
             per_device_train_batch_size=4,
@@ -120,15 +120,7 @@ def main():
     # 5. Train
     print("Starting training...")
     trainer.train()
-
-    print("Exporting to GGUF...")
     model.save_pretrained(os.path.join(args.output_dir, "lora_adapter"))
-    # model.save_pretrained_gguf(
-    # "my_lora_export",
-    # tokenizer,
-    # save_method="lora",
-    # quantization_method="f16",
-    # )
 
 
 if __name__ == "__main__":

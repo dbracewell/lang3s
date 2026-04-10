@@ -39,11 +39,11 @@ def search_database(query: Annotated[str, Desc("The query to search.")]):
         "life",
         "entertainment",
     ):
-        return text_db.fts_sentence_search(query=query, limit=5)
+        return text_db.fts_sentence_search(query=query, limit=10)
 
     embedder = Embedder()
     embedding = embedder([query]).sentence_embeddings[0]
-    results = text_db.semantic_sentence_search(embedding, 0.3, limit=5)
+    results = text_db.semantic_sentence_search(embedding, 0.3, limit=10)
     return results
 
 

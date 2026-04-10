@@ -1,4 +1,4 @@
-import { JobsTable, KeywordsTable, user } from "@/lib/db/schema";
+import { ClaimsTable, JobsTable, KeywordsTable, user } from "@/lib/db/schema";
 import { AnnotationToOntology, OntologyTable } from "@/lib/db/schemas/ontology";
 import {
   DocumentsTable,
@@ -17,6 +17,14 @@ export const DocumentRelations = relations(DocumentsTable, ({ one, many }) => ({
     references: [TextTable.documentId],
   }),
   keywords: many(KeywordsTable),
+  claims: many(ClaimsTable),
+}));
+
+export const ClaimsRelations = relations(ClaimsTable, ({ one, many }) => ({
+  document: one(DocumentsTable, {
+    fields: [ClaimsTable.documentId],
+    references: [DocumentsTable.id],
+  }),
 }));
 
 export const TextRelations = relations(TextTable, ({ one, many }) => ({

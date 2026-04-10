@@ -183,3 +183,30 @@ export const KeywordsTable = pgTable(
     index("keywords_text_id").on(table.textId),
   ],
 );
+
+export const ClaimsTable = pgTable(
+  "claims",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    documentId: text("doc_id")
+      .notNull()
+      .references(() => DocumentsTable.id, { onDelete: "cascade" }),
+    claim: text("claim").notNull(),
+    source: text("source"),
+    embedding: halfvec("embedding", {
+      dimensions: SEMANTIC_EMBEDDING_DIMENSION,
+    }).notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("claims_content_fts_index").using("pgroonga", table.claim),
+    index("claims_doc_id_idx").on(table.documentId),
+    index("claims_embedding_index").using(
+      "hnsw",
+      table.embedding.op("halfvec_cosine_ops"),
+    ),
+  ],
+);

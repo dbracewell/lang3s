@@ -13,4 +13,4 @@ export TOKENIZERS_PARALLELISM=false
 export PYTHONUNBUFFERED=1
 
 export MODELS_DIR=./backend/nlp/models
-python -m "backend.nlp.src.lang3s.$file" "$@"
+uv run --project backend/nlp python -m "backend.nlp.src.lang3s.$file" "$@"

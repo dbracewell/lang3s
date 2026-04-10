@@ -66,6 +66,13 @@ class Config:
         return os.environ.get(key, default)
 
     #####################################################################################
+    # PROXY  PORT
+    #####################################################################################
+    @property
+    def PROXY_HOST(self) -> str:
+        return self._get_static("PROXY_HOST", "http://localhost:8003")
+
+    #####################################################################################
     # PYTHON SERVICES PORT
     #####################################################################################
     @property
@@ -75,6 +82,10 @@ class Config:
     @property
     def FAST_API_ANALYTICS_PORT(self) -> int:
         return int(self._get_static("FAST_API_ANALYTICS_PORT", 9001))
+
+    @property
+    def LOCAL_LLM_PORT(self) -> int:
+        return int(self._get_static("LOCAL_LLM_PORT", 9002))
 
     #####################################################################################
 
@@ -172,7 +183,7 @@ class Config:
 
     @property
     def LLM_MODEL(self) -> str:
-        return self.get_config_value("LLM_MODEL", "qwen/qwen3-4b-2507")
+        return self.get_config_value("LLM_MODEL", "openai/gpt-oss-20b")
 
     @property
     def LLM_API_KEY(self) -> str:
@@ -189,8 +200,13 @@ class Config:
         return str(val).lower() == "true" if isinstance(val, str) else bool(val)
 
     @property
+    def LLM_SUPPORTS_STRUCTURED_OUTPUT(self) -> bool:
+        val = self.get_config_value("LLM_SUPPORTS_STRUCTURED_OUTPUT", True)
+        return str(val).lower() == "true" if isinstance(val, str) else bool(val)
+
+    @property
     def LLM_CONTEXT_WINDOW(self) -> int:
-        return int(self.get_config_value("LLM_CONTEXT_WINDOW", 4000))
+        return int(self.get_config_value("LLM_CONTEXT_WINDOW", 8000))
 
     #####################################################################################
 

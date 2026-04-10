@@ -38,3 +38,4 @@ class AnnotationTypes(StrEnum):
     PHRASE_CHUNK = "phrase_chunk"
     NOUN_CHUNK = "noun_chunk"
     EVENT = "event"
+    SENSE = "sense"

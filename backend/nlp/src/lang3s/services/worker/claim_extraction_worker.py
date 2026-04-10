@@ -1,104 +1,108 @@
-import json
-import multiprocessing
-import time
-import traceback
-from concurrent.futures import ThreadPoolExecutor
-from functools import partial
+import asyncio
+
+import aiohttp
+from pydantic import ValidationError
+from transformers import AutoTokenizer
 
 import lang3s.data.db.database as db
 from lang3s.data.db.models import ClaimsTable
-from lang3s.llm.local_llm import LocalLLM, get_local_llm
+from lang3s.llm import Message
 from lang3s.models.embedder import Embedder
-from lang3s.nlp.claim_extractor import ClaimDocument, extract_claims
-from lang3s.services.client.redis_client import CLAIM_EXTRACT_QUEUE_NAME, RedisClient
+from lang3s.nlp.claim_extractor import (
+    DocumentClaimRequest,
+    DocumentClaims,
+)
+from lang3s.services.client.local_llm_client import LocalLLMClient
+from lang3s.services.client.redis_client import (
+    CLAIM_EXTRACT_QUEUE_NAME,
+    RedisAsyncClient,
+)
+from lang3s.utils.logger import get_logger
+
+logger = get_logger("CLAIM_EXTRACTION_WORKER")
+
+local_llm = LocalLLMClient()
+embedder = Embedder()
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
+
+MAX_CONTENT_SIZE = 3000
 
 
-def caller(
-    document: ClaimDocument,
-    embedder: Embedder,
-    llm_client: LocalLLM,
-) -> None:
-    valid_sentence_aids = set(
-        [sentence.sentence_aid for sentence in document.sentences]
-    )
-    claims = extract_claims(llm_client, document)
-    if not claims:
-        return
-    embs = embedder([claim.text for claim in claims]).sentence_embeddings
-    db.insert_many_objects(
-        [
-            ClaimsTable(
-                sentenceAid=claim.sentence_aid,
-                documentId=document.document_id,
-                content=claim.text,
-                source=claim.source,
-                entities=claim.entities,
-                embedding=emb,
-            )
-            for claim, emb in zip(claims, embs)
-            if claim.text and claim.sentence_aid in valid_sentence_aids
-        ]
-    )
-
-    time.sleep(2)
+def chunk_text(
+    content: str,
+    chunk_size: int = MAX_CONTENT_SIZE,
+    stride: int = 500,
+):
+    chunks = []
+    for i in range(0, len(content), chunk_size - stride):
+        chunks.append(content[i : i + chunk_size - stride])
+    return chunks
 
 
-def caller_wrapper(*args, **kwargs):
-    try:
-        return caller(*args, **kwargs)
-    except Exception:
-        import traceback
-
-        traceback.print_exc()
-
-
-def worker():
-    redis_client = RedisClient()
-    local_llm = get_local_llm()
-    embedder = Embedder()
-
-    while True:
-        raw_document = redis_client.dequeue(CLAIM_EXTRACT_QUEUE_NAME)
-        if not raw_document:
-            time.sleep(3)
-            continue
-
+async def process_task(item: bytes, semaphore: asyncio.Semaphore):
+    async with semaphore:
         try:
-            raw_document = json.loads(raw_document)
-            document = ClaimDocument.model_validate(raw_document)
-            caller(document=document, embedder=embedder, llm_client=local_llm)
-        except Exception as e:
-            traceback.print_exc()
-            print(f"Error processing document: {e}")
+            print("Processing Claim")
+            request = DocumentClaimRequest.model_validate_json(item)
+            token_count = len(tokenizer(request.text)["input_ids"])
+            batches = []
+            if token_count <= MAX_CONTENT_SIZE:
+                batches.append(request.text)
+            else:
+                batches.extend(chunk_text(request.text))
 
-    # with ThreadPoolExecutor(max_workers=4) as thread_pool:
-    #     while True:
-    #         raw_document = redis_client.dequeue(CLAIM_EXTRACT_QUEUE_NAME)
-    #         if not raw_document:
-    #             time.sleep(1)
-    #             continue
-    #
-    #         try:
-    #             raw_document = json.loads(raw_document)
-    #             document = ClaimDocument.model_validate(raw_document)
-    #             thread_fn = partial(
-    #                 caller_wrapper,
-    #                 embedder=embedder,
-    #                 llm_client=local_llm,
-    #                 document=document,
-    #             )
-    #             thread_pool.submit(thread_fn)
-    #
-    #         except Exception as e:
-    #             print(f"Error processing document: {e}")
+            all_claims = []
+            for batch in batches:
+                response = await local_llm.generate(
+                    messages=[Message.user(f"Extract claims from: {batch}")],
+                    adapter_name="claim",
+                    temperature=0.0,
+                    response_model=DocumentClaims,
+                )
+                if response.parsed:
+                    all_claims.extend(response.parsed.claims)
+
+            embs = embedder([claim.claim for claim in all_claims]).sentence_embeddings
+            db.insert_many_objects(
+                [
+                    ClaimsTable(
+                        documentId=request.documentId,
+                        claim=claim.claim,
+                        source=claim.source or "UNKNOWN",
+                        embedding=emb,
+                    )
+                    for claim, emb in zip(all_claims, embs)
+                    if claim.claim
+                ]
+            )
+        except ValidationError as e:
+            logger.error(f"Validation failed: {e}")
+        except aiohttp.ClientError as e:
+            logger.error(f"API request failed: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error during processing: {e}")
+
+
+async def main():
+    max_concurrent_tasks = 10
+    semaphore = asyncio.Semaphore(max_concurrent_tasks)
+    redis_client = RedisAsyncClient()
+
+    try:
+        while True:
+            result = await redis_client.dequeue(CLAIM_EXTRACT_QUEUE_NAME, timeout=1)
+            if result:
+                asyncio.create_task(process_task(result, semaphore))
+
+    except asyncio.CancelledError:
+        logger.info("Shutting down worker...")
+    finally:
+        await redis_client.close()
 
 
 if __name__ == "__main__":
-    process = multiprocessing.Process(target=worker)
     try:
-        process.start()
+        logger.info("Claim Extraction Worker Started")
+        asyncio.run(main())
     except KeyboardInterrupt:
-        print("Shutting down...")
-        process.terminate()
-        process.join()
-        exit(0)
+        logger.info("Worker stopped by user.")

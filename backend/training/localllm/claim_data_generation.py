@@ -4,12 +4,11 @@ from typing import Any
 
 from joblib import Parallel, delayed
 from jsonlines import Writer, jsonlines
-from pydantic import BaseModel
-from tqdm import tqdm
-
 from lang3s.data.io.serialization import deserialize
 from lang3s.llm import LLMClient, LLMEvent, Message
 from lang3s.nlp.shared_types import Document
+from pydantic import BaseModel
+from tqdm import tqdm
 
 EXTRACTION_SYSTEM_PROMPT = """
 You are a precise information extraction engine. 
@@ -139,7 +138,7 @@ def generate(
     client: LLMClient,
     system_prompt: str,
     prompt: str,
-    response_model: ClaimGeneration = None,
+    response_model: type[ClaimGeneration] | None = None,
 ):
     response = client.sync_chat_completion_last_event(
         messages=[

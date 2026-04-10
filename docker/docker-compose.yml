@@ -6,7 +6,8 @@ services:
       - "8288:8288"
       - "8289:8289"
     env_file:
-      - .env
+      - default.env
+    container_name: lang3s_inngest
     environment:
       - INNGEST_POSTGRES_URI:=postgres://inngest:${POSTGRES_PASSWORD}@database:5432/inngest
       - INNGEST_REDIS_URI=redis://redis:6379
@@ -41,7 +42,7 @@ services:
     container_name: lang3s_database
     restart: always
     env_file:
-      - .env
+      - default.env
     ports:
       - "5432:5432"
     volumes:
@@ -57,7 +58,7 @@ services:
 
   nlp_arm:
     build:
-      context: ./backend
+      context: ../backend
       args:
         JOBS_API_KEY: ${JOBS_API_KEY}
         JOB_SERVICE_URL: ${JOB_SERVICE_URL}
@@ -78,7 +79,7 @@ services:
       redis:
         condition: service_healthy
     env_file:
-      - .env
+      - default.env
     volumes:
       - nlp_data:/app
       - documents:/documents
@@ -90,7 +91,7 @@ services:
 
   nlp_nvidia:
     build:
-      context: ./backend
+      context: ../backend
       dockerfile: Dockerfile.nvidia
       args:
         JOBS_API_KEY: ${JOBS_API_KEY}
@@ -112,7 +113,7 @@ services:
       redis:
         condition: service_healthy
     env_file:
-      - .env
+      - default.env
     volumes:
       - nlp_data:/app
       - documents:/documents

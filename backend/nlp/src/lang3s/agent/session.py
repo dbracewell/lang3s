@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import json
+import textwrap
 import traceback
+from bdb import effective
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -31,7 +32,6 @@ class State:
     def remove_messages_if(self, filter_fn: Callable[[Message], bool]):
         self.messages = [m for m in self.messages if not filter_fn(m)]
 
-    @property
     def total_token_count(self) -> int:
         return estimate_tokens(self.model_name, self.messages)
 
@@ -81,8 +81,8 @@ class Session:
     def state(self):
         if self._state is None:
             self._state = State(model_name=self.model_name)
-            self._state.add_system_message(content=self.system_message)
-            self._state.messages.extend(self.initial_messages)
+            self._state.add_system_message(content=self.system_message)  # type: ignore
+            self._state.messages.extend(self.initial_messages)  # type: ignore
         return self._state
 
     @classmethod
@@ -101,7 +101,7 @@ class Session:
 
     def forward_event(self, event: AgentEvent):
         for middleware in self.middleware:
-            middleware(event, self.state)
+            middleware(event, self.state)  # type: ignore
 
     def save(self) -> dict[str, Any]:
         data = self.__dict__.copy()
@@ -113,58 +113,106 @@ class Session:
         return data
 
     def reset_state(self) -> None:
-        self._state = None
+        self._state = State()
 
     def compact(self) -> None:
-        if self._state is None:
+        state = self._state
+        if state is None:
             return
-        state = self.state
-        total_tokens = self.state.total_token_count
 
-        while (
-            total_tokens >= (0.8 * self.context_window)
-            or len(state.messages) > self.max_history
-        ):
-            to_summarize = self.state.messages[1:-4]
-            keep_recent = self.state.messages[-4:]
-            response = self.client.sync_chat_completion_last_event(
-                max_tokens=int(self.context_window * 0.75),
-                messages=[
-                    Message.system(
-                        content="""
-    You are a Memory Compaction module. Your goal is to condense a conversation history while preserving:
-    User Intent: What was the user trying to achieve?
-    Tool Findings: Specific data returned by tools (weather, dates, database IDs).
-    State: Changes in the user's preferences or the task progress.
-    Constraint: Convert JSON tool outputs into concise factual statements. Example: Instead of {"temp": 72, "unit": "f"}, write "The weather in Dallas is 72°F."
-    Output Format: A single paragraph titled "CONVERSATION SUMMARY".
-    """
-                    ),
-                    Message.user(
-                        content=json.dumps(
-                            [msg.content for msg in to_summarize if msg.content != ""]
-                        )
-                    ),
-                ],
-            )
+        total_tokens = state.total_token_count()
+        max_tokens = int(self.context_window * 0.75)
 
-            if response is None or response.exception:
-                logger.error(response.content, exc_info=True)
-                traceback.print_exc()
-                response.content = "\n".join(
-                    [msg.content for msg in to_summarize[-3:] if msg.content != ""]
+        if total_tokens < max_tokens:
+            return
+
+        system_message = self.system_message
+        summarize_start = 1 if system_message else 0
+        messages = [msg for msg in state.messages[summarize_start:] if msg.content]
+        summarize_end = max(summarize_start + 1, len(messages) // 2)
+
+        while summarize_end < len(messages):
+            token_count = estimate_tokens(self.model_name, messages[summarize_end:])
+            effective_tokens = max_tokens - token_count
+            if effective_tokens >= max(500, (0.40 * self.context_window)):
+                max_tokens -= token_count
+                break
+            summarize_end += 1
+
+        if summarize_end >= len(messages):
+            to_keep = []
+            keep_token_count = 0
+        else:
+            to_keep = messages[summarize_end:]
+            keep_token_count = estimate_tokens(self.model_name, to_keep)
+
+        logger.info(
+            f"summarization_end={summarize_end}, "
+            f"max_tokens={int(self.context_window * 0.75)}, "
+            f"summarzation_tokens={max_tokens}, "
+            f"previous_message_tokens={keep_token_count}, "
+            f"new_context_size={max_tokens + keep_token_count}"
+        )
+
+        to_summarize = []
+        for i in range(summarize_start, summarize_end):
+            msg = messages[i]
+            if not msg.content:
+                continue
+            if isinstance(msg.content, str):
+                to_summarize.append(msg.content)
+            else:
+                to_summarize.extend(
+                    [content.text for content in msg.content if content.type == "text"]
                 )
 
-            first_message = (
-                self.state.messages[0]
-                if self.state.messages[0].role == "system"
-                else None
-            )
-            self.state.messages = [
+        response = self.client.sync_chat_completion_last_event(
+            max_tokens=max(500, max_tokens),
+            messages=[
                 Message.system(
-                    content=f"{first_message.content + '\n\n' if first_message else ''}{response.content}",
-                ),
-                *keep_recent,
-            ]
+                    content=f"""
+You are the Memory Management Component of an autonomous agent. 
+Your task is to compress the provided conversation history into a "Long-Term Memory Block."
+You can generate {max(500, max_tokens)} tokens.
+Keep ALL key information so that you will be able to use this information later.
 
-            total_tokens = self.state.total_token_count
+### OBJECTIVES
+1.  **Current Goal:** State the user's active objective in one sentence.
+2.  **Established Facts:** List specific data found (names, IDs, tool outputs, dates). DO NOT generalize; keep the hard data.
+3.  **Negative Constraints:** Note what has been tried and failed (e.g., "Economy query returned no relevant data").
+4.  **User Preferences:** Any formatting or stylistic requests made by the user.
+
+### OUTPUT FORMAT
+[ACTIVE GOAL]: <goal>
+[KNOWLEDGE BASE]:
+- <fact 1>
+- <fact 2>
+[DISCARDED PATHS]: <what didn't work>
+[PREFERENCES]: <formatting/tone>
+"""
+                ),
+                Message.user(content="\n".join(to_summarize)),
+            ],
+        )
+
+        if response.exception:
+            logger.error(response.exception, exc_info=True)
+            traceback.print_exc()
+            response.content = "\n".join(
+                [msg.content for msg in to_summarize[-3:] if msg.content != ""]  # type: ignore
+            )
+
+        new_system_message = textwrap.dedent(f"""
+{system_message + "\n\n" if system_message else ""}
+### LONG-TERM MEMORY
+{response.content}
+""").strip()
+
+        self.state.messages = [
+            Message.system(content=new_system_message),
+            *to_keep,
+        ]
+
+        logger.info(
+            f"Compaction attempt: previous_token_count={total_tokens} new_token_count={self.state.total_token_count()}"
+        )

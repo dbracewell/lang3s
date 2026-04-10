@@ -51,7 +51,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 app.add_middleware(
-    CORSMiddleware,
+    CORSMiddleware,  # type: ignore
     allow_origins=["*"],  # List of allowed origins
     allow_credentials=True,  # Allow cookies/auth headers
     allow_methods=["*"],  # Allow all methods (GET, POST, OPTIONS, etc.)

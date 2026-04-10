@@ -21,7 +21,7 @@ def _resolve_tokenizer(model_id: str):
     if "gemma" in mid:
         return "google/gemma-2-9b-it"
 
-    return "meta-llama/Llama-3.1-8B-Instruct"
+    return "openai-community/openai-gpt"
 
 
 _cache = {}
@@ -44,7 +44,7 @@ def estimate_tokens(model_name: str, messages: list[Message]) -> int:
     total_tokens = 0
     for msg in format_messages_for_model(messages):
         if "content" in msg:
-            total_tokens += sum(tokenizer(msg["content"])["attention_mask"])
+            total_tokens += len(tokenizer(msg["content"])["input_ids"])
     return total_tokens
 
 

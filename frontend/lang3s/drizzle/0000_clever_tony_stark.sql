@@ -183,15 +183,13 @@ CREATE TABLE "text"
 DROP TABLE IF EXISTS "claims" CASCADE;
 CREATE TABLE "claims"
 (
-    "id"           UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
-    "sentence_aid" text         NOT NULL,
-    "doc_id"       text         NOT NULL,
-    "text"         text         NOT NULL,
-    "embedding"    halfvec(384) NOT NULL,
-    "source"       text,
-    "entities"     text[]       NOT NULL DEFAULT '{}',
-    "created_at"   timestamp             DEFAULT now(),
-    "updated_at"   timestamp             DEFAULT now()
+    "id"         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "doc_id"     text         NOT NULL,
+    "claim"      text         NOT NULL,
+    "embedding"  halfvec(384) NOT NULL,
+    "source"     text,
+    "created_at" timestamp        DEFAULT now(),
+    "updated_at" timestamp        DEFAULT now()
 );
 
 DROP TABLE IF EXISTS "annotation_to_ontology" CASCADE;
@@ -375,8 +373,8 @@ CREATE INDEX IF NOT EXISTS "keywords_document_id" ON "keywords" USING btree ("do
 CREATE INDEX IF NOT EXISTS "keywords_category_idx" ON "keywords" USING btree ("category");
 
 
-CREATE INDEX IF NOT EXISTS "claims_content_fts_index" ON "claims" USING pgroonga ("text");
-CREATE INDEX IF NOT EXISTS "claims_sentence_aid_idx" ON "claims" USING btree ("sentence_aid");
+CREATE INDEX IF NOT EXISTS "claims_content_fts_index" ON "claims" USING pgroonga ("claim");
+CREATE INDEX IF NOT EXISTS "claims_doc_id_idx" ON "claims" USING btree ("doc_id");
 CREATE INDEX IF NOT EXISTS "claims_embedding_index" ON "claims" USING hnsw ("embedding" halfvec_cosine_ops);
 
 

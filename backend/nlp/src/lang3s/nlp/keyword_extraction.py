@@ -1,20 +1,25 @@
 import textwrap
-from collections import Counter, defaultdict
-from typing import Tuple
+from collections import Counter
+from typing import NamedTuple, Tuple
 
 import numpy as np
-import umap
 from joblib import Parallel, delayed
-from sklearn.cluster._hdbscan import hdbscan
 from sklearn.metrics.pairwise import cosine_similarity
 from sqlalchemy import select
 
 import lang3s.data.db.database as db
+from lang3s.cluster.offline import DefaultOfflineClusterer
 from lang3s.data.db.models import KeywordsTable
 from lang3s.llm import LLMClient, Message
 from lang3s.nlp.shared_types import Text
 from lang3s.utils import try_catch
 from lang3s.utils.logger import get_logger
+
+
+class KeywordItem(NamedTuple):
+    id: str
+    keyword: str
+    embedding: np.ndarray
 
 
 def mmr_rank(
@@ -137,27 +142,27 @@ def extract_keywords(text: Text, top_n=5, diversity=0.5):
     return keywords
 
 
-def _create_label(keywords: list[Tuple[str, str, np.ndarray]]) -> list[Tuple[str, str]]:
+def _create_label(keywords: list[KeywordItem]) -> list[Tuple[str, str]]:
     client = LLMClient()
-    cnt = Counter(k[1] for k in keywords)
+    cnt = Counter(k.keyword for k in keywords)
     topn = [c for c, v in cnt.most_common(100)]
     logger = get_logger("KEYWORD_EXTRACTION")
+    topn_str = "\n".join(topn)
     prompt = textwrap.dedent(f"""
                     Given the following list of keywords come up with a short noun phrase no more than four words describing the concept/topic. 
                     Make the noun phrase generic and not specific to ONE keyword it should be generic enough to cover any keyword in the category.
                     Give no explanation or reasoning for your answer only the answer and in plain text NO MARKUP.
 
                     Keywords:
-                    {"\n".join(topn)}
+                    {topn_str}
                 """).strip()
+
     with try_catch(on_error=lambda e: logger.error(e)):
         response = client.sync_chat_completion_last_event([Message.user(prompt)])
-        if response.exception:
-            return [(k[0], k[1]) for k in keywords]
-        else:
-            return [(k[0], response.content) for k in keywords]
+        if not response.exception:
+            return [(k.id, response.content) for k in keywords]
 
-    return [(k[0], k[1]) for k in keywords]
+    return [(k.id, k.keyword) for k in keywords]
 
 
 def generate_keyword_categories():
@@ -166,41 +171,32 @@ def generate_keyword_categories():
         .where(KeywordsTable.category.is_(None))
         .execution_options(yield_per=100)
     )
-    keywords = []
+    keywords: list[KeywordItem] = []
+    embeddings: list[np.ndarray] = []
     with db.get_session() as session:
         keyword: KeywordsTable
         for keyword in session.execute(stmt).scalars():
-            keywords.append((keyword.id, keyword.keyword, keyword.embedding.to_numpy()))
+            keywords.append(
+                KeywordItem(
+                    id=keyword.id,
+                    keyword=keyword.keyword,
+                    embedding=keyword.embedding,
+                )
+            )
+            embeddings.append(keyword.embedding.to_numpy())
 
-    reducer = umap.UMAP(
-        n_neighbors=15,
-        n_components=64,
-        metric="cosine",
-    )
-    reduced = reducer.fit_transform([k[2] for k in keywords])
-
-    clusterer = hdbscan.HDBSCAN(
+    clusterer = DefaultOfflineClusterer[KeywordItem](
         min_cluster_size=10,
-        min_samples=5,
         metric="cosine",
+        n_components=64,
+        clustering_algorithm="hdbscan",
     )
-    labels = clusterer.fit_predict(reduced)
-
-    clusters = defaultdict(list)
-    for label, keyword in zip(labels, keywords):
-        if label == -1:
-            continue
-        clusters[label].append(keyword)
-
+    clusters = clusterer.fit(keywords, embeddings)
     with Parallel(
         n_jobs=-1,
         backend="loky",
         inner_max_num_threads=1,
     ) as parallel:
-        results = parallel([delayed(_create_label)(v) for _, v in clusters.items()])
+        results = parallel([delayed(_create_label)(c.items) for c in clusters])
 
-    updates = []
-    for r in results:
-        for kid, category in r:
-            updates.append({"id": kid, "category": category})
-    return updates
+    return [{"id": kid, "category": category} for r in results for kid, category in r]

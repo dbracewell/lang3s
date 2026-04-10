@@ -1,5 +1,6 @@
 import inspect
 import json
+import re
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -28,6 +29,7 @@ def parse_tool_call_arguments(arguments: str) -> dict[str, Any]:
         return {}
 
     try:
+        arguments = re.sub("'$", "", re.sub(r"^'", "", arguments)).strip()
         return json.loads(arguments)
     except json.JSONDecodeError:
         return {"raw_arguments": arguments}

@@ -1,0 +1,5 @@
+uv run --no-project --index-strategy unsafe-best-match \
+--with "transformers>=4.57.1" --with torch --with safetensors \
+--with gguf  \
+python convert_lora_to_gguf.py ~/prj/lan3gs/backend/nlp/outputs/lora_adapter/ \
+--base ./qwen_metadata  --outfile claim_extraction.gguf
