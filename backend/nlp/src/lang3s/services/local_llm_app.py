@@ -1,9 +1,11 @@
 import os
 import subprocess
-import sys
 import time
 
 from lang3s.config import config
+from lang3s.utils.logger import get_logger
+
+logger = get_logger("LOCAL_LLM")
 
 MODEL_NAME = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
 adapters = {"claim": "claim_extraction.gguf"}
@@ -14,6 +16,9 @@ def main():
     root = os.path.join(config.MODELS_DIR, "locallm")
     model_path = os.path.join(root, MODEL_NAME)
 
+    parallel_factor = 2
+    context_window = 4000
+
     # fmt: off
     cmd = [
         "llama-server",
@@ -21,17 +26,23 @@ def main():
         "--host", "0.0.0.0",
         "--port", str(config.LOCAL_LLM_PORT),
 
-        "-np", "10",     # Allow 10 parallel requests
-        "-c", "80000",   # 80k total context (gives 80k / 10 = 8k context per slot)
+        "-np", str(parallel_factor),
+        "-c", str(parallel_factor*context_window),
         "-b", "1024",
 
-        "-ngl", "99",
+        "--verbosity", "1", # only log errors
+
+        "-ngl", "-1",
+        # "--no-mmap",
+        # "-t", "8",
         "--chat-template", "chatml",
         "--lora-init-without-apply",
 
+        "--repeat_last_n", "1.2",
+
         # 8 bit kv-cache quantization
-        "--cache-type-k", "q8_0",
-        "--cache-type-v", "q8_0",
+        # "--cache-type-k", "q8_0",
+        # "--cache-type-v", "q8_0",
     ]
 
     # fmt: on
@@ -39,29 +50,22 @@ def main():
         cmd.append("--lora")
         cmd.append(os.path.join(root, "adapters", lora))
 
-    print(f"Server is starting at http://localhost:{config.LOCAL_LLM_PORT}")
+    logger.info(f"Server is starting at http://localhost:{config.LOCAL_LLM_PORT}")
 
     with open("llama_server.log", "w") as log_file:
         server_process = subprocess.Popen(
-            cmd,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
+            cmd, stdout=log_file, stderr=subprocess.STDOUT
         )
 
         try:
-            print(
-                "Server is running in the background. Check llama_server.log for details."
-            )
-            print("Press Ctrl+C to stop the server.")
-
             while True:
                 time.sleep(1)
 
         except KeyboardInterrupt:
-            print("\nReceived exit signal. Shutting down the llama.cpp server...")
+            logger.info("\nReceived exit signal. Shutting down the llama.cpp server...")
             server_process.terminate()
             server_process.wait()
-            print("Server stopped cleanly.")
+            logger.info("Server stopped cleanly.")
 
 
 if __name__ == "__main__":

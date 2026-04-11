@@ -81,9 +81,12 @@ class LocalLLMClient:
             "messages": format_messages_for_model(messages),
         }
 
-        extra_body = None
+        extra_body: dict[str, Any] = {
+            "cache_prompt": False,
+            "slot_id": -1,
+        }
         if adapter_name and adapter_name in adapter_ids:
-            extra_body = {"lora": [{"id": adapter_ids[adapter_name], "scale": 1.0}]}
+            extra_body["lora"] = [{"id": adapter_ids[adapter_name], "scale": 1.0}]
 
         if response_model:
             parsed_response = await self.structured_client.chat.completions.create(

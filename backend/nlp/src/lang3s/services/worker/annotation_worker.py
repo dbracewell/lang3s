@@ -215,7 +215,8 @@ def process_batch(batch):
             redis_client.enqueue(
                 CLAIM_EXTRACT_QUEUE_NAME,
                 DocumentClaimRequest(
-                    documentId=doc.id, text=doc.text.text
+                    documentId=doc.id,
+                    text="\n\n".join(s.text for s in doc.text.sentences),
                 ).model_dump(),
             )
 

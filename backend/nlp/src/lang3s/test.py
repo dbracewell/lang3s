@@ -1,7 +1,7 @@
 from random import shuffle
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import select
 
 import lang3s.data.db.database as db
@@ -11,19 +11,11 @@ from lang3s.data.db.models import ClaimsTable
 from lang3s.data.io.serialization import deserialize
 from lang3s.llm import Message, tool
 from lang3s.llm.local_llm import LocalLLM
-from lang3s.nlp.claim_extractor import DocumentClaimRequest, extract_claims
+from lang3s.nlp.claim_extractor import DocumentClaimRequest
 from lang3s.services.client.local_llm_client import LocalLLMClient
+from lang3s.services.client.redis_client import CLAIM_EXTRACT_QUEUE_NAME, RedisClient
 
 llm = LocalLLMClient()
-
-
-class RTEResponse(BaseModel):
-    reasoning: str = Field(description="Why did you choose this label?")
-    result: Literal["ENTAILMENT", "CONTRADICTION", "NEITHER"]
-
-
-def caller(context):
-    return extract_claims(llm, context)
 
 
 class ClaimClusterLabel(BaseModel):
@@ -59,17 +51,15 @@ class DocumentClaims(BaseModel):
 
 class Test(Application):
     def run(self):
-        client = LocalLLMClient()
-        result = client.sync_generate(
-            messages=[
-                Message.user(f"Extract claims from: John killed Mary with a crowbar.")
-            ],
-            adapter_name="claim",
-            temperature=0,
-            response_model=DocumentClaims,
-        )
-
-        print(result)
+        redis_client = RedisClient()
+        for doc in deserialize("/Users/ik/prj/data/news.docs"):
+            redis_client.enqueue(
+                CLAIM_EXTRACT_QUEUE_NAME,
+                DocumentClaimRequest(
+                    documentId=doc.id,
+                    text="\n\n".join(s.text for s in doc.text.sentences),
+                ).model_dump(),
+            )
         return
         # client = LocalLLM()
         # for doc in deserialize("/Users/ik/prj/data/news.docs"):

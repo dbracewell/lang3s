@@ -10,12 +10,19 @@ def convert(input_filename, output_filename):
         with jsonlines.open(input_filename, "r") as reader:
             for example in reader:
                 text = example["input"]
-                claims = example["claims"]
+                claims = example["claims"]["claims"]
+                claims = [
+                    {"claim": claim["claim"], "source": claim["source"]}
+                    for claim in claims
+                ]
                 writer.write(
                     {
                         "messages": [
                             {"role": "user", "content": f"Extract claims from: {text}"},
-                            {"role": "assistant", "content": json.dumps(claims)},
+                            {
+                                "role": "assistant",
+                                "content": json.dumps({"claims": claims}),
+                            },
                         ]
                     }
                 )
