@@ -100,6 +100,7 @@ class LLMClient:
         completion_args: dict[str, Any] = {
             "model": self.model_name,
             "stream": stream,
+            "max_completion_tokens": kwargs.get("max_tokens", None),
             **kwargs,
         }
 

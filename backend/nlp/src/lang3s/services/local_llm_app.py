@@ -16,7 +16,7 @@ def main():
     root = os.path.join(config.MODELS_DIR, "locallm")
     model_path = os.path.join(root, MODEL_NAME)
 
-    parallel_factor = 2
+    parallel_factor = 4
     context_window = 4000
 
     # fmt: off
@@ -33,8 +33,8 @@ def main():
         "--verbosity", "1", # only log errors
 
         "-ngl", "-1",
-        # "--no-mmap",
-        # "-t", "8",
+        "--no-mmap",
+        "-t", "8",
         "--chat-template", "chatml",
         "--lora-init-without-apply",
 

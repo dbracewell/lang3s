@@ -1,8 +1,7 @@
 import asyncio
-import threading
+import os
 import time
 
-import aiohttp
 from pydantic import ValidationError
 from transformers import AutoTokenizer
 
@@ -14,23 +13,43 @@ from lang3s.nlp.claim_extractor import (
     DocumentClaimRequest,
     DocumentClaims,
 )
+from lang3s.parallel.core import Engine, Event
+from lang3s.parallel.manager import TaskManager
+from lang3s.parallel.queue import QueueFactory, QueueType
 from lang3s.services.client.local_llm_client import LocalLLMClient
 from lang3s.services.client.redis_client import (
     CLAIM_EXTRACT_QUEUE_NAME,
-    RedisAsyncClient,
 )
 from lang3s.utils.logger import get_logger
 
 logger = get_logger("CLAIM_EXTRACTION_WORKER")
-
-local_llm = LocalLLMClient()
-embedder = Embedder()
+_local_llm: LocalLLMClient | None = None
+_embedder: Embedder | None = None
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
+
+
+def get_llm() -> LocalLLMClient:
+    global _local_llm
+    if _local_llm is None:
+        _local_llm = LocalLLMClient()
+    return _local_llm  # type: ignore
+
+
+def get_embedder() -> Embedder:
+    global _embedder
+    if _embedder is None:
+        _embedder = Embedder()
+    return _embedder  # type: ignore
+
+
+def init_worker():
+    logger.info(f"Initialized Claim Extraction Worker: pid={os.getpid()}")
+    get_embedder()
+    get_llm()
+
 
 MAX_TOKENS = 4000
 MAX_PROMPT_TOKENS = MAX_TOKENS // 2
-total_time = 0
-_lock = threading.Lock()
 
 
 def chunk_text(
@@ -41,7 +60,8 @@ def chunk_text(
     sentences = content.split("\n\n")
     current_chunk = ""
     for sentence in sentences:
-        if len(tokenizer(current_chunk + sentence)["input_ids"]) < chunk_size:
+        num_tokens = len(tokenizer(current_chunk + "\n" + sentence)["input_ids"])
+        if num_tokens < chunk_size:
             current_chunk += sentence + "\n"
         else:
             chunks.append(current_chunk)
@@ -52,10 +72,11 @@ def chunk_text(
     return chunks
 
 
-async def process_task(item: bytes):
-    start_time = time.perf_counter()
+async def process_task(item: Event[dict]):
     try:
-        request = DocumentClaimRequest.model_validate_json(item)
+        request = DocumentClaimRequest.model_validate(item.data)
+        if request.text is None:
+            return 0
         token_count = len(tokenizer(request.text)["input_ids"])
         batches = []
         if token_count <= MAX_PROMPT_TOKENS:
@@ -65,16 +86,17 @@ async def process_task(item: bytes):
 
         all_claims = []
         for batch in batches:
-            response = await local_llm.generate(
+            batch_token_size = len(tokenizer(batch)["input_ids"])
+            response = await get_llm().generate(
                 messages=[Message.user(f"Extract claims from: {batch}")],
                 adapter_name="claim",
                 temperature=0.0,
-                max_tokens=max(1000, 8000 - len(tokenizer(batch)["input_ids"])),
+                max_tokens=MAX_TOKENS - batch_token_size,
                 response_model=DocumentClaims,
             )
             if response.parsed:
                 all_claims.extend(response.parsed.claims)
-        embs = embedder([claim.claim for claim in all_claims]).sentence_embeddings
+        embs = get_embedder()([claim.claim for claim in all_claims]).sentence_embeddings
         db.insert_many_objects(
             [
                 ClaimsTable(
@@ -87,57 +109,43 @@ async def process_task(item: bytes):
                 if claim.claim
             ]
         )
+        return token_count
     except ValidationError as e:
         logger.error(f"Validation failed: {e}")
-    except aiohttp.ClientError as e:
-        logger.error(f"API request failed: {e}")
     except Exception as e:
         logger.error(f"Unexpected error during processing: {e}")
-
-    global total_time
-    with _lock:
-        total_time += time.perf_counter() - start_time
-
-
-async def process_wrapper(data, semaphore):
-    try:
-        await process_task(data)
-    finally:
-        semaphore.release()
+    return 0
 
 
 async def main():
-    max_concurrent_tasks = 2
-    semaphore = asyncio.Semaphore(max_concurrent_tasks)
-    redis_client = RedisAsyncClient()
     total_documents = 0
-
-    try:
-        while True:
-            await semaphore.acquire()
-
-            result = await redis_client.dequeue(CLAIM_EXTRACT_QUEUE_NAME, timeout=1)
-
-            if result:
-                asyncio.create_task(process_wrapper(result, semaphore))
-                total_documents += 1
+    total_tokens = 0
+    with QueueFactory() as factory:
+        with TaskManager(
+            Engine.ASYNC,
+            workers=4,
+            initializer=init_worker,
+        ) as runner:
+            queue = factory(
+                queue_type=QueueType.REDIS,
+                queue_name=CLAIM_EXTRACT_QUEUE_NAME,
+            )
+            start_time = time.perf_counter()
+            async for r in runner.async_map(
+                process_task,
+                queue,
+            ):
+                total_tokens += r
+                total_documents += 1 if r > 0 else 0
+                total_time = time.perf_counter() - start_time
                 if total_documents % 10 == 0:
                     logger.info(
-                        f"Claim Extractor: Processed {total_documents} documents in {total_time} ({total_documents / total_time:.2})"
+                        f"Claim Extractor: Processed {total_documents} documents in {total_time} ({total_documents / total_time:.2} docs / second) ({total_tokens / total_time:.2f} tokens / second)"
                     )
-            else:
-                semaphore.release()
-                await asyncio.sleep(0.1)  #
-
-    except asyncio.CancelledError:
-        logger.info("Shutting down worker...")
-    finally:
-        await redis_client.close()
 
 
 if __name__ == "__main__":
     try:
-        logger.info("Claim Extraction Worker Started")
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Worker stopped by user.")

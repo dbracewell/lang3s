@@ -78,6 +78,7 @@ class LocalLLMClient:
             "stream": False,
             "temperature": temperature,
             "max_tokens": max_tokens,
+            "max_completion_tokens": max_tokens,
             "messages": format_messages_for_model(messages),
         }
 
@@ -89,12 +90,16 @@ class LocalLLMClient:
             extra_body["lora"] = [{"id": adapter_ids[adapter_name], "scale": 1.0}]
 
         if response_model:
-            parsed_response = await self.structured_client.chat.completions.create(
-                **completion_args,
-                response_model=response_model,
-                extra_body=extra_body,
-            )
-            return LocalLLMClientResult(parsed=parsed_response)
+            try:
+                parsed_response = await self.structured_client.chat.completions.create(
+                    **completion_args,
+                    response_model=response_model,
+                    extra_body=extra_body,
+                )
+                return LocalLLMClientResult(parsed=parsed_response)
+            except instructor.core.exceptions.InstructorRetryException as e:
+                logger.error(f"Instructor Error {e.failed_attempts[0].exception}")
+                return LocalLLMClientResult(parsed=None)
 
         if tools:
             completion_args["tools"] = [t.schema for t in tools]

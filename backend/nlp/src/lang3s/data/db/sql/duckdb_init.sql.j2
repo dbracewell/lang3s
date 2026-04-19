@@ -10,7 +10,8 @@ postgres;
 
 ATTACH 'dbname=lang3s user={{DB_USER}} password={{DB_PASSWORD}} host={{DB_HOST}} port={{DB_PORT}}' AS pg_db (TYPE POSTGRES);
 
-PRAGMA memory_limit='8GB';
+PRAGMA memory_limit='4GB';
+SET threads = 2;
 
 CREATE TABLE IF NOT EXISTS text_annotations
 (

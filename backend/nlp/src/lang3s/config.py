@@ -77,15 +77,15 @@ class Config:
     #####################################################################################
     @property
     def FASTAPI_PORT(self) -> int:
-        return int(self._get_static("FAST_API_PORT", 9000))
+        return int(self._get_static("FAST_API_PORT", 23000))
 
     @property
     def FAST_API_ANALYTICS_PORT(self) -> int:
-        return int(self._get_static("FAST_API_ANALYTICS_PORT", 9001))
+        return int(self._get_static("FAST_API_ANALYTICS_PORT", 23001))
 
     @property
     def LOCAL_LLM_PORT(self) -> int:
-        return int(self._get_static("LOCAL_LLM_PORT", 9002))
+        return int(self._get_static("LOCAL_LLM_PORT", 23002))
 
     #####################################################################################
 

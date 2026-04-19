@@ -4,6 +4,7 @@ from typing import Any, Tuple
 
 import redis
 import redis.asyncio as async_redis
+from pydantic import BaseModel
 from redis.client import PubSub
 
 from lang3s import config
@@ -35,12 +36,14 @@ class RedisAsyncClient(object):
     async def queue_length(self, queue_name: str) -> int:
         return await self._client.llen(queue_name)  # type:ignore
 
-    async def dequeue(self, queue_name: str, timeout: int | None = None) -> Any:
-        result = await self._client.blpop([queue_name], timeout)  # type: ignore
-        if result:
-            _, data = result
-            return data
-        return None
+    async def dequeue(self, queue_name: str, timeout: float | None = None) -> Any:
+        if timeout:
+            r = await self._client.blpop([queue_name], timeout)
+            if r:
+                _, item = r
+                return item
+            return None
+        return await self._client.lpop(queue_name)
 
     async def publish_message(self, channel: str, message: Any) -> None:
         await self._client.publish(channel, json.dumps(message))
@@ -70,12 +73,21 @@ class RedisClient(object):
         self.close()
 
     def enqueue(self, queue_name: str, item: Any) -> None:
+        if isinstance(item, BaseModel):
+            self._client.rpush(queue_name, item.model_dump_json())
+            return
         self._client.rpush(queue_name, json.dumps(item))
 
     def queue_length(self, queue_name: str) -> int:
         return self._client.llen(queue_name)  # type:ignore
 
-    def dequeue(self, queue_name: str) -> Any:
+    def dequeue(self, queue_name: str, timeout: float | None = None) -> Any:
+        if timeout:
+            r = self._client.blpop([queue_name], timeout)
+            if r:
+                _, item = r
+                return item
+            return None
         return self._client.lpop(queue_name)
 
     def publish_message(self, channel: str, message: Any) -> None:

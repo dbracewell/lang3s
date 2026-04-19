@@ -48,8 +48,15 @@ def flatten(a: Iterable[List[T]]) -> List[T]:
 def partition_generator(
     generator: Iterable[T], size: int
 ) -> Generator[List[T], None, None]:
+    it = iter(generator)
     while True:
-        chunk = list(itertools.islice(generator, size))
+        chunk = []
+        while len(chunk) < size:
+            try:
+                chunk.append(next(it))
+            except StopIteration:
+                break
+
         if not chunk:
             break
         yield chunk

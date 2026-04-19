@@ -1,19 +1,34 @@
+import base64
+import os
+import time
+from pprint import pprint
 from random import shuffle
 from typing import Annotated, Literal
 
+import torch
+import transformers
+from joblib import Parallel, delayed
 from pydantic import BaseModel
 from sqlalchemy import select
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 import lang3s.data.db.database as db
 from lang3s.app import Application
 from lang3s.cluster.online import DefaultOnlineClusterer
 from lang3s.data.db.models import ClaimsTable
 from lang3s.data.io.serialization import deserialize
-from lang3s.llm import Message, tool
+from lang3s.llm import LLMClient, Message, tool
 from lang3s.llm.local_llm import LocalLLM
-from lang3s.nlp.claim_extractor import DocumentClaimRequest
+from lang3s.llm.messages import Content
+from lang3s.nlp.claim_extractor import (
+    ClaimExtractor,
+    DocumentClaimContext,
+    DocumentClaimRequest,
+    SentenceContext,
+)
 from lang3s.services.client.local_llm_client import LocalLLMClient
 from lang3s.services.client.redis_client import CLAIM_EXTRACT_QUEUE_NAME, RedisClient
+from lang3s.services.worker.annotation_worker import init_worker
 
 llm = LocalLLMClient()
 
@@ -49,6 +64,49 @@ class DocumentClaims(BaseModel):
     claims: list[ClaimExample]
 
 
+def encode_image(image_path):
+    """Encodes a local image into a base64 string."""
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
+
+
+class ObjectDescription(BaseModel):
+    object: str
+    parts: list[str]
+
+
+class AttributeDescription(BaseModel):
+    object: str
+    attributes: list[str]
+
+
+class RelationshipDescription(BaseModel):
+    subject: str
+    relationship: str
+    object: str
+
+
+class ImageDescription(BaseModel):
+    objects: list[ObjectDescription]
+    attributes: list[AttributeDescription]
+    relationships: list[RelationshipDescription]
+
+
+class Wrapped:
+    """A callable object that pretends to do some work and records how many
+    times it has been called."""
+
+    def __init__(self):
+        self.counter = 0
+        print(f"[{os.getpid()}] Wrapped created")
+
+    def __call__(self, *args, **kwargs):
+        """Simulate a heavyweight operation and return (pid, call count)."""
+        self.counter += 1  # <-- update the counter
+        time.sleep(0.5)  # shorter sleep for demo
+        return os.getpid(), self.counter
+
+
 class Test(Application):
     def run(self):
         redis_client = RedisClient()
@@ -56,11 +114,64 @@ class Test(Application):
             redis_client.enqueue(
                 CLAIM_EXTRACT_QUEUE_NAME,
                 DocumentClaimRequest(
-                    documentId=doc.id,
-                    text="\n\n".join(s.text for s in doc.text.sentences),
+                    documentId=doc.id, text=doc.text.text
                 ).model_dump(),
             )
+
         return
+        client = LLMClient("google/gemma-3-4b")
+        base64_image = encode_image("/Users/ik/Downloads/Pictures/traffic.jpg")
+        prompt = """
+For the given image extract all objects (wholes and parts), attributes of those objects, and relationships between objects visible in the image.
+
+Example Object:
+Car : front wheel, back wheel, undercarriage, windshield, ...   
+
+Example Attributes:
+Car : silver, sedan, black and blue, ...
+
+Example Relationships:
+subject: person relationship: next to object: car  
+subject: car relationship: in front of object: car
+subject: trees relationship: surrounds object: highway   
+        """
+        r = client.sync_chat_completion_last_event(
+            messages=[
+                Message.user(
+                    content=[
+                        Content(type="text", text=prompt),
+                        Content(
+                            type="image_url",
+                            image_url={"url": f"data:image/jpeg;base64,{base64_image}"},
+                        ),
+                    ]
+                )
+            ],
+            response_model=ImageDescription,
+        )
+        print("# Objects")
+        for o in r.parsed.objects:
+            print(o)
+        print("# Attributes")
+        for o in r.parsed.attributes:
+            print(o)
+        print("# Relationships")
+        for o in r.parsed.relationships:
+            print(o)
+        return
+        # redis_client = RedisClient()
+        # for doc in deserialize("/Users/ik/prj/data/news.docs"):
+        #     redis_client.enqueue(
+        #         CLAIM_EXTRACT_QUEUE_NAME,
+        #         DocumentClaimContext(
+        #             documentId=doc.id,
+        #             sentences=[
+        #                 SentenceContext(sentenceAid=s.id, text=s.text)
+        #                 for s in doc.text.sentences
+        #             ],
+        #         ).model_dump(),
+        #     )
+        # return
         # client = LocalLLM()
         # for doc in deserialize("/Users/ik/prj/data/news.docs"):
         #     text = doc.text.text
@@ -153,5 +264,52 @@ class Test(Application):
         #     print(r, ex)
 
 
+def sam(image, label):
+    pass
+
+
+def gemma():
+    client = LLMClient("google/gemma-3-4b")
+    base64_image = encode_image("/Users/ik/Downloads/Pictures/traffic.jpg")
+    prompt = """
+    For the given image extract all objects (wholes and parts), attributes of those objects, and relationships between objects visible in the image.
+
+    Example Object:
+    Car : front wheel, back wheel, undercarriage, windshield, ...   
+
+    Example Attributes:
+    Car : silver, sedan, black and blue, ...
+
+    Example Relationships:
+    subject: person relationship: next to object: car  
+    subject: car relationship: in front of object: car
+    subject: trees relationship: surrounds object: highway   
+            """
+    r = client.sync_chat_completion_last_event(
+        messages=[
+            Message.user(
+                content=[
+                    Content(type="text", text=prompt),
+                    Content(
+                        type="image_url",
+                        image_url={"url": f"data:image/jpeg;base64,{base64_image}"},
+                    ),
+                ]
+            )
+        ],
+        response_model=ImageDescription,
+    )
+
+    print("# Objects")
+    for o in r.parsed.objects:
+        print(o)
+    print("# Attributes")
+    for o in r.parsed.attributes:
+        print(o)
+    print("# Relationships")
+    for o in r.parsed.relationships:
+        print(o)
+
+
 if __name__ == "__main__":
-    Test.from_cli().run()
+    Test().run()
