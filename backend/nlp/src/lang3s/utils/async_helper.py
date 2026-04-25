@@ -1,17 +1,19 @@
 import asyncio
+import logging
 import queue
 import threading
-from typing import AsyncGenerator, Callable, Generator, Iterable, TypeVar
+from typing import AsyncGenerator, Callable, Generator, TypeVar
 
 
 def run_sync(coro):
     try:
         loop = asyncio.get_running_loop()
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result()
     except RuntimeError:
-        return asyncio.run(coro)
+        pass
 
-    future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result()
+    return asyncio.run(coro)
 
 
 T = TypeVar("T")
@@ -19,8 +21,8 @@ T = TypeVar("T")
 
 def get_async_event_loop():
     try:
-        return asyncio.get_event_loop()
-    except Exception:
+        return asyncio.get_running_loop()
+    except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         return loop

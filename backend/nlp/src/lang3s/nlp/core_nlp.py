@@ -1,15 +1,12 @@
-import gzip
-import importlib.resources
 import json
 import os.path
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import numpy as np
 import spacy.tokens
 from sklearn.feature_extraction.text import TfidfVectorizer
 from spacy.language import Language
-from spacy.matcher import Matcher
 from spacy.tokens import Doc, Span
 from spacy.util import filter_spans
 from spacy_download import load_spacy
@@ -29,6 +26,10 @@ SPACY_MODELS = {
     "en": "en_core_web_sm",
     "ja": "ja_core_news_sm",
     "es": "es_core_news_sm",
+}
+
+SPACY_DISABLED = {
+    "en": ["ner"],
 }
 
 
@@ -86,102 +87,40 @@ class SocialMatcher:
 class CoreLanguageProcessor(metaclass=SingletonMeta):
     def __init__(self):
         self.pipelines = {}
-        self.patterns = {}
-        self.matchers = {}
-
-        with (
-            importlib.resources.files("lang3s.nlp")
-            .joinpath("mwe.json.gz")
-            .open("rb") as f_in
-        ):
-            with gzip.open(f_in, "rt") as f_gz:
-                mwe_dict = json.load(f_gz)
-                for k, mwe in mwe_dict.items():
-                    patterns = []
-                    for phrase in mwe:
-                        tokens = phrase.split()
-                        pattern = [{"LEMMA": t} for t in tokens]
-                        patterns.append(pattern)
-                    self.patterns[k] = patterns
-
-    def get_matcher(self, language: str) -> Optional[Matcher]:
-        return self.matchers.get(language, None)
 
     def get_pipeline(self, language: str) -> Language:
         if language in self.pipelines:
             return self.pipelines[language]
 
         model_name = SPACY_MODELS.get(language, SPACY_MODELS["en"])
-        disabled = []
-        # if language == "en":
-        #     disabled.append("ner")
+        nlp = load_spacy(model_name, disable=SPACY_DISABLED.get(language, []))
 
-        nlp = load_spacy(model_name, disable=disabled)
-        if language == "en":
-            verbs = spacy.load(
-                os.path.join(config.MODELS_DIR, "spacy", "en"),
-            )
-            for pipe in ["tok2vec", "ner"]:
+        custom_model_dir = os.path.join(config.MODELS_DIR, "spacy", language)
+        custom_model_config = os.path.join(custom_model_dir, "config.json")
+        if os.path.exists(custom_model_config):
+            with open(custom_model_config) as fp:
+                lang_config = json.load(fp)
+            custom_model = spacy.load(custom_model_dir)
+
+            for pipe in lang_config.keys():
                 if pipe in nlp.pipe_names:
                     nlp.remove_pipe(pipe)
-            nlp.add_pipe("tok2vec", source=verbs, before="tagger")
-            nlp.add_pipe("ner", source=verbs, last=True)
+
+            for component, options in lang_config.items():
+                nlp.add_pipe(component, source=custom_model, **options)
+            # nlp.add_pipe("tok2vec", source=verbs, before="tagger")
+            # nlp.add_pipe("ner", source=verbs, last=True)
 
         self.pipelines[language] = nlp
         nlp.add_pipe("social_media_matcher", last=True)
-        # patterns = self.patterns.get(language, [])
-
-        # if len(patterns) > 0:
-        # Token.set_extension("is_mwv", default=False, force=True)
-        # Token.set_extension("lemma", default=False, force=True)
-        # matcher = Matcher(nlp.vocab)
-        # matcher.add("MWV", patterns)
-        # self.matchers[language] = matcher
-        # nlp.add_pipe("merge_mwv", last=True)
-        # nlp.add_pipe("fix_mwv", last=True)
 
         return self.pipelines[language]
-
-
-# @Language.component("merge_mwv")
-# def merge_mwv(doc):
-#     processor = CoreLanguageProcessor()
-#     matcher = processor.get_matcher(doc.lang_)
-#     if matcher is None:
-#         return doc
-#     matches = matcher(doc)
-#     spans = [doc[start:end] for _, start, end in matches]
-#
-#     spans = filter_spans(spans)
-#
-#     with doc.retokenize() as retok:
-#         for span in spans:
-#             retok.merge(
-#                 span,
-#                 attrs={
-#                     "_": {
-#                         "is_mwv": True,
-#                         "lemma": " ".join([t.lemma_ for t in span]),
-#                     }
-#                 },
-#             )
-#     return doc
-#
-#
-# @Language.component("fix_mwv")
-# def fix_mwv(doc):
-#     for token in doc:
-#         if token._.is_mwv:
-#             token.pos_ = "VERB"
-#             token.tag_ = "VB"
-#             token.lemma_ = token._.lemma
-#     return doc
-#
 
 
 def core_nlp(language: str, texts: List[Document]):
     core = CoreLanguageProcessor()
     nlp = core.get_pipeline(language)
+
     with nlp.memory_zone():
         _core_nlp(nlp, texts)
 
@@ -291,10 +230,10 @@ def convert_to_lang3s(spacy_doc: Doc, lang3s_doc: Document):
                 text=chunk.text,
                 source="core",
                 type=AnnotationTypes.NOUN_CHUNK.value,
-                value=chunk.label_,
+                value="NP",
                 metadata={Metadata.LEMMA.value: chunk.lemma_},
             )
-    except Exception:
+    except NotImplementedError:
         pass
     finally:
         del spacy_doc

@@ -12,7 +12,13 @@ def convert(input_filename, output_filename):
                 text = example["input"]
                 claims = example["claims"]["claims"]
                 claims = [
-                    {"claim": claim["claim"], "source": claim["source"]}
+                    dict(
+                        claim=claim["claim"],
+                        type=claim["type"],
+                        source=claim["source"],
+                        target=claim["target"],
+                        sentiment=claim["sentiment"],
+                    )
                     for claim in claims
                 ]
                 writer.write(
@@ -29,6 +35,6 @@ def convert(input_filename, output_filename):
 
 
 convert(
-    "/Users/ik/prj/data/document_claim_extraction.jsonl",
-    "/Users/ik/prj/data/document_claim_extraction_chatml.jsonl",
+    "/Users/ik/prj/data/document_claim_extraction_v3.jsonl",
+    "/Users/ik/prj/data/document_claim_extraction_chatml_v3.jsonl",
 )

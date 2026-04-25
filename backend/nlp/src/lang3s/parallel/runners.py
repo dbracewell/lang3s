@@ -76,20 +76,19 @@ class BaseRunner(ABC):
         self,
         func: Callable[[ItemType], Awaitable[ReturnValue]],
         source: QueueSource[ItemType] | Iterable[ItemType],
-        chunksize: int = 1,
     ) -> AsyncGenerator[Event[ReturnValue], None]:
         pending = set()
         it = source if isinstance(source, QueueSource) else IterableQueue(source)
         async for item in it.async_fetch():
             if item.is_shutdown():
                 break
+
             pending.add(
                 get_async_event_loop().create_task(self._wrapped_task(func, item))
             )
-            if len(pending) >= self.num_workers:
-                done, pending = await asyncio.wait(
-                    pending, return_when=asyncio.FIRST_COMPLETED
-                )
+
+            if len(pending) > max(1, self.num_workers // 4):
+                done, pending = await asyncio.wait(pending, timeout=0.1)
                 for r in done:
                     yield r.result()
 

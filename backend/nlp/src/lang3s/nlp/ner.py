@@ -250,10 +250,6 @@ class NamedEntityRecognition(metaclass=SingletonMeta):
                         metadata={"confidence": entity["score"]},
                         sentence_id=start_token.sentence_id,
                     )
-                    # for e in annotation.annotations_of_type("entity"):
-                    #     if e.source == "core":
-                    #         document.text.annotations.remove(e)
-                    #         e.detach()
 
                     entity_id_annotation_map[entity["id"]] = annotation
 

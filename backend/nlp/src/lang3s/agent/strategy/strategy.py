@@ -92,8 +92,7 @@ class Strategy(ABC, Generic[STRATEGY_RESPONSE_TYPE]):
             tool_response = await tool_call.async_invoke()
             session.state.progress += 1
             session.state.add_tool_call(
-                tool_call=tool_call,
-                content=json.dumps(tool_response.__dict__),
+                tool_call=tool_call, content=tool_response.content
             )
             session.forward_event(AgentEvent.tool_call_result_event(tool_response))
             return tool_response

@@ -29,8 +29,9 @@ class LocalLLMClientResult[T]:
 
 class LocalLLMClient:
     def __init__(self):
+        # config.PROXY_HOST
         self.client = AsyncOpenAI(
-            base_url=f"{config.PROXY_HOST}/v1",
+            base_url=f"http://localhost:23002/v1",
             api_key="sk-no-key",
         )
         self.structured_client = instructor.from_openai(
@@ -99,6 +100,7 @@ class LocalLLMClient:
                 return LocalLLMClientResult(parsed=parsed_response)
             except instructor.core.exceptions.InstructorRetryException as e:
                 logger.error(f"Instructor Error {e.failed_attempts[0].exception}")
+                logger.error(e.last_completion)
                 return LocalLLMClientResult(parsed=None)
 
         if tools:

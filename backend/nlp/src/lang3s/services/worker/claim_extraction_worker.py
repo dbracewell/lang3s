@@ -1,4 +1,5 @@
 import asyncio
+import math
 import os
 import time
 
@@ -48,42 +49,41 @@ def init_worker():
     get_llm()
 
 
-MAX_TOKENS = 4000
-MAX_PROMPT_TOKENS = MAX_TOKENS // 2
+MAX_TOKENS = 3000
+MAX_PROMPT_TOKENS = math.floor(MAX_TOKENS / 2)
 
 
 def chunk_text(
-    content: str,
+    sentences: list[str],
     chunk_size: int = MAX_PROMPT_TOKENS,
 ):
     chunks = []
-    sentences = content.split("\n\n")
+    total_tokens = 0
     current_chunk = ""
+    current_chunk_tokens = 0
     for sentence in sentences:
         num_tokens = len(tokenizer(current_chunk + "\n" + sentence)["input_ids"])
         if num_tokens < chunk_size:
+            current_chunk_tokens = num_tokens
             current_chunk += sentence + "\n"
         else:
+            total_tokens += current_chunk_tokens
+            current_chunk_tokens = 0
             chunks.append(current_chunk)
             current_chunk = ""
 
     if current_chunk:
+        total_tokens += current_chunk_tokens
         chunks.append(current_chunk.strip())
-    return chunks
+    return total_tokens, chunks
 
 
 async def process_task(item: Event[dict]):
     try:
         request = DocumentClaimRequest.model_validate(item.data)
-        if request.text is None:
+        if not request.sentences:
             return 0
-        token_count = len(tokenizer(request.text)["input_ids"])
-        batches = []
-        if token_count <= MAX_PROMPT_TOKENS:
-            batches.append(request.text)
-        else:
-            batches.extend(chunk_text(request.text))
-
+        token_count, batches = chunk_text(request.sentences)
         all_claims = []
         for batch in batches:
             batch_token_size = len(tokenizer(batch)["input_ids"])
@@ -120,10 +120,11 @@ async def process_task(item: Event[dict]):
 async def main():
     total_documents = 0
     total_tokens = 0
+    WORKER_COUNT = 3
     with QueueFactory() as factory:
         with TaskManager(
             Engine.ASYNC,
-            workers=4,
+            workers=WORKER_COUNT,
             initializer=init_worker,
         ) as runner:
             queue = factory(

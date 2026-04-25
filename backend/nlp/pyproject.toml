@@ -68,7 +68,7 @@ train = [
     "unsloth",
     "torch",
     "bitsandbytes",
-    "xformers", # Only for the 3090
+    "xformers",
     "trl>=0.18.2",
     "unsloth_zoo"
 ]

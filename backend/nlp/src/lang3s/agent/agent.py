@@ -76,7 +76,7 @@ class Agent[AGENT_PARSED_TYPE]:
         task: str,
         strategy: Optional[Strategy[Any]] = None,
     ) -> StrategyResult[Any]:
-        result = run_sync(self.run(task=task, strategy=strategy))
+        result = run_sync(self.run(task=task, strategy=strategy))  # type: ignore
         return result
 
     def reset(self):

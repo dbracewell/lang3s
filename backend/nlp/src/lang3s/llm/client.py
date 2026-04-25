@@ -97,10 +97,11 @@ class LLMClient:
         if not messages:
             return
 
+        max_completion_tokens = kwargs.pop("max_tokens")
         completion_args: dict[str, Any] = {
             "model": self.model_name,
             "stream": stream,
-            "max_completion_tokens": kwargs.get("max_tokens", None),
+            "max_completion_tokens": max_completion_tokens,
             **kwargs,
         }
 

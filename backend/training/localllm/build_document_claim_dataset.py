@@ -84,7 +84,7 @@ def process_data(
     max_documents: int = 1000,
 ):
     doc: Document
-    client = LLMClient(model_name="openai/gpt-oss-20b")
+    client = LLMClient()  # model_name="openai/gpt-oss-20b")
     processed = 0
     for doc in tqdm(deserialize(path)):
         text = doc.text.text
@@ -106,17 +106,17 @@ def main():
         process_data(
             "/Users/ik/prj/data/reddit_style_corpus.docs",
             writer,
-            max_documents=1000,
+            max_documents=10,
         )
         process_data(
             "/Users/ik/prj/data/news.docs",
             writer,
-            max_documents=2000,
+            max_documents=10,
         )
         process_data(
             "/Users/ik/prj/data/kant.docs",
             writer,
-            max_documents=2000,
+            max_documents=10,
         )
 
 

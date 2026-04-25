@@ -128,7 +128,44 @@ class Session:
 
         system_message = self.system_message
         summarize_start = 1 if system_message else 0
-        messages = [msg for msg in state.messages[summarize_start:] if msg.content]
+
+        messages = []
+        current_tool_ids = set()
+        tool_call_content: str = ""
+        messages_processed = 0
+        for msg in state.messages[summarize_start:]:
+            messages_processed += 1
+            if msg.role == "tool":
+                current_tool_ids.remove(msg.tool_calls[0].tool_call_id)
+                tool_call_content += f"{msg.tool_calls[0].name}: {msg.content}\n\n"
+            elif msg.tool_calls:
+                if current_tool_ids:
+                    raise RuntimeError(
+                        f"Invalid Compaction State current_tool_ids={current_tool_ids}, trying to add {msg.tool_calls}"
+                    )
+                if tool_call_content:
+                    messages.append(
+                        Message.user(
+                            f"The following tools have been called:\n{tool_call_content.strip()}"
+                        )
+                    )
+                    tool_call_content = ""
+                for tool_call in msg.tool_calls:
+                    current_tool_ids.add(tool_call.tool_call_id)
+            elif msg.content:
+                if current_tool_ids:
+                    raise RuntimeError(
+                        f"Invalid Compaction State current_tool_ids={current_tool_ids}, trying to add message {msg}"
+                    )
+                if tool_call_content:
+                    messages.append(
+                        Message.user(
+                            f"The following tools have been called:\n{tool_call_content.strip()}"
+                        )
+                    )
+                    tool_call_content = ""
+                messages.append(msg)
+
         summarize_end = max(summarize_start + 1, len(messages) // 2)
 
         while summarize_end < len(messages):
@@ -199,7 +236,7 @@ Keep ALL key information so that you will be able to use this information later.
             logger.error(response.exception, exc_info=True)
             traceback.print_exc()
             response.content = "\n".join(
-                [msg.content for msg in to_summarize[-3:] if msg.content != ""]  # type: ignore
+                [msg for msg in to_summarize[-3:] if msg != ""]  # type: ignore
             )
 
         new_system_message = textwrap.dedent(f"""

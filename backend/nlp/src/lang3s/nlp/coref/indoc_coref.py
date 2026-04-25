@@ -324,9 +324,16 @@ class InDocumentCoref:
         mentions = [
             entity for entity in document.text.entities if should_perform_coref(entity)
         ]
+        token_ids = set()
+        for candidate in document.text.noun_chunks:
+            if not any(t.id in token_ids for t in candidate.tokens):
+                mentions.append(candidate)
+                for token in candidate.tokens:
+                    token_ids.add(token.id)
         for token in document.text.tokens:
             if (
-                token.value == "PRON"
+                token.id not in token_ids
+                and token.value == "PRON"
                 and (
                     is_person_pronoun(token.text, "en")
                     or token.text.lower() in ("it", "its")
@@ -341,14 +348,7 @@ class InDocumentCoref:
         }
         features = [create_coref_mention(mention) for mention in mentions]
 
-        # ---------------------------------------------------------
-        # BATCH PROCESSING
-        # ---------------------------------------------------------
         self.process_document_batched(mentions, features)
-
-        # ---------------------------------------------------------
-        # CLUSTERING & DOCUMENT UPDATE
-        # ---------------------------------------------------------
         resolved_mentions = _extract_entity_clusters(features)
         for cluster in resolved_mentions:
             canonical_id = cluster["canonical_id"]
@@ -357,7 +357,20 @@ class InDocumentCoref:
             if canonical_mention.type == AnnotationTypes.TOKEN:
                 continue
 
-            canonical_mention.value = canonical_type
+            if canonical_mention.type != AnnotationTypes.ENTITY:
+                canonical_mention = document.text.add_annotation(
+                    text=canonical_mention.text,
+                    start=canonical_mention.start,
+                    end=canonical_mention.end,
+                    sentence_id=canonical_mention.sentence_id,
+                    type="entity",
+                    value=canonical_type,
+                    source="coref",
+                    embedding=canonical_mention.embedding,
+                )
+                mention_id_map[canonical_id] = canonical_mention
+            else:
+                canonical_mention.value = canonical_type
 
             for mention in cluster["mentions"]:
                 m_id = mention["id"]
@@ -365,7 +378,7 @@ class InDocumentCoref:
                     continue
 
                 mention = mention_id_map[m_id]
-                if mention.type == AnnotationTypes.TOKEN:
+                if mention.type == AnnotationTypes.TOKEN or AnnotationTypes.NOUN_CHUNK:
                     document.text.add_annotation(
                         text=mention.text,
                         start=mention.start,
@@ -386,95 +399,6 @@ class InDocumentCoref:
                     mention[Metadata.COREF_TEXT] = canonical_mention.normalized_text
 
         document.text.clear_cache()
-
-    # def perform_coref(self, document: Document):
-    #     if not document.text:
-    #         return
-    #
-    #     mentions = [
-    #         entity for entity in document.text.entities if should_perform_coref(entity)
-    #     ]
-    #     for token in document.text.tokens:
-    #         if (
-    #             token.value == "PRON"
-    #             and (
-    #                 is_person_pronoun(token.text) or token.text.lower() in ("it", "its")
-    #             )
-    #             and not token.entities
-    #         ):
-    #             mentions.append(token)
-    #     mentions.sort(key=lambda x: (x.start, -x.end))
-    #     mention_id_map: dict[str, TextAnnotation] = {
-    #         entity.id: entity for entity in mentions
-    #     }
-    #     features = [create_coref_mention(mention) for mention in mentions]
-    #
-    #     with torch.inference_mode():
-    #         for i, current_mention in enumerate(mentions):
-    #             if i == 0:
-    #                 continue
-    #
-    #             current_feature = features[i]
-    #             start_idx = max(0, i - self._max_antecedents)
-    #
-    #             if current_mention.type == AnnotationTypes.TOKEN:
-    #                 # smaller context for pronouns
-    #                 start_idx = max(0, i - (self._max_antecedents // 2))
-    #
-    #             candidates = mentions[start_idx:i]
-    #             candidate_features = features[start_idx:i]
-    #             distances = torch.tensor(
-    #                 [min(i - (start_idx + j), 9) for j in range(len(candidates))]
-    #             )
-    #             scores = self._model(
-    #                 current_feature,
-    #                 candidate_features,
-    #                 distances,
-    #             )
-    #             best_idx: int = _apply_nominal_sieve(
-    #                 current_feature, candidate_features, scores, threshold=-1.5
-    #             )
-    #             if best_idx > 0:
-    #                 best_antecedent = candidates[best_idx - 1]
-    #                 current_feature["coref_id"] = best_antecedent.id
-    #
-    #     resolved_mentions = _extract_entity_clusters(features)
-    #     for cluster in resolved_mentions:
-    #         canonical_id = cluster["canonical_id"]
-    #         canonical_type = cluster["canonical_type"]
-    #         canonical_mention = mention_id_map[canonical_id]
-    #         if canonical_mention.type == AnnotationTypes.TOKEN:
-    #             continue
-    #
-    #         canonical_mention.value = canonical_type
-    #
-    #         for mention in cluster["mentions"]:
-    #             m_id = mention["id"]
-    #             if canonical_id == m_id:
-    #                 continue
-    #
-    #             mention = mention_id_map[m_id]
-    #             if mention.type == AnnotationTypes.TOKEN:
-    #                 document.text.add_annotation(
-    #                     text=mention.text,
-    #                     start=mention.start,
-    #                     end=mention.end,
-    #                     sentence_id=mention.sentence_id,
-    #                     type="entity",
-    #                     value=canonical_type,
-    #                     source="coref",
-    #                     embedding=mention.embedding,
-    #                     metadata={
-    #                         Metadata.COREF: canonical_mention.id,
-    #                         Metadata.COREF_TEXT: canonical_mention.normalized_text,
-    #                     },
-    #                 )
-    #             else:
-    #                 mention.value = canonical_type
-    #                 mention[Metadata.COREF] = canonical_mention.id
-    #                 mention[Metadata.COREF_TEXT] = canonical_mention.normalized_text
-    #
-    #     document.text.clear_cache()
 
 
 _coref: InDocumentCoref | None = None

@@ -97,7 +97,7 @@ class TextObject(abc.ABC):
 
     @property
     def noun_chunks(self) -> List["TextAnnotation"]:
-        return self.annotations_of_type(AnnotationTypes.ENTITY.value)
+        return self.annotations_of_type(AnnotationTypes.NOUN_CHUNK.value)
 
     @abc.abstractmethod
     def annotations_of_type(self, annotation_type: str) -> List["TextAnnotation"]:

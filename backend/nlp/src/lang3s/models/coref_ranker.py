@@ -57,6 +57,7 @@ def create_coref_mention(annotation: TextAnnotation):
         "emb": torch.from_numpy(embedding),
         "text": annotation.text,
         "id": annotation.id,
+        "type": annotation.type,
         "cleaned": annotation.to_string(True, False, False),
         "value": annotation.value if annotation.type == "entity" else "",
     }
@@ -82,7 +83,7 @@ def create_coref_mention(annotation: TextAnnotation):
     mention["gender_idx"] = 0
 
     if gender:
-        mention["gender_idx"] = GENDER_ANIMACY_MAP.get(gender, 0)
+        mention["gender_idx"] = GENDER_ANIMACY_MAP.get(gender, 0)  # type:ignore
     elif number and number == "Plur":
         mention["gender_idx"] = GENDER_ANIMACY_MAP["Plur"]
     else:

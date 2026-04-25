@@ -28,9 +28,7 @@ from lang3s import config
 from lang3s.data.db import db, text_db
 from lang3s.data.db.models import KeywordsTable
 from lang3s.nlp.claim_extractor import (
-    DocumentClaimContext,
     DocumentClaimRequest,
-    SentenceContext,
 )
 from lang3s.nlp.keyword_extraction import generate_keyword_categories
 from lang3s.nlp.ner import get_ner_model
@@ -218,17 +216,9 @@ def process_batch(batch):
             redis_client = RedisClient()
             redis_client.enqueue(
                 CLAIM_EXTRACT_QUEUE_NAME,
-                # DocumentClaimContext(
-                #     documentId=doc.id,
-                #     sentences=[
-                #         SentenceContext(sentenceAid=s.id, text=s.text)
-                #         for s in doc.text.sentences
-                #     ],
-                # ).model_dump(),
                 DocumentClaimRequest(
-                    documentId=doc.id,
-                    text=doc.text.text
-                ).model_dump()
+                    documentId=doc.id, sentences=[s.text for s in doc.text.sentences]
+                ).model_dump(),
             )
 
         with try_catch(

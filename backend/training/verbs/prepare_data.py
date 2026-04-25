@@ -98,10 +98,15 @@ def convert_to_spacy(data, output_path):
 
 
 streusle_train_data = parse_streusle_with_senses(
-    "/Users/ik/Downloads/streusle.ud_train.conllu"
+    "/Users/ik/Downloads/data/streusle.ud_train.conllu"
 )
 streusle_dev_data = parse_streusle_with_senses(
-    "/Users/ik/Downloads/streusle.ud_dev.conllu"
+    "/Users/ik/Downloads/data/streusle.ud_dev.conllu"
 )
-convert_to_spacy(streusle_train_data, "train.spacy")
-convert_to_spacy(streusle_dev_data, "dev.spacy")
+with open("/Users/ik/prj/data/streusle.conll", "w") as writer:
+    for tokens, tags in streusle_train_data:
+        for token, tag in zip(tokens, tags):
+            writer.write(f"{token}\t{tag}\n")
+        writer.write("\n")
+# convert_to_spacy(streusle_train_data, "train.spacy")
+# convert_to_spacy(streusle_dev_data, "dev.spacy")

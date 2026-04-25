@@ -7,7 +7,7 @@ from lang3s.utils.logger import get_logger
 
 logger = get_logger("LOCAL_LLM")
 
-MODEL_NAME = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+MODEL_NAME = "qwen2.5-1.5b-instruct-q8_0.gguf"  # "qwen2.5-1.5b-instruct-q4_k_m.gguf"
 adapters = {"claim": "claim_extraction.gguf"}
 adapter_ids = {v: i for i, v in enumerate(adapters.values())}
 
