@@ -4,7 +4,7 @@ import logging
 import os
 import sys
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import torch
 from pydantic import BaseModel, Field
@@ -17,6 +17,10 @@ from lang3s.models.transformer.shared_types import TaskType
 from lang3s.models.transformer.task import Task
 from lang3s.utils.logger import get_logger
 
+if TYPE_CHECKING:
+    from iob import TokenClassificationParams
+    from sentenceclf import SentenceClassificationParams
+
 
 class TrainerParams(BaseModel):
     name: str = Field(description="Name of the task, should be unique")
@@ -28,7 +32,8 @@ class TrainerParams(BaseModel):
         description="The annotation type of the span created by this task"
     )
     lang: Optional[str] = Field(
-        default=None, description="The language supported by the classifier"
+        default=None,
+        description="The language supported by the classifier",
     )
     num_epochs: int = Field(
         default=40, description="Number of epochs to train the model"
@@ -100,7 +105,7 @@ class Trainer:
                 or isinstance(v, bool)
                 or isinstance(v, enum.Enum)
             ):
-                self.params[k] = v
+                self.params[k] = v  # type: ignore
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
@@ -148,7 +153,9 @@ class Trainer:
         self.clf.to(self.device)
         self.embedder.device = self.device
 
-    def _create_clf_params(self, **kwargs):
+    def _create_clf_params(
+        self, **kwargs
+    ) -> "SentenceClassificationParams | TokenClassificationParams":
         raise NotImplementedError()
 
     def _create_clf(self) -> torch.nn.Module:

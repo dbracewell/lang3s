@@ -116,21 +116,19 @@ class Application(BaseModel):
         # bool → --flag / --no-flag
         if annotation is bool:
             group = parser.add_mutually_exclusive_group(required=False)
-            if default is not None and default:
-                group.add_argument(
-                    f"--no-{name.replace('_', '-')}",
-                    dest=name,
-                    action="store_false",
-                    help=f"Disable {name}",
-                )
-            else:
-                group.add_argument(
-                    dashed,
-                    underscored,
-                    dest=name,
-                    action="store_true",
-                    help=help_text or f"Enable {name}",
-                )
+            group.add_argument(
+                f"--no-{name.replace('_', '-')}",
+                dest=name,
+                action="store_false",
+                help=f"Disable {name}",
+            )
+            group.add_argument(
+                dashed,
+                underscored,
+                dest=name,
+                action="store_true",
+                help=help_text or f"Enable {name}",
+            )
 
             parser.set_defaults(**{name: default})
             return
@@ -204,7 +202,6 @@ class Application(BaseModel):
 
     @classmethod
     def _add_arguments_to_parser(cls, parser: argparse.ArgumentParser) -> None:
-        # Add fields as arguments
         for name, field in cls.model_fields.items():
             cls._add_arg(parser, name, field)
 
@@ -238,7 +235,6 @@ class Application(BaseModel):
 
             return parser
 
-        # No subcommands → normal single-command parser
         cls._add_arguments_to_parser(parser)
 
         return parser
@@ -247,7 +243,9 @@ class Application(BaseModel):
     def from_cli(cls) -> "Application":
         argv = sys.argv[1:]
         parser = cls.build_parser()
-        parsed, leftover = parser.parse_known_args(argv)
+        parsed = parser.parse_args(argv)
+        # parsed, leftover = parser.parse_known_args(argv)
+        leftover = []
         data = vars(parsed)
 
         for i in range(len(leftover)):

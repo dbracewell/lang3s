@@ -194,18 +194,18 @@ class Text(TextObject):
 
         embedding = text_dict.get("embedding")
         if isinstance(embedding, str):
-            embedding = np.array(json.loads(embedding))
+            embedding = np.array(json.loads(embedding), dtype=np.float16)
         elif isinstance(embedding, list):
-            embedding = np.array(embedding)
+            embedding = np.array(embedding, dtype=np.float16)
         elif isinstance(embedding, tuple):
-            embedding = np.array(embedding)
+            embedding = np.array(embedding, dtype=np.float16)
 
         text = Text(
             id=text_dict["id"],
             metadata=text_dict.get("metadata", {}),
             content=text_dict["text"],
             doc_id=obj["id"],
-            embedding=embedding,
+            embedding=embedding,  # type:ignore
         )
 
         for annotation in text_dict.get("annotations", []):

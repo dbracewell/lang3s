@@ -1,8 +1,8 @@
-import json
 import random
 from typing import Any, Dict, List
 
 import torch
+import yaml
 from datasets import load_dataset
 from jsonlines import jsonlines
 from pydantic import Field
@@ -23,7 +23,7 @@ def read_text_file(path: str):
                 continue
             index = line.rindex("\t")
             text = line[:index].strip()
-            label = line[index + 1:].strip()
+            label = line[index + 1 :].strip()
             sentences.append(text)
             labels.append(label)
     return sentences, labels
@@ -35,15 +35,17 @@ def read_jsonl(path: str, text: str = "text", label: str = "label"):
     with jsonlines.open(path, mode="r") as f:
         for doc in f:
             sentences.append(doc[text])
-            labels.append(doc[label])
+            labels.append(str(doc[label]))
     return sentences, labels
 
 
-def run_trial(cfg, trial_id, parameters: Dict[str, Any], task_type, dataset, val_dataset):
+def run_trial(
+    cfg, trial_id, parameters: Dict[str, Any], task_type, dataset, val_dataset
+):
     params = SentenceClassificationParams(**parameters)
     params = params.model_dump()
     params["learning_rate"] = cfg["lr"]
-    params["num_attention_heads"] = cfg["heads"]
+    params["num_attention_heads"] = cfg["num_attention_heads"]
     params["dropout"] = cfg["dropout"]
     params["lora_rank"] = cfg["lora_rank"]
     params["dora_rank"] = cfg["dora_rank"]
@@ -58,7 +60,7 @@ def run_trial(cfg, trial_id, parameters: Dict[str, Any], task_type, dataset, val
         task_type=task_type,
         **params,
         train_dataset=dataset,
-        val_dataset=val_dataset
+        val_dataset=val_dataset,
     )
     trainer.train()
     result = trainer.eval_one_epoch()
@@ -67,18 +69,21 @@ def run_trial(cfg, trial_id, parameters: Dict[str, Any], task_type, dataset, val
     return f1, params
 
 
-def random_search(dataset: Lang3sDataset,
-                  val_dataset: Lang3sDataset | None,
-                  parameters: Dict[str, Any],
-                  task_type: TaskType,
-                  n_trials=5):
+def random_search(
+    dataset: Lang3sDataset,
+    val_dataset: Lang3sDataset | None,
+    parameters: Dict[str, Any],
+    task_type: TaskType,
+    n_trials=5,
+):
     search_space = {
         "lora_rank": [4, 6, 8, 10],
         "dora_rank": [8, 12, 16],
-        "heads": [2, 4],
+        "num_attention_heads": [2, 3, 4, 8],
         "use_attention": [True, False],
         "dropout": [0.05, 0.1, 0.15],
-        "lr": [1e-4, 2e-4, 3e-4],
+        "lr": [1e-4, 2e-4, 3e-4, 4e-4, 5e-4],
+        "use_mixup": [True, False],
     }
 
     keys = list(search_space.keys())
@@ -88,7 +93,11 @@ def random_search(dataset: Lang3sDataset,
     for t in range(1, n_trials + 1):
         while True:
             cfg = {k: random.choice(search_space[k]) for k in keys}
-            cfg_str = ", ".join(f"{k}={v}" for k, v in sorted(cfg.items(), key=lambda x: x[0]))
+            if not cfg["use_attention"]:
+                cfg["num_attention_heads"] = 0
+            cfg_str = ", ".join(
+                f"{k}={v}" for k, v in sorted(cfg.items(), key=lambda x: x[0])
+            )
             if cfg_str not in seen:
                 seen.add(cfg_str)
                 break
@@ -106,7 +115,9 @@ def random_search(dataset: Lang3sDataset,
 
 
 class SentenceClassificationDataset(Lang3sDataset):
-    def __init__(self, path: str, task_type: TaskType, data_format: str, label: str, text: str):
+    def __init__(
+        self, path: str, task_type: TaskType, data_format: str, label: str, text: str
+    ):
         super().__init__()
         if data_format == "text":
             sentences, labels = read_text_file(path)
@@ -149,8 +160,12 @@ class SentenceClassificationDataset(Lang3sDataset):
             return {
                 "text": [self.texts[i] for i in idx],
                 "label": torch.tensor(
-                    [self.labels[i] if self.multi_label
-                     else torch.tensor(self.labels[i], dtype=torch.long) for i in idx],
+                    [
+                        self.labels[i]
+                        if self.multi_label
+                        else torch.tensor(self.labels[i], dtype=torch.long)
+                        for i in idx
+                    ],
                     dtype=torch.int64,
                 ),
             }
@@ -158,12 +173,14 @@ class SentenceClassificationDataset(Lang3sDataset):
             "text": self.texts[idx],
             "label": self.labels[idx]
             if self.multi_label
-            else torch.tensor(self.labels[idx], dtype=torch.long)
+            else torch.tensor(self.labels[idx], dtype=torch.long),
         }
 
 
 class HuggingFaceDataset(Lang3sDataset):
-    def __init__(self, name: str, label: str = "label", text: str = "text", split: str = "train"):
+    def __init__(
+        self, name: str, label: str = "label", text: str = "text", split: str = "train"
+    ):
         super().__init__()
         self.dataset = load_dataset(name)[split]
         self.label = label
@@ -177,52 +194,69 @@ class HuggingFaceDataset(Lang3sDataset):
 
     def __getitem__(self, idx: int):
         df = self.dataset[idx]  # type: ignore
-        return {
-            "text": df[self.text],
-            "label": df[self.label]
-        }
+        return {"text": df[self.text], "label": df[self.label]}
 
 
-class ClfTrainer(Application, TrainerParams, SentenceClassificationParams):
+class ClfTrainer(Application, SentenceClassificationParams, TrainerParams):
     multilabel: bool = Field(default=False, description="Multilabel classification")
     format: str = Field(default="json", description="Format of the dataset")
-    auto_config: bool = Field(default=False, description="Automatically determine hyperparameters.")
-    auto_config_trials: int = Field(default=5,
-                                    description="Number of trials to run when searching for hyperparameters.")
+    auto_config: bool = Field(
+        default=False, description="Automatically determine hyperparameters."
+    )
+    auto_config_trials: int = Field(
+        default=5,
+        description="Number of trials to run when searching for hyperparameters.",
+    )
 
     def run(self):
         params = dict(vars(self))
-        params["task_type"] = TaskType.SENTENCE_MULTILABEL if self.multilabel else TaskType.SENTENCE
+        params["task_type"] = (
+            TaskType.SENTENCE_MULTILABEL if self.multilabel else TaskType.SENTENCE
+        )
         if self.format == "hf":
-            train_dataset = HuggingFaceDataset(name=self.train_data, label=self.label, text=self.text)
-            val_dataset = HuggingFaceDataset(name=self.train_data, label=self.label, split="val")
+            train_dataset = HuggingFaceDataset(
+                name=self.train_data, label=self.label, text=self.text
+            )
+            val_dataset = HuggingFaceDataset(
+                name=self.train_data, label=self.label, split="val"
+            )
         else:
-            train_dataset = SentenceClassificationDataset(task_type=params["task_type"],
-                                                          data_format=self.format,
-                                                          path=self.train_data,
-                                                          label=self.label,
-                                                          text=self.text)
+            train_dataset = SentenceClassificationDataset(
+                task_type=params["task_type"],
+                data_format=self.format,
+                path=self.train_data,
+                label=self.label,
+                text=self.text,
+            )
             if self.val_data is not None:
-                val_dataset = SentenceClassificationDataset(task_type=params["task_type"],
-                                                            data_format=self.format,
-                                                            path=self.val_data,
-                                                            label=self.label,
-                                                            text=self.text)
+                val_dataset = SentenceClassificationDataset(
+                    task_type=params["task_type"],
+                    data_format=self.format,
+                    path=self.val_data,
+                    label=self.label,
+                    text=self.text,
+                )
             else:
                 val_dataset = None
 
         parameters = dict(vars(self))
         if self.auto_config:
-            best_parameters = random_search(train_dataset,
-                                            val_dataset,
-                                            parameters,
-                                            params["task_type"],
-                                            n_trials=self.auto_config_trials)
-            with open(f"{self.name}_best_parameters.json", "w") as f:
-                json.dump(best_parameters, f, indent=2)
+            best_parameters = random_search(
+                train_dataset,
+                val_dataset,
+                parameters,
+                params["task_type"],
+                n_trials=self.auto_config_trials,
+            )
+            with open(f"{self.name}_best_parameters.yaml", "w") as f:
+                yaml.dump(best_parameters, f, indent=2)
             parameters.update(best_parameters)
 
-        trainer = SentenceClassifierTrainer(train_dataset=train_dataset, val_dataset=val_dataset, **params)
+        trainer = SentenceClassifierTrainer(
+            train_dataset=train_dataset,
+            val_dataset=val_dataset,
+            **params,
+        )
         trainer.train()
 
 

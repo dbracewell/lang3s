@@ -53,13 +53,14 @@ def main():
     logger.info(f"Server is starting at http://localhost:{config.LOCAL_LLM_PORT}")
 
     with open("llama_server.log", "w") as log_file:
-        server_process = subprocess.Popen(
-            cmd, stdout=log_file, stderr=subprocess.STDOUT
-        )
+        server_process = subprocess.Popen(cmd)
 
         try:
             while True:
                 time.sleep(1)
+                if server_process.poll() is not None:
+                    print("llama.cpp terminated unexpectedly. Restarting...")
+                    server_process = subprocess.Popen(cmd)
 
         except KeyboardInterrupt:
             logger.info("\nReceived exit signal. Shutting down the llama.cpp server...")

@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Literal, Optional, List, Tuple, cast
+from typing import Any, Dict, List, Literal, Optional, Tuple, cast
 
 import torch
 from pydantic import BaseModel, Field
@@ -7,66 +7,102 @@ from pydantic.config import ConfigDict
 from pydantic.fields import computed_field
 
 from lang3s.models.embedder import EmbeddingResult
+
+from ... import config
 from .heads import SentenceClassificationHead, TokenClassificationHead
 from .shared_types import TaskType, TransformerResult
 
 
 class SentenceClassificationParams(BaseModel):
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        extra="ignore"
-    )
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
     use_adapter: bool = Field(default=True, description="Whether to use DORA or not.")
-    dora_rank: int = Field(default=8, description="The rank of the DoRA layer", examples=["ignore"])
-    lora_rank: int = Field(default=4, description="The rank of the LORA layer", examples=["ignore"])
+    dora_rank: int = Field(default=8, description="The rank of the DoRA layer")
+    lora_rank: int = Field(default=4, description="The rank of the LORA layer")
 
-    min_confidence: float = Field(default=0, description="The minimum confidence level for a classification.")
+    min_confidence: float = Field(
+        default=0, description="The minimum confidence level for a classification."
+    )
     default_class: Optional[str] = Field(default=None, description="The default clas.")
-    ignore_classes: List[str] = Field(default_factory=list,
-                                      description="The list of classes to not create annotations from (negative classes).")
+    ignore_classes: List[str] = Field(
+        default_factory=list,
+        description="The list of classes to not create annotations from (negative classes).",
+    )
 
-    use_mixup: bool = Field(default=False, description="Whether to use mixup data augmentation or not.")
-    mixup_alpha: float = Field(default=0.2, description="The alpha parameter of the mixup.")
+    use_mixup: bool = Field(
+        default=False, description="Whether to use mixup data augmentation or not."
+    )
+    mixup_alpha: float = Field(
+        default=0.2, description="The alpha parameter of the mixup."
+    )
 
-    use_focal_loss: bool = Field(default=False, description="Whether to use focal loss or not.")
+    use_focal_loss: bool = Field(
+        default=False, description="Whether to use focal loss or not."
+    )
+    warmup_ratio: float = Field(
+        default=0.1, description="The ratio of warmup examples."
+    )
+    learning_rate: float = Field(
+        default=3e-4,
+        description="The learning rate of the optimizer",
+    )
 
-    warmup_ratio: float = Field(default=0.1, description="The ratio of warmup examples.", examples=["ignore"])
-    learning_rate: float = Field(default=3e-4, description="The learning rate of the optimizer", examples=["ignore"])
+    dropout: float = Field(
+        default=0.15, description="The dropout rate of the attention layer."
+    )
 
-    dropout: float = Field(default=0.15, description="The dropout rate of the attention layer.")
-
-    use_attention: bool = Field(default=True, description="Whether to use attention or not.")
-    num_attention_heads: int = Field(default=0, description="The number of attention heads", examples=["ignore"])
+    use_attention: bool = Field(
+        default=True, description="Whether to use attention or not."
+    )
+    num_attention_heads: int = Field(
+        default=0, description="The number of attention heads"
+    )
 
 
 class TokenClassificationParams(BaseModel):
-    use_attention: bool = Field(default=True, description="Whether to use attention or not.")
-    num_attention_heads: int = Field(default=2, description="The number of attention heads")
+    use_attention: bool = Field(
+        default=True, description="Whether to use attention or not."
+    )
+    num_attention_heads: int = Field(
+        default=2, description="The number of attention heads"
+    )
 
-    use_adapter: bool = Field(default=True, description="Whether to use LoRA/DoRA Parallel Adapter or not.")
+    use_adapter: bool = Field(
+        default=True, description="Whether to use LoRA/DoRA Parallel Adapter or not."
+    )
     dora_rank: int = Field(default=4, description="The rank of the DoRA layer")
     lora_rank: int = Field(default=2, description="The rank of the LORA layer")
 
-    scheduler_name: Literal["cosine"] | Literal["linear"] = Field(default="cosine", description="The scheduler name.")
-    warmup_ratio: float = Field(default=0.15, description="The ratio of warmup examples.")
-    learning_rate: float = Field(default=1.2e-4, description="The learning rate of the optimizer")
+    scheduler_name: Literal["cosine"] | Literal["linear"] = Field(
+        default="cosine", description="The scheduler name."
+    )
+    warmup_ratio: float = Field(
+        default=0.15, description="The ratio of warmup examples."
+    )
+    learning_rate: float = Field(
+        default=1.2e-4, description="The learning rate of the optimizer"
+    )
 
-    dropout: float = Field(default=0.15, description="The dropout rate of the attention layer.")
-    window_radius: int = Field(default=2, description="The window radius of the attention layer.")
+    dropout: float = Field(
+        default=0.15, description="The dropout rate of the attention layer."
+    )
+    window_radius: int = Field(
+        default=2, description="The window radius of the attention layer."
+    )
 
-    use_class_weights: bool = Field(default=False, description="Whether to use class weights or not.")
+    use_class_weights: bool = Field(
+        default=False, description="Whether to use class weights or not."
+    )
 
 
 class Task(BaseModel):
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True
-    )
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
     type: TaskType
     annotation_type: str
     label2id: Dict[str, int]
     language: Optional[str] = None
+    input_type: Literal["sentence", "token"] = "sentence"
     params: SentenceClassificationParams | TokenClassificationParams
     head: Optional[torch.nn.Module] = None
 
@@ -84,25 +120,20 @@ class Task(BaseModel):
 
     @classmethod
     def _dispatch_params(cls, data):
-        """Normalize data → dict, determine correct Params subclass,
-        and safely merge params back into the input."""
-
-        # 1. Ensure data is a pure dict (handles ValidationData, ModelMapping, BaseModel, etc.)
         if not isinstance(data, dict):
             data = dict(data)
 
         task_type = data.get("type")
         if task_type is None:
-            # cannot dispatch without type
             return data
 
         params_data = data.get("params")
 
-        # 2. If params is already a Params instance → KEEP IT
-        if isinstance(params_data, SentenceClassificationParams) or isinstance(params_data, TokenClassificationParams):
+        if isinstance(params_data, SentenceClassificationParams) or isinstance(
+            params_data, TokenClassificationParams
+        ):
             return data
 
-        # 3. Determine params subclass
         if TaskType(task_type).is_sentence_level():
             params_cls = SentenceClassificationParams
         elif TaskType(task_type).is_token():
@@ -110,78 +141,94 @@ class Task(BaseModel):
         else:
             raise NotImplementedError(f"Task type {task_type} is not supported")
 
-        # 4. Safely validate dictionary params
         parsed_params = params_cls.model_validate(params_data or {})
-
-        # 5. Merge into a brand-new dict (NEVER use {**data})
-        new_data = dict(data)
+        new_data = dict(data)  # type: ignore
         new_data["params"] = parsed_params
         return new_data
 
     @classmethod
-    def model_validate(cls, data, *,
-                       strict: bool | None = None,
-                       from_attributes: bool | None = None,
-                       context: Any | None = None,
-                       by_alias: bool | None = None,
-                       by_name: bool | None = None):
+    def model_validate(
+        cls,
+        data,
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
+        by_alias: bool | None = None,
+        by_name: bool | None = None,
+    ):
         data = cls._dispatch_params(data)
-        return super().model_validate(data,
-                                      strict=strict,
-                                      from_attributes=from_attributes,
-                                      context=context,
-                                      by_alias=by_alias, by_name=by_name)
+        return super().model_validate(
+            data,
+            strict=strict,
+            from_attributes=from_attributes,
+            context=context,
+            by_alias=by_alias,
+            by_name=by_name,
+        )
 
     @classmethod
-    def model_validate_json(cls, json_data: str, *,
-                            strict: bool | None = None,
-                            from_attributes: bool | None = None,
-                            context: Any | None = None,
-                            by_alias: bool | None = None,
-                            by_name: bool | None = None):
+    def model_validate_json(
+        cls,
+        json_data: str,
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
+        by_alias: bool | None = None,
+        by_name: bool | None = None,
+    ):
         raw = json.loads(json_data)
         raw = cls._dispatch_params(raw)
-        return super().model_validate(raw,
-                                      strict=strict,
-                                      from_attributes=from_attributes,
-                                      context=context,
-                                      by_alias=by_alias, by_name=by_name)
+        return super().model_validate(
+            raw,
+            strict=strict,
+            from_attributes=from_attributes,
+            context=context,
+            by_alias=by_alias,
+            by_name=by_name,
+        )
 
-    def create_head(self,
-                    hidden_size: int,
-                    path: Optional[str] = None):
-
+    def load_model_head(self, path: str):
         label_list = [""] * len(self.label2id)
         for idx, label in self.id2label.items():
             label_list[idx] = label
 
+        hidden_size = config.TOKEN_EMBEDDING_DIMENSION
+        if self.input_type == "sentence":
+            hidden_size = config.SEMANTIC_EMBEDDING_DIMENSION
+
         if self.type == TaskType.TOKEN:
-            token_params: TokenClassificationParams = cast(TokenClassificationParams, self.params)
+            token_params: TokenClassificationParams = cast(
+                TokenClassificationParams, self.params
+            )
             self.head = TokenClassificationHead(
                 hidden_size=hidden_size,
                 num_labels=len(self.label2id),
-                **token_params.model_dump()
+                **token_params.model_dump(),
             )
         else:
-            sentence_params: SentenceClassificationParams = cast(SentenceClassificationParams, self.params)
+            sentence_params: SentenceClassificationParams = cast(
+                SentenceClassificationParams, self.params
+            )
             self.head = SentenceClassificationHead(
                 hidden_size=hidden_size,
                 num_labels=len(self.label2id),
                 task_type=self.type,
-                **sentence_params.model_dump()
+                **sentence_params.model_dump(),
             )
 
         if path is not None:
-            self.head.load_state_dict(
-                torch.load(f"{path}/{self.name}_head.pt")
-            )
-        self.head.eval()
+            self.head.load_state_dict(torch.load(f"{path}/{self.name}_head.pt"))  # type: ignore
+        self.head.eval()  # type: ignore
         return self.head
 
-    def to_labels(self,
-                  head_output: torch.Tensor | List[List[int]],
-                  mask: torch.Tensor | None,
-                  embedding: EmbeddingResult) -> TransformerResult:
+    def to_labels(
+        self,
+        head_output: torch.Tensor | List[List[int]],
+        mask: torch.Tensor | None,
+        embedding: EmbeddingResult,
+    ) -> TransformerResult:
 
         if self.type.is_sentence_level():
             sentence_params = cast(SentenceClassificationParams, self.params)
@@ -220,10 +267,10 @@ class Task(BaseModel):
                 return labels
 
         return decode_token_labels(
-            logits=head_output,
-            mask=mask,
+            logits=head_output,  # type: ignore
+            mask=mask,  # type: ignore
             idx2label=self.id2label,
-            word_ids_list=[m.word_ids for m in embedding.mapping]
+            word_ids_list=[m.word_ids for m in embedding.mapping],
         )
 
 
@@ -284,10 +331,7 @@ def repair_bio_seq(labels: list[str]) -> list[str]:
     return fixed
 
 
-def decode_token_labels(logits,
-                        mask,
-                        word_ids_list,
-                        idx2label):
+def decode_token_labels(logits, mask, word_ids_list, idx2label):
     outputs = []
     mask = mask.bool()
     predictions = logits.argmax(dim=-1).tolist()

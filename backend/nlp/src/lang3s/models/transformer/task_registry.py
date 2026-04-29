@@ -2,18 +2,15 @@ import os
 from typing import Dict, Iterable, Optional
 
 from lang3s import config
+
 from .task import Task
 
 
 class TaskRegistry:
     def __init__(self, hidden_size: int):
-        self.hidden_size = hidden_size
         self.registry: Dict[str, Task] = {}
 
-    def register_task(
-        self,
-        task: Task
-    ) -> Task:
+    def register_task(self, task: Task) -> Task:
         self.registry[task.name] = task
         return task
 
@@ -61,7 +58,7 @@ class TaskRegistry:
         if not os.path.exists(path):
             raise ValueError(f"{path} does not exist")
 
-        task.create_head(self.hidden_size, path=path)
+        task.load_model_head(path=path)  # type:ignore
         return task
 
     def unload_task(self, task_name):

@@ -183,7 +183,7 @@ class Config:
 
     @property
     def LLM_MODEL(self) -> str:
-        return self.get_config_value("LLM_MODEL", "openai/gpt-oss-20b")
+        return self.get_config_value("LLM_MODEL", "qwen/qwen3-4b-2507")
 
     @property
     def LLM_API_KEY(self) -> str:

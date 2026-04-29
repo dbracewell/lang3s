@@ -17,6 +17,7 @@ from transformers import AutoTokenizer
 
 from lang3s import config
 from lang3s.models.base_transformer_model import ForkedBaseModel
+from lang3s.utils.maths import normalize
 from lang3s.utils.meta import SingletonMeta
 
 embedding_dtype = np.float32
@@ -135,9 +136,7 @@ def _token_to_word(
         for w in range(num_words):
             if not accumulator[w]:
                 continue
-            embs = np.stack(accumulator[w], axis=0).astype(
-                embedding_dtype, copy=False
-            )
+            embs = np.stack(accumulator[w], axis=0).astype(embedding_dtype, copy=False)
             word_arr[w] = embs.mean(axis=0)
 
     return word_arr
@@ -183,7 +182,8 @@ class Embedder(metaclass=SingletonMeta):
                 texts = [t.lower() for t in texts]
 
         chunk_result = self._chunk(
-            texts, is_split_into_words=is_split_into_words
+            texts,
+            is_split_into_words=is_split_into_words,
         )
         return self._encode(chunk_result, batch_size=batch_size, task=task)
 
@@ -219,9 +219,7 @@ class Embedder(metaclass=SingletonMeta):
             attn = encodings["attention_mask"][sentence_index]
 
             if hasattr(encodings, "encodings"):
-                word_ids_for_encoding = encodings.encodings[
-                    sentence_index
-                ].word_ids
+                word_ids_for_encoding = encodings.encodings[sentence_index].word_ids
             else:
                 raise RuntimeError("Unable to obtain word_ids from tokenizer")
 
@@ -275,10 +273,14 @@ class Embedder(metaclass=SingletonMeta):
         bs = batch_size or config.INFERENCE_BATCH_SIZE
 
         chunk_frozen_tokens: List[np.ndarray] = []  # For NER (Layers 8-10)
-        chunk_semantic_tokens: List[
-            np.ndarray
-        ] = []  # For Words/Spans (Layer 12)
-        final_sentence_embeddings: List[np.ndarray] = []
+        chunk_semantic_tokens: List[np.ndarray] = []  # For Words/Spans (Layer 12)
+        final_sentence_embeddings: List[np.ndarray] = [
+            np.zeros(config.SEMANTIC_EMBEDDING_DIMENSION)
+            for _ in set([c.sentence_index for c in chunks])
+        ]
+        final_sentence_embeddings_counts: list[int] = [0] * len(
+            set([c.sentence_index for c in chunks])
+        )
 
         with torch.inference_mode():
             for i in range(0, len(chunks), bs):
@@ -290,9 +292,7 @@ class Embedder(metaclass=SingletonMeta):
                 last_hidden_state = outputs["semantic_head"]
 
                 source_states = outputs["hidden_states"]
-                hidden_states = [
-                    h.detach().cpu().numpy() for h in source_states[-5:]
-                ]
+                hidden_states = [h.detach().cpu().numpy() for h in source_states[-5:]]
 
                 lengths = [len(c.input_ids) for c in batch_chunks]
                 compressor = outputs["compressor"]
@@ -316,13 +316,13 @@ class Embedder(metaclass=SingletonMeta):
                 sum_mask = torch.clamp(mask.sum(1), min=1e-9)
                 sent_768 = sum_embeddings / sum_mask
                 sent_compressed = compressor(sent_768)
-                sent_norm = torch.nn.functional.normalize(
-                    sent_compressed, p=2, dim=1
-                )
+                sent_norm = torch.nn.functional.normalize(sent_compressed, p=2, dim=1)
 
-                final_sentence_embeddings.extend(
-                    sent_norm.detach().cpu().float().numpy()
-                )
+                for c, e in zip(batch_chunks, sent_norm):
+                    final_sentence_embeddings[c.sentence_index] += (
+                        e.detach().cpu().numpy()
+                    )
+                    final_sentence_embeddings_counts[c.sentence_index] += 1
 
                 del (
                     outputs,
@@ -360,21 +360,24 @@ class Embedder(metaclass=SingletonMeta):
             for doc_words in raw_semantic_words:
                 if doc_words.shape[0] == 0:
                     final_word_embeddings.append(
-                        np.zeros(
-                            (0, config.SEMANTIC_EMBEDDING_DIMENSION)
-                        ).astype(embedding_dtype)
+                        np.zeros((0, config.SEMANTIC_EMBEDDING_DIMENSION)).astype(
+                            embedding_dtype
+                        )
                     )
                     continue
 
-                words_tensor = torch.from_numpy(
-                    doc_words.astype(embedding_dtype)
-                ).to(self._device)
+                words_tensor = torch.from_numpy(doc_words.astype(embedding_dtype)).to(
+                    self._device
+                )
                 with torch.inference_mode():
                     words_compressed = compressor(words_tensor)
-                words_norm = torch.nn.functional.normalize(
-                    words_compressed, p=2, dim=1
-                )
+                words_norm = torch.nn.functional.normalize(words_compressed, p=2, dim=1)
                 final_word_embeddings.append(words_norm.detach().cpu().numpy())
+
+        for i in range(len(final_sentence_embeddings)):
+            final_sentence_embeddings[i] = normalize(
+                final_sentence_embeddings[i] / final_sentence_embeddings_counts[i]
+            )
 
         return EmbeddingResult(
             token_embeddings=token_embeddings,  # 768-d (Frozen, good for NER)
@@ -383,9 +386,7 @@ class Embedder(metaclass=SingletonMeta):
             mapping=chunk_result.mapping,
         )
 
-    def _build_batch_inputs(
-        self, batch_chunks: List[Chunk]
-    ) -> Dict[str, torch.Tensor]:
+    def _build_batch_inputs(self, batch_chunks: List[Chunk]) -> Dict[str, torch.Tensor]:
         padded = self.tokenizer.pad(
             {
                 "input_ids": [c.input_ids for c in batch_chunks],
@@ -416,10 +417,7 @@ class Embedder(metaclass=SingletonMeta):
             orig_token_maps.append(mapping.word_ids)
 
         mappings = chunk_result.mapping
-        counts = [
-            np.zeros(mapping.token_count, dtype=np.int16)
-            for mapping in mappings
-        ]
+        counts = [np.zeros(mapping.token_count, dtype=np.int16) for mapping in mappings]
 
         for chunk_meta, chunk_emb in zip(chunk_result.chunks, token_embeddings):
             doc_idx = chunk_meta.sentence_index

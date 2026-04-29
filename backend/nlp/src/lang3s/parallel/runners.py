@@ -87,10 +87,16 @@ class BaseRunner(ABC):
                 get_async_event_loop().create_task(self._wrapped_task(func, item))
             )
 
-            if len(pending) > max(1, self.num_workers // 4):
+            done = []
+            if len(pending) >= self.num_workers:
+                done, pending = await asyncio.wait(
+                    pending, return_when=asyncio.FIRST_COMPLETED
+                )
+            elif len(pending) > max(1, self.num_workers // 4):
                 done, pending = await asyncio.wait(pending, timeout=0.1)
-                for r in done:
-                    yield r.result()
+
+            for r in done:
+                yield r.result()
 
         if pending:
             done, _ = await asyncio.wait(pending, return_when=asyncio.ALL_COMPLETED)

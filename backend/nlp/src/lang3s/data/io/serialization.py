@@ -14,5 +14,5 @@ def serialize(docs: Iterable[Document], file: str):
 def deserialize(file: str) -> Iterable[Document]:
     with open(file, "rb") as reader:
         unpacker = msgpack.Unpacker(reader, raw=False, use_list=False)
-        for unpacked_doc in unpacker:
-            yield Document.from_json(unpacked_doc)
+        for obj in unpacker:
+            yield Document.from_json(obj)

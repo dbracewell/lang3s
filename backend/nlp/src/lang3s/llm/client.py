@@ -13,6 +13,7 @@ from typing import (
     Unpack,
 )
 
+import instructor
 from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
 from openai.types import CompletionUsage, ReasoningEffort
 from openai.types.chat import (
@@ -68,6 +69,10 @@ class LLMClient:
     def _get_client(self):
         return AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
 
+    def _get_structured_client(self):
+        client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+        return instructor.from_openai(client=client)
+
     @staticmethod
     def _error_to_event(e: Exception) -> LLMEvent:
         text: str = str(e)
@@ -97,11 +102,12 @@ class LLMClient:
         if not messages:
             return
 
-        max_completion_tokens = kwargs.pop("max_tokens")
+        max_completion_tokens = kwargs.pop("max_tokens", None)
         completion_args: dict[str, Any] = {
             "model": self.model_name,
             "stream": stream,
             "max_completion_tokens": max_completion_tokens,
+            "tool_choice": "none",
             **kwargs,
         }
 
@@ -254,11 +260,14 @@ class LLMClient:
     ):
         response = await client.chat.completions.create(**kwargs)
         finish_reason: str | None = None
-        final_response: str = ""
+        final_response: str | T = ""
         tool_calls: dict[int, dict[str, Any]] = {}
         usage: CompletionUsage | None = None
 
         async for chunk in response:  # type:ignore
+            if response_model and issubclass(type(chunk), response_model):
+                final_response = chunk
+
             if chunk.usage:
                 usage = chunk.usage
 

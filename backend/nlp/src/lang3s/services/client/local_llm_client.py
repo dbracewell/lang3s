@@ -44,6 +44,7 @@ class LocalLLMClient:
         messages: list[Message],
         temperature: float = 0.2,
         max_tokens: int | None = None,
+        presence_penalty: float | None = None,
         response_model: type[T] | None = None,
         tools: list[LLMTool] | None = None,
         adapter_name: str | None = None,
@@ -55,6 +56,7 @@ class LocalLLMClient:
                 messages,
                 temperature,
                 max_tokens,
+                presence_penalty,
                 response_model,
                 tools,
                 adapter_name,
@@ -68,6 +70,7 @@ class LocalLLMClient:
         messages: list[Message],
         temperature: float = 0.2,
         max_tokens: int | None = None,
+        presence_penalty: float | None = None,
         response_model: type[T] | None = None,
         tools: list[LLMTool] | None = None,
         adapter_name: str | None = None,
@@ -81,6 +84,7 @@ class LocalLLMClient:
             "max_tokens": max_tokens,
             "max_completion_tokens": max_tokens,
             "messages": format_messages_for_model(messages),
+            "presence_penalty": presence_penalty,
         }
 
         extra_body: dict[str, Any] = {

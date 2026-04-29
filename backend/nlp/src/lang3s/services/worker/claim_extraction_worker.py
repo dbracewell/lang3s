@@ -61,16 +61,20 @@ def chunk_text(
     total_tokens = 0
     current_chunk = ""
     current_chunk_tokens = 0
+    sentence_count = 0
     for sentence in sentences:
         num_tokens = len(tokenizer(current_chunk + "\n" + sentence)["input_ids"])
-        if num_tokens < chunk_size:
+
+        if sentence_count < 5 and num_tokens < chunk_size:
+            sentence_count += 1
             current_chunk_tokens = num_tokens
             current_chunk += sentence + "\n"
         else:
             total_tokens += current_chunk_tokens
-            current_chunk_tokens = 0
+            sentence_count = 1
+            current_chunk_tokens = len(tokenizer(sentence)["input_ids"])
             chunks.append(current_chunk)
-            current_chunk = ""
+            current_chunk = sentence
 
     if current_chunk:
         total_tokens += current_chunk_tokens
@@ -93,6 +97,7 @@ async def process_task(item: Event[dict]):
                 temperature=0.0,
                 max_tokens=MAX_TOKENS - batch_token_size,
                 response_model=DocumentClaims,
+                presence_penalty=1.5,
             )
             if response.parsed:
                 all_claims.extend(response.parsed.claims)
@@ -141,7 +146,7 @@ async def main():
                 total_time = time.perf_counter() - start_time
                 if total_documents % 10 == 0:
                     logger.info(
-                        f"Claim Extractor: Processed {total_documents} documents in {total_time} ({total_documents / total_time:.2} docs / second) ({total_tokens / total_time:.2f} tokens / second)"
+                        f"Claim Extractor: Processed {total_documents} documents in {total_time:.2f} ({total_documents / total_time:.2f} docs / second) ({total_tokens / total_time:.2f} tokens / second)"
                     )
 
 

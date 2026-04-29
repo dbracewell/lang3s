@@ -178,7 +178,7 @@ def perform_heavy_tagging(
                     }
 
         else:
-            all_labels: TokenLabelResult = output.labels
+            all_labels: TokenLabelResult = output.labels  # type: ignore
             for sentence, sentence_labels in zip(doc.text.sentences, all_labels):
                 for label, start, end in sentence_labels:
                     _add_token_span(

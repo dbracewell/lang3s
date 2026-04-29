@@ -33,7 +33,7 @@ class MultiTaskTransformer(nn.Module, metaclass=SingletonMeta):
             for adapter_dir in os.listdir(config.ADAPTERS_DIR):
                 full_path = os.path.join(config.ADAPTERS_DIR, adapter_dir)
                 if os.path.exists(full_path):
-                    config_file = os.path.join(full_path, f"{adapter_dir}.config.json")
+                    config_file = os.path.join(full_path, f"{adapter_dir}.config.json")  # type:ignore
                     if os.path.exists(config_file):
                         with open(config_file) as fp:
                             task = Task.from_dict(json.load(fp))
@@ -47,6 +47,10 @@ class MultiTaskTransformer(nn.Module, metaclass=SingletonMeta):
         language: Optional[str] = None,
     ) -> Dict[str, TransformerOutput]:
         outputs = defaultdict(list)
+
+        if tasks is not None and len(set(tasks)) == 0:
+            return {}
+
         batch_size = config.INFERENCE_BATCH_SIZE
         for idx in range(0, len(embedding.mapping), batch_size):
             batch = embedding.batch(idx, idx + batch_size)
@@ -76,14 +80,7 @@ class MultiTaskTransformer(nn.Module, metaclass=SingletonMeta):
 
                     device_embeddings = sentence_embeddings
                     device_mask = None
-
-                    if (
-                        task.type.is_token()
-                        or cast(
-                            SentenceClassificationParams, task.params
-                        ).num_attention_heads
-                        > 0
-                    ):
+                    if task.input_type == "token":
                         device_embeddings = padded_token_embeddings
                         device_mask = padded_token_mask.bool()
 
