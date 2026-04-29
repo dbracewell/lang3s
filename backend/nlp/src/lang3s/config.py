@@ -170,9 +170,7 @@ class Config:
     #####################################################################################
     @property
     def EMBEDDING_MODEL(self) -> str:
-        return self._get_static(
-            "EMBEDDING_MODEL", f"{self.FILESTORE_ROOT}/finetuned_xlm_roberta"
-        )
+        return self._get_static("EMBEDDING_MODEL", f"{self.MODELS_DIR}/embedding")
 
     #####################################################################################
     # LLM SERVER
