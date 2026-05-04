@@ -17,7 +17,7 @@ def main():
     model_path = os.path.join(root, MODEL_NAME)
 
     parallel_factor = 4
-    context_window = 4000
+    context_window = 1024
 
     # fmt: off
     cmd = [
@@ -28,13 +28,16 @@ def main():
 
         "-np", str(parallel_factor),
         "-c", str(parallel_factor*context_window),
-        "-b", "1024",
+        "-b", "4096",
+        "-ub", "4096",
+        "-cb",
+        
+        # "--verbosity", "1", # only log errors
 
-        "--verbosity", "1", # only log errors
-
-        "-ngl", "-1",
-        "--no-mmap",
-        "-t", "8",
+        "-fa", "on",
+        "-ngl", "99",
+        # "--no-mmap",
+        "-t", "4",
         "--chat-template", "chatml",
         "--lora-init-without-apply",
 
@@ -53,7 +56,11 @@ def main():
     logger.info(f"Server is starting at http://localhost:{config.LOCAL_LLM_PORT}")
 
     with open("llama_server.log", "w") as log_file:
-        server_process = subprocess.Popen(cmd)
+        server_process = subprocess.Popen(
+            cmd,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+        )
 
         try:
             while True:

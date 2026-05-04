@@ -5,6 +5,7 @@ from typing import (
     AsyncGenerator,
     Callable,
     Generator,
+    Literal,
     NotRequired,
     Sequence,
     Type,
@@ -13,7 +14,6 @@ from typing import (
     Unpack,
 )
 
-import instructor
 from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
 from openai.types import CompletionUsage, ReasoningEffort
 from openai.types.chat import (
@@ -29,6 +29,7 @@ from lang3s import config
 from lang3s.utils.async_helper import async_generator_to_sync
 from lang3s.utils.decorators import retry_async_gen
 
+from ..services.local_llm_app import adapter_ids
 from .events import (
     LLMEvent,
     LLMEventType,
@@ -49,6 +50,8 @@ class ChatCompletionParams(TypedDict):
     presence_penalty: NotRequired[float]
     seed: NotRequired[int]
     stop: NotRequired[str | Sequence[str]]
+    extra_body: NotRequired[dict[str, Any]]
+    tool_choice: NotRequired[Literal["required", "auto", "none"]]
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -68,10 +71,6 @@ class LLMClient:
 
     def _get_client(self):
         return AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
-
-    def _get_structured_client(self):
-        client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
-        return instructor.from_openai(client=client)
 
     @staticmethod
     def _error_to_event(e: Exception) -> LLMEvent:
@@ -93,7 +92,6 @@ class LLMClient:
         self,
         messages: list[Message],
         tools: list[Callable[..., Any]] | None = None,
-        force_tool_call: bool = False,
         stream: bool = False,
         response_model: Type[T] | None = None,
         **kwargs: Unpack[ChatCompletionParams],
@@ -107,13 +105,11 @@ class LLMClient:
             "model": self.model_name,
             "stream": stream,
             "max_completion_tokens": max_completion_tokens,
-            "tool_choice": "none",
             **kwargs,
         }
 
         if available_tools:
             completion_args["tools"] = [t.schema for _, t in available_tools.items()]
-            completion_args["tool_choice"] = "required" if force_tool_call else "auto"
 
         if response_model:
             if (
@@ -358,12 +354,39 @@ class LLMClient:
         self,
         messages: list[Message],
         response_model: type[T] | None = None,
-        stream: bool = False,
         **kwargs: Unpack[ChatCompletionParams],
     ) -> LLMEvent[T]:
         result: LLMEvent[T] | None = None
 
         for event in self.sync_chat_completion(
+            messages=messages,
+            stream=False,
+            response_model=response_model,
+            **kwargs,
+        ):
+            if event.type == LLMEventType.COMPLETE:
+                result = event
+            elif (
+                event.type == LLMEventType.ERROR
+                or event.type == LLMEventType.PARSE_ERROR
+            ):
+                return event
+        if result:
+            return result
+        return LLMEvent[T](
+            type=LLMEventType.ERROR, exception=Exception("LLM did not complete")
+        )
+
+    async def chat_completion_last_event(
+        self,
+        messages: list[Message],
+        response_model: type[T] | None = None,
+        stream: bool = False,
+        **kwargs: Unpack[ChatCompletionParams],
+    ) -> LLMEvent[T]:
+        result: LLMEvent[T] | None = None
+
+        async for event in self.chat_completion(
             messages=messages, stream=stream, response_model=response_model, **kwargs
         ):
             if event.type == LLMEventType.COMPLETE:
@@ -393,5 +416,99 @@ class LLMClient:
                 response_model=response_model,
                 **kwargs,
             )
+        ):
+            yield event
+
+
+class LoRaClient(LLMClient):
+    def __init__(self):
+        super().__init__(
+            model_name="LoraModel",
+            api_key="no-key",
+            llm_host=config.PROXY_HOST,
+        )
+
+    def _extend_extra_body(
+        self,
+        extra_body: dict[str, Any],
+        adapter_name: str | None,
+    ) -> dict[str, Any]:
+        extra_body.update(
+            {
+                "cache_prompt": False,
+                "slot_id": -1,
+            }
+        )
+        if adapter_name and adapter_name in adapter_ids:
+            extra_body["lora"] = [{"id": adapter_ids[adapter_name], "scale": 1.0}]
+        return extra_body
+
+    async def chat_completion(
+        self,
+        messages: list[Message],
+        tools: list[Callable[..., Any]] | None = None,
+        stream: bool = False,
+        response_model: Type[T] | None = None,
+        adapter_name: str | None = None,
+        **kwargs: Unpack[ChatCompletionParams],
+    ) -> AsyncGenerator[LLMEvent[T], None]:
+        kwargs["extra_body"] = self._extend_extra_body(
+            kwargs.get("extra_body", {}), adapter_name
+        )
+        async for event in super().chat_completion(
+            messages=messages,
+            tools=tools,
+            stream=stream,
+            response_model=response_model,
+            **kwargs,
+        ):
+            yield event
+
+    def sync_chat_completion_last_event(
+        self,
+        messages: list[Message],
+        response_model: type[T] | None = None,
+        adapter_name: str | None = None,
+        **kwargs: Unpack[ChatCompletionParams],
+    ) -> LLMEvent[T]:
+        kwargs["extra_body"] = self._extend_extra_body(
+            kwargs.get("extra_body", {}), adapter_name
+        )
+        return super().sync_chat_completion_last_event(
+            messages=messages,
+            response_model=response_model,
+            **kwargs,
+        )
+
+    async def chat_completion_last_event(
+        self,
+        messages: list[Message],
+        response_model: type[T] | None = None,
+        adapter_name: str | None = None,
+        **kwargs: Unpack[ChatCompletionParams],
+    ) -> LLMEvent[T]:
+        kwargs["extra_body"] = self._extend_extra_body(
+            kwargs.get("extra_body", {}), adapter_name
+        )
+        return await super().chat_completion_last_event(
+            messages=messages, response_model=response_model, **kwargs
+        )
+
+    def sync_chat_completion(
+        self,
+        messages: list[Message],
+        stream: bool = False,
+        response_model: Type[T] | None = None,
+        adapter_name: str | None = None,
+        **kwargs: Unpack[ChatCompletionParams],
+    ) -> Generator[LLMEvent[T], None, None]:
+        kwargs["extra_body"] = self._extend_extra_body(
+            kwargs.get("extra_body", {}), adapter_name
+        )
+        for event in super().sync_chat_completion(
+            messages=messages,
+            stream=stream,
+            response_model=response_model,
+            **kwargs,
         ):
             yield event

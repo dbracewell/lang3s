@@ -110,7 +110,6 @@ def random_search(
     print("\nBEST CONFIG:", best)
     best_params = best[1]  # type: ignore
     best_params["is_trial"] = False
-    best_params["num_epochs"] = parameters["num_epochs"]
     return best_params
 
 
@@ -190,7 +189,7 @@ class HuggingFaceDataset(Lang3sDataset):
         self.idx2label = {v: k for k, v in self.label2idx.items()}
 
     def __len__(self):
-        return len(self.dataset)
+        return len(self.dataset)  # type:ignore
 
     def __getitem__(self, idx: int):
         df = self.dataset[idx]  # type: ignore
@@ -209,8 +208,8 @@ class ClfTrainer(Application, SentenceClassificationParams, TrainerParams):
     )
 
     def run(self):
-        params = dict(vars(self))
-        params["task_type"] = (
+        parameters = dict(vars(self))
+        parameters["task_type"] = (
             TaskType.SENTENCE_MULTILABEL if self.multilabel else TaskType.SENTENCE
         )
         if self.format == "hf":
@@ -222,7 +221,7 @@ class ClfTrainer(Application, SentenceClassificationParams, TrainerParams):
             )
         else:
             train_dataset = SentenceClassificationDataset(
-                task_type=params["task_type"],
+                task_type=parameters["task_type"],
                 data_format=self.format,
                 path=self.train_data,
                 label=self.label,
@@ -230,7 +229,7 @@ class ClfTrainer(Application, SentenceClassificationParams, TrainerParams):
             )
             if self.val_data is not None:
                 val_dataset = SentenceClassificationDataset(
-                    task_type=params["task_type"],
+                    task_type=parameters["task_type"],
                     data_format=self.format,
                     path=self.val_data,
                     label=self.label,
@@ -239,13 +238,12 @@ class ClfTrainer(Application, SentenceClassificationParams, TrainerParams):
             else:
                 val_dataset = None
 
-        parameters = dict(vars(self))
         if self.auto_config:
             best_parameters = random_search(
                 train_dataset,
                 val_dataset,
                 parameters,
-                params["task_type"],
+                parameters["task_type"],
                 n_trials=self.auto_config_trials,
             )
             with open(f"{self.name}_best_parameters.yaml", "w") as f:
@@ -255,7 +253,7 @@ class ClfTrainer(Application, SentenceClassificationParams, TrainerParams):
         trainer = SentenceClassifierTrainer(
             train_dataset=train_dataset,
             val_dataset=val_dataset,
-            **params,
+            **parameters,
         )
         trainer.train()
 

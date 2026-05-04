@@ -28,7 +28,7 @@ def parse_and_embed_synthetic_text(filepath):
     pattern = re.compile(r'<m c="(?:COREF_)?(\d+)">(.+?)</m>')
     all_documents = []
     with jsonlines.open(filepath) as reader:
-        for doc in reader:
+        for doc in reader:  # type: ignore
             tagged_text = doc["generated_text"]
             clean_text = ""
             mentions = []

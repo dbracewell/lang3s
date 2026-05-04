@@ -28,7 +28,7 @@ from lang3s import config
 from lang3s.data.db import db, text_db
 from lang3s.data.db.models import KeywordsTable
 from lang3s.nlp.claim_extractor import (
-    DocumentClaimRequest,
+    create_claim_request,
 )
 from lang3s.nlp.keyword_extraction import generate_keyword_categories
 from lang3s.nlp.ner import get_ner_model
@@ -207,19 +207,21 @@ def process_batch(batch):
             )
         completed += len(docs)
 
+        # Forward the documents to the claim extraction module
+        with RedisClient() as redis_client:
+            for doc in docs:
+                claims = create_claim_request(doc)
+                redis_client.enqueue(
+                    CLAIM_EXTRACT_QUEUE_NAME,
+                    claims.model_dump(),
+                )
+                for sentence in doc.text.sentences:
+                    if "claims" in sentence.metadata:
+                        sentence.metadata.pop("claims")
+
         # Add the annotated documents to the database
         # and persist them in msgpack to the filestore
         text_db.add_documents(docs)
-
-        # Forward the documents to the claim extraction module
-        for doc in docs:
-            redis_client = RedisClient()
-            redis_client.enqueue(
-                CLAIM_EXTRACT_QUEUE_NAME,
-                DocumentClaimRequest(
-                    documentId=doc.id, sentences=[s.text for s in doc.text.sentences]
-                ).model_dump(),
-            )
 
         with try_catch(
             on_error=lambda e: logger.error(
@@ -413,6 +415,7 @@ def main():
                 time.sleep(5)
                 continue
 
+            parallel: Parallel
             with Parallel(
                 n_jobs=args.num_workers,
                 backend="loky",

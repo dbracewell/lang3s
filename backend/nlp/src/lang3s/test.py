@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Annotated
 
@@ -9,8 +10,9 @@ from lang3s.agent import Agent, Session
 from lang3s.agent.middleware import LoggingMiddleware
 from lang3s.agent.strategy import ToolCallingStrategy
 from lang3s.app import Application
+from lang3s.data.io.serialization import deserialize
 from lang3s.llm import LLMClient, Message, tools
-from lang3s.nlp.claim_extractor import DocumentClaimRequest
+from lang3s.nlp.claim_extractor import DocumentClaimRequest, create_claim_request
 from lang3s.pipeline import pipeline
 from lang3s.services.client.redis_client import CLAIM_EXTRACT_QUEUE_NAME, RedisClient
 
@@ -29,22 +31,58 @@ class Joke(BaseModel):
 class SampleApplication(Application):
     def run(self):
         # self.test_llm()
-        # self.test_claim_extraction_workers()
+        self.test_claim_extraction_workers()
         # self.test_sense_model()
         # self.test_agent()
-        self.test_claim_classification()
+        # self.test_claim_classification()
+        # self.create_base_corpora()
+
+    def create_base_corpora(self):
+        with jsonlines.open("/Users/ik/prj/data/base_corpus.jsonl", "w") as writer:
+            # reddit
+            with open("/Users/ik/prj/data/reddit_style_corpus.json") as reader:
+                all_docs = json.load(reader)
+                for doc in all_docs:
+                    writer.write(
+                        File(
+                            content=doc["text"],
+                            docId=doc["id"],
+                            metadata={"source": doc["source"]},
+                        ).model_dump()
+                    )
+
+            # news
+            with jsonlines.open("/Users/ik/prj/data/news.jsonl") as reader:
+                for doc in reader:
+                    writer.write(doc)
+
+            for doc in deserialize("/Users/ik/prj/data/kant.docs"):
+                writer.write(
+                    File(
+                        content=doc.text.text,
+                        docId=doc.id,
+                        mime_type="text/plain",
+                        metadata=doc.metadata,
+                    ).model_dump()
+                )
 
     def test_claim_classification(self):
         files = []
-        with jsonlines.open("/Users/ik/prj/data/news.jsonl") as reader:
-            for doc in reader:
-                files.append(File.model_validate(doc))
-                if len(files) == 10:
-                    break
+
+        # with jsonlines.open("/Users/ik/prj/data/reddit.json.jsonl") as reader:
+        with open("/Users/ik/prj/data/reddit_style_corpus.json") as reader:
+            all_docs = json.load(reader)
+            for doc in all_docs:
+                files.append(File(content=doc["text"]))
         docs = pipeline(files)
-        for doc in docs:
-            for sentence in doc.text.sentences:
-                print(sentence, sentence.metadata)
+        with jsonlines.open(
+            "/Users/ik/prj/data/classified_claims_dataset.jsonl", "w"
+        ) as writer:
+            for doc in docs:
+                claims = create_claim_request(doc)
+                if claims.sentences:
+                    for sentence in claims.sentences:
+                        writer.write({"text": sentence})
 
     def test_llm(self):
         client = LLMClient(
@@ -126,36 +164,15 @@ class SampleApplication(Application):
         from lang3s.data.io.serialization import deserialize
 
         client = RedisClient()
+        count = 0
         for doc in deserialize("/Users/ik/prj/data/news.docs"):
             client.enqueue(
                 CLAIM_EXTRACT_QUEUE_NAME,
-                DocumentClaimRequest(
-                    documentId=doc.id, sentences=[s.text for s in doc.text.sentences]
-                ).model_dump(),
+                create_claim_request(doc).model_dump(),
             )
-
-    def test_claim_extraction_direct(self):
-        from lang3s.data.io.serialization import deserialize
-        from lang3s.llm import Message
-        from lang3s.nlp.claim_extractor import DocumentClaims
-        from lang3s.services.client.local_llm_client import LocalLLMClient
-
-        llm = LocalLLMClient()
-        for doc in deserialize("/Users/ik/prj/data/news.docs"):
-            text = doc.text.text
-
-            response = llm.sync_generate(
-                messages=[Message.user(f"Extract claims from: {text}")],
-                adapter_name="claim",
-                temperature=0.0,
-                max_tokens=2000,
-                response_model=DocumentClaims,
-            )
-            if response.parsed:
-                for claim in response.parsed.claims:
-                    print(claim)
-            else:
-                print(response.content)
+            count += 1
+            if count > 1001:
+                break
 
 
 if __name__ == "__main__":

@@ -9,30 +9,31 @@ from transformers import AutoTokenizer
 import lang3s.data.db.database as db
 from lang3s.data.db.models import ClaimsTable
 from lang3s.llm import Message
+from lang3s.llm.client import LoRaClient
 from lang3s.models.embedder import Embedder
 from lang3s.nlp.claim_extractor import (
+    Claim,
+    ClaimList,
     DocumentClaimRequest,
-    DocumentClaims,
 )
 from lang3s.parallel.core import Engine, Event
 from lang3s.parallel.manager import TaskManager
 from lang3s.parallel.queue import QueueFactory, QueueType
-from lang3s.services.client.local_llm_client import LocalLLMClient
 from lang3s.services.client.redis_client import (
     CLAIM_EXTRACT_QUEUE_NAME,
 )
 from lang3s.utils.logger import get_logger
 
 logger = get_logger("CLAIM_EXTRACTION_WORKER")
-_local_llm: LocalLLMClient | None = None
+_local_llm: LoRaClient | None = None
 _embedder: Embedder | None = None
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
 
 
-def get_llm() -> LocalLLMClient:
+def get_llm() -> LoRaClient:
     global _local_llm
     if _local_llm is None:
-        _local_llm = LocalLLMClient()
+        _local_llm = LoRaClient()
     return _local_llm  # type: ignore
 
 
@@ -87,31 +88,35 @@ async def process_task(item: Event[dict]):
         request = DocumentClaimRequest.model_validate(item.data)
         if not request.sentences:
             return 0
-        token_count, batches = chunk_text(request.sentences)
-        all_claims = []
-        for batch in batches:
-            batch_token_size = len(tokenizer(batch)["input_ids"])
-            response = await get_llm().generate(
-                messages=[Message.user(f"Extract claims from: {batch}")],
+        all_claims: list[Claim] = []
+        token_count = sum(
+            len(tokenizer(f"Extract all claims from:{s}")["input_ids"])
+            for s in request.sentences
+        )
+
+        for sentence in request.sentences:
+            response = await get_llm().chat_completion_last_event(
+                messages=[Message.user(f"Extract all claims from:{sentence}")],
                 adapter_name="claim",
                 temperature=0.0,
-                max_tokens=MAX_TOKENS - batch_token_size,
-                response_model=DocumentClaims,
+                response_model=ClaimList,
                 presence_penalty=1.5,
+                max_tokens=512,
             )
             if response.parsed:
                 all_claims.extend(response.parsed.claims)
-        embs = get_embedder()([claim.claim for claim in all_claims]).sentence_embeddings
+
+        embs = get_embedder()([claim.text for claim in all_claims]).sentence_embeddings
         db.insert_many_objects(
             [
                 ClaimsTable(
                     documentId=request.documentId,
-                    claim=claim.claim,
-                    source=claim.source or "UNKNOWN",
+                    claim=claim.text,
+                    source=claim.type,
                     embedding=emb,
                 )
                 for claim, emb in zip(all_claims, embs)
-                if claim.claim
+                if claim.text
             ]
         )
         return token_count
@@ -125,7 +130,7 @@ async def process_task(item: Event[dict]):
 async def main():
     total_documents = 0
     total_tokens = 0
-    WORKER_COUNT = 3
+    WORKER_COUNT = 4
     with QueueFactory() as factory:
         with TaskManager(
             Engine.ASYNC,
@@ -144,7 +149,7 @@ async def main():
                 total_tokens += r
                 total_documents += 1 if r > 0 else 0
                 total_time = time.perf_counter() - start_time
-                if total_documents % 10 == 0:
+                if total_documents % 50 == 0:
                     logger.info(
                         f"Claim Extractor: Processed {total_documents} documents in {total_time:.2f} ({total_documents / total_time:.2f} docs / second) ({total_tokens / total_time:.2f} tokens / second)"
                     )

@@ -25,46 +25,47 @@ def is_personal_action(text: str) -> bool:
     )
 
 
+# This includes:
+# - Direct statements (e.g., "X is true")
+# - Reported statements (e.g., "People say X", "We were told X")
+# - Hedged statements (e.g., "Apparently X", "It seems X")
+#
+# If a sentence reports what someone said, wrote, believed, or mentioned,
+# it IS a claim if it contains a factual statement about the world.
+#
+# Rules:
+# - If It does not assert any proposition about the world it is NOT a claim.
+# - Questions are NOT claims
+# - Commands, instructions, and requests are NOT claims.
+# - Statements about trying, asking, wondering, or figuring something out are NOT claims.
+# - Statements that only describe the speaker (identity, background, feelings, activities) are NOT claims.
+# - If a sentence reports what someone said AND includes a factual statement, it IS a claim
+# - Incomplete sentences or fragments are NOT claims
+#
+# If the sentence contains verbs like:
+# "said", "stated", "claimed", "announced", "reported", "according to"
+#
+# Then it is VERY LIKELY a claim unless it is clearly only about the speaker’s action with no content.
+#
+# Example:
+# "I went to the store" → false
+# "We were told the Ottoman Empire benefited from trade" → true
+# "Economic indicators show the economy is improving" → true
+# "Wal-Mart is reportin better than expected sales" → true
+# "I would like ..." → false
+# "I would be intersted in ..." → false
+
+
 def create_prompt(sentence: str):
     return """
 Classify whether this sentence contains a claim.
 
 A CLAIM is any sentence that asserts or reports a statement about the world that could be true or false.
 
-This includes:
-- Direct statements (e.g., "X is true")
-- Reported statements (e.g., "People say X", "We were told X")
-- Hedged statements (e.g., "Apparently X", "It seems X")
-
-If a sentence reports what someone said, wrote, believed, or mentioned,
-it IS a claim if it contains a factual statement about the world.
-
-Rules:
-- If It does not assert any proposition about the world it is NOT a claim.
-- Questions are NOT claims
-- Commands, instructions, and requests are NOT claims.
-- Statements about trying, asking, wondering, or figuring something out are NOT claims.
-- Statements that only describe the speaker (identity, background, feelings, activities) are NOT claims.
-- If a sentence reports what someone said AND includes a factual statement, it IS a claim
-- Incomplete sentences or fragments are NOT claims
-
-If the sentence contains verbs like:
-"said", "stated", "claimed", "announced", "reported", "according to"
-
-Then it is VERY LIKELY a claim unless it is clearly only about the speaker’s action with no content.
-
-Example:
-"I went to the store" → false
-"We were told the Ottoman Empire benefited from trade" → true
-"Economic indicators show the economy is improving" → true
-"Wal-Mart is reportin better than expected sales" → true
-"I would like ..." → false
-"I would be intersted in ..." → false
-
 Return:
 {{ "label": boolean, "confidence": "low|medium|high" }}
 
-Does this sentence contain ANY proposition (claim) about the world, even indirectly?
+SENTENCE:
 {sentence}    
 """.format(sentence=sentence).strip()
 
@@ -111,6 +112,7 @@ def load_sentences(path: str):
 
 def process_task(obj):
     client = LLMClient(
+        model_name="gemma-4-26b-a4b-it"
         # model_name="gemma-4-26b-a4b-it-4bit",
         # api_key="1234",
         # llm_host="http://192.168.0.81:8000",
@@ -138,7 +140,7 @@ def process_task(obj):
 
 def main():
     with jsonlines.open(
-        "/Users/ik/prj/data/document_claim_classifier.jsonl", "w"
+        "/Users/ik/prj/data/document_claim_classifier_gemma.jsonl", "w"
     ) as writer:
         data = []
         # data.extend(load_sentences("/Users/ik/prj/data/reddit_style_corpus.docs"))
