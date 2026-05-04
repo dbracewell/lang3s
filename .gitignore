@@ -92,3 +92,4 @@ htmlcov/
 *.swp
 
 /filestore
+/lang3s_backend.env
