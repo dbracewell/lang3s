@@ -51,9 +51,9 @@ def is_personal_action(text: str) -> bool:
 # "I went to the store" → false
 # "We were told the Ottoman Empire benefited from trade" → true
 # "Economic indicators show the economy is improving" → true
-# "Wal-Mart is reportin better than expected sales" → true
+# "Wal-Mart is reporting better than expected sales" → true
 # "I would like ..." → false
-# "I would be intersted in ..." → false
+# "I would be interested in ..." → false
 
 
 def create_prompt(sentence: str):

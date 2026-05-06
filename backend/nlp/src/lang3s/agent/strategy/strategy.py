@@ -138,7 +138,7 @@ class Strategy(ABC, Generic[STRATEGY_RESPONSE_TYPE]):
             stream=True,
             tools=session.available_tools if use_tools else None,
             response_model=self._response_model if not use_tools else None,
-            force_tool_call=force_tool_call,
+            tool_choice="required" if force_tool_call else None,
             **kwargs,
         ):
             agent_event = None

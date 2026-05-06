@@ -12,7 +12,8 @@ from lang3s.agent.strategy import ToolCallingStrategy
 from lang3s.app import Application
 from lang3s.data.io.serialization import deserialize
 from lang3s.llm import LLMClient, Message, tools
-from lang3s.nlp.claim_extractor import DocumentClaimRequest, create_claim_request
+from lang3s.nlp.claim_extractor import create_claim_request
+from lang3s.nlp.metadata import AnnotationTypes
 from lang3s.pipeline import pipeline
 from lang3s.services.client.redis_client import CLAIM_EXTRACT_QUEUE_NAME, RedisClient
 
@@ -31,8 +32,8 @@ class Joke(BaseModel):
 class SampleApplication(Application):
     def run(self):
         # self.test_llm()
-        self.test_claim_extraction_workers()
-        # self.test_sense_model()
+        # self.test_claim_extraction_workers()
+        self.test_sense_model()
         # self.test_agent()
         # self.test_claim_classification()
         # self.create_base_corpora()
@@ -149,16 +150,21 @@ class SampleApplication(Application):
         with jsonlines.open("/Users/ik/prj/data/news.jsonl") as reader:
             for doc in reader:
                 files.append(File.model_validate(doc))
-                if len(files) == 10:
+                if len(files) == 200:
                     break
-        docs = pipeline(files)
-        for doc in docs:
+        for doc in pipeline(files, batch_size=10):
             for sentence in doc.text.sentences:
-                print(sentence)
-                for sense in sentence.annotations_of_type("senses"):
-                    print(f"{sense} / {sense.value}")
-                print()
-            print("\n")
+                for annotation in sentence.interleave("senses"):
+                    if annotation.type == AnnotationTypes.TOKEN:
+                        print(f"{annotation}\tO")
+                    else:
+                        isFirst = True
+                        for token in annotation.tokens:
+                            print(
+                                f"{token}\t{'B' if isFirst else 'I'}-{annotation.value}"
+                            )
+                            isFirst = False
+                print("\n")
 
     def test_claim_extraction_workers(self):
         from lang3s.data.io.serialization import deserialize

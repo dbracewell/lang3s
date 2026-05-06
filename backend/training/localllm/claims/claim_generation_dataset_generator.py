@@ -30,7 +30,7 @@ from lang3s.parallel.manager import TaskManager
 # 8. Claims must have the following:
 #     1. A clear Source: Who is making the claim.
 #     2. A clear Target: The target of the claim.
-#     3. A type: Only Fact, Definition, Value, Policy, Causation, Comparison, or Contigency
+#     3. A type: Only Fact, Definition, Value, Policy, Causation, Comparison, or Contingency
 # 9. Do not output the Source in the claim text only in the Source field.
 #
 # Follow these strict rules for extraction:

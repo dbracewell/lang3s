@@ -1,7 +1,7 @@
 import time
 import traceback
 from collections import defaultdict
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Generator, Iterable, List, Optional
 
 import shortuuid
 from lang3s_job_service import File
@@ -103,12 +103,10 @@ def pipeline(
     log: bool = True,
     disable_ner: bool = False,
     is_reannotation: bool = False,
-) -> List[Document]:
+) -> Generator[Document, None, None]:
     """
     Processes raw text into annotated documents.
     """
-    docs = []
-
     for batch in partition_generator(document_generator(files), batch_size):
         docs_by_language = _group_documents_by_language(batch)
 
@@ -129,9 +127,8 @@ def pipeline(
             is_reannotation=is_reannotation,
         )
 
-        docs.extend(batch)
-
-    return docs
+        for doc in batch:
+            yield doc
 
 
 def _perform_heavy(

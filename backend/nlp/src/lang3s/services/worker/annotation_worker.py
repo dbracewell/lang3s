@@ -197,10 +197,12 @@ def process_batch(batch):
         with (
             torch.inference_mode()
         ):  # Paranoia to make sure we are in inference mode everywhere
-            docs = pipeline(
-                files,
-                tasks=tasks,
-                batch_size=len(files),
+            docs = list(
+                pipeline(
+                    files,
+                    tasks=tasks,
+                    batch_size=len(files),
+                )
             )
             logger.info(
                 f"WORKER {pid}: 📝 Annotated {len(docs)} documents: {format_duration(start_time, time.perf_counter())}"
