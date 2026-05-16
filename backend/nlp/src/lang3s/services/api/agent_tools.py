@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from lang3s.data.db import text_db
+import lang3s.data.db.text_database as text_db
 from lang3s.llm.tools import Desc, tool
 
 

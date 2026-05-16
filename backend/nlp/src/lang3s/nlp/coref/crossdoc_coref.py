@@ -128,7 +128,7 @@ class StreamingEntityResolver:
                 self.clusters[new_id] = temp_cluster
 
 
-from lang3s.data.db import text_db
+import lang3s.data.db.text_database as text_db
 
 resolver = StreamingEntityResolver()
 processed = 0

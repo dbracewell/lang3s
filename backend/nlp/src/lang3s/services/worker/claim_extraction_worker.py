@@ -18,9 +18,9 @@ from lang3s.nlp.claim_extractor import (
 )
 from lang3s.parallel.core import Engine, Event
 from lang3s.parallel.manager import TaskManager
-from lang3s.parallel.queue import QueueFactory, QueueType
 from lang3s.services.client.redis_client import (
     CLAIM_EXTRACT_QUEUE_NAME,
+    RedisClient,
 )
 from lang3s.utils.logger import get_logger
 
@@ -54,33 +54,79 @@ MAX_TOKENS = 3000
 MAX_PROMPT_TOKENS = math.floor(MAX_TOKENS / 2)
 
 
-def chunk_text(
+def sentence_chunker(
     sentences: list[str],
-    chunk_size: int = MAX_PROMPT_TOKENS,
+    window_size=15,
+    overlap=2,
 ):
-    chunks = []
     total_tokens = 0
-    current_chunk = ""
-    current_chunk_tokens = 0
-    sentence_count = 0
-    for sentence in sentences:
-        num_tokens = len(tokenizer(current_chunk + "\n" + sentence)["input_ids"])
+    chunks = []
+    step = window_size - overlap
+    if step <= 0:
+        step = 1
 
-        if sentence_count < 5 and num_tokens < chunk_size:
-            sentence_count += 1
-            current_chunk_tokens = num_tokens
-            current_chunk += sentence + "\n"
-        else:
-            total_tokens += current_chunk_tokens
-            sentence_count = 1
-            current_chunk_tokens = len(tokenizer(sentence)["input_ids"])
-            chunks.append(current_chunk)
-            current_chunk = sentence
+    for i in range(0, len(sentences), step):
+        window = sentences[i : i + window_size]
+        chunk_text = " ".join(window)
+        total_tokens += len(tokenizer(chunk_text)["input_ids"])
+        chunks.append(chunk_text)
+        if i + window_size >= len(sentences):
+            break
 
-    if current_chunk:
-        total_tokens += current_chunk_tokens
-        chunks.append(current_chunk.strip())
     return total_tokens, chunks
+
+
+def sentence_chunker2(
+    sentences: list[str],
+    max_tokens=512,
+    overlap=2,
+):
+    total_tokens = 0
+    chunks = []
+    current_chunk = ""
+    start = 0
+    current_chunk_tokens = 0
+    while start < len(sentences):
+        sentence = sentences[start]
+        next_sentence_token_count = len(tokenizer(sentence)["input_ids"])
+        if (
+            next_sentence_token_count + current_chunk_tokens >= max_tokens
+            and current_chunk != ""
+        ):
+            chunks.append(current_chunk)
+            total_tokens += current_chunk_tokens
+            current_chunk_tokens = 0
+            current_chunk = ""
+            start = max(start - overlap, 0)
+        else:
+            current_chunk_tokens += next_sentence_token_count
+            current_chunk += f" {sentence}"
+            start += 1
+
+    if current_chunk != "":
+        chunks.append(current_chunk)
+        total_tokens += current_chunk_tokens
+
+    return total_tokens, chunks
+
+
+async def generate_claims(chunk: str, semaphore):
+    async with semaphore:
+        try:
+            response = await get_llm().chat_completion_last_event(
+                messages=[Message.user(f"Extract claims from: {chunk}")],
+                adapter_name="claim",
+                temperature=0.0,
+                response_model=ClaimList,
+                presence_penalty=1.5,
+            )
+            if response.parsed:
+                return response.parsed
+        except ValidationError as e:
+            logger.error(f"Validation failed: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error during processing: {e}")
+        return None
 
 
 async def process_task(item: Event[dict]):
@@ -89,34 +135,32 @@ async def process_task(item: Event[dict]):
         if not request.sentences:
             return 0
         all_claims: list[Claim] = []
-        token_count = sum(
-            len(tokenizer(f"Extract all claims from:{s}")["input_ids"])
-            for s in request.sentences
-        )
+        token_count, chunks = sentence_chunker(request.sentences)
 
-        for sentence in request.sentences:
+        for chunk in chunks:
             response = await get_llm().chat_completion_last_event(
-                messages=[Message.user(f"Extract all claims from:{sentence}")],
+                messages=[Message.user(f"Extract claims from: {chunk}")],
                 adapter_name="claim",
                 temperature=0.0,
                 response_model=ClaimList,
                 presence_penalty=1.5,
-                max_tokens=512,
             )
             if response.parsed:
                 all_claims.extend(response.parsed.claims)
 
-        embs = get_embedder()([claim.text for claim in all_claims]).sentence_embeddings
+        embs = get_embedder()(
+            [claim.claim_text for claim in all_claims]
+        ).sentence_embeddings
         db.insert_many_objects(
             [
                 ClaimsTable(
                     documentId=request.documentId,
-                    claim=claim.text,
-                    source=claim.type,
+                    claim=claim.claim_text,
+                    source=claim.claim_text,
                     embedding=emb,
                 )
                 for claim, emb in zip(all_claims, embs)
-                if claim.text
+                if claim.claim_text
             ]
         )
         return token_count
@@ -130,29 +174,83 @@ async def process_task(item: Event[dict]):
 async def main():
     total_documents = 0
     total_tokens = 0
+    total_time = 0
     WORKER_COUNT = 4
-    with QueueFactory() as factory:
-        with TaskManager(
-            Engine.ASYNC,
-            workers=WORKER_COUNT,
-            initializer=init_worker,
-        ) as runner:
-            queue = factory(
-                queue_type=QueueType.REDIS,
-                queue_name=CLAIM_EXTRACT_QUEUE_NAME,
+    redis_client = RedisClient()
+    semaphore = asyncio.Semaphore(WORKER_COUNT)
+
+    while True:
+        item = redis_client.dequeue(CLAIM_EXTRACT_QUEUE_NAME)
+        if item is None:
+            time.sleep(1)
+            continue
+
+        if total_documents > 0 and total_documents % 10 == 0:
+            logger.info(
+                f"Claim Extractor: Processed {total_documents} documents in {total_time:.2f} ({total_documents / total_time:.2f} docs / second) ({total_tokens / total_time:.2f} tokens / second)"
             )
-            start_time = time.perf_counter()
-            async for r in runner.async_map(
-                process_task,
-                queue,
-            ):
-                total_tokens += r
-                total_documents += 1 if r > 0 else 0
-                total_time = time.perf_counter() - start_time
-                if total_documents % 50 == 0:
-                    logger.info(
-                        f"Claim Extractor: Processed {total_documents} documents in {total_time:.2f} ({total_documents / total_time:.2f} docs / second) ({total_tokens / total_time:.2f} tokens / second)"
-                    )
+
+        start_time = time.perf_counter()
+        request = DocumentClaimRequest.model_validate_json(item)
+        if not request.sentences:
+            continue
+
+        all_claims: list[Claim] = []
+        token_count, chunks = sentence_chunker2(request.sentences)
+
+        total_tokens += token_count
+        logger.info(f"Processing {token_count} tokens,  {len(chunks)} chunks")
+        total_documents += 1
+
+        tasks = [generate_claims(chunk, semaphore) for chunk in chunks]
+        results = await asyncio.gather(*tasks)
+        for r in results:
+            if r is None:
+                continue
+            all_claims.extend(r.claims)
+
+            # embs = get_embedder()(
+            #     [claim.claim_text for claim in all_claims]
+            # ).sentence_embeddings
+            # db.insert_many_objects(
+            #     [
+            #         ClaimsTable(
+            #             documentId=request.documentId,
+            #             claim=claim.claim_text,
+            #             source=claim.claim_text,
+            #             embedding=emb,
+            #         )
+            #         for claim, emb in zip(all_claims, embs)
+            #         if claim.claim_text
+            #     ]
+            # )
+
+        total_time += time.perf_counter() - start_time
+        logger.info("FINISHED")
+
+    #
+    # with QueueFactory() as factory:
+    #     with TaskManager(
+    #         Engine.ASYNC,
+    #         workers=WORKER_COUNT,
+    #         initializer=init_worker,
+    #     ) as runner:
+    #         queue = factory(
+    #             queue_type=QueueType.REDIS,
+    #             queue_name=CLAIM_EXTRACT_QUEUE_NAME,
+    #         )
+    #         start_time = time.perf_counter()
+    #         async for r in runner.async_map(
+    #             process_task,
+    #             queue,
+    #         ):
+    #             total_tokens += r
+    #             total_documents += 1 if r > 0 else 0
+    #             total_time = time.perf_counter() - start_time
+    #             if total_documents % 50 == 0:
+    #                 logger.info(
+    #                     f"Claim Extractor: Processed {total_documents} documents in {total_time:.2f} ({total_documents / total_time:.2f} docs / second) ({total_tokens / total_time:.2f} tokens / second)"
+    #                 )
 
 
 if __name__ == "__main__":

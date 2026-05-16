@@ -72,21 +72,22 @@ def process_a0_a1(array: List[TextAnnotation]):
     return final_list
 
 
-def expand_argument(annotation: TextAnnotation) -> TextAnnotation:
-    if annotation.type == "token" and annotation.value == "VERB":
-        start = annotation.start
-        end = annotation.end
-        for child in annotation.children:
-            if child.value in ("AUX", "ADP") and child.dep in ("advmod", "aux"):
-                start = min(start, child.start)
-                end = max(end, child.end)
-        return annotation.owner.create_span(
-            start=start,
-            end=end,
-            value="VERB",
-            source="rb_event_extractor",
-        )
+def expand_trigger(annotation: TextAnnotation):
+    start = annotation.start
+    end = annotation.end
+    for child in annotation.children:
+        if child.value in ("AUX", "ADP") and child.dep in ("advmod", "aux"):
+            start = min(start, child.start)
+            end = max(end, child.end)
+    return annotation.owner.create_span(
+        start=start,
+        end=end,
+        value="VERB",
+        source="rb_event_extractor",
+    )
 
+
+def expand_argument(annotation: TextAnnotation) -> TextAnnotation:
     chunks = [chunk for chunk in annotation.noun_chunks]
     if len(chunks) > 0:
         chunk = max(chunks, key=lambda c: c.end - c.start)
@@ -133,7 +134,7 @@ def extract_events(doc: Document) -> List[Event]:
     sentences: List[TextAnnotation] = list(doc.text.sentences)
     for sent in sentences:
         triggers = [
-            expand_argument(token) for token in sent.tokens if is_event_trigger(token)
+            expand_trigger(token) for token in sent.tokens if is_event_trigger(token)
         ]
         for trigger in triggers:
             mapping = mapper.get_category(doc.language, trigger.lemma)

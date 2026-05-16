@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Optional
 
-from sqlalchemy import String, func, select
+from sqlalchemy import select
 
-from lang3s.data.db import db
+import lang3s.data.db.database as db
 from lang3s.data.db.models import AnnotationToOntologyTable, OntologyTable
 
 

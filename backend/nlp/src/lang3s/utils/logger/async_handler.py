@@ -1,16 +1,24 @@
 import logging
 import queue
+import sys
 import threading
+
+from uvicorn.logging import DefaultFormatter
 
 
 class AsyncQueueHandler(logging.Handler):
     """Threaded async-safe logging via queue."""
 
-    def __init__(self, handler: logging.Handler):
+    def __init__(self):
         super().__init__()
         self.queue = queue.Queue()
-        self.handler = handler
-
+        self.handler = logging.StreamHandler(sys.stdout)
+        formatter = DefaultFormatter(
+            fmt="%(levelprefix)s %(asctime)s | %(name)s | %(message)s",
+            use_colors=True,
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        self.handler.setFormatter(formatter)
         self.listener = threading.Thread(target=self._listen, daemon=True)
         self.listener.start()
 

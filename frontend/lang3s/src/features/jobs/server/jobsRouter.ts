@@ -7,7 +7,7 @@ import {
   getUserApiKeys,
   getUserByApiKey,
   isSystemApiKey,
-  requirePermissions,
+  requirePermissions
 } from "@/features/auth/server/actions";
 import { BasicUserInfo } from "@/features/common/types";
 import { apiProcedure, createTRPCRouter } from "@/lib/trpc/init";
@@ -360,7 +360,6 @@ export const jobsRouter = createTRPCRouter({
 
 const publishJobStatus = async (job: typeof JobsTable.$inferSelect) => {
   const progress = job.total > 0 ? (job.completed + job.failed) / job.total : 0;
-  console.log(progress, job.status);
   try {
     await publishMessage({
       messageType: "job:update",

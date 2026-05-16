@@ -7,8 +7,8 @@ import sqlalchemy
 from numpy.typing import NDArray
 from sqlalchemy import Boolean, cast, distinct, not_, select
 
+import lang3s.data.db.database as db
 from lang3s import config
-from lang3s.data.db import db
 from lang3s.data.db.models import TextAnnotationsTable
 from lang3s.nlp.topics.reducer import OnlineReducer
 from lang3s.nlp.topics.shared_types import TopicSentence

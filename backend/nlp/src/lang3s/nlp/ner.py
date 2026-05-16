@@ -2,6 +2,7 @@ import threading
 from collections import defaultdict
 from typing import Any
 
+import numpy as np
 from gliner import GLiNER
 
 from lang3s import config
@@ -250,11 +251,15 @@ class NamedEntityRecognition(metaclass=SingletonMeta):
                         metadata={"confidence": entity["score"]},
                         sentence_id=start_token.sentence_id,
                     )
+                    annotation.embedding = (
+                        np.array([t.embedding for t in annotation.tokens])
+                        .mean(axis=0)
+                        .astype(np.float16)
+                    )
 
                     entity_id_annotation_map[entity["id"]] = annotation
 
                 document.text.clear_cache()
-                self._coref_model.perform_coref(document)
 
 
 _ner: NamedEntityRecognition = None  # type: ignore

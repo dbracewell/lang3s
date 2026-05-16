@@ -1,3 +1,4 @@
+import re
 import threading
 from collections import Counter, defaultdict
 
@@ -11,7 +12,7 @@ from lang3s.models.coref_ranker import (
 )
 from lang3s.nlp.coref.helper import should_perform_coref
 from lang3s.nlp.language import is_person_pronoun
-from lang3s.nlp.language.en import ACRONYM_EXPANSIONS
+from lang3s.nlp.language.en import ACRONYM_EXPANSIONS, TITLES
 from lang3s.nlp.metadata import Metadata
 from lang3s.nlp.shared_types import AnnotationTypes, Document, TextAnnotation
 
@@ -22,17 +23,14 @@ def _apply_nominal_sieve(mention, candidates, all_scores, threshold=-1.5):
     the mention unlinked, the sieve applies deterministic rules to catch nominals.
     """
     # 1. Get the neural network's top choice
-    predicted_idx: int = torch.argmax(all_scores).item()
+    predicted_idx: int = torch.argmax(all_scores).item()  # type: ignore
 
-    # Don't allow it to be corefed to Person
+    # Don't allow "it" to be corefed to Person
     is_it_person = (
         mention.get("cleaned") == "it"
         and predicted_idx > 0
         and candidates[predicted_idx].get("ner_idx") == 1
     )
-
-    if predicted_idx != 0 and not is_it_person:
-        return predicted_idx
 
     m_pos = REVERSE_POS_MAP.get(mention.get("pos_idx"), "DEFAULT")
     m_gen = mention.get("gender_idx")
@@ -40,6 +38,31 @@ def _apply_nominal_sieve(mention, candidates, all_scores, threshold=-1.5):
     m_text_raw = mention.get("text")
     m_text_clean: str = mention.get("cleaned")
     m_text_lower = m_text_raw.lower()
+
+    predicted_type = candidates[predicted_idx - 1].get("ner_idx")
+    predicted_pos = REVERSE_POS_MAP.get(
+        candidates[predicted_idx - 1].get("pos_idx"), "DEFAULT"
+    )
+    predicted_text = candidates[predicted_idx - 1].get("cleaned")
+
+    if (
+        predicted_type == 1
+        and m_ner == 1
+        and m_pos != "PRON"
+        and predicted_pos != "PRON"
+        and predicted_text.lower() not in TITLES
+        and m_text_clean.lower() not in TITLES
+    ):
+        # Both are person and neither are pronouns or titles, so they have to have some overlap
+        m_words = set([re.sub(r"\W+", "", s).lower() for s in m_text_clean.split(" ")])
+        c_words = set(
+            [re.sub(r"\W+", "", s).lower() for s in predicted_text.split(" ")]
+        )
+        if len(m_words.intersection(c_words)) == 0:
+            return 0
+
+    if predicted_idx != 0 and not is_it_person:
+        return predicted_idx
 
     # 3. Scan candidates backwards (closest mentions first)
     # all_scores is [dummy_score, cand_1_score, cand_2_score, ...]
@@ -178,7 +201,7 @@ def _extract_entity_clusters(resolved_mentions):
             )["id"]
 
         types = [m["value"] for m in cluster_mentions if m["value"]]
-        best_type = "Person"
+        best_type = "MISC"
         if types:
             best_type = Counter(types).most_common()[0][0]
 
@@ -206,7 +229,7 @@ class InDocumentCoref:
         """
         Loads the model from a saved checkpoint and prepares it for inference.
         """
-        filepath = FILE_STORE.get_file_path("models/coref.pt")
+        filepath = FILE_STORE.get_file_path("models/coref-old.pt")
         checkpoint = torch.load(filepath, map_location=device, weights_only=True)
         coref_ranker = cls(device=device)
         coref_ranker._model = FastCorefRanker(
@@ -220,7 +243,6 @@ class InDocumentCoref:
         return coref_ranker
 
     def process_document_batched(self, mentions, features):
-        # 1. Flattening arrays
         m_embs, m_pos, m_ner, m_gen = [], [], [], []
         c_embs, c_pos, c_ner, c_gen = [], [], [], []
         dists = []
@@ -228,7 +250,6 @@ class InDocumentCoref:
         # Keeps track of which pair indices belong to which mention
         pair_routing = defaultdict(list)
 
-        # --- PHASE 1: Build the Flattened Batch ---
         for i in range(1, len(mentions)):
             current_mention = mentions[i]
             m_feat = features[i]
@@ -252,7 +273,6 @@ class InDocumentCoref:
 
                 dists.append(min(i - j, 9))
 
-                # Map this global pair index back to mention 'i'
                 pair_routing[i].append(len(dists) - 1)
 
         if not dists:
@@ -260,8 +280,6 @@ class InDocumentCoref:
 
         device = self._device
 
-        # --- PHASE 2: The Single GPU Pass ---
-        # Convert lists to tensors and move to MPS/GPU
         batched_m = {
             "emb": torch.stack(m_embs),
             "pos_idx": torch.tensor(m_pos, device=device),
@@ -279,15 +297,11 @@ class InDocumentCoref:
         batched_dists = torch.tensor(dists, device=device)
 
         with torch.inference_mode():
-            # This single line replaces your entire previous PyTorch for-loop!
             global_scores = self._model.batch_predict(
                 batched_m, batched_c, batched_dists
             )
-
-            # Get the dummy score tensor once
             dummy = self._model.dummy_score.view(1)
 
-        # --- PHASE 3: Reconstruct and Sieve ---
         for i in range(1, len(mentions)):
             indices = pair_routing.get(i)
             if not indices:
@@ -307,7 +321,10 @@ class InDocumentCoref:
 
             # Run your deterministic logic
             best_idx = _apply_nominal_sieve(
-                current_feature, candidate_features, all_scores, threshold=-1.5
+                current_feature,
+                candidate_features,
+                all_scores,
+                threshold=-1.5,
             )
 
             if best_idx > 0:
@@ -319,17 +336,24 @@ class InDocumentCoref:
             return
 
         # ---------------------------------------------------------
-        # MENTION EXTRACTION
+        # Extract Entities, Personal Pronouns + it, it's, Noun Chunk
         # ---------------------------------------------------------
-        mentions = [
-            entity for entity in document.text.entities if should_perform_coref(entity)
-        ]
+        mentions = []
         token_ids = set()
-        for candidate in document.text.noun_chunks:
-            if not any(t.id in token_ids for t in candidate.tokens):
-                mentions.append(candidate)
-                for token in candidate.tokens:
+        for entity in document.text.entities:
+            for token in entity.tokens:
+                token_ids.add(token.id)
+            if should_perform_coref(entity):
+                mentions.append(entity)
+
+        for nominal in document.text.noun_chunks:
+            if not any(t.id in token_ids for t in nominal.tokens) and not any(
+                t.value == "PRON" for t in nominal.tokens
+            ):
+                mentions.append(nominal)
+                for token in nominal.tokens:
                     token_ids.add(token.id)
+
         for token in document.text.tokens:
             if (
                 token.id not in token_ids
@@ -338,7 +362,6 @@ class InDocumentCoref:
                     is_person_pronoun(token.text, "en")
                     or token.text.lower() in ("it", "its")
                 )
-                and not token.entities
             ):
                 mentions.append(token)
 
@@ -350,10 +373,17 @@ class InDocumentCoref:
 
         self.process_document_batched(mentions, features)
         resolved_mentions = _extract_entity_clusters(features)
+
         for cluster in resolved_mentions:
             canonical_id = cluster["canonical_id"]
             canonical_type = cluster["canonical_type"]
             canonical_mention = mention_id_map[canonical_id]
+            if (
+                len(cluster["mentions"]) == 1
+                and canonical_mention.type == AnnotationTypes.NOUN_CHUNK
+            ):
+                continue
+
             if canonical_mention.type == AnnotationTypes.TOKEN:
                 continue
 
@@ -378,7 +408,10 @@ class InDocumentCoref:
                     continue
 
                 mention = mention_id_map[m_id]
-                if mention.type == AnnotationTypes.TOKEN or AnnotationTypes.NOUN_CHUNK:
+                if (
+                    mention.type == AnnotationTypes.TOKEN
+                    or mention.type == AnnotationTypes.NOUN_CHUNK
+                ):
                     document.text.add_annotation(
                         text=mention.text,
                         start=mention.start,

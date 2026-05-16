@@ -270,6 +270,7 @@ class Text(TextObject):
         metadata: Dict[str, Any] | None = None,
         mark_dirty: bool = False,
     ) -> TextAnnotation:
+
         annotation = TextAnnotation(
             owner=self,
             id=id,

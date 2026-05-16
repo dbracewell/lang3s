@@ -7,7 +7,7 @@ from lang3s.utils.logger import get_logger
 
 logger = get_logger("LOCAL_LLM")
 
-MODEL_NAME = "qwen2.5-1.5b-instruct-q8_0.gguf"  # "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+MODEL_NAME = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
 adapters = {"claim": "claim_extraction.gguf"}
 adapter_ids = {v: i for i, v in enumerate(adapters.values())}
 
@@ -17,7 +17,7 @@ def main():
     model_path = os.path.join(root, MODEL_NAME)
 
     parallel_factor = 4
-    context_window = 1024
+    context_window = 32768 // 8
 
     # fmt: off
     cmd = [
@@ -28,24 +28,16 @@ def main():
 
         "-np", str(parallel_factor),
         "-c", str(parallel_factor*context_window),
-        "-b", "4096",
-        "-ub", "4096",
-        "-cb",
-        
+        "-b", "512",
+        "-ub", "512",
         # "--verbosity", "1", # only log errors
-
-        "-fa", "on",
+        "--flash-attn", "on",
+        "--cont-batching",
         "-ngl", "99",
-        # "--no-mmap",
-        "-t", "4",
         "--chat-template", "chatml",
         "--lora-init-without-apply",
-
-        "--repeat_last_n", "1.2",
-
-        # 8 bit kv-cache quantization
-        # "--cache-type-k", "q8_0",
-        # "--cache-type-v", "q8_0",
+        "--cache-type-k", "q8_0",
+        "--cache-type-v", "q8_0",
     ]
 
     # fmt: on

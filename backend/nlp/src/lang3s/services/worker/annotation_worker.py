@@ -24,8 +24,9 @@ from joblib import Parallel, delayed
 from lang3s_job_service import File, Job, JobService, JobStatus
 from sqlalchemy import update
 
+import lang3s.data.db.database as db
+import lang3s.data.db.text_database as text_db
 from lang3s import config
-from lang3s.data.db import db, text_db
 from lang3s.data.db.models import KeywordsTable
 from lang3s.nlp.claim_extractor import (
     create_claim_request,
@@ -212,14 +213,17 @@ def process_batch(batch):
         # Forward the documents to the claim extraction module
         with RedisClient() as redis_client:
             for doc in docs:
-                claims = create_claim_request(doc)
-                redis_client.enqueue(
-                    CLAIM_EXTRACT_QUEUE_NAME,
-                    claims.model_dump(),
-                )
-                for sentence in doc.text.sentences:
-                    if "claims" in sentence.metadata:
-                        sentence.metadata.pop("claims")
+                try:
+                    claims = create_claim_request(doc)
+                    redis_client.enqueue(
+                        CLAIM_EXTRACT_QUEUE_NAME,
+                        claims.model_dump(),
+                    )
+                    for sentence in doc.text.sentences:
+                        if "claims" in sentence.metadata:
+                            sentence.metadata.pop("claims")
+                except Exception as e:
+                    logger.error(e, exc_info=True)
 
         # Add the annotated documents to the database
         # and persist them in msgpack to the filestore

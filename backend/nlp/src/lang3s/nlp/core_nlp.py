@@ -29,7 +29,7 @@ SPACY_MODELS = {
 }
 
 SPACY_DISABLED = {
-    "en": ["ner"],
+    # "en": ["ner"],
 }
 
 
@@ -108,8 +108,6 @@ class CoreLanguageProcessor(metaclass=SingletonMeta):
 
             for component, options in lang_config.items():
                 nlp.add_pipe(component, source=custom_model, **options)
-            # nlp.add_pipe("tok2vec", source=verbs, before="tagger")
-            # nlp.add_pipe("ner", source=verbs, last=True)
 
         self.pipelines[language] = nlp
         nlp.add_pipe("social_media_matcher", last=True)
@@ -190,36 +188,35 @@ def convert_to_lang3s(spacy_doc: Doc, lang3s_doc: Document):
 
     entity_map: Dict[int, TextAnnotation] = {}
     entity: Span
-    for entity in spacy_doc.ents:
-        label = entity.label_
-        if is_person_pronoun(entity) and entity.text != "US":
-            label = "PERSON"
+    if lang3s_doc.language != "en":
+        for entity in spacy_doc.ents:
+            label = entity.label_
+            if is_person_pronoun(entity) and entity.text != "US":
+                label = "PERSON"
 
-        metadata = {Metadata.LEMMA.value: entity.lemma_}
-        if label == "hashtag":
-            metadata["hashtag"] = entity.text[1:]
-            all_hashtags.append(entity.text[1:])
-        if label == "mention":
-            metadata["mention"] = entity.text[1:]
-            all_mentions.append(entity.text[1:])
-        if label == "url":
-            metadata["url"] = normalize_url(entity.text)
-            all_urls.append(metadata["url"])
+            metadata = {Metadata.LEMMA.value: entity.lemma_}
+            if label == "hashtag":
+                metadata["hashtag"] = entity.text[1:]
+                all_hashtags.append(entity.text[1:])
+            if label == "mention":
+                metadata["mention"] = entity.text[1:]
+                all_mentions.append(entity.text[1:])
+            if label == "url":
+                metadata["url"] = normalize_url(entity.text)
+                all_urls.append(metadata["url"])
 
-        annotation_type = AnnotationTypes.ENTITY.value
-        if spacy_doc.lang_ == "en":
-            annotation_type = AnnotationTypes.SENSE.value
-        annotation = text.add_annotation(
-            start=entity.start,
-            end=entity.end,
-            text=entity.text,
-            sentence_id=sentences[entity.sent.start],
-            type=annotation_type,
-            source="core",
-            value=label,
-            metadata=metadata,
-        )
-        entity_map[entity.start] = annotation
+            annotation_type = AnnotationTypes.ENTITY.value
+            annotation = text.add_annotation(
+                start=entity.start,
+                end=entity.end,
+                text=entity.text,
+                sentence_id=sentences[entity.sent.start],
+                type=annotation_type,
+                source="core",
+                value=label,
+                metadata=metadata,
+            )
+            entity_map[entity.start] = annotation
 
     try:
         for chunk in spacy_doc.noun_chunks:

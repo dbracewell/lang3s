@@ -6,9 +6,10 @@ from sqlalchemy import ScalarResult, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.sql.functions import func
 
+import lang3s.data.db.database as db
+import lang3s.data.db.text_database as text_db
 from lang3s.agent import Agent, Session
 from lang3s.agent.strategy import DiscoveryStrategy
-from lang3s.data.db import db, text_db
 from lang3s.data.db.models import (
     DocumentsTable,
     MetadataTable,

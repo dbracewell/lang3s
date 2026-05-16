@@ -8,22 +8,41 @@ from lang3s.nlp.shared_types import Document
 
 
 class Claim(BaseModel):
-    text: str
-    # target: str
-    # stance: str
-    # time: str | None
-    # cause: str | None
-    type: Literal[
-        "fact",
-        "definition",
-        "value",
-        "policy",
-        "causation",
-        "comparison",
-        "contingency",
+    claim_text: str
+    claim_type: Literal[
+        "Fact",
+        "Definition",
+        "Value",
+        "Policy",
+        "Causation",
+        "Comparison",
+        "Contingency",
     ]
-    # type_confidence: Literal["low", "medium", "high"]
-    sentiment: Literal["positive", "negative", "neutral"]
+    source: str
+    predicate: str
+    object: str
+    stance: str
+    certainty: Literal[
+        "certain",
+        "probable",
+        "possible",
+        "speculative",
+        "unknown",
+    ]
+    modality: Literal[
+        "factual",
+        "normative",
+        "hypothetical",
+        "conditional",
+        "predictive",
+    ]
+    negation: bool
+    condition: str | None
+    time: str | None
+    location: str | None
+    evidence: str | None
+    sentiment: Literal["positive", "negative", "neutral"] | None
+    keywords: list[str]
 
 
 class ClaimList(BaseModel):
@@ -36,23 +55,7 @@ class DocumentClaimRequest(BaseModel):
 
 
 def create_claim_request(document: Document) -> DocumentClaimRequest:
-    claim_sentences = []
-    doc_sentences = document.text.sentences
-    for i in range(len(doc_sentences)):
-        sentence = doc_sentences[i]
-        if sentence.is_stopword or sentence.text.endswith("?"):
-            continue
-
-        claim_metadata = sentence["claim"]
-        # if claim_metadata is None:
-        #     continue
-
-        # is_claim = claim_metadata["value"]
-        # claim_confidence = claim_metadata["confidence"]
-        # if not is_claim or claim_confidence <= 0.9:
-        #     continue
-
-        context = " ".join(s.text for s in doc_sentences[i - 2 : i])
-        claim_sentences.append(f"CONTEXT: {context}\nSENTENCE: {sentence.text}")
-
-    return DocumentClaimRequest(documentId=document.id, sentences=claim_sentences)
+    return DocumentClaimRequest(
+        documentId=document.id,
+        sentences=[s.text for s in document.text.sentences],
+    )

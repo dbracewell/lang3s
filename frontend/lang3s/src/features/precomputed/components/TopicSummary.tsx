@@ -28,7 +28,7 @@ export const TopicSummary = ({
       </Card>
     );
   }
-  const maxValue = summary?.[0].support ?? 1;
+  const maxValue = summary?.[0]?.support ?? 1;
   return (
     <Card className="w-full">
       <CardHeader>

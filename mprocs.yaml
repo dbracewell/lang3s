@@ -4,10 +4,7 @@ procs:
     autostart: true
 
   python-server:
-    shell: "uv run python ../run.py --num_workers 5 --batch_size 100"
-    cwd: "./backend/nlp"
-    env:
-      MODELS_DIR=models:
+    shell: "uv --project backend/nlp/ run python backend/run.py --num_workers 3 --batch_size 500"
     autostart: true
 
   nextjs-server:

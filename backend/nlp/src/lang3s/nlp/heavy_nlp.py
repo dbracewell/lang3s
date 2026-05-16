@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 from lang3s.models.embedder import Embedder, EmbeddingResult
 from lang3s.models.transformer.multi_task_transformer import MultiTaskTransformer
 from lang3s.models.transformer.shared_types import TokenLabelResult
+from lang3s.nlp.coref.indoc_coref import get_in_document_coref_model
 from lang3s.nlp.event_extraction import extract_events
 from lang3s.nlp.keyword_extraction import extract_keywords
 from lang3s.nlp.metadata import Metadata
@@ -53,16 +54,25 @@ def heavy_nlp(
         ner.process([doc])
 
     perform_heavy_tagging(doc, sentences, result, tasks)
-    extract_events_for_doc(doc)
 
+    embed_all(doc)
+    if not disable_ner:
+        coref_model = get_in_document_coref_model()
+        coref_model.perform_coref(doc)
+
+    extract_events_for_doc(doc)
+    embed_all(doc)
+
+    keywords = extract_keywords(doc.text, top_n=10)
+    doc.text.keywords = keywords
+
+
+def embed_all(doc):
     for annotation in doc.text.annotations:
         if annotation.is_eventive:
             embed_event_annotation(annotation)
         else:
             embed_annotation(annotation)
-
-    keywords = extract_keywords(doc.text, top_n=10)
-    doc.text.keywords = keywords
 
 
 def _to_mean_array(

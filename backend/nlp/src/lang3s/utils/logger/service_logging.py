@@ -1,4 +1,5 @@
 import logging
+import logging.config
 import os
 import sys
 import warnings
@@ -18,11 +19,42 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 warnings.filterwarnings("ignore")
 
 
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "uvicorn_file": {
+            "()": "uvicorn.logging.DefaultFormatter",
+            "fmt": "%(levelprefix)s %(asctime)s | %(name)s | %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+            "use_colors": False,
+        },
+    },
+    "handlers": {
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": "lang3s.log",
+            "formatter": "uvicorn_file",
+        },
+        "stream": {
+            "()": "lang3s.utils.logger.async_handler.AsyncQueueHandler",
+        },
+    },
+    "loggers": {
+        "": {
+            "handlers": ["file", "stream"],
+            "level": "INFO",
+        },
+    },
+}
+
+
 def __initialize_logging():
     global _is_initialized
     if _is_initialized:
         return
     _is_initialized = True
+    logging.config.dictConfig(LOGGING_CONFIG)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("fastcoref.modeling").setLevel(logging.WARNING)
@@ -30,6 +62,7 @@ def __initialize_logging():
     logging.getLogger("transformers").setLevel(logging.ERROR)
     logging.getLogger("fastcoref").setLevel(logging.ERROR)
     logging.getLogger("gliner").setLevel(logging.ERROR)
+    logging.getLogger("numexpr.utils").setLevel(logging.ERROR)
 
 
 __existing_loggers = {}
@@ -44,22 +77,22 @@ def get_logger(name: str):
 
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
-    logger.propagate = False
-
-    for handler in logger.handlers or []:
-        logger.removeHandler(handler)
-
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = DefaultFormatter(
-        fmt="%(levelprefix)s %(asctime)s | %(name)s | %(message)s",
-        use_colors=True,
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    handler.setFormatter(formatter)
-    async_handler = AsyncQueueHandler(handler)
-    async_handler.setLevel(logging.DEBUG)
-    logger.addHandler(handler)
-
+    # logger.propagate = False
+    #
+    # for handler in logger.handlers or []:
+    #     logger.removeHandler(handler)
+    #
+    # handler = logging.StreamHandler(sys.stdout)
+    # formatter = DefaultFormatter(
+    #     fmt="%(levelprefix)s %(asctime)s | %(name)s | %(message)s",
+    #     use_colors=True,
+    #     datefmt="%Y-%m-%d %H:%M:%S",
+    # )
+    # handler.setFormatter(formatter)
+    # async_handler = AsyncQueueHandler(handler)
+    # async_handler.setLevel(logging.DEBUG)
+    # logger.addHandler(handler)
+    #
     level = os.environ.get(f"LOGGER_{name.replace('__', '.')}", None)
     if level:
         logger.setLevel(level.upper())

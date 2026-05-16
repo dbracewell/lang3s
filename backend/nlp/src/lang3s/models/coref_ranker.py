@@ -176,14 +176,13 @@ class FastCorefRanker(nn.Module):
         same_gender = ((c_gen == m_gen) & (m_gen != 0)).float().unsqueeze(1)
         same_ner = ((c_ner == m_ner) & (m_ner != 0)).float().unsqueeze(1)
 
-        # The Nominal Bridge: 1.0 if comparing a NOUN (8) to a PROPN (12)
+        # 1.0 if comparing a NOUN (8) to a PROPN (12)
         is_nominal_pair = (
             (((m_pos == 8) & (c_pos == 12)) | ((m_pos == 12) & (c_pos == 8)))
             .float()
             .unsqueeze(1)
         )
 
-        # Concatenate everything into one massive, highly descriptive vector
         pair_reps = torch.cat(
             [
                 ment_emb_repeated,
@@ -213,7 +212,6 @@ class FastCorefRanker(nn.Module):
 
         invalid_pairs = gender_clash | animacy_clash | animacy_clash_rev
         candidate_scores = candidate_scores.masked_fill(invalid_pairs, -1e4)
-
         all_scores = torch.cat([self.dummy_score, candidate_scores])
 
         return all_scores

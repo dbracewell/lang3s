@@ -1,0 +1,80 @@
+[project]
+name = "lang3s-training"
+version = "2025.10.3"
+description = "Lang3s training"
+authors = [
+    { name = "David Bracewell" }
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "transformers==4.51.3",
+    "torch==2.8.0",
+    "torchvision==0.23",
+    "datasets",
+    "lang3s-job-service",
+    "lang3s",
+    "jsonlines>=4.0.0,<5.0.0",
+    "numpy<2",
+    "sentencepiece>=0.2.1,<0.3.0",
+    "pandas>=2.3.3,<3.0.0",
+    "tables>=3.10.2,<4.0.0",
+    "sentence-transformers>=5.2.2,<6.0.0",
+    "joblib>=1.5.3,<2.0.0",
+    "peft>=0.18.1,<0.19.0",
+    "trl>=0.19.1",
+]
+
+[project.optional-dependencies]
+sloth = [
+    "unsloth; platform_machine == 'x86_64' and sys_platform != 'darwin'",
+    "unsloth_zoo; platform_machine == 'x86_64' and sys_platform != 'darwin'",
+]
+train = [
+    "torch",
+    "bitsandbytes",
+    "xformers",
+    "trl>=0.18.2",
+]
+
+
+[tool.uv.sources]
+lang3s-job-service = { path = "../jobs_service", editable = true }
+lang3s = { path = "../nlp", editable = true }
+unsloth = { git = "https://github.com/unslothai/unsloth.git" }
+unsloth_zoo = { git = "https://github.com/unslothai/unsloth-zoo.git" }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.14.3"
+]
+
+[tool.uv]
+override-dependencies = [
+    "mlx-vlm>=0.0.0; sys_platform == 'darwin' and platform_machine == 'arm64'"
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/training"]
+artifacts = [
+    "**/*.so",
+    "**/*.pyd",
+    "**/*.dll"
+]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["F401"]
+fixable = ["ALL"]

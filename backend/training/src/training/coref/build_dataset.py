@@ -4,21 +4,21 @@ from collections import defaultdict
 
 import jsonlines
 import pandas as pd
-from lang3s_job_service import File
-from tqdm import tqdm
-
-from lang3s.models.coref_ranker import create_coref_mention
-from lang3s.models.training.document_coref.coref_config import (
+from coref_config import (
     GUM_DIR,
     SYNTHETIC_DATA,
     TRAINING_DATA_DIR,
     WIKICOREF_DIR,
 )
-from lang3s.models.training.document_coref.io import save_preprocessed_data
+from lang3s.models.coref_ranker import create_coref_mention
 from lang3s.nlp.metadata import Metadata
 from lang3s.nlp.shared_types import Document
 from lang3s.pipeline import pipeline
 from lang3s.pipeline.runner import pipeline_from_tokens
+from lang3s_job_service import File
+from tqdm import tqdm
+
+from training.coref.io import save_preprocessed_data
 
 os.environ["TQDM_DISABLE"] = "0"
 
@@ -68,7 +68,7 @@ def parse_and_embed_synthetic_text(filepath):
 
             # 2. Run the clean text through spaCy to get your metadata
             files = [File(content=clean_text)]
-            doc = pipeline(files, log=False)[0]
+            doc = list(pipeline(files, log=False))[0]
             formatted_document = []
 
             mention_span_set = set()
@@ -288,8 +288,10 @@ def parse_conll_coref(filepath):
                         mention_counter += 1
 
             for mention in doc:
-                start_token = lang3s_doc.text.tokens[mention["token_start"]]
-                end_token = lang3s_doc.text.tokens[mention["token_end"]]
+                token_start: int = mention["token_start"]
+                token_end: int = mention["token_end"]
+                start_token = lang3s_doc.text.tokens[token_start]
+                end_token = lang3s_doc.text.tokens[token_end]
                 span = lang3s_doc.text.create_span(
                     start_token.start,
                     end_token.end,
@@ -350,9 +352,9 @@ def process_gap_dataset(split="train"):
         # Build the final document list
         doc_mentions = []
         for i, m in enumerate(mentions_raw):
-            start_token = doc.text.get_token_for_char_offset(m["offset"])
+            start_token = doc.text.get_token_for_char_offset(m["offset"])  # type: ignore
             end_token = doc.text.get_token_for_char_offset(
-                m["offset"] + len(m["text"]) - 1
+                m["offset"] + len(m["text"]) - 1  # type: ignore
             )
             span = doc.text.create_span(
                 start_token.start,

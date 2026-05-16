@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-
-
-export MODELS_DIR=./backend/nlp/models
-python  backend/run.py "$@"

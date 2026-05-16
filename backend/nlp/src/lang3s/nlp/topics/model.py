@@ -29,7 +29,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sqlalchemy import Boolean, Select, cast, delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 
-from lang3s.data.db import db
+import lang3s.data.db.database as db
 from lang3s.data.db.models import TextAnnotationsTable, TopicsTable
 from lang3s.nlp.shared_types import Document
 from lang3s.utils import flatten, try_catch
