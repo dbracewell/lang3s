@@ -91,6 +91,17 @@ model = AutoModelForCausalLM.from_pretrained(
 dataset = load_dataset("json", data_files={"train": formatted_data_file})
 
 
+def add_text_column(example):
+    """
+    Applies the formatting directly to the dataset before training begins.
+    """
+    return {"text": example["prompt"] + example["completion"] + tokenizer.eos_token}
+
+
+print("Formatting dataset...")
+dataset = dataset.map(add_text_column)
+
+
 def format_instruction_func(example):
     """
     Stitches the prompt and completion strings together into a single sequence
@@ -113,19 +124,21 @@ collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenize
 # ==========================================
 training_args = SFTConfig(
     output_dir=output_model_dir,
-    num_train_epochs=4,  # 4 epochs to cement the JSON structure
-    per_device_train_batch_size=4,  # Low active batch to prevent logit OOM spikes
-    gradient_accumulation_steps=8,  # Effective batch size = 32
+    num_train_epochs=4,
+    per_device_train_batch_size=4,
+    gradient_accumulation_steps=8,
     optim="adamw_torch",
-    learning_rate=5e-5,  # Fast, stable learning rate
-    max_length=2048,  # Hard token ceiling
+    learning_rate=5e-5,
+    max_length=2048,
     packing=False,
-    bf16=True,  # Native Ampere speed
+    bf16=True,
     fp16=False,
-    gradient_checkpointing=True,  # Keeps VRAM highly stable
+    gradient_checkpointing=True,
     logging_steps=10,
-    save_strategy="epoch",  # Save a checkpoint at the end of each epoch
+    save_strategy="epoch",
     report_to="none",
+    # NEW: Tell the trainer exactly which column contains the formatted text
+    dataset_text_field="text",
 )
 
 # ==========================================
@@ -134,12 +147,11 @@ training_args = SFTConfig(
 trainer = SFTTrainer(
     model=model,
     train_dataset=dataset["train"],
-    formatting_func=format_instruction_func,
-    data_collator=collator,  # Inject the completion-only mask
+    data_collator=collator,  # Still using our completion mask!
     args=training_args,
     processing_class=tokenizer,
+    # REMOVED: formatting_func is now gone to satisfy TRL's strict requirements
 )
-
 print("\nStarting full fine-tuning...")
 trainer.train()
 
