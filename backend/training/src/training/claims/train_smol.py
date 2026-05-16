@@ -3,7 +3,7 @@ import os
 
 import torch
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForSeq2Seq
 from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
 
 # ==========================================
@@ -91,6 +91,42 @@ model = AutoModelForCausalLM.from_pretrained(
 dataset = load_dataset("json", data_files={"train": formatted_data_file})
 
 
+def tokenize_and_mask(example):
+    """
+    Manually tokenizes the inputs and masks the prompt so the model
+    only calculates loss on the JSON completion. This bypasses all TRL collator bugs.
+    """
+    # 1. Tokenize prompt and completion separately to find the exact boundary
+    prompt_ids = tokenizer(example["prompt"], add_special_tokens=True)["input_ids"]
+    completion_ids = tokenizer(example["completion"], add_special_tokens=False)[
+        "input_ids"
+    ]
+
+    # 2. Combine them and add the EOS token
+    input_ids = prompt_ids + completion_ids + [tokenizer.eos_token_id]
+
+    # 3. Truncate to max length to protect the 3090's VRAM
+    max_length = 4096
+    if len(input_ids) > max_length:
+        input_ids = input_ids[:max_length]
+
+    # 4. Create Labels: Set prompt tokens to -100 (PyTorch ignores these during loss)
+    prompt_len = len(prompt_ids)
+    labels = [-100] * prompt_len + input_ids[prompt_len:]
+
+    # 5. Create Attention Mask
+    attention_mask = [1] * len(input_ids)
+
+    return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": labels}
+
+
+print("Tokenizing and masking dataset...")
+tokenized_dataset = dataset["train"].map(
+    tokenize_and_mask, remove_columns=dataset["train"].column_names
+)
+collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, padding=True)
+
+
 def add_text_column(example):
     """
     Applies the formatting directly to the dataset before training begins.
@@ -98,8 +134,8 @@ def add_text_column(example):
     return {"text": example["prompt"] + example["completion"] + tokenizer.eos_token}
 
 
-print("Formatting dataset...")
-dataset = dataset.map(add_text_column)
+# print("Formatting dataset...")
+# dataset = dataset.map(add_text_column)
 
 
 def format_instruction_func(example):
@@ -113,11 +149,8 @@ def format_instruction_func(example):
     return texts
 
 
-# CRITICAL FIX: The Data Collator
-# This strictly enforces that the model is ONLY punished for mistakes it makes
-# after "### JSON:\n". It completely ignores the document text when calculating loss.
-response_template = "### JSON:\n"
-collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
+# response_template = "### JSON:\n"
+# collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
 
 # ==========================================
 # 5. Training Arguments (RTX 3090 Optimized)
@@ -137,8 +170,7 @@ training_args = SFTConfig(
     logging_steps=10,
     save_strategy="epoch",
     report_to="none",
-    # NEW: Tell the trainer exactly which column contains the formatted text
-    dataset_text_field="text",
+    # REMOVED dataset_text_field because we pre-tokenized the data!
 )
 
 # ==========================================
@@ -146,11 +178,10 @@ training_args = SFTConfig(
 # ==========================================
 trainer = SFTTrainer(
     model=model,
-    train_dataset=dataset["train"],
-    data_collator=collator,  # Still using our completion mask!
+    train_dataset=tokenized_dataset,  # Pass our pure tensor dataset
+    data_collator=collator,  # Standard dynamic padding collator
     args=training_args,
     processing_class=tokenizer,
-    # REMOVED: formatting_func is now gone to satisfy TRL's strict requirements
 )
 print("\nStarting full fine-tuning...")
 trainer.train()
