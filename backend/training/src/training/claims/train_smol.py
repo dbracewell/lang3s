@@ -1,113 +1,153 @@
-import gc
+import json
+import os
 
 import torch
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainerCallback
-from trl import SFTConfig, SFTTrainer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
 
 # ==========================================
-# 1. Configuration & Setup
+# 1. Configuration Setup
 # ==========================================
+input_data_file = "train.jsonl"  # Your original ChatML file
+formatted_data_file = "train_formatted.jsonl"  # The new file this script will create
+output_model_dir = "./smollm-135m-json-3090"
 model_id = "HuggingFaceTB/SmolLM2-135M"
-output_dir = "./smollm-135m-chatml"
 
 
 # ==========================================
-# MAC LEAK FIX: Custom MPS Garbage Collection Callback
+# 2. Data Conversion Function
 # ==========================================
-class MPSGarbageCollectionCallback(TrainerCallback):
-    """Forces the Apple Silicon GPU backend to release its cached computational graphs
-    after every single step instead of letting them hoard unified memory."""
+def convert_chatml_to_prompt_completion(input_path, output_path):
+    """
+    Reads a ChatML structured JSONL file and flattens it into an explicit
+    Prompt/Completion format tailored for Document-to-JSON extraction.
+    """
+    print(f"Converting {input_path} to structured Prompt-Completion format...")
+    converted_data = []
 
-    def on_step_end(self, args, state, control, **kwargs):
-        torch.mps.empty_cache()
-        gc.collect()
+    with open(input_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
 
+            data = json.loads(line)
+            messages = data.get("messages", [])
+
+            system_msg, user_msg, assistant_msg = "", "", ""
+
+            # Extract content based on roles
+            for msg in messages:
+                if msg["role"] == "system":
+                    system_msg = msg["content"]
+                elif msg["role"] == "user":
+                    user_msg = msg["content"]
+                elif msg["role"] == "assistant":
+                    assistant_msg = msg["content"]
+
+            # Construct the exact prompt layout
+            # Notice the distinct structural boundaries we use instead of ChatML tags
+            prompt = f"{system_msg}\n\n### Document:\n{user_msg}\n\n### JSON:\n"
+            completion = assistant_msg
+
+            converted_data.append({"prompt": prompt, "completion": completion})
+
+    # Save the new format to disk
+    with open(output_path, "w", encoding="utf-8") as f:
+        for item in converted_data:
+            f.write(json.dumps(item) + "\n")
+
+    print(
+        f"Successfully saved {len(converted_data)} formatted examples to {output_path}.\n"
+    )
+
+
+# Run the conversion
+if not os.path.exists(input_data_file):
+    raise FileNotFoundError(
+        f"Could not find {input_data_file}. Please ensure your dataset is in the directory."
+    )
+convert_chatml_to_prompt_completion(input_data_file, formatted_data_file)
 
 # ==========================================
-# 2. Load Tokenizer & Add ChatML Tokens
+# 3. Load Tokenizer & Model
 # ==========================================
-print(f"Loading tokenizer and model for {model_id}...")
+print(f"Loading tokenizer and model: {model_id}...")
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 
-chatml_special_tokens = ["<|im_start|>", "<|im_end|>"]
-tokenizer.add_special_tokens({"additional_special_tokens": chatml_special_tokens})
-
+# Set the pad token (required for batching)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
-tokenizer.chat_template = (
-    "{% for message in messages %}"
-    "{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}"
-    "{% endfor %}"
-)
-
-# ==========================================
-# 3. Load Model & Resize Embeddings
-# ==========================================
 model = AutoModelForCausalLM.from_pretrained(
     model_id,
-    device_map="auto",  # This maps the model to 'mps' automatically on Mac
-)
-model.resize_token_embeddings(len(tokenizer))
-
-# ==========================================
-# 4. Load Dataset & Format Function
-# ==========================================
-# Replace 'train.jsonl' with your actual dataset file path
-dataset = load_dataset(
-    "json",
-    data_files={"train": "/Users/david/prj/data/claims/gpt-5.4-combined-claims.jsonl"},
+    torch_dtype=torch.bfloat16,  # RTX 3090 native optimization
+    device_map="auto",
 )
 
+# ==========================================
+# 4. Prepare Dataset & Collator
+# ==========================================
+dataset = load_dataset("json", data_files={"train": formatted_data_file})
 
-def format_chatml_func(example):
+
+def format_instruction_func(example):
+    """
+    Stitches the prompt and completion strings together into a single sequence
+    for the model, ending with the critical EOS token.
+    """
     texts = []
-    for messages in example["messages"]:
-        prompt = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=False
-        )
-        texts.append(prompt)
+    for prompt, completion in zip(example["prompt"], example["completion"]):
+        texts.append(f"{prompt}{completion}{tokenizer.eos_token}")
     return texts
 
 
+# CRITICAL FIX: The Data Collator
+# This strictly enforces that the model is ONLY punished for mistakes it makes
+# after "### JSON:\n". It completely ignores the document text when calculating loss.
+response_template = "### JSON:\n"
+collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
+
 # ==========================================
-# 5. Training Arguments (Configured for Apple Silicon)
+# 5. Training Arguments (RTX 3090 Optimized)
 # ==========================================
 training_args = SFTConfig(
-    output_dir=output_dir,
-    num_train_epochs=3,
-    per_device_train_batch_size=4,
-    gradient_accumulation_steps=8,
+    output_dir=output_model_dir,
+    num_train_epochs=4,  # 4 epochs to cement the JSON structure
+    per_device_train_batch_size=4,  # Low active batch to prevent logit OOM spikes
+    gradient_accumulation_steps=8,  # Effective batch size = 32
     optim="adamw_torch",
-    learning_rate=5e-5,
-    max_length=2048,  # Controls max context length
+    learning_rate=5e-5,  # Fast, stable learning rate
+    max_length=2048,  # Hard token ceiling
     packing=False,
-    # MAC LEAK FIX: Turn off bf16, turn on fp16.
-    # Apple M-series chips use native FP16 execution pipelines.
-    bf16=False,
-    fp16=True,
-    gradient_checkpointing=True,  # Saves extra activation memory overhead
-    logging_steps=1,  # Frequent logging helps monitor progress
+    bf16=True,  # Native Ampere speed
+    fp16=False,
+    gradient_checkpointing=True,  # Keeps VRAM highly stable
+    logging_steps=10,
+    save_strategy="epoch",  # Save a checkpoint at the end of each epoch
     report_to="none",
 )
 
 # ==========================================
-# 6. Initialize Trainer & Train
+# 6. Initialize Trainer & Execute
 # ==========================================
 trainer = SFTTrainer(
     model=model,
     train_dataset=dataset["train"],
-    formatting_func=format_chatml_func,
+    formatting_func=format_instruction_func,
+    data_collator=collator,  # Inject the completion-only mask
     args=training_args,
     processing_class=tokenizer,
-    callbacks=[MPSGarbageCollectionCallback()],
 )
 
-print("Starting training safely on Apple Silicon...")
+print("\nStarting full fine-tuning...")
 trainer.train()
 
-# Save final outputs
-trainer.save_model(output_dir)
-tokenizer.save_pretrained(output_dir)
-print(f"Training successfully finished. Saved to {output_dir}")
+# ==========================================
+# 7. Final Output
+# ==========================================
+trainer.save_model(output_model_dir)
+tokenizer.save_pretrained(output_model_dir)
+print(
+    f"\nTraining complete! Your production-ready model is saved at: {output_model_dir}"
+)
