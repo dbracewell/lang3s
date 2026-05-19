@@ -4,26 +4,22 @@ from typing import List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from lang3s import config
+from lang3s.models.base_transformer_model import ForkedBaseModel
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 
-from lang3s import config
-from lang3s.models.base_transformer_model import ForkedBaseModel
-from lang3s.models.embedder import Embedder
-
 # --- CONFIGURATION ---
 BATCH_SIZE = 128
-# LR = 1e-4  # 62%
-# EPOCHS = 5  # 62%
-
-LR = 1e-4  # 2e-5
+LR = 1e-4
 EPOCHS = 4
 MAX_LEN = 64
 
 SCALE = 20.0  # Crucial temperature scaling for Cosine Similarity
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-if torch.backends.mps.is_available(): DEVICE = "mps"
+if torch.backends.mps.is_available():
+    DEVICE = "mps"
 
 
 # --- 1. DATASET ---
@@ -33,7 +29,9 @@ class QueryDistillationDataset(Dataset):
             data = pickle.load(f)
         self.anchors: List[str] = data["anchors"]
         self.pos_embs = torch.from_numpy(data["positive_embeddings"]).float()
-        self.neg_embs = torch.from_numpy(data["negative_embeddings"]).float()  # Load Negatives!
+        self.neg_embs = torch.from_numpy(
+            data["negative_embeddings"]
+        ).float()  # Load Negatives!
 
     def __len__(self):
         return len(self.anchors)
@@ -42,7 +40,7 @@ class QueryDistillationDataset(Dataset):
         return {
             "query": self.anchors[idx],
             "target_vec": self.pos_embs[idx],
-            "negative_vec": self.neg_embs[idx]  # Return Negatives!
+            "negative_vec": self.neg_embs[idx],  # Return Negatives!
         }
 
 
@@ -63,7 +61,6 @@ class CosineTripletLoss(nn.Module):
 
 
 class MNRLWithHardNegatives(nn.Module):
-
     def forward(self, q, p, n):
         # C. Construct Candidate Pool (Positives + Negatives)
         # Shape: [2 * B, 384]
@@ -98,15 +95,18 @@ def train():
     for p in model.search_compression.parameters():
         p.requires_grad = True
 
-    trainable_params = list(model.search_layers.parameters()) + \
-                       list(model.search_compression.parameters())
+    trainable_params = list(model.search_layers.parameters()) + list(
+        model.search_compression.parameters()
+    )
     optimizer = torch.optim.AdamW(trainable_params, lr=LR)
     # criterion = CosineTripletLoss(margin=0.2)  # Margin of 0.2 is standard for cosine
     criterion = MNRLWithHardNegatives()
 
     total_steps = len(loader) * EPOCHS
     scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=int(0.1 * total_steps), num_training_steps=total_steps
+        optimizer,
+        num_warmup_steps=int(0.1 * total_steps),
+        num_training_steps=total_steps,
     )
     mse_loss = nn.MSELoss()
     print("Starting MNRL Training...")
@@ -116,25 +116,32 @@ def train():
         total_loss = 0
         for batch in loop:
             # A. Get Data
-            q = [t.lower() for t in batch['query']]  # [B, 384]
-            p = batch['target_vec'].to(DEVICE)  # [B, 384]
-            n = batch['negative_vec'].to(DEVICE)  # [B, 384]
+            q = [t.lower() for t in batch["query"]]  # [B, 384]
+            p = batch["target_vec"].to(DEVICE)  # [B, 384]
+            n = batch["negative_vec"].to(DEVICE)  # [B, 384]
 
             # Normalize Targets
             # B. Forward Pass
             p = F.normalize(p, p=2, dim=1)
             n = F.normalize(n, p=2, dim=1)
 
-            inputs = tokenizer(q,
-                               padding=True,
-                               truncation=True,
-                               return_tensors="pt",
-                               max_length=MAX_LEN).to(DEVICE)
+            inputs = tokenizer(
+                q,
+                padding=True,
+                truncation=True,
+                return_tensors="pt",
+                max_length=MAX_LEN,
+            ).to(DEVICE)
             outputs = model(**inputs, task="search")
             last_hidden_state = outputs["semantic_head"]
             compressor = outputs["compressor"]
 
-            mask = inputs['attention_mask'].unsqueeze(-1).expand(last_hidden_state.size()).float()
+            mask = (
+                inputs["attention_mask"]
+                .unsqueeze(-1)
+                .expand(last_hidden_state.size())
+                .float()
+            )
             sum_embeddings = torch.sum(last_hidden_state * mask, 1)
             sum_mask = torch.clamp(mask.sum(1), min=1e-9)
             sent_768 = sum_embeddings / sum_mask

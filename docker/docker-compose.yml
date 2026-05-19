@@ -1,22 +1,32 @@
+name: lang3s
+
 services:
   inngest:
     image: inngest/inngest
-    command: "inngest start -u http://host.docker.internal:3000/api/inngest --signing-key A1B2C3 --event-key A1B2C3"
+    container_name: lang3s_inngest
+    entrypoint: >
+      /bin/sh -c "
+      if [ -f /run/secrets/inngest_db_password ]; then
+        export INNGEST_POSTGRES_URI=\"postgres://inngest:\$(cat /run/secrets/inngest_db_password | tr -d '\r\n')@lang3s_database:5432/inngest\";
+      else
+        echo 'Error: inngest_db_password secret file missing!';
+        exit 1;
+      fi;
+      exec inngest start -u http://host.docker.internal:3000/api/inngest --signing-key A1B2C3 --event-key A1B2C3
+      "
     ports:
       - "8288:8288"
       - "8289:8289"
-    env_file:
-      - default.env
-    container_name: lang3s_inngest
+    secrets:
+      - inngest_db_password
     environment:
-      - INNGEST_POSTGRES_URI:=postgres://inngest:${POSTGRES_PASSWORD}@database:5432/inngest
       - INNGEST_REDIS_URI=redis://redis:6379
     depends_on:
       database:
         condition: service_healthy
       redis:
         condition: service_healthy
-    restart: always
+    restart: unless-stopped
     networks:
       - lang3s-network
     healthcheck:
@@ -31,18 +41,24 @@ services:
     build:
       context: .
       dockerfile: postgres/Dockerfile
+      secrets:
+        - db_password
+        - inngest_db_password
       args:
         POSTGRESQL_VERSION: 17
         PGROONGA_VERSION: 4.0.4-1
-        POSTGRES_DB: ${POSTGRES_DB}
-        POSTGRES_USER: ${POSTGRES_USER}
-        POSTGRES_HOST: ${POSTGRES_HOST}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        POSTGRES_DB: lang3s
+        POSTGRES_USER: admin
     shm_size: '4gb'
     container_name: lang3s_database
-    restart: always
-    env_file:
-      - default.env
+    restart: unless-stopped
+    secrets:
+      - db_password
+      - inngest_db_password
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_DB=lang3s
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
     ports:
       - "5432:5432"
     volumes:
@@ -51,77 +67,11 @@ services:
     networks:
       - lang3s-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U inngest -d inngest" ]
+      test: [ "CMD-SHELL", "pg_isready -h localhost -p 5432 -U admin -d postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
-
-  nlp_arm:
-    build:
-      context: ../backend
-      args:
-        JOBS_API_KEY: ${JOBS_API_KEY}
-        JOB_SERVICE_URL: ${JOB_SERVICE_URL}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-        POSTGRES_DB: ${POSTGRES_DB}
-        POSTGRES_USER: ${POSTGRES_USER}
-        POSTGRES_HOST: ${POSTGRES_HOST}
-        REDIS_HOST: ${REDIS_HOST}
-        DEVICE: ${DEVICE}
-    ports:
-      - "8003:8003"
-    container_name: lang3s_nlp
-    platform: linux/arm64/v8
-    restart: always
-    depends_on:
-      database:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    env_file:
-      - default.env
-    volumes:
-      - nlp_data:/app
-      - documents:/documents
-    networks:
-      - lang3s-network
-    profiles:
-      - production
-
-
-  nlp_nvidia:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile.nvidia
-      args:
-        JOBS_API_KEY: ${JOBS_API_KEY}
-        JOB_SERVICE_URL: ${JOB_SERVICE_URL}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-        POSTGRES_DB: ${POSTGRES_DB}
-        POSTGRES_USER: ${POSTGRES_USER}
-        POSTGRES_HOST: ${POSTGRES_HOST}
-        REDIS_HOST: ${REDIS_HOST}
-        DEVICE: ${DEVICE}
-    ports:
-      - "8003:8003"
-    container_name: lang3s_nlp
-    platform: linux/amd64
-    restart: always
-    depends_on:
-      database:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    env_file:
-      - default.env
-    volumes:
-      - nlp_data:/app
-      - documents:/documents
-    networks:
-      - lang3s-network
-    profiles:
-      - production
-
+      start_period: 45s
 
   redis:
     image: redis:7-alpine
@@ -132,19 +82,96 @@ services:
     networks:
       - lang3s-network
     container_name: lang3s_redis
-    restart: always
+    restart: unless-stopped
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 5
 
+  filestore_seeder:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.data
+    volumes:
+      - internal_filestore:/filestore
+    profiles:
+      - production
+
+  lora_llm:
+    image: lang3s-python-core:latest
+    container_name: lang3s_lora_llm
+    platform: linux/amd64
+    volumes:
+      - internal_filestore:/filestore
+    command:
+      - python -m src.lang3s.services.local_llm_app
+    depends_on:
+      filestore_seeder:
+        condition: service_completed_successfully
+      nlp:
+        condition: service_completed_successfully
+    profiles:
+      - production
+  
+  nlp:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: lang3s-python-core:latest
+    container_name: lang3s_nlp
+    platform: linux/amd64
+    restart: unless-stopped
+    volumes:
+      - internal_filestore:/filestore
+    depends_on:
+      filestore_seeder:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    secrets:
+      - system_api_key
+      - db_password
+    networks:
+      - lang3s-network
+    profiles:
+      - production
+
+  caddy:
+    image: caddy:latest
+    restart: unless-stopped
+    container_name: lang3s_caddy
+    networks:
+      - lang3s-network
+    ports:
+      - "80:8003"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    profiles:
+      - production
+
+
+secrets:
+  db_password:
+    file: secrets/db_password.txt
+  inngest_db_password:
+    file: secrets/inngest_db_password.txt
+  admin_passphrase:
+    file: secrets/admin_passphrase.txt
+  system_api_key:
+    file: secrets/system_api_key.txt
 
 volumes:
+  internal_filestore:
   postgres_data:
   redis_data:
-  nlp_data:
-  documents:
+  caddy_data:
+  caddy_config:
 
 networks:
   lang3s-network:

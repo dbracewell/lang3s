@@ -104,7 +104,7 @@ class LLMClient:
         completion_args: dict[str, Any] = {
             "model": self.model_name,
             "stream": stream,
-            "max_completion_tokens": max_completion_tokens,
+            "max_tokens": max_completion_tokens,
             **kwargs,
         }
 
@@ -423,7 +423,7 @@ class LLMClient:
 class LoRaClient(LLMClient):
     def __init__(self):
         super().__init__(
-            model_name="LoraModel",
+            model_name="Llama.cpp",
             api_key="no-key",
             llm_host=config.PROXY_HOST,
         )

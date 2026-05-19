@@ -346,13 +346,13 @@ class InDocumentCoref:
             if should_perform_coref(entity):
                 mentions.append(entity)
 
-        for nominal in document.text.noun_chunks:
-            if not any(t.id in token_ids for t in nominal.tokens) and not any(
-                t.value == "PRON" for t in nominal.tokens
-            ):
-                mentions.append(nominal)
-                for token in nominal.tokens:
-                    token_ids.add(token.id)
+        # for nominal in document.text.noun_chunks:
+        #     if not any(t.id in token_ids for t in nominal.tokens) and not any(
+        #         t.value == "PRON" for t in nominal.tokens
+        #     ):
+        #         mentions.append(nominal)
+        #         for token in nominal.tokens:
+        #             token_ids.add(token.id)
 
         for token in document.text.tokens:
             if (

@@ -26,11 +26,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-sloth = [
+train = [
     "unsloth; platform_machine == 'x86_64' and sys_platform != 'darwin'",
     "unsloth_zoo; platform_machine == 'x86_64' and sys_platform != 'darwin'",
-]
-train = [
     "torch",
     "bitsandbytes",
     "xformers",

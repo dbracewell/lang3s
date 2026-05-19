@@ -1,8 +1,10 @@
 import asyncio
 import math
 import os
+import re
 import time
 
+import shortuuid
 from pydantic import ValidationError
 from transformers import AutoTokenizer
 
@@ -13,14 +15,13 @@ from lang3s.llm.client import LoRaClient
 from lang3s.models.embedder import Embedder
 from lang3s.nlp.claim_extractor import (
     Claim,
-    ClaimList,
     DocumentClaimRequest,
 )
 from lang3s.parallel.core import Engine, Event
 from lang3s.parallel.manager import TaskManager
+from lang3s.parallel.queue import QueueFactory, QueueType
 from lang3s.services.client.redis_client import (
     CLAIM_EXTRACT_QUEUE_NAME,
-    RedisClient,
 )
 from lang3s.utils.logger import get_logger
 
@@ -28,6 +29,9 @@ logger = get_logger("CLAIM_EXTRACTION_WORKER")
 _local_llm: LoRaClient | None = None
 _embedder: Embedder | None = None
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
+
+global_task_id = 0
+global_processing = set()
 
 
 def get_llm() -> LoRaClient:
@@ -110,23 +114,82 @@ def sentence_chunker2(
     return total_tokens, chunks
 
 
-async def generate_claims(chunk: str, semaphore):
-    async with semaphore:
-        try:
-            response = await get_llm().chat_completion_last_event(
-                messages=[Message.user(f"Extract claims from: {chunk}")],
-                adapter_name="claim",
-                temperature=0.0,
-                response_model=ClaimList,
-                presence_penalty=1.5,
-            )
-            if response.parsed:
-                return response.parsed
-        except ValidationError as e:
-            logger.error(f"Validation failed: {e}")
-        except Exception as e:
-            logger.error(f"Unexpected error during processing: {e}")
+# def parse_claim_string(text):
+#     pattern = re.compile(
+#         r"SUBJ:\s*(?P<subject>.*?)\s*"
+#         r"PRED:\s*(?P<predicate>.*?)\s*"
+#         r"OBJ:\s*(?P<object>.*?)\s*"
+#         r"STANCE:\s*(?P<stance>.*?)\s*"
+#         r"MOD:\s*(?P<modality>.*?)\s*"
+#         r"NEG:\s*(?P<negation>.*?)\s*"
+#         r"CERTAIN:\s*(?P<certainty>.*?)\s*"
+#         r"TIME:\s*(?P<time>.*?)\s*"
+#         r"LOC:\s*(?P<location>.*?)\s*"
+#         r"SOURCE:\s*(?P<source>.*?)\s*"
+#         r"KW:\s*(?P<keywords>.*)",
+#         re.DOTALL,
+#     )
+#     match = pattern.search(text)
+#     if match:
+#         return match.groupdict()
+#     else:
+#         return None
+#
+
+
+def parse_claim_string(text: str) -> dict | None:
+    markers = {
+        "SUBJ:": "subject",
+        "PRED:": "predicate",
+        "OBJ:": "object",
+        "STANCE:": "stance",
+        "MOD:": "modality",
+        "NEG:": "negation",
+        "CERTAIN:": "certainty",
+        "TIME:": "time",
+        "LOC:": "location",
+        "SOURCE:": "source",
+        "KW:": "keywords",
+    }
+
+    found_markers = []
+    for marker, key in markers.items():
+        idx = text.find(marker)
+        if idx != -1:
+            found_markers.append((idx, marker, key))
+
+    if not found_markers:
         return None
+
+    found_markers.sort(key=lambda x: x[0])
+
+    parsed = {key: "" for key in markers.values()}
+
+    for i in range(len(found_markers)):
+        current_idx = found_markers[i][0]
+        marker_length = len(found_markers[i][1])
+        key = found_markers[i][2]
+        start_idx = current_idx + marker_length
+
+        if i + 1 < len(found_markers):
+            end_idx = found_markers[i + 1][0]
+        else:
+            end_idx = len(text)
+
+        parsed[key] = text[start_idx:end_idx].strip()
+
+    if not (parsed["subject"] and parsed["predicate"] and parsed["object"]):
+        return None
+
+    return parsed
+
+
+def _generate_embeddings(texts: list[str]):
+    return get_embedder()(texts).sentence_embeddings
+
+
+def _insert_db(objects: list[ClaimsTable]):
+    db.insert_many_objects(objects)
 
 
 async def process_task(item: Event[dict]):
@@ -134,35 +197,87 @@ async def process_task(item: Event[dict]):
         request = DocumentClaimRequest.model_validate(item.data)
         if not request.sentences:
             return 0
+        token_count = len(tokenizer(" ".join(request.sentences))["input_ids"])
+        response = await get_llm().chat_completion_last_event(
+            messages=[
+                Message.user(f"Extract claims from: {' '.join(request.sentences)}")
+            ],
+            adapter_name="claim",
+            temperature=0.0,
+            max_tokens=4096,
+            stop=["<|im_end|>", "<|endoftext|>"],
+        )
         all_claims: list[Claim] = []
-        token_count, chunks = sentence_chunker(request.sentences)
+        if response.content:
+            individual_claims = response.content.split("\n")
+            for raw_claim in individual_claims:
+                parsed_claim = parse_claim_string(raw_claim)
+                if parsed_claim:
+                    subject = parsed_claim["subject"]
+                    predicate = parsed_claim["predicate"]
+                    obj = parsed_claim["object"]
+                    stance = parsed_claim["stance"]
+                    mod = parsed_claim["modality"]
+                    if mod not in (
+                        "factual",
+                        "normative",
+                        "hypothetical",
+                        "conditional",
+                        "predictive",
+                    ):
+                        mod = "factual"
+                    neg = parsed_claim["negation"]
+                    certain = parsed_claim["certainty"]
+                    if certain not in (
+                        "certain",
+                        "probable",
+                        "possible",
+                        "speculative",
+                    ):
+                        certain = "unknown"
+                    time_param = parsed_claim["time"]
+                    loc = parsed_claim["location"]
+                    source = parsed_claim["source"]
+                    keywords = [
+                        item.strip("'").strip()
+                        for item in parsed_claim["keywords"].strip("[] ").split(",")
+                    ]
+                    all_claims.append(
+                        Claim(
+                            subject=subject,
+                            predicate=predicate,
+                            object=obj,
+                            stance=stance,
+                            claim_text=f"{subject} {predicate} {obj}",
+                            claim_type="Fact",
+                            keywords=keywords,
+                            time=time_param,
+                            source=source,
+                            evidence=None,
+                            location=loc,
+                            modality=mod,  # type: ignore
+                            negation=bool(neg),
+                            certainty=certain,  # type: ignore
+                            condition=None,
+                            sentiment=None,
+                        )
+                    )
 
-        for chunk in chunks:
-            response = await get_llm().chat_completion_last_event(
-                messages=[Message.user(f"Extract claims from: {chunk}")],
-                adapter_name="claim",
-                temperature=0.0,
-                response_model=ClaimList,
-                presence_penalty=1.5,
-            )
-            if response.parsed:
-                all_claims.extend(response.parsed.claims)
-
-        embs = get_embedder()(
-            [claim.claim_text for claim in all_claims]
-        ).sentence_embeddings
-        db.insert_many_objects(
-            [
+        valid_claims = [c for c in all_claims if c.claim_text]
+        if valid_claims:
+            claim_texts = [c.claim_text for c in valid_claims]
+            embs = await asyncio.to_thread(_generate_embeddings, claim_texts)
+            db_objects = [
                 ClaimsTable(
                     documentId=request.documentId,
                     claim=claim.claim_text,
                     source=claim.claim_text,
                     embedding=emb,
                 )
-                for claim, emb in zip(all_claims, embs)
-                if claim.claim_text
+                for claim, emb in zip(valid_claims, embs)
             ]
-        )
+            await asyncio.to_thread(_insert_db, db_objects)
+
         return token_count
     except ValidationError as e:
         logger.error(f"Validation failed: {e}")
@@ -174,83 +289,30 @@ async def process_task(item: Event[dict]):
 async def main():
     total_documents = 0
     total_tokens = 0
-    total_time = 0
     WORKER_COUNT = 4
-    redis_client = RedisClient()
-    semaphore = asyncio.Semaphore(WORKER_COUNT)
 
-    while True:
-        item = redis_client.dequeue(CLAIM_EXTRACT_QUEUE_NAME)
-        if item is None:
-            time.sleep(1)
-            continue
-
-        if total_documents > 0 and total_documents % 10 == 0:
-            logger.info(
-                f"Claim Extractor: Processed {total_documents} documents in {total_time:.2f} ({total_documents / total_time:.2f} docs / second) ({total_tokens / total_time:.2f} tokens / second)"
+    with QueueFactory() as factory:
+        with TaskManager(
+            Engine.ASYNC,
+            workers=WORKER_COUNT,
+            initializer=init_worker,
+        ) as runner:
+            queue = factory(
+                queue_type=QueueType.REDIS,
+                queue_name=CLAIM_EXTRACT_QUEUE_NAME,
             )
-
-        start_time = time.perf_counter()
-        request = DocumentClaimRequest.model_validate_json(item)
-        if not request.sentences:
-            continue
-
-        all_claims: list[Claim] = []
-        token_count, chunks = sentence_chunker2(request.sentences)
-
-        total_tokens += token_count
-        logger.info(f"Processing {token_count} tokens,  {len(chunks)} chunks")
-        total_documents += 1
-
-        tasks = [generate_claims(chunk, semaphore) for chunk in chunks]
-        results = await asyncio.gather(*tasks)
-        for r in results:
-            if r is None:
-                continue
-            all_claims.extend(r.claims)
-
-            # embs = get_embedder()(
-            #     [claim.claim_text for claim in all_claims]
-            # ).sentence_embeddings
-            # db.insert_many_objects(
-            #     [
-            #         ClaimsTable(
-            #             documentId=request.documentId,
-            #             claim=claim.claim_text,
-            #             source=claim.claim_text,
-            #             embedding=emb,
-            #         )
-            #         for claim, emb in zip(all_claims, embs)
-            #         if claim.claim_text
-            #     ]
-            # )
-
-        total_time += time.perf_counter() - start_time
-        logger.info("FINISHED")
-
-    #
-    # with QueueFactory() as factory:
-    #     with TaskManager(
-    #         Engine.ASYNC,
-    #         workers=WORKER_COUNT,
-    #         initializer=init_worker,
-    #     ) as runner:
-    #         queue = factory(
-    #             queue_type=QueueType.REDIS,
-    #             queue_name=CLAIM_EXTRACT_QUEUE_NAME,
-    #         )
-    #         start_time = time.perf_counter()
-    #         async for r in runner.async_map(
-    #             process_task,
-    #             queue,
-    #         ):
-    #             total_tokens += r
-    #             total_documents += 1 if r > 0 else 0
-    #             total_time = time.perf_counter() - start_time
-    #             if total_documents % 50 == 0:
-    #                 logger.info(
-    #                     f"Claim Extractor: Processed {total_documents} documents in {total_time:.2f} ({total_documents / total_time:.2f} docs / second) ({total_tokens / total_time:.2f} tokens / second)"
-    #                 )
+            start_time = time.perf_counter()
+            async for r in runner.async_map(
+                process_task,
+                queue,
+            ):
+                total_tokens += r
+                total_documents += 1 if r > 0 else 0
+                total_time = time.perf_counter() - start_time
+                if total_documents % 10 == 0:
+                    logger.info(
+                        f"Claim Extractor: Processed {total_documents} documents in {total_time:.2f} ({total_documents / total_time:.2f} docs / second) ({total_tokens / total_time:.2f} tokens / second)"
+                    )
 
 
 if __name__ == "__main__":

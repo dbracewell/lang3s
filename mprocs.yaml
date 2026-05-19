@@ -2,12 +2,35 @@ procs:
   caddy:
     shell: "caddy run --config ./Caddyfile"
     autostart: true
+    autorestart: true
+
+  annotation-server:
+    shell: "uv --project backend/nlp/ run python -m lang3s.services.worker.annotation_worker --num_workers 3 --batch_size 500"
+    autostart: true
+    autorestart: true
 
   python-server:
-    shell: "uv --project backend/nlp/ run python backend/run.py --num_workers 3 --batch_size 500"
+    shell: "uv --project backend/nlp/ run python -m lang3s.services.app"
     autostart: true
+    autorestart: true
+
+  llama-cpp-server:
+    shell: "uv --project backend/nlp run python -m lang3s.services.local_llm_app"
+    autostart: true
+    autorestart: true
+
+  analytics-server:
+    shell: "uv --project backend/nlp run python -m lang3s.services.analytics_app"
+    autostart: true
+    autorestart: true
+
+  claim-extractor:
+    shell: "uv --project backend/nlp run python -m lang3s.services.worker.claim_extraction_worker"
+    autostart: true
+    autorestart: true
 
   nextjs-server:
     shell: "pnpm dev"
     cwd: "./frontend/lang3s"
     autostart: true
+    autorestart: true

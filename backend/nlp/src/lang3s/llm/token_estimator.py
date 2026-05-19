@@ -9,17 +9,11 @@ def _resolve_tokenizer(model_id: str):
     if "qwen" in mid:
         return "Qwen/Qwen2.5-7B-Instruct"
 
-    if "llama" in mid or "llama3" in mid:
-        return "meta-llama/Llama-3.1-8B-Instruct"
-
     if "mistral" in mid:
         return "mistralai/Mistral-7B-Instruct-v0.3"
 
     if "phi" in mid:
         return "microsoft/Phi-3-mini-128k-instruct"
-
-    if "gemma" in mid:
-        return "google/gemma-2-9b-it"
 
     return "openai-community/openai-gpt"
 

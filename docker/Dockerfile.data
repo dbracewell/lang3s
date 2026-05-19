@@ -1,0 +1,3 @@
+FROM alpine:latest
+COPY filestore/ /manifest_data/
+CMD cp -r /manifest_data/. /filestore/ && echo "Data seeding complete!"

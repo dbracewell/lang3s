@@ -261,7 +261,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     job_service = JobService(
-        api_key="lang3sAtwwjTwQTqSuPlMhsyIhgXIpUixFWPFjAugmzqNnkJjojshJjJYLfbppPmKBfCwY",
+        api_key="lang3sPpoRdaLdGWRTcYWTsLByaJKQWZQPVfEFOexNlsloXrXLRjTpJNkFdkugQcqndWqv",
         api_host="http://localhost:3000",
     )
 

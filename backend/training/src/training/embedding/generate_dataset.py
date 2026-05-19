@@ -1,8 +1,8 @@
 import pickle
 
+from lang3s import config
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from lang3s import config
 
 
 class DistillationDataset(Dataset):
@@ -25,10 +25,7 @@ class DistillationDataset(Dataset):
     def __getitem__(self, idx):
         # We return the RAW text because the Student needs to tokenize it
         # (potentially with dynamic padding during the collate_fn step)
-        return {
-            "text": self.texts[idx],
-            "target_embedding": self.embeddings[idx]
-        }
+        return {"text": self.texts[idx], "target_embedding": self.embeddings[idx]}
 
 
 def prepare_distillation_data(
@@ -37,7 +34,7 @@ def prepare_distillation_data(
     teacher_tokenizer,
     output_path="train_data.pkl",
     batch_size=32,
-    device=config.TRAINING_DEVICE
+    device=config.TRAINING_DEVICE,
 ):
     """
     1. Extracts unique sentences from Anchor/Pos/Neg triplets.
@@ -49,9 +46,12 @@ def prepare_distillation_data(
 
     # Flatten the dataset: We don't care about triplets anymore, just diverse text.
     for record in raw_records:
-        if "anchor" in record and record["anchor"]: unique_sentences.add(record["anchor"])
-        if "positive" in record and record["positive"]: unique_sentences.add(record["positive"])
-        if "negative" in record and record["negative"]: unique_sentences.add(record["negative"])
+        if "anchor" in record and record["anchor"]:
+            unique_sentences.add(record["anchor"])
+        if "positive" in record and record["positive"]:
+            unique_sentences.add(record["positive"])
+        if "negative" in record and record["negative"]:
+            unique_sentences.add(record["negative"])
 
     sorted_sentences = sorted(list(unique_sentences))  # Sort for deterministic ordering
     print(f"Found {len(sorted_sentences)} unique sentences.")
@@ -66,7 +66,7 @@ def prepare_distillation_data(
     # Process in batches
     with torch.no_grad():
         for i in tqdm(range(0, len(sorted_sentences), batch_size)):
-            batch_texts = sorted_sentences[i: i + batch_size]
+            batch_texts = sorted_sentences[i : i + batch_size]
 
             # Tokenize
             inputs = teacher_tokenizer(
@@ -74,16 +74,18 @@ def prepare_distillation_data(
                 padding=True,
                 truncation=True,
                 max_length=128,
-                return_tensors="pt"
+                return_tensors="pt",
             ).to(device)
 
             # Teacher Forward Pass
             outputs = teacher_model(**inputs)
 
-            attention_mask = inputs['attention_mask']
+            attention_mask = inputs["attention_mask"]
             token_embeddings = outputs.last_hidden_state
 
-            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+            input_mask_expanded = (
+                attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+            )
             sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
             sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
             batch_embeddings = sum_embeddings / sum_mask
@@ -94,10 +96,7 @@ def prepare_distillation_data(
     final_embeddings = torch.cat(all_embeddings, dim=0)
 
     # Save to disk
-    payload = {
-        "texts": sorted_sentences,
-        "embeddings": final_embeddings
-    }
+    payload = {"texts": sorted_sentences, "embeddings": final_embeddings}
 
     with open(output_path, "wb") as f:
         pickle.dump(payload, f)  # type:ignore
@@ -113,9 +112,9 @@ def is_clean(text):
 
 
 if __name__ == "__main__":
-    from transformers import AutoModel, AutoTokenizer
-    from datasets import load_dataset
     import torch
+    from datasets import load_dataset
+    from transformers import AutoModel, AutoTokenizer
 
     # --- CONFIGURATION ---
     # We use a multilingual teacher so it understands both your EN and JA data
@@ -137,13 +136,17 @@ if __name__ == "__main__":
     # A. Load Parallel Talks (English-Japanese)
     print("Loading Parallel Data (Talks)...")
     try:
-        ds_talks = load_dataset("sentence-transformers/parallel-sentences-talks", "en-ja", split="train")
+        ds_talks = load_dataset(
+            "sentence-transformers/parallel-sentences-talks", "en-ja", split="train"
+        )
         for row in ds_talks:
-            raw_records.append({
-                "anchor": row.get('english', ''),
-                "positive": row.get('non_english', ''),
-                "negative": None
-            })
+            raw_records.append(
+                {
+                    "anchor": row.get("english", ""),
+                    "positive": row.get("non_english", ""),
+                    "negative": None,
+                }
+            )
         print(f"Added {len(ds_talks)} samples from Talks.")
     except Exception as e:
         print(f"Warning: Could not load Talks data. {e}")
@@ -153,44 +156,46 @@ if __name__ == "__main__":
     try:
         ds_nli = load_dataset("sentence-transformers/all-nli", "triplet", split="train")
         for row in ds_nli:
-            raw_records.append({
-                "anchor": row.get('anchor', ''),
-                "positive": row.get('positive', ''),
-                "negative": row.get('negative', '')
-            })
+            raw_records.append(
+                {
+                    "anchor": row.get("anchor", ""),
+                    "positive": row.get("positive", ""),
+                    "negative": row.get("negative", ""),
+                }
+            )
         print(f"Added {len(ds_nli)} samples from NLI.")
     except Exception as e:
         print(f"Warning: Could not load NLI data. {e}")
 
     print("Loading MS MARCO (Search Data)...")
     try:
-        ds_marco = load_dataset("sentence-transformers/embedding-training-data", "msmarco-triplet",
-                                split="train[:150000]")
+        ds_marco = load_dataset(
+            "sentence-transformers/embedding-training-data",
+            "msmarco-triplet",
+            split="default[:150000]",
+        )
 
         for row in ds_marco:
-            raw_records.append({
-                "anchor": row['query'],  # type: ignore
-                "positive": row['positive'],  # type:ignore
-                "negative": row['negative']  # type: ignore
-            })
+            raw_records.append(
+                {
+                    "anchor": row["query"],  # type: ignore
+                    "positive": row["positive"],  # type:ignore
+                    "negative": row["negative"],  # type: ignore
+                }
+            )
         print(f"Added {len(ds_marco)} samples from MS MARCO.")
     except Exception as e:
         print(f"Warning: Could not load MS MARCO. {e}")
 
     print(f"Total Raw Records: {len(raw_records)}")
 
-    # --- STEP 3: RUN GENERATION ---
-    # This will:
-    # 1. Extract unique sentences from all 'anchor', 'positive', 'negative' fields
-    # 2. Compute Teacher Embeddings for every unique sentence
-    # 3. Save to disk
     prepare_distillation_data(
         raw_records=raw_records,
         teacher_model=teacher_model,
         teacher_tokenizer=teacher_tokenizer,
         output_path=OUTPUT_FILE,
-        batch_size=32,  # Increase to 64 or 128 if you have >16GB VRAM
-        device=DEVICE
+        batch_size=32,
+        device=DEVICE,
     )
 
     print("\n✅ Data Preparation Complete.")

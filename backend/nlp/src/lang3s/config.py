@@ -40,15 +40,18 @@ class Config:
         value = self._read_docker_secret(key)
         if value is not None:
             return value
+        value = self._read_docker_secret(key.lower())
+        if value is not None:
+            return value
         return os.environ.get(key, default)
 
     def get_config_value(self, key: str, default: Any) -> Any:
-        # 1. Check Secret
         value = self._read_docker_secret(key)
         if value is not None:
             return value
-
-        # 2. Check Database
+        value = self._read_docker_secret(key.lower())
+        if value is not None:
+            return value
         try:
             import lang3s.data.db.database as db
             from lang3s.data.db.models import ConfigurationTable
@@ -107,7 +110,7 @@ class Config:
     #####################################################################################
     @property
     def DB_PASSWORD(self) -> str:
-        return self._get_static("POSTGRES_PASSWORD", "abba")
+        return self._get_static("DB_PASSWORD", "abba")
 
     @property
     def DB_USER(self) -> str:

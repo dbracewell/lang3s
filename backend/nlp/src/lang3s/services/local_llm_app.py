@@ -17,7 +17,8 @@ def main():
     model_path = os.path.join(root, MODEL_NAME)
 
     parallel_factor = 4
-    context_window = 32768 // 8
+    # 1024, 2048, 3072, 4,096
+    context_window = 4096 * 4
 
     # fmt: off
     cmd = [
@@ -25,19 +26,21 @@ def main():
         "--model", model_path,
         "--host", "0.0.0.0",
         "--port", str(config.LOCAL_LLM_PORT),
-
         "-np", str(parallel_factor),
         "-c", str(parallel_factor*context_window),
-        "-b", "512",
-        "-ub", "512",
+        "-b", "2048",
+        "-ub", "2048",
         # "--verbosity", "1", # only log errors
-        "--flash-attn", "on",
+        "-fa", "1",
         "--cont-batching",
+        "--no-context-shift",
         "-ngl", "99",
+        "--mlock",
+        "--prio", "2",
         "--chat-template", "chatml",
         "--lora-init-without-apply",
-        "--cache-type-k", "q8_0",
-        "--cache-type-v", "q8_0",
+        # "--cache-type-k", "q8_0",
+        # "--cache-type-v", "q8_0",
     ]
 
     # fmt: on

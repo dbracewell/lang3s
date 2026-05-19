@@ -1,9 +1,7 @@
 FROM postgres:17-trixie
 
-ARG PGROONGA_VERSION=4.0.4-1
-ARG POSTGRESQL_VERSION=17
-ARG POSTGRES_DB
-ARG POSTGRES_USER
+ARG POSTGRESQL_VERSION
+ARG PGROONGA_VERSION
 
 RUN set -eux; \
     apt-get update && \
@@ -33,8 +31,6 @@ RUN set -eux; \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-#ENV POSTGRES_DB=${POSTGRES_DB}
-#ENV POSTGRES_USER=${POSTGRES_USER}
 ENV PGDATA=/var/lib/postgresql/data
 
 

@@ -19,6 +19,7 @@ class Claim(BaseModel):
         "Contingency",
     ]
     source: str
+    subject: str
     predicate: str
     object: str
     stance: str
