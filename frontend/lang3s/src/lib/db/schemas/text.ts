@@ -1,5 +1,5 @@
-import { sql } from "drizzle-orm";
-import { halfvec, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {sql} from "drizzle-orm";
+import {boolean, halfvec, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid,} from "drizzle-orm/pg-core";
 
 export const SEMANTIC_EMBEDDING_DIMENSION = 384;
 
@@ -184,6 +184,16 @@ export const KeywordsTable = pgTable(
   ],
 );
 
+////////////////////////////////////////////////////////////////////////////////
+// Sentiment
+////////////////////////////////////////////////////////////////////////////////
+export const SENTIMENT_VALUES = ["positive", "negative", "neutral"] as const;
+export type Sentiment = (typeof SENTIMENT_VALUES)[number];
+export const sentimentEnum = pgEnum("sentimentEnum", SENTIMENT_VALUES);
+
+////////////////////////////////////////////////////////////////////////////////
+// Claims Table
+////////////////////////////////////////////////////////////////////////////////
 export const ClaimsTable = pgTable(
   "claims",
   {
@@ -192,7 +202,21 @@ export const ClaimsTable = pgTable(
       .notNull()
       .references(() => DocumentsTable.id, { onDelete: "cascade" }),
     claim: text("claim").notNull(),
+    type: text("claim_type").notNull(),
     source: text("source"),
+    subject: text("subject").notNull(),
+    predicate: text("predicate").notNull(),
+    object: text("object").notNull(),
+    stance: text("stance").notNull(),
+    certainty: text("certainty").notNull(),
+    modality: text("modality").notNull(),
+    negation: boolean("negation").notNull(),
+    condition: text("condition").notNull(),
+    time: text("time").notNull(),
+    location: text("location").notNull(),
+    evidence: text("evidence").notNull(),
+    sentiment: sentimentEnum("sentiment").notNull(),
+    keywords: text("keywords").array().notNull(),
     embedding: halfvec("embedding", {
       dimensions: SEMANTIC_EMBEDDING_DIMENSION,
     }).notNull(),

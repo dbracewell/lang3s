@@ -1,21 +1,14 @@
 import logging
 import logging.config
 import os
-import sys
 import warnings
-from functools import partialmethod
 
 import transformers
-from uvicorn.logging import DefaultFormatter
-
-from lang3s.utils.logger.async_handler import AsyncQueueHandler
 
 _is_initialized = False
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TQDM_DISABLE"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-# from tqdm import tqdm
-# tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
 warnings.filterwarnings("ignore")
 
 
@@ -77,22 +70,6 @@ def get_logger(name: str):
 
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
-    # logger.propagate = False
-    #
-    # for handler in logger.handlers or []:
-    #     logger.removeHandler(handler)
-    #
-    # handler = logging.StreamHandler(sys.stdout)
-    # formatter = DefaultFormatter(
-    #     fmt="%(levelprefix)s %(asctime)s | %(name)s | %(message)s",
-    #     use_colors=True,
-    #     datefmt="%Y-%m-%d %H:%M:%S",
-    # )
-    # handler.setFormatter(formatter)
-    # async_handler = AsyncQueueHandler(handler)
-    # async_handler.setLevel(logging.DEBUG)
-    # logger.addHandler(handler)
-    #
     level = os.environ.get(f"LOGGER_{name.replace('__', '.')}", None)
     if level:
         logger.setLevel(level.upper())

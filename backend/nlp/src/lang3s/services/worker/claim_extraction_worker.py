@@ -1,10 +1,9 @@
 import asyncio
 import math
 import os
-import re
 import time
 
-import shortuuid
+import numpy as np
 from pydantic import ValidationError
 from transformers import AutoTokenizer
 
@@ -14,7 +13,6 @@ from lang3s.llm import Message
 from lang3s.llm.client import LoRaClient
 from lang3s.models.embedder import Embedder
 from lang3s.nlp.claim_extractor import (
-    Claim,
     DocumentClaimRequest,
 )
 from lang3s.parallel.core import Engine, Event
@@ -114,29 +112,6 @@ def sentence_chunker2(
     return total_tokens, chunks
 
 
-# def parse_claim_string(text):
-#     pattern = re.compile(
-#         r"SUBJ:\s*(?P<subject>.*?)\s*"
-#         r"PRED:\s*(?P<predicate>.*?)\s*"
-#         r"OBJ:\s*(?P<object>.*?)\s*"
-#         r"STANCE:\s*(?P<stance>.*?)\s*"
-#         r"MOD:\s*(?P<modality>.*?)\s*"
-#         r"NEG:\s*(?P<negation>.*?)\s*"
-#         r"CERTAIN:\s*(?P<certainty>.*?)\s*"
-#         r"TIME:\s*(?P<time>.*?)\s*"
-#         r"LOC:\s*(?P<location>.*?)\s*"
-#         r"SOURCE:\s*(?P<source>.*?)\s*"
-#         r"KW:\s*(?P<keywords>.*)",
-#         re.DOTALL,
-#     )
-#     match = pattern.search(text)
-#     if match:
-#         return match.groupdict()
-#     else:
-#         return None
-#
-
-
 def parse_claim_string(text: str) -> dict | None:
     markers = {
         "SUBJ:": "subject",
@@ -207,7 +182,7 @@ async def process_task(item: Event[dict]):
             max_tokens=4096,
             stop=["<|im_end|>", "<|endoftext|>"],
         )
-        all_claims: list[Claim] = []
+        all_claims: list[ClaimsTable] = []
         if response.content:
             individual_claims = response.content.split("\n")
             for raw_claim in individual_claims:
@@ -239,44 +214,39 @@ async def process_task(item: Event[dict]):
                     loc = parsed_claim["location"]
                     source = parsed_claim["source"]
                     keywords = [
-                        item.strip("'").strip()
+                        item.strip("' ")
                         for item in parsed_claim["keywords"].strip("[] ").split(",")
                     ]
-                    all_claims.append(
-                        Claim(
-                            subject=subject,
-                            predicate=predicate,
-                            object=obj,
-                            stance=stance,
-                            claim_text=f"{subject} {predicate} {obj}",
-                            claim_type="Fact",
-                            keywords=keywords,
-                            time=time_param,
-                            source=source,
-                            evidence=None,
-                            location=loc,
-                            modality=mod,  # type: ignore
-                            negation=bool(neg),
-                            certainty=certain,  # type: ignore
-                            condition=None,
-                            sentiment=None,
+                    if subject and predicate and obj:
+                        all_claims.append(
+                            ClaimsTable(
+                                documentId=request.documentId,
+                                subject=subject,
+                                predicate=predicate,
+                                type_="Fact",
+                                object=obj,
+                                stance=stance,
+                                claim=f"{subject} {predicate} {obj}",
+                                keywords=keywords,
+                                time=time_param,
+                                source=source,
+                                evidence="",
+                                location=loc,
+                                embedding=np.zeros(1),
+                                modality=mod,  # type: ignore
+                                negation=neg.lower() == "true",
+                                certainty=certain,  # type: ignore
+                                condition="",
+                                sentiment="neutral",
+                            )
                         )
-                    )
 
-        valid_claims = [c for c in all_claims if c.claim_text]
-        if valid_claims:
-            claim_texts = [c.claim_text for c in valid_claims]
+        if all_claims:
+            claim_texts = [c.claim for c in all_claims]
             embs = await asyncio.to_thread(_generate_embeddings, claim_texts)
-            db_objects = [
-                ClaimsTable(
-                    documentId=request.documentId,
-                    claim=claim.claim_text,
-                    source=claim.claim_text,
-                    embedding=emb,
-                )
-                for claim, emb in zip(valid_claims, embs)
-            ]
-            await asyncio.to_thread(_insert_db, db_objects)
+            for claim, emb in zip(all_claims, embs):
+                claim.embedding = emb
+            await asyncio.to_thread(_insert_db, all_claims)
 
         return token_count
     except ValidationError as e:

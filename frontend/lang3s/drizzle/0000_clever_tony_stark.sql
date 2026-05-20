@@ -179,18 +179,32 @@ CREATE TABLE "text"
     "updated_at" timestamp DEFAULT now()
 );
 
-
+CREATE TYPE "public"."sentimentEnum" AS ENUM('positive', 'negative', 'neutral');
 DROP TABLE IF EXISTS "claims" CASCADE;
-CREATE TABLE "claims"
-(
-    "id"         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "doc_id"     text         NOT NULL,
-    "claim"      text         NOT NULL,
-    "embedding"  halfvec(384) NOT NULL,
-    "source"     text,
-    "created_at" timestamp        DEFAULT now(),
-    "updated_at" timestamp        DEFAULT now()
+CREATE TABLE "claims" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"doc_id" text NOT NULL,
+	"claim" text NOT NULL,
+	"claim_type" text NOT NULL,
+	"source" text,
+	"subject" text NOT NULL,
+	"predicate" text NOT NULL,
+	"object" text NOT NULL,
+	"stance" text NOT NULL,
+	"certainty" text NOT NULL,
+	"modality" text NOT NULL,
+	"negation" boolean NOT NULL,
+	"condition" text NOT NULL,
+	"time" text NOT NULL,
+	"location" text NOT NULL,
+	"evidence" text NOT NULL,
+	"sentiment" "sentimentEnum" NOT NULL,
+	"keywords" text[] NOT NULL,
+	"embedding" halfvec(384) NOT NULL,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
 );
+
 
 DROP TABLE IF EXISTS "annotation_to_ontology" CASCADE;
 CREATE TABLE "annotation_to_ontology"
