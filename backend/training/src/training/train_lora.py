@@ -19,7 +19,7 @@ def main():
     parser.add_argument(
         "--model_name",
         type=str,
-        default="unsloth/Qwen2.5-1.5B-Instruct-bnb-4bit",
+        default="Qwen/Qwen2.5-1.5B-Instruct",
         help="Base model",
     )
     parser.add_argument(
