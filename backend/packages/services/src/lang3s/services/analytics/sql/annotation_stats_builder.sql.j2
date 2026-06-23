@@ -1,0 +1,47 @@
+CREATE OR REPLACE
+TABLE annotation_stats_cache
+AS
+WITH ta_mapped AS (SELECT a.*,
+                          o.name,
+                          o.path
+                   FROM text_annotations a
+                            INNER JOIN pg_db.public.annotation_ontology_mappings ato
+                                       ON a.mapping = ato.mapping
+                            INNER JOIN pg_db.public.ontology o
+                                       ON ato.ontology_id = o.id)
+SELECT a.*,
+       COUNT(*) OVER (PARTITION BY normalized, path)                     AS mention_count,
+       COUNT(DISTINCT sentence_id) OVER (PARTITION BY normalized, path) AS sentence_count,
+       COUNT(DISTINCT document_id) OVER (PARTITION BY normalized, path)  AS document_count,
+
+       (COUNT(*) OVER (PARTITION BY normalized, path)::FLOAT /
+        NULLIF(COUNT(DISTINCT document_id) OVER (PARTITION BY normalized, path), 0)
+           )                                                       AS mentions_per_document
+FROM ta_mapped a
+ORDER BY sentence_id;
+
+
+CREATE OR REPLACE
+TABLE annotation_co_occurrence
+AS
+SELECT a.id                        AS source_id,
+       a.normalized                AS source,
+       a.path                      AS source_type,
+       CONCAT(a.normalized, '-', a.path) AS source_norm,
+       a.sentence_count            AS source_sentence_count,
+       a.document_count            AS source_document_count,
+       a.mention_count             AS source_mention_count,
+       a.sentence_id,
+       a.document_id               AS doc_id,
+       b.id                        AS target_id,
+       b.normalized                AS target,
+       b.path                      AS target_type,
+       CONCAT(b.normalized, '-', b.path) AS target_norm,
+       b.sentence_count            AS target_sentence_count,
+       b.document_count            AS target_document_count,
+       b.mention_count             AS target_mention_count
+FROM annotation_stats_cache a
+         LEFT JOIN annotation_stats_cache b
+                   ON a.sentence_id = b.sentence_id
+                       AND CONCAT(a.normalized, '-', a.path) != CONCAT(b.normalized, '-', b.path);
+

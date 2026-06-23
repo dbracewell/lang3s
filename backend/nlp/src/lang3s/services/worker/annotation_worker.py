@@ -425,7 +425,7 @@ def main():
             with Parallel(
                 n_jobs=args.num_workers,
                 backend="loky",
-                inner_max_num_threads=2,
+                inner_max_num_threads=8,
                 initializer=init_worker,
             ) as parallel:
                 # Limit a process to a life of 5 cycles to prevent memory creep

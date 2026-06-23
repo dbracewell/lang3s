@@ -5,14 +5,15 @@ import {
   DocumentTopicConcepts,
   KeywordsTable,
   TopicSentences,
-  TopicsTable
+  TopicsTable,
+  TopicTree,
+  TopicTree2Topic
 } from "@/lib/db/schema";
 import { logAndRethrow } from "@/lib/utils/try-catch";
 import { createTRPCRouter, protectedProcedure } from "@/lib/trpc/init";
 import { aliasedTable, and, count, desc, eq, gt, gte, isNotNull, sql } from "drizzle-orm";
 import z from "zod";
 import { TRPCError } from "@trpc/server";
-import { Point } from "@/components/charts/ForceGraph";
 import { getColorName } from "@/lib/utils/colors";
 import {
   annotationAffinity,
@@ -28,8 +29,67 @@ import { inngest } from "@/lib/inngest/client";
 import { randomAlphaUnderscore } from "@/lib/utils/random";
 import { ForceGraphPoint } from "@/components/d3/ForceGraph/types";
 import { truncateText } from "@/lib/utils/formatters";
+import { jsonAgg, jsonBuildObject } from "@/lib/db/helpers/json";
+import { TopicNode } from "@/features/analytics/types";
+import { coalesce } from "@/lib/db/funcs";
+
+const walkTree = (
+  node: Omit<TopicNode, "children">,
+  parentToChild: Record<string, Omit<TopicNode, "children">[]>,
+): TopicNode => {
+  return {
+    ...node,
+    children: parentToChild[node.id]
+      ? parentToChild[node.id].map((child) => walkTree(child, parentToChild))
+      : ([] as TopicNode[]),
+  };
+};
 
 export const AnalyticsRouter = createTRPCRouter({
+  getTopicTree: protectedProcedure.query(async () => {
+    const nodes = await logAndRethrow(async () => {
+      return db
+        .select({
+          id: TopicTree.id,
+          name: TopicTree.name,
+          parent: TopicTree.parent,
+          isLeaf: coalesce(TopicTree.isLeaf, false),
+          topics: jsonAgg(
+            jsonBuildObject({
+              id: TopicsTable.id,
+              name: TopicsTable.name,
+              support: TopicsTable.support,
+              docSupport: TopicsTable.documents,
+            }),
+          ),
+        })
+        .from(TopicTree)
+        .leftJoin(TopicTree2Topic, eq(TopicTree2Topic.nodeId, TopicTree.id))
+        .leftJoin(TopicsTable, eq(TopicTree2Topic.topicId, TopicsTable.id))
+        .groupBy((t) => [t.id, t.parent, t.name, t.isLeaf]);
+    });
+
+    const parentToChild: Record<string, Omit<TopicNode, "children">[]> = {};
+    let rootNode: Omit<TopicNode, "children"> | null = null;
+
+    nodes.forEach((node) => {
+      if (node.parent != null) {
+        if (parentToChild[node.parent] == null) {
+          parentToChild[node.parent] = [];
+        }
+        parentToChild[node.parent].push(node);
+      } else {
+        rootNode = node;
+      }
+    });
+
+    if (rootNode == null) {
+      return null;
+    }
+
+    return walkTree(rootNode, parentToChild);
+  }),
+
   getAnnotationEntropy: protectedProcedure
     .input(
       z.object({
@@ -65,7 +125,12 @@ export const AnalyticsRouter = createTRPCRouter({
       const page = Math.max(1, input.page ?? 1);
       const filter = input.filter;
       const finalSortBy = input.sortBy ?? "mention_count";
-      return await annotationCounts(page, finalSortBy, input.values, filter);
+      try {
+        return await annotationCounts(page, finalSortBy, input.values, filter);
+      } catch (error) {
+        console.error(error);
+        throw error;
+      }
     }),
 
   getAnnotationCoOccurrence: protectedProcedure
@@ -228,7 +293,7 @@ export const AnalyticsRouter = createTRPCRouter({
       return {
         ...p,
         color: `var(--color-${getColorName(cohort_result.id_cid[p.id]).toLowerCase()}-500)`,
-      } as Point;
+      } as ForceGraphPoint;
     });
 
     return {

@@ -60,6 +60,7 @@ dependencies = [
     "lxml>=6.0.2",
     "instructor>=1.14.5",
     "pip>=26.0.1",
+    "scipy-stubs~=1.17.1",
 ]
 
 [project.optional-dependencies]
@@ -73,7 +74,6 @@ train = [
 ]
 
 [tool.uv.sources]
-# uv handles local editable workspaces here rather than inline with dependencies
 lang3s-job-service = { path = "../jobs_service", editable = true }
 unsloth = { git = "https://github.com/unslothai/unsloth.git" }
 unsloth_zoo = { git = "https://github.com/unslothai/unsloth-zoo.git" }

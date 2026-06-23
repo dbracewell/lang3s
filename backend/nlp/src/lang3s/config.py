@@ -109,6 +109,10 @@ class Config:
     # POSTGRES
     #####################################################################################
     @property
+    def DB_SCHEMA(self):
+        return self._get_static("DB_SCHEMA", "lan3gs")
+
+    @property
     def DB_PASSWORD(self) -> str:
         return self._get_static("DB_PASSWORD", "abba")
 

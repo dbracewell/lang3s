@@ -13,12 +13,14 @@ class AsyncQueueHandler(logging.Handler):
         super().__init__()
         self.queue = queue.Queue()
         self.handler = logging.StreamHandler(sys.stdout)
-        formatter = DefaultFormatter(
-            fmt="%(levelprefix)s %(asctime)s | %(name)s | %(message)s",
-            use_colors=True,
-            datefmt="%Y-%m-%d %H:%M:%S",
+        self.handler.setLevel(logging.DEBUG)
+        self.handler.setFormatter(
+            DefaultFormatter(
+                fmt="%(levelprefix)s %(asctime)s | %(name)s | %(message)s",
+                use_colors=True,
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
         )
-        self.handler.setFormatter(formatter)
         self.listener = threading.Thread(target=self._listen, daemon=True)
         self.listener.start()
 
@@ -26,7 +28,7 @@ class AsyncQueueHandler(logging.Handler):
         while True:
             record = self.queue.get()
             if record is None:
-                break
+                continue
             self.handler.emit(record)
 
     def emit(self, record):

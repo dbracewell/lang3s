@@ -6,7 +6,10 @@ import numpy as np
 
 from lang3s.data.db.analytics_db import AnalyticsDB, get_analytics_db
 from lang3s.services.model.analytics_models import *
+from lang3s.utils.logger import get_logger
 from lang3s.utils.maths import remap
+
+logger = get_logger("ANALYTICS_SERVICE")
 
 
 def truncate(text: str, max_length: int = 35) -> str:
@@ -245,6 +248,7 @@ class AnalyticsService:
         )
         self.build_annotation_stats()
         self.db.commit()
+        logger.info("Finished data ingestion and built annotation stats.")
 
     def ingest_annotation_batch_from_file(self, temp_file: str) -> None:
         self.db.execute(
@@ -269,11 +273,11 @@ def get_analytics_service() -> AnalyticsService:
     global analytics_service
     if analytics_service is None:
         init_analytics_service()
-    return analytics_service
+    return analytics_service  # type: ignore
 
 
 def shutdown_analytics_service() -> None:
     global analytics_service
     if analytics_service is not None:
         analytics_service.shutdown()
-    analytics_service = None
+    analytics_service = None  # type: ignore

@@ -3,6 +3,7 @@ import json
 import re
 from dataclasses import dataclass
 from typing import (
+    Annotated,
     Any,
     Callable,
     Dict,
@@ -10,6 +11,8 @@ from typing import (
     Tuple,
     Type,
     get_args,
+    get_origin,
+    get_type_hints,
 )
 
 from openai.types.chat.chat_completion_function_tool_param import (
@@ -151,29 +154,26 @@ def tool(name: Optional[str] = None, description: Optional[str] = None):
         """
 
         sig = inspect.signature(func)
+        type_hints = get_type_hints(func, include_extras=True)
         field_definitions = {}  # Stores {name: FieldInfo}
         annotations = {}  # Stores {name: base_type}
 
-        for name, param in sig.parameters.items():
-            param_annotation = param.annotation
+        for (name, param_annotation), param in zip(
+            type_hints.items(), sig.parameters.values()
+        ):
             description = None
 
-            if (
-                get_args(param_annotation)
-                and get_args(param_annotation)[0] is not param_annotation
-            ):
-                base_type, *metadata = get_args(param_annotation)
-
-                for item in metadata:
-                    if isinstance(item, Desc) or (
-                        isinstance(item, str) and not item.startswith(("ge=", "le="))
-                    ):
-                        description = str(item)
-                        break
-            else:
+            if not get_origin(param_annotation) is Annotated:
                 raise ValueError("Arguments must be annotated with typing.Annotated")
 
-            # 2. Determine the Field definition kwargs
+            base_type, *metadata = get_args(param_annotation)
+            for item in metadata:
+                if isinstance(item, Desc) or (
+                    isinstance(item, str) and not item.startswith(("ge=", "le="))
+                ):
+                    description = str(item)
+                    break
+
             field_kwargs = {}
 
             if param.default is param.empty:

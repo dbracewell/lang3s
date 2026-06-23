@@ -159,7 +159,7 @@ def _create_label(keywords: list[KeywordItem]) -> list[Tuple[str, str]]:
 
     with try_catch(on_error=lambda e: logger.error(e)):
         response = client.sync_chat_completion_last_event([Message.user(prompt)])
-        if not response.exception:
+        if not response.exception and response.content:
             return [(k.id, response.content) for k in keywords]
 
     return [(k.id, k.keyword) for k in keywords]
@@ -192,9 +192,10 @@ def generate_keyword_categories():
         clustering_algorithm="hdbscan",
     )
     clusters = clusterer.fit(keywords, embeddings)
+    parallel: Parallel
     with Parallel(
         n_jobs=-1,
-        backend="loky",
+        backend="threading",
         inner_max_num_threads=1,
     ) as parallel:
         results = parallel([delayed(_create_label)(c.items) for c in clusters])

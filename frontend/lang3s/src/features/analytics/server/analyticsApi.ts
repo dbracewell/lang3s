@@ -3,7 +3,7 @@ import { getJson, postJson, putJson } from "@/lib/utils/superFetch";
 import { PAGE_LIMIT } from "@/features/common/constants";
 import { ForceGraphPoint } from "@/components/d3/ForceGraph/types";
 
-const BASE_PATH = `${process.env.EMBEDDING_SERVER}/analytics`;
+const BASE_PATH = `${process.env.PYTHON_SERVER}/analytics`;
 
 export type AnnotationCountsType = {
   total: number;

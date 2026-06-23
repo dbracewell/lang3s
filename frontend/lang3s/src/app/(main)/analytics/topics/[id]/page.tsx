@@ -12,7 +12,6 @@ import { CircleQuestionMarkIcon, XIcon } from "lucide-react";
 import { Hint } from "@/components/hint";
 import React, { Suspense, useMemo } from "react";
 import { TopicIdContext } from "@/features/analytics/ui/components/TopicIdContext";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/Spinner";
 import { cn } from "@/lib/utils/cn";
 

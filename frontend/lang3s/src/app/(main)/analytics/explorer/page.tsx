@@ -34,10 +34,13 @@ const SkeletonPage = () => {
 
 const Section = async () => {
   const data = await caller.analytics.getCorpusMap();
+  // const tree = await caller.analytics.getTopicTree();
+  // if (!tree) return null;
   return (
     <div className="flex max-h-full min-h-0 flex-1 flex-col gap-4">
       <CorpusMapTabs />
       <CorpusMap data={data} />
+      {/*<TopicTree tree={tree} />*/}
     </div>
   );
 };

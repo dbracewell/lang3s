@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 
-from person import parse_person_name, strong_person_conflict
-
 from lang3s.nlp.coref.cluster import GlobalEntityCluster
 from lang3s.ontology import ontology
 from lang3s.ontology.core import is_ontology_type
+
+from .person import parse_person_name, strong_person_conflict
 
 
 @dataclass

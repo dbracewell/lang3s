@@ -1,0 +1,50 @@
+[project]
+name = "lang3s-workspace"
+version = "0.1.0"
+description = "Lang3s"
+authors = [
+    { name = "David Bracewell" }
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.14.3",
+    "tach>=0.35.0",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch-dev = { index = "pytorch-cu121" }
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.ruff]
+target-version = "py312"
+src = ["packages/core/src", "packages/nlp/src", "packages/client/src", "packages/data/src", "packages/ml/src", "packages/agent/src", "packages/services/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+fixable = ["ALL"]
+
+[tool.pyright]
+reportPrivateImportUsage = "none"
+enableTypeIgnoreComments = true
+include = ["packages/*/src"]
+stubPath = "packages/*/src"
+#typeCheckingMode = "basic"
+
+reportReturnType = "warning"
+reportArgumentType = "warning"
+reportOperatorIssue = "warning"
+reportImportCycles = "warning"
+reportDuplicateImport = "warning"
+reportUnusedCallResult = "none"

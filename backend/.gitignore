@@ -1,0 +1,98 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+docker/default.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+
+
+.venv
+.pyc
+/trainer_output/
+/models/
+/data/
+__pycache__
+
+ Byte-compiled / optimized / compiled files
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+
+# C extensions
+*.so
+*.cpp
+*.jsonl
+
+# Distribution / packaging
+.Python
+build/
+dist/
+eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Editors
+.vscode/
+.idea/
+Thumbs.db
+
+# Environments
+docker/default.env
+venv/
+env/
+/site/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Miscellaneous
+*.log
+*.tmp
+*.bak
+*.swp
+
+/filestore
+/lang3s_backend.env
+
+.env*
+docker/secrets/**

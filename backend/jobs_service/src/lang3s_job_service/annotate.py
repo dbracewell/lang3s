@@ -8,7 +8,7 @@ import os
 import sys
 import traceback
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, cast
+from typing_extras import Any, Dict, Generator, List, Optional, cast
 
 import jsonlines
 from pydantic import BaseModel, Field
@@ -261,7 +261,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     job_service = JobService(
-        api_key="lang3sPpoRdaLdGWRTcYWTsLByaJKQWZQPVfEFOexNlsloXrXLRjTpJNkFdkugQcqndWqv",
+        api_key="lang3sWUmzZXKFbAZekuEsucFcYUCaXJUWxqSNEyPCtImFEyGWkYhKqeFUaAFfjkxnemyA",
         api_host="http://localhost:3000",
     )
 

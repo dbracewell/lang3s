@@ -1,17 +1,18 @@
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional, Sequence
 
 import numpy as np
 import sqlalchemy
 from numpy.typing import NDArray
-from sqlalchemy import Boolean, cast, distinct, not_, select
+from sqlalchemy import Boolean, cast, distinct, func, not_, select, text
 
 import lang3s.data.db.database as db
 from lang3s import config
 from lang3s.data.db.models import TextAnnotationsTable
 from lang3s.nlp.topics.reducer import OnlineReducer
-from lang3s.nlp.topics.shared_types import TopicSentence
+from lang3s.nlp.topics.shared_types import SearchResult, TopicSentence
 from lang3s.utils.maths import normalize, weighted_average
 
 
@@ -89,7 +90,9 @@ class Topic:
             last_updated=self.last_updated,
         )
 
-    def get_sentences(self, limit: int = 1000):
+    def get_sentences(
+        self, limit: int = 1000, randomize: bool = False
+    ) -> list[TopicSentence]:
         with db.get_session() as session:
             similarity_score = 1 - TextAnnotationsTable.embedding.cosine_distance(
                 self.embedding
@@ -109,7 +112,7 @@ class Topic:
                     similarity_score >= config.FULL_EMBEDDING_THRESHOLD,
                     not_(cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean)),
                 )
-                .order_by(similarity_score.desc())
+                .order_by(func.random() if randomize else similarity_score.desc())
                 .limit(limit)
             )
             sentences: Sequence[SearchResult] = session.execute(stmt).all()  # type:ignore
@@ -124,3 +127,101 @@ class Topic:
                 )
                 for (row) in sentences
             ]
+
+
+class TopicList:
+    def __init__(self) -> None:
+        self._topics: list[Topic] = []
+        self._next_topic_id = 0
+
+    def __iter__(self):
+        return iter(self._topics)
+
+    def __len__(self):
+        return len(self._topics)
+
+    def __getitem__(self, index: int) -> Topic:
+        return self._topics[index]
+
+    def __repr__(self) -> str:
+        return repr(self._topics)
+
+    def __contains__(self, topic_id: int) -> bool:
+        return topic_id in self._topics
+
+    def __str__(self) -> str:
+        return str(self._topics)
+
+    def clear(self) -> None:
+        self._topics.clear()
+        self._next_topic_id = 0
+
+    def index_of(self, topic_id: int) -> int:
+        for i, topic in enumerate(self._topics):
+            if topic.id == topic_id:
+                return i
+        raise -1
+
+    def renormalize_topic_embeddings(self, reducer: OnlineReducer) -> None:
+        new_reduced_centroids = reducer.transform(
+            np.vstack([topic.embedding for topic in self._topics])
+        )
+        for topic, reduced_centroid in zip(self._topics, new_reduced_centroids):
+            topic.centroid = normalize(reduced_centroid.squeeze())
+
+    def create_new_topic(
+        self,
+        embedding: NDArray[np.floating],
+        pca_centroid: NDArray[np.floating],
+        reducer: OnlineReducer,
+        min_sim_threshold: float,
+        document_id: str,
+    ) -> Topic:
+        topic = Topic(
+            id=f"topic-{self._next_topic_id}",
+            support=1,
+            embedding=embedding,
+            pca_centroid=pca_centroid,
+            is_fixed=False,
+            reducer=reducer,
+            min_sim_threshold=min_sim_threshold,
+            last_updated=datetime.now(),
+        )
+        topic.doc_ids.add(document_id)
+        self._next_topic_id += 1
+        self._topics.append(topic)
+        return topic
+
+    def add_topic(self, topic: Topic) -> None:
+        self._topics.append(topic)
+        if type(topic.id) is int:
+            self._next_topic_id = max(self._next_topic_id, topic.id)
+
+    def update_sentence_counts(self):
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            sentence_counts = list(
+                executor.map(_get_topic_count, [t.embedding for t in self._topics])
+            )
+            for i, sc in enumerate(sentence_counts):
+                self._topics[i].support = i
+
+    def update_topics(self, new_topics: list[Topic]) -> None:
+        self._topics = new_topics
+
+
+def _get_topic_count(embedding: np.ndarray):
+    with db.get_session() as session:
+        session.execute(text("SET jit = off;"))
+        session.execute(text("SET hnsw.ef_search = 100;"))
+        stmt = select(func.count()).select_from(
+            select(TextAnnotationsTable.id)
+            .where(
+                TextAnnotationsTable.type_ == "sentence",
+                cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean).is_(False),
+                TextAnnotationsTable.embedding.cosine_distance(embedding) < 0.35,
+            )
+            .order_by(TextAnnotationsTable.embedding.cosine_distance(embedding))
+            .limit(25000)
+            .subquery()
+        )
+        return session.scalar(stmt)

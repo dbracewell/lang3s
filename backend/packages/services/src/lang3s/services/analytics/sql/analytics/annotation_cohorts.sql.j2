@@ -1,0 +1,25 @@
+select source_norm                                                                         as id1,
+       target_norm                                                                         as id2,
+       source,
+       source_document_count,
+       target,
+       target_document_count,
+       COUNT(DISTINCT doc_id) /
+       NULLIF((source_document_count + target_document_count - COUNT(DISTINCT doc_id)), 0) as similarity
+from annotation_co_occurrence
+WHERE target_norm is not null
+  AND (source_type like 'ALL.Entity.%' or source_type = 'ALL.Entity')
+  AND source_type not like 'ALL.Entity.Abstract.Temporal_And_Occurrence.%'
+  AND source_type != 'ALL.Entity.Abstract.Temporal_And_Occurrence'
+  AND source_type not like 'ALL.Entity.Abstract.Value_And_Quantification.%'
+  AND source_type != 'ALL.Entity.Abstract.Value_And_Quantification'
+  AND (target_type like 'ALL.Entity.%' or target_type = 'ALL.Entity')
+  AND target_type not like 'ALL.Entity.Abstract.Temporal_And_Occurrence.%'
+  AND target_type != 'ALL.Entity.Abstract.Temporal_And_Occurrence'
+  AND target_type not like 'ALL.Entity.Abstract.Value_And_Quantification.%'
+  AND target_type != 'ALL.Entity.Abstract.Value_And_Quantification'
+  AND source_document_count > 5
+  and target_document_count > 5
+GROUP BY source_norm, target_norm, source_document_count, target_document_count, source, target
+HAVING COUNT(DISTINCT doc_id) /
+       NULLIF((source_document_count + target_document_count - COUNT(DISTINCT doc_id)), 0) >= 0.25

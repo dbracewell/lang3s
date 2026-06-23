@@ -1,7 +1,7 @@
 import json
 import random
 import time
-from typing import Any, List
+from typing_extras import Any, List
 
 import spacy
 from pydantic import BaseModel

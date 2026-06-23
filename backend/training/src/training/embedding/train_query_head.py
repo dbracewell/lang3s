@@ -1,5 +1,5 @@
 import pickle
-from typing import List
+from typing_extras import List
 
 import torch
 import torch.nn as nn

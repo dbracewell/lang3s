@@ -1,0 +1,20 @@
+SELECT source,
+       source_norm                  AS sourceId,
+       target,
+       target_norm                  AS targetId,
+       COUNT(DISTINCT doc_id)       AS documentCount,
+       COUNT(DISTINCT sentence_id) AS sentenceCount
+FROM annotation_co_occurrence
+WHERE target_norm IS NOT NULL
+  AND source_norm IN (
+    {% for item in cohort %} ? {% if not loop.last %}, {% endif %} {% endfor %}
+    )
+  AND target_norm IN (
+    {% for item in cohort %} ? {% if not loop.last %}, {% endif %} {% endfor %}
+    )
+GROUP BY source,
+         source_norm,
+         target,
+         target_norm
+ORDER BY source_norm,
+         target_norm

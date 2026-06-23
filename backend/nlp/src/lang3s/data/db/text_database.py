@@ -7,7 +7,7 @@ from typing import Dict, List
 import numpy as np
 from numpy.typing import NDArray
 from psycopg import sql
-from sqlalchemy import func, select
+from sqlalchemy import Boolean, Select, cast, func, select
 
 import lang3s.data.db.database as db
 from lang3s.data.db.models import DocumentsTable, TextAnnotationsTable
@@ -75,26 +75,38 @@ def document_count(self):
         return session.query(DocumentsTable).count()
 
 
-def random_sentences(count: int) -> List[dict[str, str]]:
+def random_sentences(count: int, include_embedding=False) -> List[dict[str, str]]:
     with db.get_session() as session:
-        annotations = session.execute(
+        stmt = (
             select(
                 TextAnnotationsTable.content,
-                TextAnnotationsTable.documentId,
+                TextAnnotationsTable.embedding,
+                DocumentsTable.id,
                 DocumentsTable.title,
             )
             .join(DocumentsTable, TextAnnotationsTable.documentId == DocumentsTable.id)
             .where(
-                TextAnnotationsTable.type_ == "sentence"
-                and TextAnnotationsTable.metadata_["is_stopword"] is False
+                TextAnnotationsTable.type_ == "sentence",
+                cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean) == False,
             )
             .order_by(func.random())
             .limit(count)
-        ).all()
-        return [
-            {"content": content, "title": title, "document_id": documentId}
-            for content, documentId, title in annotations
-        ]
+        )
+        return_sentences = []
+
+        for content, embedding, document_id, document_title in session.execute(
+            stmt
+        ).all():
+            sentence_obj = {
+                "document_id": document_id,
+                "title": document_title,
+                "content": content,
+            }
+            if include_embedding:
+                sentence_obj["embedding"] = embedding.to_numpy()
+            return_sentences.append(sentence_obj)
+
+        return return_sentences
 
 
 def get_documents(

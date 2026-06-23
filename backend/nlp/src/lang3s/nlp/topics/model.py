@@ -1,20 +1,18 @@
 from __future__ import annotations
 
 import datetime
-import textwrap
 import time
 import traceback
-from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Iterable, List
 
-from joblib import Parallel, delayed
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
 from lang3s import config
-from lang3s.llm import LLMClient, Message
+from lang3s.cluster.hierarchical import DivisiveKMeans
+from lang3s.nlp.topics.naming import generate_cluster_node_name, label_topics
 from lang3s.nlp.topics.reducer import OnlineReducer
-from lang3s.nlp.topics.topic import Topic
+from lang3s.nlp.topics.topic import Topic, TopicList
 from lang3s.nlp.topics.topic_index import TopicIndex
 from lang3s.utils.logger import get_logger
 
@@ -23,16 +21,18 @@ if TYPE_CHECKING:
 
 import numpy as np
 import shortuuid
-import sqlalchemy
 from numpy.typing import NDArray
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sqlalchemy import Boolean, Select, cast, delete, func, select, text
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 
 import lang3s.data.db.database as db
-from lang3s.data.db.models import TextAnnotationsTable, TopicsTable
+import lang3s.data.db.text_database as text_db
+from lang3s.data.db.models import (
+    TopicsTable,
+    TopicsTreeTable,
+    TopicTreeTopicMapTable,
+)
 from lang3s.nlp.shared_types import Document
-from lang3s.utils import flatten, try_catch
 from lang3s.utils.maths import cosine, normalize
 from lang3s.utils.meta import SingletonMeta
 
@@ -46,38 +46,6 @@ DB_COLUMNS = [
     "is_fixed",
     "name",
 ]
-
-
-def create_topic_name(topic: Topic) -> str:
-    client = LLMClient()
-    sentences = [t.text for t in topic.get_sentences(limit=10)]
-    prompt = textwrap.dedent(f"""
-                    Given the following sentences and list of keywords generate a short phrase that defines the topic.
-                    Make the phrase generic and not specific to ONE keyword or sentence it should be generic enough to cover the entier set of sentences and keywords.
-                    Give no explanation or reasoning for your answer only the answer and in plain text NO MARKUP.
-
-                    Keywords:
-                    {topic.name}
-
-                    Sentences:
-                    {"\n".join(sentences)}
-                """).strip()
-    response = client.sync_chat_completion_last_event([Message.user(prompt)])
-    if response.exception:
-        return topic.name
-    return response.content.title()
-
-
-def topic_naming(topics: list[Topic]):
-    with try_catch(on_error=lambda e: logger.error(e)):
-        with Parallel(
-            n_jobs=-1,
-            prefer="threads",
-            mmap_mode="shared",
-        ) as parallel:
-            return parallel([delayed(create_topic_name)(v) for v in topics])
-
-    return [t.name for t in topics]
 
 
 class Lang3sTopicModel(metaclass=SingletonMeta):
@@ -114,16 +82,18 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         self.buffer_ids: List[int] = []
         self.reducer = OnlineReducer.load()
         self.topic_index = TopicIndex(dimension=config.REDUCED_DIMENSIONS)
-        self._load_topics()
-        self._next_topic_id = 0
         self._next_doc_id = 0
+        self._topics: TopicList = TopicList()
+        self._load_topics()
 
     def _load_topics(self):
-        topics = []
+        self.topic_index = TopicIndex(dimension=config.REDUCED_DIMENSIONS)
+        self._topics.clear()
+
         session: Session
         with db.get_session() as session:
             for topic in session.scalars(select(TopicsTable)).all():
-                topics.append(
+                self._topics.add_topic(
                     Topic(
                         id=topic.id,
                         support=topic.support,
@@ -137,33 +107,19 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                     )
                 )
 
-            if len(topics) == 0:
+            if len(self._topics) == 0:
                 return
 
             if not self.reducer.fitted:
                 embeddings = []
-                stmt: Select[tuple[TextAnnotationsTable]] = (
-                    select(TextAnnotationsTable)
-                    .where(
-                        TextAnnotationsTable.type_ == "sentence",
-                        cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean)
-                        == False,
-                    )
-                    .order_by(sqlalchemy.func.random())
-                    .limit(5000)
-                )
-                for sentence in session.scalars(stmt).all():
-                    embeddings.append(sentence.embedding.to_numpy())  # type:ignore
+                for sentence in text_db.random_sentences(5000, include_embedding=True):
+                    embeddings.append(sentence["embedding"])
 
                 if len(embeddings) > config.REDUCED_DIMENSIONS:
                     self.reducer.fit_batch(np.vstack(embeddings))
-                    new_reduced_centroids = self.reducer.transform(
-                        np.vstack([topic.embedding for topic in topics])
-                    )
-                    for topic, reduced_centroid in zip(topics, new_reduced_centroids):
-                        topic.centroid = normalize(reduced_centroid.squeeze())
+                    self._topics.renormalize_topic_embeddings(reducer=self.reducer)
 
-            for topic in topics:
+            for topic in self._topics:
                 self.topic_index.add_topic(topic)
 
     def partial_fit_sentence_embeddings(
@@ -224,21 +180,6 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
     def flush(self):
         self.__run_batch()
 
-    def _add_new_topic(self, doc_id, emb, remb):
-        topic = Topic(
-            id=f"topic-{self._next_topic_id}",
-            support=1,
-            embedding=emb,
-            pca_centroid=remb,
-            is_fixed=False,
-            reducer=self.reducer,
-            min_sim_threshold=self.sim_threshold,
-            last_updated=datetime.datetime.now(),
-        )
-        topic.doc_ids.add(doc_id)
-        self._next_topic_id += 1
-        self.topic_index.add_topic(topic)
-
     def __process_batch(self):
         embeddings = np.array(self.buffer)
         if len(embeddings) == 0:
@@ -246,17 +187,12 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
 
         if len(embeddings) > config.REDUCED_DIMENSIONS:
             self.reducer.fit_batch(embeddings)
-            topics = self.topic_index.topics()
-            if topics:
-                embeddings_to_transform = np.vstack(
-                    [topic.embedding for _, topic in topics]
-                )
-                new_reduced_centroids = self.reducer.transform(embeddings_to_transform)
-                for (topic_idx, topic), reduced_centroid in zip(
-                    topics, new_reduced_centroids
-                ):
-                    topic.centroid = normalize(reduced_centroid.squeeze())
-                    self.topic_index.update_topic(topic_idx, topic.centroid)
+            if self._topics:
+                self._topics.renormalize_topic_embeddings(reducer=self.reducer)
+                for topic in self._topics:
+                    self.topic_index.update_topic(
+                        self.topic_index.topic2id[topic.id], topic.centroid
+                    )
 
         reduced = normalize(self.reducer.transform(embeddings))
 
@@ -285,7 +221,14 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                     self.topic_index.topic_map[best_idx].doc_ids.add(doc_id)
                     continue
 
-            self._add_new_topic(doc_id, emb, remb)
+            topic = self._topics.create_new_topic(
+                embedding=emb,
+                pca_centroid=remb,
+                reducer=self.reducer,
+                min_sim_threshold=self.sim_threshold,
+                document_id=doc_id,
+            )
+            self.topic_index.add_topic(topic)
 
         self.buffer = []  # Clear memory
 
@@ -328,6 +271,7 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
                 ):
                     updated_topics.append((topic_i_idx, topic_i))
 
+            self._topics.update_topics([t[1] for t in updated_topics])
             self.topic_index.rebuild(updated_topics)
             end = time.perf_counter()
             logger.info(
@@ -339,35 +283,24 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
 
     @property
     def topics(self):
-        return [topic for _, topic in self.topic_index.topics()]
+        return self._topics
 
     @property
     def num_topics(self):
-        return len(self.topic_index.topic_map)
+        return len(self._topics)
 
     def save_topics(self):
-        topics = self.topic_index.topics()
-
-        if len(topics) == 0:
+        if len(self._topics) == 0:
             return
 
         to_delete = []
         to_upsert = []
-        not_updated = []
         final_topics = []
+        self._topics.update_sentence_counts()
 
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            sentence_counts = list(
-                executor.map(_get_topic_count, [t[1].embedding for t in topics])
-            )
-
-        for sentence_count, (topic_label, topic) in tqdm(zip(sentence_counts, topics)):
-            if not topic.last_updated:
-                not_updated.append(topic)
-                continue
-
+        for topic_label, topic in tqdm(self.topic_index.topics()):
             if (
-                sentence_count < self.min_support
+                topic.support < self.min_support
                 and topic.doc_count < self.min_document_count
                 and not topic.is_fixed
             ):
@@ -381,7 +314,7 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
             values = {
                 "id": topic.id,
                 "name": topic.name,
-                "support": sentence_count,
+                "support": topic.support,
                 "doc_support": topic.doc_count,
                 "embedding": topic.embedding.tolist(),
                 "updated_at": datetime.datetime.now(datetime.timezone.utc),
@@ -393,26 +326,9 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
             topic.doc_ids.clear()
             final_topics.append((topic_label, topic))
 
-        if to_delete:
-            with db.get_session() as session:
-                # First transaction delete merged topics
-                session.execute(
-                    delete(TopicsTable).where(TopicsTable.id.in_(to_delete))
-                )
-
-        if to_upsert:
-            with db.get_session() as session:
-                # second transaction upsert topics
-                stmt = insert(TopicsTable).values(to_upsert)
-                upsert_stmt = stmt.on_conflict_do_update(
-                    index_elements=[TopicsTable.id],
-                    set_={
-                        c.name: stmt.excluded[c.name]
-                        for c in TopicsTable.__table__.columns  # type:ignore
-                        if c.name != "id"
-                    },
-                )
-                session.execute(upsert_stmt)
+        with db.get_session() as session:
+            session.execute(delete(TopicsTable))
+            session.execute(insert(TopicsTable).values(to_upsert))
 
         # Update the topic views (topic_sentences)
         db.refresh_topic_views()
@@ -420,62 +336,51 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         # Save the online PCA
         self.reducer.save()
 
-        # Rebuild the topic index
-        self.topic_index.rebuild(final_topics)
+        # Reload the topics to get all the correct ids
+        self._load_topics()
 
-        logger.info(f"💾 Saved {len(topics) - len(to_delete)} topics")
-
-    def get_topic(self, topic_id: int | str) -> Topic:
-        if isinstance(topic_id, int):
-            return self.topic_index.topic_map[topic_id]
-
-        for _, topic in self.topic_index.topics():
-            if topic.id == topic_id:
-                return topic
-        raise Exception(f"No Topic with id {topic_id} found")
+        logger.info(f"💾 Saved {len(self._topics) - len(to_delete)} topics")
 
     def label_topics(self):
         logger.info("Labelling Topics...")
-        vectorizer = TfidfVectorizer()
-        text = [[s.clean for s in topic.get_sentences()] for topic in self.topics]
-        vectorizer.fit(flatten(text))
-        to_name = []
-        for sentences, (topic_idx, topic) in zip(text, self.topic_index.topics()):
-            if topic.is_fixed:
-                logger.info("SKIPPING: ", topic.id)
-                continue
+        label_topics(self._topics, logger)
 
-            to_name.append(topic)
-            X = vectorizer.transform(sentences)
-            tfidf_scores = np.asarray(X.mean(axis=0)).flatten()  # type: ignore
-            words = np.array(vectorizer.get_feature_names_out())
-            topic.name = ", ".join(words[np.argsort(tfidf_scores)[-5:]][::-1])
+    def build_hierarchical_topics(self):
+        logger.info("Building Hierarchical Topics...")
+        embeddings = [t.embedding for t in self._topics]
+        clusterer = DivisiveKMeans(max_k=5, min_samples_leaf=5)
+        clusterer.fit(embeddings, self._topics)
+        tree_map = []
+        joining_table = []
+        if clusterer.root:
+            frontier = [(None, clusterer.root)]
+            while frontier:
+                parent_id, next_node = frontier.pop()
+                node_id = shortuuid.uuid()
+                tree_map.append(
+                    TopicsTreeTable(
+                        id=node_id,
+                        parent=parent_id,  # type: ignore
+                        name=generate_cluster_node_name(next_node),
+                        isLeaf=next_node.is_leaf,
+                        splitK=next_node.k,
+                    )
+                )
+                for item in next_node.items:
+                    joining_table.append(
+                        TopicTreeTopicMapTable(
+                            nodeId=node_id,
+                            topicId=item.id,
+                        )
+                    )
+                for child in next_node.children:
+                    frontier.append((node_id, child))
 
-        results = topic_naming(to_name)
-        for topic, name in zip(to_name, results):
-            print(topic.id, topic.is_fixed, topic.name, name)
-            if not topic.is_fixed:
-                topic.name = name
-                self.topic_index.topics()
-            logger.info(f"Topic {topic.id} = {topic.name}")
-
-
-def _get_topic_count(embedding: np.ndarray):
-    with db.get_session() as session:
-        session.execute(text("SET jit = off;"))
-        session.execute(text("SET hnsw.ef_search = 100;"))
-        stmt = select(func.count()).select_from(
-            select(TextAnnotationsTable.id)
-            .where(
-                TextAnnotationsTable.type_ == "sentence",
-                cast(TextAnnotationsTable.metadata_["is_stopword"], Boolean).is_(False),
-                TextAnnotationsTable.embedding.cosine_distance(embedding) < 0.35,
-            )
-            .order_by(TextAnnotationsTable.embedding.cosine_distance(embedding))
-            .limit(25000)
-            .subquery()
-        )
-        return session.scalar(stmt)
+            with db.get_session() as session:
+                session.execute(delete(TopicsTreeTable))
+                session.execute(delete(TopicTreeTopicMapTable))
+                session.bulk_save_objects(tree_map)
+                session.bulk_save_objects(joining_table)
 
 
 topic_model: Lang3sTopicModel = None  # type:ignore

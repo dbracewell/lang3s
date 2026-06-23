@@ -2,7 +2,7 @@ import argparse
 import os
 import subprocess
 import time
-from typing import List, Optional
+from typing_extras import List, Optional
 
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"

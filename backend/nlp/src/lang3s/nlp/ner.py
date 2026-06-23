@@ -5,14 +5,14 @@ from typing import Any
 import numpy as np
 from gliner import GLiNER
 
-from lang3s import config
-from lang3s.nlp.coref.indoc_coref import get_in_document_coref_model
+from lang3s.core import config
+from lang3s.core.logger import get_logger
+from lang3s.core.typing_extras import SingletonMeta
+from lang3s.data.db import get_ontology
+from lang3s.data.schemas import OntologyEntry
+from lang3s.nlp.components.coref import get_in_document_coref_model
 from lang3s.nlp.language import get_common_person_titles
-from lang3s.nlp.shared_types import Document, TextAnnotation
-from lang3s.ontology import ontology
-from lang3s.ontology.core import OntologyEntry
-from lang3s.utils.logger import get_logger
-from lang3s.utils.meta import SingletonMeta
+from lang3s.nlp.schemas import Document, TextAnnotation
 
 logger = get_logger("NER")
 
@@ -33,7 +33,8 @@ class NamedEntityRecognition(metaclass=SingletonMeta):
             "knowledgator/gliner-bi-base-v2.0",
             map_location=config.NER_INFERENCE_DEVICE,
         )
-        self._coref_model = get_in_document_coref_model()
+        print("OK")
+        self._coref_model = None  # get_in_document_coref_model()
         self._labels = []
         self._label_embeddings = []
         self._prepare_labels()
@@ -41,7 +42,7 @@ class NamedEntityRecognition(metaclass=SingletonMeta):
 
     def _prepare_labels(self):
         self._labels = [
-            o.name for o in ontology["ALL.Entity"].ancestors if _is_valid_label(o)
+            o.name for o in get_ontology()["ALL.Entity"].ancestors if _is_valid_label(o)
         ]
         self._label_embeddings = self._ner_model.encode_labels(  # type: ignore
             self._labels, batch_size=len(self._labels)

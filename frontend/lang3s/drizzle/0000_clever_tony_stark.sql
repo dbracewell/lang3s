@@ -179,30 +179,31 @@ CREATE TABLE "text"
     "updated_at" timestamp DEFAULT now()
 );
 
-CREATE TYPE "public"."sentimentEnum" AS ENUM('positive', 'negative', 'neutral');
+CREATE TYPE "public"."sentimentEnum" AS ENUM ('positive', 'negative', 'neutral');
 DROP TABLE IF EXISTS "claims" CASCADE;
-CREATE TABLE "claims" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"doc_id" text NOT NULL,
-	"claim" text NOT NULL,
-	"claim_type" text NOT NULL,
-	"source" text,
-	"subject" text NOT NULL,
-	"predicate" text NOT NULL,
-	"object" text NOT NULL,
-	"stance" text NOT NULL,
-	"certainty" text NOT NULL,
-	"modality" text NOT NULL,
-	"negation" boolean NOT NULL,
-	"condition" text NOT NULL,
-	"time" text NOT NULL,
-	"location" text NOT NULL,
-	"evidence" text NOT NULL,
-	"sentiment" "sentimentEnum" NOT NULL,
-	"keywords" text[] NOT NULL,
-	"embedding" halfvec(384) NOT NULL,
-	"created_at" timestamp DEFAULT now(),
-	"updated_at" timestamp DEFAULT now()
+CREATE TABLE "claims"
+(
+    "id"         uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "doc_id"     text                                       NOT NULL,
+    "claim"      text                                       NOT NULL,
+    "claim_type" text                                       NOT NULL,
+    "source"     text,
+    "subject"    text                                       NOT NULL,
+    "predicate"  text                                       NOT NULL,
+    "object"     text                                       NOT NULL,
+    "stance"     text                                       NOT NULL,
+    "certainty"  text                                       NOT NULL,
+    "modality"   text                                       NOT NULL,
+    "negation"   boolean                                    NOT NULL,
+    "condition"  text                                       NOT NULL,
+    "time"       text                                       NOT NULL,
+    "location"   text                                       NOT NULL,
+    "evidence"   text                                       NOT NULL,
+    "sentiment"  "sentimentEnum"                            NOT NULL,
+    "keywords"   text[]                                     NOT NULL,
+    "embedding"  halfvec(384)                               NOT NULL,
+    "created_at" timestamp        DEFAULT now(),
+    "updated_at" timestamp        DEFAULT now()
 );
 
 
@@ -266,6 +267,27 @@ CREATE TABLE "topics"
     "doc_support" integer   DEFAULT 0     NOT NULL,
     "created_at"  timestamp DEFAULT now(),
     "updated_at"  timestamp DEFAULT now()
+);
+
+DROP TABLE IF EXISTS "topics_tree" CASCADE;
+CREATE TABLE "topics_tree"
+(
+    "id"         text PRIMARY KEY NOT NULL,
+    "name"       text             NOT NULL,
+    "parent_id"  text,
+    "is_leaf"    boolean   DEFAULT false,
+    "level"      integer,
+    "split_k"    integer,
+    "created_at" timestamp DEFAULT now(),
+    "updated_at" timestamp DEFAULT now()
+);
+
+DROP TABLE IF EXISTS "topic_tree_topic_map" CASCADE;
+CREATE TABLE "topic_tree_topic_map"
+(
+    "id"       serial PRIMARY KEY NOT NULL,
+    "node_id"  text,
+    "topic_id" text
 );
 
 DROP TABLE IF EXISTS "metadata" CASCADE;
@@ -354,6 +376,17 @@ ALTER TABLE "jobs"
     ADD CONSTRAINT "jobs_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user" ("id") ON DELETE cascade ON UPDATE no action;
 
 
+ALTER TABLE "topic_tree_topic_map"
+    DROP CONSTRAINT IF EXISTS "topic_tree_topic_map_node_id_topics_tree_id_fk";
+ALTER TABLE "topic_tree_topic_map"
+    ADD CONSTRAINT "topic_tree_topic_map_node_id_topics_tree_id_fk" FOREIGN KEY ("node_id") REFERENCES "public"."topics_tree" ("id") ON DELETE cascade ON UPDATE no action;
+
+ALTER TABLE "topic_tree_topic_map"
+    DROP CONSTRAINT IF EXISTS "topic_tree_topic_map_topic_id_topics_id_fk";
+ALTER TABLE "topic_tree_topic_map"
+    ADD CONSTRAINT "topic_tree_topic_map_topic_id_topics_id_fk" FOREIGN KEY ("topic_id") REFERENCES "public"."topics" ("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+
+
 CREATE INDEX IF NOT EXISTS "document_metadata_gin_idx" ON "documents" USING gin ("metadata" jsonb_path_ops);
 
 CREATE INDEX IF NOT EXISTS text_annotations_sentence_aid_idx ON text_annotations USING btree (sentence_aid);
@@ -386,6 +419,7 @@ CREATE INDEX IF NOT EXISTS "keywords_embedding_index" ON "keywords" USING hnsw (
 CREATE INDEX IF NOT EXISTS "keywords_document_id" ON "keywords" USING btree ("document_id");
 CREATE INDEX IF NOT EXISTS "keywords_category_idx" ON "keywords" USING btree ("category");
 
+CREATE INDEX "topic_tree_parent_id" ON "topics_tree" USING btree ("id");
 
 CREATE INDEX IF NOT EXISTS "claims_content_fts_index" ON "claims" USING pgroonga ("claim");
 CREATE INDEX IF NOT EXISTS "claims_doc_id_idx" ON "claims" USING btree ("doc_id");
@@ -513,3 +547,38 @@ FROM OVERLAP_COUNTS oc
          JOIN KEYWORD_ROLLUP kr ON oc.topic_id = kr.topic_id AND oc.concept = kr.concept
 ORDER BY oc.overlap_count DESC
     );
+
+
+
+CREATE OR REPLACE FUNCTION get_topic_tree(p_id TEXT DEFAULT NULL)
+    RETURNS JSONB AS
+$$
+DECLARE
+    _result JSONB;
+BEGIN
+    SELECT jsonb_agg(
+                   jsonb_build_object(
+                           'id', t.id,
+                           'name', t.name,
+                           'parent_id', t.parent_id,
+                           'topics', json_array(SELECT jsonb_build_object(
+                                                               'id', topic.id,
+                                                               'name', topic.name,
+                                                               'support', topic.support,
+                                                               'doc_support', topic.doc_support
+                                                       )
+                                                FROM topic_tree_topic_map tttmp
+                                                         inner join topics topic on tttmp.topic_id = topic.id
+                                                WHERE tttmp.node_id = t.id),
+                           'children', (SELECT COALESCE(jsonb_agg(child_res), '[]'::jsonb)
+                                        FROM (SELECT get_tree_json(t.id) as child_res
+                                              FROM topics_tree
+                                              WHERE parent_id = t.id) sub)
+                   )
+           )
+    INTO _result
+    FROM topics_tree t
+    WHERE t.parent_id IS NOT DISTINCT FROM p_id;
+    RETURN COALESCE(_result, '[]'::jsonb);
+END;
+$$ LANGUAGE plpgsql;

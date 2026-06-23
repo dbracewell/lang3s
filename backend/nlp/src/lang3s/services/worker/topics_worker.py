@@ -55,6 +55,8 @@ def topics_worker(shared_state):
                 topic_model.merge_topics()
                 topic_model.label_topics()
                 topic_model.save_topics()
+                topic_model.build_hierarchical_topics()
+
         except Exception as e:
             logger.exception(f"Error in worker: {e}", stack_info=True)
         finally:

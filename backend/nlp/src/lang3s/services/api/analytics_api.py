@@ -92,6 +92,7 @@ async def counts(
     request: AnnotationCountsRequest,
     service: AnalyticsService = Depends(get_analytics_service),
 ):
+    print(request)
     return service.get_annotation_counts(request)
 
 

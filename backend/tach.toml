@@ -1,0 +1,29 @@
+interfaces = []
+exclude = [
+    "**/*__pycache__",
+    "**/*egg-info",
+    "**/docs",
+    "**/tests",
+    "**/venv",
+]
+source_roots = [
+    "packages/core/src/",
+    "packages/data/src/",
+    "packages/ml/src/",
+    "packages/nlp/src/"
+]
+
+[[modules]]
+path = "lang3s.core"
+
+[[modules]]
+path = "lang3s.data"
+
+[[modules]]
+path = "lang3s.ml"
+
+[[modules]]
+path = "lang3s.nlp"
+
+[external]
+exclude = ["lang3s"]

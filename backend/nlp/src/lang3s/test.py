@@ -1,190 +1,135 @@
-import json
-import logging
-import os.path
-import sys
-import time
-from random import shuffle
-from typing import Annotated
+from __future__ import annotations
 
-from jsonlines import jsonlines
-from lang3s_job_service import File
-from pydantic import BaseModel
-from transformers import Pipeline
+import networkx as nx
+import shortuuid
+from pydantic import BaseModel, Field
+from scipy.cluster.hierarchy import linkage
+from sqlalchemy import delete
 
-from lang3s.agent import Agent, Session
-from lang3s.agent.middleware import LoggingMiddleware
-from lang3s.agent.strategy import ToolCallingStrategy
 from lang3s.app import Application
-from lang3s.config import Config, config
-from lang3s.data.db.models import ClaimsTable
-from lang3s.data.io.serialization import deserialize
-from lang3s.llm import Message, tools
-from lang3s.llm.client import LoRaClient
-from lang3s.nlp.claim_extractor import ClaimList, create_claim_request
+from lang3s.cluster.hierarchical import ClusterNode, DivisiveKMeans
+from lang3s.data.db.models import TopicsTable, TopicsTreeTable, TopicTreeTopicMapTable
+from lang3s.llm import LLMClient, Message
+from lang3s.nlp.claim_extractor import create_claim_request
 from lang3s.nlp.metadata import AnnotationTypes
-from lang3s.parallel.core import Engine
-from lang3s.parallel.manager import TaskManager
-from lang3s.parallel.monitor import ThreadMonitor
 from lang3s.services.client.redis_client import CLAIM_EXTRACT_QUEUE_NAME, RedisClient
+from lang3s.utils.logger import get_logger
 
 
-@tools.tool(
-    name="get_weather", description="Gets the weather for a city in the United States."
-)
-def weather(city: Annotated[str, "The city to get the current weather for in Celsius"]):
-    return 45.5
+class TopicNode(BaseModel):
+    name: str
+    is_leaf: bool = Field(default=False)
+    children: list[TopicNode] = Field(default_factory=list)
+    elements: list[str] = Field(default_factory=list)
 
 
-class Joke(BaseModel):
-    text: str
+class TopicHierarchy(BaseModel):
+    root: TopicNode
+
+
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
+# def build_metadata_tree(X, metadata):
+#     Z = linkage(X, method="ward")
+#     n_samples = len(X)
+#     G = nx.Graph()
+#
+#     for i in range(n_samples):
+#         G.add_node(i, type="leaf", data=metadata[i])
+#
+#     for i, row in enumerate(Z):
+#         new_node_id = n_samples + i
+#         child1 = int(row[0])
+#         child2 = int(row[1])
+#         distance = row[2]
+#
+#         G.add_node(new_node_id, type="internal", distance=distance)
+#         G.add_edge(new_node_id, child1, weight=distance)
+#         G.add_edge(new_node_id, child2, weight=distance)
+#
+#     return G, n_samples + len(Z) - 1
+#
+#
+# def traverse(G, current_node, parent=None):
+#     node_data = G.nodes[current_node]
+#
+#     if node_data["type"] == "leaf":
+#         print(f"Leaf: {node_data['data']}")
+#     else:
+#         print(f"Node (Dist: {node_data['distance']:.2f})")
+#
+#     for neighbor in G.neighbors(current_node):
+#         if neighbor != parent:
+#             traverse(G, neighbor, current_node)
+#
+
+logger = get_logger("TEST")
 
 
 class SampleApplication(Application):
     def run(self):
-        # self.test_llm()
-        # self.test_claim_extraction_workers()
-        # return
-        # self.test_sense_model()
-        # self.test_agent()
-        # self.test_claim_classification()
-        # self.create_base_corpora()
-        # self.cluster_claims()
-        test = "['ke1', 'ke2', 'ke3']"
-        keywords = [item.strip("' ") for item in test.strip("[] ").split(",")]
-        print(keywords)
+        # self.cluster_topics()
+        import lang3s.data.db.text_database as text_db
 
-    def extract_svo(self, doc):
-        svo_triples = []
-        for token in doc:
-            # We look for a verb (the head of the triple)
-            if token.pos_ == "VERB":
-                subj = ""
-                obj = ""
-                # Look for the subject and object among the verb's children
-                for child in token.children:
-                    if child.dep_ in ("nsubj", "nsubjpass"):
-                        subj = " ".join([t.text for t in child.subtree])
-                    if child.dep_ in ("dobj", "obj", "pobj"):
-                        obj = " ".join([t.text for t in child.subtree])
+        for s in text_db.random_sentences(1000):
+            print(s)
 
-                if subj and obj:
-                    svo_triples.append((subj, token.lemma_, obj))
-        return svo_triples
-
-    # Example usage:
-    # doc = nlp("The Bank of England's rate-setting body voted to leave interest rates unchanged.")
-    # print(extract_svo(doc))
-
-    def cluster_claims(self):
+    def cluster_topics(self):
         import lang3s.data.db.database as db
-        from lang3s.cluster.offline import DefaultOfflineClusterer
 
-        claims = []
-        embeddings = []
+        topics = []
+        topic_embs = []
 
         with db.get_session() as session:
-            for c in session.query(ClaimsTable).all():
-                claims.append(c.claim)
-                embeddings.append(c.embedding.to_numpy())
+            for c in session.query(TopicsTable).all():
+                topics.append(c)
+                topic_embs.append(c.embedding.to_numpy())
+            session.expunge_all()
 
-        clusterer = DefaultOfflineClusterer(
-            min_cluster_size=2,
-            metric="euclidean",
-            clustering_algorithm="agglomerative",
-            distance_threshold=1.0,
-        )
-        clusters = clusterer.fit(claims, embeddings)
-        print(len(clusters))
-        for cluster in clusters:
-            shuffle(cluster.items)
-            print("\n".join(cluster.items[:5]))
-            print()
-
-    def create_base_corpora(self):
-        with jsonlines.open("/Users/ik/prj/data/base_corpus.jsonl", "w") as writer:
-            # reddit
-            with open("/Users/ik/prj/data/reddit_style_corpus.json") as reader:
-                all_docs = json.load(reader)
-                for doc in all_docs:
-                    writer.write(
-                        File(
-                            content=doc["text"],
-                            docId=doc["id"],
-                            metadata={"source": doc["source"]},
-                        ).model_dump()
+        dm = DivisiveKMeans(max_k=10, min_samples_leaf=2)
+        dm.fit(topic_embs, topics)
+        if dm.root is None:
+            print("NO ROOT")
+        else:
+            tree_map = []
+            joining_table = []
+            if dm.root:
+                frontier = [(None, dm.root)]
+                while frontier:
+                    parent_id, next_node = frontier.pop()
+                    node_id = shortuuid.uuid()
+                    name = "ROOT"
+                    if parent_id:
+                        name = generate_name(next_node)
+                    tree_map.append(
+                        TopicsTreeTable(
+                            id=node_id,
+                            parent=parent_id,  # type: ignore
+                            name=name,
+                            isLeaf=next_node.is_leaf,
+                            splitK=next_node.k,
+                        )
                     )
+                    for item in next_node.items:
+                        joining_table.append(
+                            TopicTreeTopicMapTable(
+                                nodeId=node_id,
+                                topicId=item.id,
+                            )
+                        )
+                    for child in next_node.children:
+                        frontier.append((node_id, child))
 
-            # news
-            with jsonlines.open("/Users/ik/prj/data/news.jsonl") as reader:
-                for doc in reader:
-                    writer.write(doc)
+                with db.get_session() as session:
+                    session.execute(delete(TopicsTreeTable))
+                    session.execute(delete(TopicTreeTopicMapTable))
+                    session.bulk_save_objects(tree_map)
+                    session.bulk_save_objects(joining_table)
 
-            for doc in deserialize("/Users/ik/prj/data/kant.docs"):
-                writer.write(
-                    File(
-                        content=doc.text.text,
-                        docId=doc.id,
-                        mime_type="text/plain",
-                        metadata=doc.metadata,
-                    ).model_dump()
-                )
-
-    def get_semantic_overlap_chunks(
-        self,
-        sentences: list[str],
-        window_size=5,
-        overlap=2,
-    ):
-        chunks = []
-        step = window_size - overlap
-        if step <= 0:
-            step = 1
-
-        for i in range(0, len(sentences), step):
-            window = sentences[i : i + window_size]
-            chunk_text = " ".join(window)
-            chunks.append(chunk_text)
-            if i + window_size >= len(sentences):
-                break
-
-        return chunks
-
-    def test_claim_classification(self):
-        client = LoRaClient()
-        window_size = 10
-        overlap = 2
-        for doc in deserialize(os.path.expanduser("~/prj/data/kant.docs")):
-            start = time.perf_counter()
-            sentences = [s.text for s in doc.text.sentences]
-            chunks = self.get_semantic_overlap_chunks(sentences, window_size, overlap)
-            combined = []
-            for chunk in chunks:
-                prompt = f"Extract claims from: {chunk}"
-                response = client.sync_chat_completion_last_event(
-                    messages=[Message.user(prompt)],
-                    temperature=0,
-                )
-                try:
-                    rc = json.loads(response.content, strict=False)
-                    combined.extend(rc)
-                except json.decoder.JSONDecodeError as e:
-                    print(f"Error {e}", file=sys.stderr)
-            end = time.perf_counter()
-            print(f"{len(chunks)}: {(end - start):.2f}", file=sys.stderr)
-            print(json.dumps(combined))
-
-    def test_agent(self):
-        agent = Agent(
-            session=Session(
-                available_tools=[weather],
-                middleware=[LoggingMiddleware(level=logging.DEBUG)],
-            )
-        )
-        result = agent.sync_run(
-            "What's the weather in Orlando, FL",
-            strategy=ToolCallingStrategy(),
-        )
-        print(result)
+        # G, root = build_metadata_tree(topic_embs, topics)
+        # traverse(G, root)
 
     def test_sense_model(self):
         import jsonlines

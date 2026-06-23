@@ -11,7 +11,6 @@ os.environ["TQDM_DISABLE"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 warnings.filterwarnings("ignore")
 
-
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -24,22 +23,26 @@ LOGGING_CONFIG = {
         },
     },
     "handlers": {
-        "file": {
-            "class": "logging.FileHandler",
-            "filename": "lang3s.log",
-            "formatter": "uvicorn_file",
-        },
         "stream": {
             "()": "lang3s.utils.logger.async_handler.AsyncQueueHandler",
         },
     },
     "loggers": {
         "": {
-            "handlers": ["file", "stream"],
+            "handlers": ["stream"],
             "level": "INFO",
         },
     },
 }
+
+LOGGING_FILE = os.environ.get("LOGGER_FILE", None)
+if LOGGING_FILE:
+    LOGGING_CONFIG["loggers"][""]["handlers"].append("file")
+    LOGGING_CONFIG["handlers"]["file"] = {
+        "class": "logging.FileHandler",
+        "filename": LOGGING_FILE or "",
+        "formatter": "uvicorn_file",
+    }
 
 
 def __initialize_logging():
