@@ -1,4 +1,4 @@
-import { Chart, ChartData, CountType } from "@/features/reports/types";
+import { Chart } from "@/features/reports/types";
 import { SeriesFormType } from "@/features/reports/schema";
 import {
   CartesianGrid,
@@ -17,15 +17,15 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { useMemo } from "react";
-import { DataTypeCategory } from "@/features/common/types";
+import type { ChartData, CountType, DataCategory } from "@/clients/analytics";
 
 type LineChartProps = {
-  data: ChartData;
+  data: ChartData[];
   xSeries: SeriesFormType;
   ySeries?: SeriesFormType;
   className?: string;
   countType: CountType;
-  xDataType: DataTypeCategory;
+  xDataType: DataCategory;
 };
 
 function generateRainbowColors(n: number): string[] {
@@ -67,9 +67,10 @@ export const LineChart = ({
               data: {},
             };
           }
-          const catText = ySeries
-            ? d.text2
-            : Chart.formatCountTypeName(countType);
+          const catText =
+            ySeries != null
+              ? (d.text2 as string)
+              : Chart.formatCountTypeName(countType);
           if (agg[series].data[catText] == null) {
             agg[series].data = {
               ...agg[series].data,
@@ -85,7 +86,7 @@ export const LineChart = ({
         >,
       ),
     ).map((d) => ({ series: d.series, ...d.data }));
-  }, [countType, data]);
+  }, [countType, data, xDataType, ySeries]);
 
   const myColor = generateRainbowColors(uniqueSeries.length);
 

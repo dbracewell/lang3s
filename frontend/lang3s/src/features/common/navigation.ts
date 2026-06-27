@@ -54,13 +54,6 @@ export const NAVIGATION_LINKS: NavigationGroup[] = [
         exact: false,
       },
       { separator: true },
-      {
-        href: "/analytics/concepts",
-        title: "Concepts",
-        icon: "MessageSquareIcon",
-        exact: false,
-      },
-      { separator: true },
       // {
       //   href: "/kb",
       //   title: "Knowledge Base",

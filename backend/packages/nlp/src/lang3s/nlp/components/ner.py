@@ -30,6 +30,7 @@ class NamedEntityRecognition(metaclass=SingletonMeta):
         self._ner_model = GLiNER.from_pretrained(
             "knowledgator/gliner-bi-base-v2.0",
             map_location=config.NER_INFERENCE_DEVICE,
+            compile_torch_model=True,
         )
         self._labels = []
         self._label_embeddings = []
@@ -39,9 +40,7 @@ class NamedEntityRecognition(metaclass=SingletonMeta):
     def _prepare_labels(self):
         ontology = get_ontology()
         self._labels = [
-            f"{o.name}: {o.description}"
-            for o in ontology["ALL.Entity"].ancestors
-            if _is_valid_label(o)
+            o.name for o in ontology["ALL.Entity"].ancestors if _is_valid_label(o)
         ]
         self._label_embeddings = self._ner_model.encode_labels(  # type: ignore
             self._labels,

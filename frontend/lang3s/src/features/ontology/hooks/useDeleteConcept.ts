@@ -1,16 +1,19 @@
 import { useCallback } from "react";
-import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { toast } from "sonner";
 import { useConfirmationDialog } from "@/components/dialogs/ConfirmationDialog";
+import { useMutation } from "@tanstack/react-query";
+import { coreClient } from "@/lib/api";
+import { deleteOntologyEntryMutation } from "@/clients/core/@tanstack/react-query.gen";
 
 export const useDeleteConcept = () => {
-  const { mutate, isPending } = useTRPCMutation((trpc) => ({
-    mutation: trpc.ontology.deleteConcept.mutationOptions({
-      onSuccess: (data) =>
-        toast.success(`Successfully deleted ${data.name} and all children`),
-      onError: () => toast.error("Failed to delete concept"),
+  const { mutate, isPending } = useMutation({
+    ...deleteOntologyEntryMutation({
+      client: coreClient,
     }),
-  }));
+    onSuccess: () =>
+      toast.success(`Successfully deleted concept and all children`),
+    onError: () => toast.error("Failed to delete concept"),
+  });
 
   const { confirm, Dialog } = useConfirmationDialog({
     title: "Are you sure you want to delete this concept?",
@@ -20,10 +23,14 @@ export const useDeleteConcept = () => {
   });
 
   const mutateFn = useCallback(
-    async (path: string) => {
+    async (id: number) => {
       const response = await confirm();
       if (response) {
-        mutate({ path });
+        mutate({
+          path: {
+            node_id: id,
+          },
+        });
       }
     },
     [confirm, mutate],

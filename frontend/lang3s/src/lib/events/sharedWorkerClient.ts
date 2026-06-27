@@ -4,9 +4,8 @@ import { eventBus } from "@/lib/events/eventBus";
 import { parseEventMessage } from "@/lib/events/events";
 
 declare global {
-  // eslint-disable-next-line no-var
   var __sharedEventWorker: SharedWorker | undefined;
-  // eslint-disable-next-line no-var
+
   var _sharedEventPortStarted: boolean | undefined;
 }
 
@@ -25,7 +24,6 @@ export function initSharedWorker() {
 
     worker.port.onmessage = (evt) => {
       const msg = evt.data;
-
       if (msg?.kind === "status") {
         return;
       }

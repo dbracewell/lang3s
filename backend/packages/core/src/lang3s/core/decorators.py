@@ -32,6 +32,16 @@ def as_sync(func: Callable[[Any], Coroutine[Any, Any, T]]) -> Callable[..., T]:
     return wrapper
 
 
+def asyncio_run(func: Callable[[Any], Coroutine[Any, Any, T]]) -> Callable[..., T]:
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        coro = func(*args, **kwargs)
+        return asyncio.run(coro)
+
+    return wrapper
+
+
 def sync_or_async(func, force_sync: bool = False):
     """
     Wraps an async function so it can be executed synchronously

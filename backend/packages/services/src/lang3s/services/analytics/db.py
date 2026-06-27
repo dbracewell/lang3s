@@ -12,6 +12,7 @@ from .query_template import QueryTemplateEngine
 class AnalyticsDB(metaclass=SingletonMeta):
     def __init__(self):
         self.queries = QueryTemplateEngine()
+        first_run = not filestore.get_analytics_db_path().exists()
         self.connection = duckdb.connect(filestore.get_analytics_db_path())
         self.connection.execute(
             self.queries.render(
@@ -22,6 +23,8 @@ class AnalyticsDB(metaclass=SingletonMeta):
                 DB_PORT=config.DB_PORT,
             )
         )
+        if first_run:
+            self.build_annotation_stats()
 
     def build_annotation_stats(self):
         self.execute(self.queries.render("annotation_stats_builder.sql.j2"))

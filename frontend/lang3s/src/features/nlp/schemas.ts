@@ -2,20 +2,20 @@ import z from "zod";
 
 export const TextAnnotationSchema = z.object({
   id: z.string(),
-  text: z.string(),
-  metadata: z.record(z.string(), z.any()),
+  content: z.string(),
+  metadata_json: z.record(z.string(), z.any()),
   embedding: z.array(z.number()),
   start: z.int(),
   end: z.int(),
-  type: z.string(),
+  type_: z.string(),
   value: z.string(),
-  sentence_id: z.int(),
+  sentence_index: z.int(),
 });
 
 export const TextSchema = z.object({
   id: z.string(),
-  text: z.string(),
-  metadata: z.record(z.string(), z.any()),
+  content: z.string(),
+  metadata_json: z.record(z.string(), z.any()),
   embedding: z.array(z.number()),
   annotations: z.array(TextAnnotationSchema),
 });
@@ -23,7 +23,7 @@ export const TextSchema = z.object({
 export const DocumentSchema = z.object({
   id: z.string(),
   title: z.string(),
-  metadata: z.record(z.string(), z.any()),
+  metadata_json: z.record(z.string(), z.any()),
   text: TextSchema,
 });
 

@@ -12,7 +12,7 @@ where {{ macros.match_paths('path', mapping_list) }}
     {% if filter is not none %}
   AND text ilike ?
     {% endif %}
-GROUP BY text, path, name
+GROUP BY normalized, path, name
 HAVING COUNT(DISTINCT document_id) > 5
-order by {{ order_by_col }} desc, text, path
+order by {{ order_by_col }} desc, normalized, path
 offset ? limit ?

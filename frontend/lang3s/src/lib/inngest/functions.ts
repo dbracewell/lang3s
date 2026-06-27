@@ -7,7 +7,9 @@ import { NonRetriableError } from "inngest";
 import { UserRole } from "@/lib/auth/permissions";
 import { user } from "@/lib/db/schemas/auth";
 import { ConfigTable } from "@/lib/db/schemas/config";
-import { updateAnalytics } from "@/features/analytics/server/analyticsApi";
+import { putJson } from "@/lib/utils/superFetch";
+
+const BASE_PATH = `${process.env.PYTHON_SERVER}/analytics`;
 
 export const update = inngest.createFunction(
   { id: "update-analytics" },
@@ -48,7 +50,7 @@ export const update = inngest.createFunction(
       }
 
       await step.run("update-analytics-view", async () => {
-        await updateAnalytics();
+        await putJson(`${BASE_PATH}/updatestats`);
         // await db.refreshMate
         // rializedView(AnnotationCounts).concurrently();
         // await db.refreshMaterializedView(AnnotationCoOccurrence).concurrently();

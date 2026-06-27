@@ -16,7 +16,7 @@ from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
 
 from lang3s.core.typing_extras import ShutdownEvent
-from lang3s.data.schemas.job import JobMessage, JobStatus
+from lang3s.data.schemas.job import Job, JobMessage, JobStatus
 
 if TYPE_CHECKING:
     from redis.client import PubSub
@@ -103,6 +103,26 @@ class RedisAsyncClient:
             payload = json.dumps(message)
         return await self._client.publish(channel, payload)
 
+    async def publish_job_update(self, job: Job) -> int:
+        return await self.publish_message(
+            "events",
+            {
+                "type": "job:update",
+                "payload": {
+                    "jobId": job.id,
+                    "progress": job.progress,
+                    "status": job.status,
+                    "started_at": job.started_at.strftime("%Y-%m-%d %H:%M:%S")
+                    if job.started_at
+                    else None,
+                    "completed_at": job.completed_at.strftime("%Y-%m-%d %H:%M:%S")
+                    if job.completed_at
+                    else None,
+                },
+                "userid": job.user_id or "1",
+            },
+        )
+
     async def subscribe(self, channel: str) -> PubSub:
         p = self._client.pubsub()
         await p.subscribe(channel)
@@ -153,6 +173,22 @@ class RedisClient(object):
         elif not isinstance(message, str):
             payload = json.dumps(message)
         return self._client.publish(channel, payload)
+
+    def publish_job_update(self, job: Job) -> int:
+        return self.publish_message(
+            "events",
+            {
+                "type": "job:update",
+                "payload": {
+                    "jobId": job.id,
+                    "progress": job.progress,
+                    "status": job.status,
+                    "started_at": job.started_at,
+                    "completed_at": job.completed_at,
+                },
+                "userid": job.user_id or "1",
+            },
+        )
 
     def subscribe(self, channel: str) -> PubSub:
         p = self._client.pubsub()

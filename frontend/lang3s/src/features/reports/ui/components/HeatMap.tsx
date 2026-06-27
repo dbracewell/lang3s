@@ -1,17 +1,13 @@
-import {
-  Chart,
-  ChartData,
-  ChartSeries,
-  CountType,
-} from "@/features/reports/types";
+import { Chart } from "@/features/reports/types";
 import { cn } from "@/lib/utils/cn";
 import React, { CSSProperties, useEffect, useRef, useState } from "react";
 import { select } from "d3-selection";
 import * as d3 from "d3";
 import { truncateLabel } from "@/features/reports/utils";
+import type { ChartData, ChartSeries, CountType } from "@/clients/analytics";
 
 type HeatMapProps = {
-  data: ChartData;
+  data: ChartData[];
   className?: string;
   styles?: HeatMapStyles;
   svgStyle?: CSSProperties;
@@ -150,7 +146,7 @@ export const HeatMap = ({
       .style("stroke-width", 2)
       .style("stroke", "none")
       // .style("opacity", 0.8)
-      .on("mouseover", function (_, d: ChartSeries) {
+      .on("mouseover", function (_, d: ChartData) {
         tooltip
           .style("visibility", "visible")
           .html(
@@ -184,7 +180,7 @@ export const HeatMap = ({
         tooltip.style("opacity", 0).style("visibility", "hidden");
         d3.select(this).style("stroke", "none").style("opacity", 1.0);
       });
-  }, [data, dimensions, styles]);
+  }, [countType, data, dimensions, styles]);
 
   useEffect(() => {
     const element = wrapperRef.current;

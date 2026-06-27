@@ -1,8 +1,8 @@
-from typing import Any, Iterable, Optional
+import datetime
+from typing import Iterable
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql.operators import op
 
 from lang3s.core.clients import RedisAsyncClient
 from lang3s.core.exceptions import BadDataException, NotFoundException
@@ -13,7 +13,12 @@ from lang3s.data.models import Job as JobModel
 from lang3s.data.models import TextAnnotation
 from lang3s.data.models.job import JobStatus, JobType
 from lang3s.data.schemas import Job as JobSchema
-from lang3s.data.schemas.job import JobMessage
+from lang3s.data.schemas.job import (
+    JobCreateRequest,
+    JobListResponse,
+    JobMessage,
+    JobUpdateRequest,
+)
 
 
 class JobRepository:
@@ -26,51 +31,72 @@ class JobRepository:
             raise NotFoundException()
         return JobSchema.model_validate(job)
 
+    async def delete(self, job_id: int) -> bool:
+        job = await self._session.get(JobModel, job_id)
+        if job is None:
+            raise NotFoundException()
+        await self._session.delete(job)
+        await self._session.commit()
+        return True
+
+    async def list_jobs(self) -> JobListResponse:
+        result = await self._session.scalars(select(JobModel))
+        return JobListResponse.model_validate(
+            [JobSchema.model_validate(job) for job in result.all()]
+        )
+
     async def create(
         self,
-        *,
-        name: str,
-        type_: JobType,
-        total: int = 0,
-        metadata_json: Optional[dict[str, Any]] = None,
+        create_request: JobCreateRequest,
     ) -> JobSchema:
         job = JobModel(
-            name=name,
-            type_=type_,
-            total=total,
-            user_id="1",
-            metadata_json=metadata_json or {},
+            name=create_request.name,
+            type_=create_request.type_,
+            total=create_request.total or 0,
+            user_id=create_request.user_id or "1",
+            metadata_json=create_request.metadata_json,
+            api_key=create_request.api_key,
         )
         self._session.add(job)
         await self._session.commit()
-        return JobSchema.model_validate(job)
+        new_job = JobSchema.model_validate(job)
+        async with RedisAsyncClient() as client:
+            await client.publish_job_update(new_job)
 
-    async def update(
-        self,
-        job_id: int,
-        *,
-        total: int = 0,
-        completed: int = 0,
-        failed: int = 0,
-        status: Optional[JobStatus] = None,
-        metadata_json: Optional[dict[str, Any]] = None,
-    ) -> None:
-        update_values = {}
-        if total:
-            update_values["total"] = JobModel.total + total
-        if completed:
-            update_values["completed"] = JobModel.completed + completed
-        if failed:
-            update_values["failed"] = JobModel.failed + failed
-        if status:
-            update_values["status"] = status
-        if metadata_json:
-            update_values["metadata_json"] = op(
-                JobModel.metadata_json, "||", metadata_json
-            )
-        stmt = update(JobModel).where(JobModel.id == job_id).values(**update_values)
-        await self._session.execute(stmt)
+        return new_job
+
+    async def update(self, job_update: JobUpdateRequest) -> None:
+        existing_job = await self._session.get(JobModel, job_update.id)
+        if not existing_job:
+            raise NotFoundException()
+
+        if job_update.total:
+            existing_job.total += job_update.total
+        if job_update.completed:
+            existing_job.completed += job_update.completed
+        if job_update.failed:
+            existing_job.failed += job_update.failed
+        if job_update.status:
+            if (
+                existing_job.status == JobStatus.Waiting
+                and job_update.status != JobStatus.Waiting
+            ):
+                existing_job.started_at = datetime.datetime.now()
+            if job_update.status in [
+                JobStatus.Failed,
+                JobStatus.Completed,
+                JobStatus.Cancelled,
+            ]:
+                existing_job.completed_at = datetime.datetime.now()
+            existing_job.status = job_update.status
+        if job_update.metadata_json:
+            existing_job.metadata_json.update(job_update.metadata_json)
+
+        await self._session.merge(existing_job)
+        await self._session.refresh(existing_job)
         await self._session.commit()
+        async with RedisAsyncClient() as client:
+            await client.publish_job_update(JobSchema.model_validate(existing_job))
 
     async def annotate(
         self,
@@ -122,9 +148,7 @@ class JobRepository:
                 )
 
             await self.update(
-                job_id=job_id,
-                total=total_files,
-                status=JobStatus.Running,
+                JobUpdateRequest(id=job_id, total=total_files, status=JobStatus.Running)
             )
 
         else:

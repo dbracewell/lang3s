@@ -1,4 +1,3 @@
-import { caller } from "@/lib/trpc/server";
 import React from "react";
 import {
   Card,
@@ -11,10 +10,11 @@ import {
 import { XIcon } from "lucide-react";
 import { DocumentView } from "@/features/documents/ui/components/DocumentView";
 import { GoBackButton } from "@/components/buttons/GoBackButton";
+import { loadDocument } from "@/features/documents/server/actions";
 
 const DocumentIdPage = async (props: PageProps<"/documents/[id]">) => {
   const { id } = await props.params;
-  const documentData = await caller.documents.getOne({ id });
+  const documentData = await loadDocument(id);
 
   return (
     <div className="animate-zoomin flex h-full flex-1 overflow-hidden">
@@ -22,7 +22,7 @@ const DocumentIdPage = async (props: PageProps<"/documents/[id]">) => {
         <CardHeader>
           <CardTitle>{documentData.title}</CardTitle>
           <CardDescription className="text-muted-foreground flex flex-wrap gap-2 text-xs">
-            {Object.entries(documentData.metadata)
+            {Object.entries(documentData.metadata_json)
               .filter(([k, _]) => k !== "mime-type")
               .map(([k, v], i) => (
                 <div key={k}>

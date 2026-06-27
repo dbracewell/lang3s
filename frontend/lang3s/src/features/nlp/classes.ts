@@ -1,42 +1,38 @@
-export type TextAnnotationProps = {
-  id: string;
-  text: string;
-  start: number;
-  end: number;
-  type: string;
-  value: string;
+import { DocumentSchema, TextAnnotationSchema } from "@/features/nlp/schemas";
+import z from "zod";
+
+export type TextAnnotationProps = z.infer<typeof TextAnnotationSchema> & {
   color?: string;
-  metadata: Record<string, unknown>;
 };
 
 export class Lang3sTextAnnotation {
   id: string;
-  text: string;
+  content: string;
   start: number;
   end: number;
   type: string;
   value: string;
   color: string;
-  metadata: Record<string, unknown> = {};
+  metadata_json: Record<string, unknown> = {};
   textObject: Lang3sText | undefined = undefined;
 
   constructor({
     id,
-    text,
+    content,
     start,
     end,
-    type,
+    type_,
     value,
-    metadata,
+    metadata_json,
     color,
   }: TextAnnotationProps) {
     this.id = id;
-    this.text = text;
+    this.content = content;
     this.start = start;
     this.end = end;
-    this.type = type;
+    this.type = type_;
     this.value = value;
-    this.metadata = metadata;
+    this.metadata_json = metadata_json;
     this.color = color ?? "SLATE";
   }
 
@@ -55,34 +51,40 @@ export class Lang3sTextAnnotation {
   };
 
   A0 = () => {
-    return ((this.metadata["A0"] as string[]) ?? []).map(
+    return ((this.metadata_json["A0"] as string[]) ?? []).map(
       (a) => this.textObject!.id2Annotation[a],
     );
   };
 
   A1 = () => {
-    return ((this.metadata["A1"] as string[]) ?? []).map(
+    return ((this.metadata_json["A1"] as string[]) ?? []).map(
       (a) => this.textObject!.id2Annotation[a],
     );
   };
 
   TIME = () => {
-    if (this.metadata["TIME"] != null) {
-      return this.textObject!.id2Annotation[this.metadata["TIME"] as string];
+    if (this.metadata_json["TIME"] != null) {
+      return this.textObject!.id2Annotation[
+        this.metadata_json["TIME"] as string
+      ];
     }
     return null;
   };
 
   LOC = () => {
-    if (this.metadata["LOC"] != null) {
-      return this.textObject!.id2Annotation[this.metadata["LOC"] as string];
+    if (this.metadata_json["LOC"] != null) {
+      return this.textObject!.id2Annotation[
+        this.metadata_json["LOC"] as string
+      ];
     }
     return null;
   };
 
   COREF = () => {
-    if (this.metadata["coref"] != null) {
-      return this.textObject!.id2Annotation[this.metadata["coref"] as string];
+    if (this.metadata_json["coref"] != null) {
+      return this.textObject!.id2Annotation[
+        this.metadata_json["coref"] as string
+      ];
     }
     return this;
   };
@@ -157,32 +159,17 @@ export class Lang3sTextAnnotation {
   }
 
   public toString = (): string => {
-    return this.text;
+    return this.content;
   };
 
   public static create = ({
-    id,
-    text,
-    start,
-    end,
-    type,
-    value,
-    metadata,
     textObject,
-    color,
-  }: TextAnnotationProps & {
+    ...props
+  }: z.infer<typeof TextAnnotationSchema> & {
     textObject: Lang3sText;
+    color?: string;
   }): Lang3sTextAnnotation => {
-    const annotation = new Lang3sTextAnnotation({
-      id,
-      text,
-      start,
-      end,
-      type,
-      value,
-      metadata,
-      color,
-    });
+    const annotation = new Lang3sTextAnnotation({ ...props });
     annotation.setTextObject(textObject);
     return annotation;
   };
@@ -194,19 +181,19 @@ export class Lang3sText {
   sentences: Lang3sTextAnnotation[];
   annotations: Lang3sTextAnnotation[];
   id2Annotation: Record<string, Lang3sTextAnnotation>;
-  text: string;
+  content: string;
 
   constructor({
     id,
-    text,
+    content,
     annotations,
   }: {
     id: string;
-    text: string;
-    annotations: TextAnnotationProps[];
+    content: string;
+    annotations: z.infer<typeof TextAnnotationSchema>[];
   }) {
     this.id = id;
-    this.text = text;
+    this.content = content;
     this.tokens = [];
     this.sentences = [];
     this.annotations = [];
@@ -218,7 +205,7 @@ export class Lang3sText {
         textObject: this,
       });
       this.id2Annotation[lang3sAnnotation.id] = lang3sAnnotation;
-      switch (a.type) {
+      switch (a.type_) {
         case "token":
           this.tokens.push(lang3sAnnotation);
           break;
@@ -243,34 +230,22 @@ export class Lang3sText {
   }
 
   public toString = (): string => {
-    return this.text;
+    return this.content;
   };
 }
 
 export class Lan3gsDocument {
   id: string;
-  metadata: Record<string, string>;
+  metadata_json: Record<string, string>;
   text?: Lang3sText;
 
-  constructor({
-    id,
-    metadata,
-    text,
-  }: {
-    id: string;
-    metadata: Record<string, string>;
-    text: {
-      id: string;
-      text: string;
-      annotations: TextAnnotationProps[];
-    };
-  }) {
-    this.id = id;
-    this.metadata = metadata;
+  constructor(data: z.infer<typeof DocumentSchema>) {
+    this.id = data.id;
+    this.metadata_json = data.metadata_json;
     this.text = new Lang3sText({
-      id: text.id,
-      text: text.text,
-      annotations: text.annotations,
+      id: data.text.id,
+      content: data.text.content,
+      annotations: data.text.annotations,
     });
   }
 

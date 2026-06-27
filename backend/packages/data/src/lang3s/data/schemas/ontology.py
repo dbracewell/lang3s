@@ -1,8 +1,16 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    WithJsonSchema,
+    field_validator,
+    model_validator,
+)
 
 from lang3s.core.collections_extras import hashed_select
 from lang3s.core.constants import COLOR_NAMES
@@ -10,27 +18,35 @@ from lang3s.core.constants import COLOR_NAMES
 
 class OntologyMapping(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: Optional[int] = Field(default=None)
+    id: Annotated[int | None, WithJsonSchema({"type": "integer", "nullable": True})] = (
+        None
+    )
     mapping: str
 
 
 class OntologyProperty(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    value: str | bool | int | float | list[str] | dict[str, Any]
+    value: str | bool | int | float | list[str]
     dataType: Literal["string", "boolean", "number", "metadata"]
     inherit: bool = False
     display: bool = False
-    definedBy: Optional[str] = None
+    definedBy: Annotated[
+        str | None, WithJsonSchema({"type": "string", "nullable": True})
+    ] = None
 
 
 class IsolatedOntologyEntry(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: Optional[int] = Field(default=None)
+    id: Annotated[int | None, WithJsonSchema({"type": "integer", "nullable": True})] = (
+        None
+    )
     name: str
     path: str
     description: str
     color: str
-    parent_id: Optional[int] = None
+    parent_id: Annotated[
+        int | None, WithJsonSchema({"type": "integer", "nullable": True})
+    ] = None
     mappings: list[OntologyMapping] = Field(default_factory=list)
     properties: dict[str, OntologyProperty] = Field(default_factory=dict)
 
@@ -138,7 +154,7 @@ class Ontology(BaseModel):
                     **inherited,
                     **{
                         k: OntologyProperty(
-                            **v.model_dump(exclude_none=True),
+                            **v.model_dump(exclude_none=True, exclude={"definedBy"}),
                             definedBy=child.path,
                         )
                         for k, v in child_inheritable.items()
@@ -279,3 +295,47 @@ class Ontology(BaseModel):
         if f".{target}." in ont_type:
             return True
         return False
+
+
+class AnnotationIdOntologyMapping(BaseModel):
+    annotation_id: str
+    name: str
+    path: str
+    color: str
+
+
+class AnnotationOntologyMappingList(BaseModel):
+    mapping: dict[str, AnnotationIdOntologyMapping]
+
+
+class OntologyFrontEnd(BaseModel):
+    paths: list[str]
+    nodes: dict[str, IsolatedOntologyEntry]
+
+
+class OntologyUpdateRequest(BaseModel):
+    id: int
+    color: str | None = None
+    description: str | None = None
+    properties: dict[str, OntologyProperty] | None = None
+    mapping: list[str] | None = None
+
+
+class OntologyEntryCreationRequest(BaseModel):
+    parent_id: int
+    name: str
+    description: Annotated[
+        str | None, WithJsonSchema({"type": "string", "nullable": True})
+    ] = None
+
+
+class OntologyNameExists(BaseModel):
+    exists: bool
+
+
+class OntologyPaths(RootModel[List[str]]):
+    pass
+
+
+class PotentialMappingList(BaseModel):
+    items: dict[str, str | None]

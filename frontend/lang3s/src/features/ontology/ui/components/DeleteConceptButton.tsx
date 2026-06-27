@@ -4,7 +4,7 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { Trash2Icon } from "lucide-react";
 import React from "react";
 
-export const DeleteConceptButton = ({ path }: { path: string }) => {
+export const DeleteConceptButton = ({ nodeId }: { nodeId: number }) => {
   const { Dialog, isPending, mutateFn } = useDeleteConcept();
   return (
     <div>
@@ -15,7 +15,7 @@ export const DeleteConceptButton = ({ path }: { path: string }) => {
         className="hover:bg-destructive! bg-l rounded-md hover:text-white"
         size="icon-xs"
         type="button"
-        onClick={() => mutateFn(path)}
+        onClick={() => mutateFn(nodeId)}
       >
         <Trash2Icon />
       </LoadingButton>

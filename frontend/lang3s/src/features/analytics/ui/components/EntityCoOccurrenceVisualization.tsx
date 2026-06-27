@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { XIcon } from "lucide-react";
 import Link from "next/link";
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
@@ -17,6 +16,9 @@ import { TreemapNode } from "recharts/types/util/types";
 import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
 import { useEffect } from "react";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
+import { useQuery } from "@tanstack/react-query";
+import { entityCoOccurrenceOptions } from "@/clients/analytics/@tanstack/react-query.gen";
+import { analyticsClient } from "@/lib/api";
 
 const COLORS = [
   "#84bff5", //dodger-blue-300
@@ -34,18 +36,29 @@ export const EntityCoOccurrenceVisualization = () => {
   const [params, setParams] = useEntitySearchParams();
   const { setContext } = useChatContext();
 
-  const { data, isLoading } = useTRPCQuery((trpc) =>
-    trpc.analytics.getAnnotationCoOccurrence.queryOptions(
-      {
-        leftValue: params.entityType,
-        leftText: params.entity,
-        rightValues: params.tags,
+  const { data, isLoading } = useQuery({
+    ...entityCoOccurrenceOptions({
+      client: analyticsClient,
+      body: {
+        value: params.entityType,
+        entity: params.entity,
+        targets: params.tags,
       },
-      {
-        enabled: !!params.entity && !!params.entityType && !params.showEvents,
-      },
-    ),
-  );
+    }),
+    enabled: !!params.entity && !!params.entityType && !params.showEvents,
+  });
+  //   (trpc) =>
+  //   trpc.analytics.getAnnotationCoOccurrence.queryOptions(
+  //     {
+  //       leftValue: params.entityType,
+  //       leftText: params.entity,
+  //       rightValues: params.tags,
+  //     },
+  //     {
+  //       enabled: !!params.entity && !!params.entityType && !params.showEvents,
+  //     },
+  //   ),
+  // );
 
   useEffect(() => {
     if (params.showEvents || !params.entity || !params.entityType) {
@@ -54,7 +67,7 @@ export const EntityCoOccurrenceVisualization = () => {
     if (data == null) {
       setContext("");
     } else {
-      setContext(data.map((row) => `${row.e2}/${row.e2Type}`).join("\n"));
+      setContext(data?.map((row) => `${row.e2}/${row.e2Type}`).join("\n"));
     }
   }, [data, params]);
 

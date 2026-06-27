@@ -9,7 +9,7 @@ WITH entity_topics AS (SELECT
                                 INNER JOIN pg_db.topic_sentences t
                                            ON t.sentence_id = a.sentence_id
                        WHERE {{ macros.match_paths('a.path', mapping_list) }}
-                       GROUP BY a.text, a.path, t.topic_id
+                       GROUP BY a.normalized, a.path, t.topic_id
                        HAVING count(DISTINCT a.document_id) > 5),
      probabilities AS (SELECT entity,
                               type,

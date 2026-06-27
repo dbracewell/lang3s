@@ -3,24 +3,31 @@ import { AnnotationTypeValueFormDialog } from "@/components/dialogs/AnnotationTy
 import { ColorPickerDialog } from "@/components/dialogs/ColorPickerDialog";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { AnnotationColors, ONTOLOGY_ROOT } from "@/features/common/constants";
-import useConfigValue from "@/features/configuration/hooks/use-config-value";
-import { useAnalyticsUpdateMonitor } from "@/features/events/hooks/analyticsUpdateMonitor";
 import { AddPropertyDialog } from "@/features/ontology/ui/components/AddPropertyDialog";
 import { useOntology } from "@/features/ontology/ui/components/OntologySelector";
 import { OntologyProperties } from "@/lib/db/schemas/ontology";
-import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { cn } from "@/lib/utils/cn";
 import { ArrowUpFromLine, RouteIcon, TablePropertiesIcon } from "lucide-react";
 import { parseAsString, useQueryState } from "nuqs";
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { updateOntologyEntryMutation } from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
+import { toast } from "sonner";
+import { BasicUserInfo } from "@/features/common/types";
+import { updateAnalytics } from "@/features/analytics/server/actions";
+import { useUser } from "@/features/auth/contexts/UserContext";
 
 export const OntologyEditorInformationPanel = () => {
   const { currentNode, rootNode } = useOntology();
-  const updateOntology = useTRPCMutation((trpc) => ({
-    mutation: trpc.ontology.updateConcept.mutationOptions(),
-    successToast: "Successfully updated ontology",
-    errorToast: "Failed to update ontology",
-  }));
+
+  const updateOntology = useMutation({
+    ...updateOntologyEntryMutation({
+      client: coreClient,
+    }),
+    onSuccess: () => toast.success("Successfully updated ontology"),
+    onError: () => toast.error("Failed to update ontology"),
+  });
 
   const [, setPathParam] = useQueryState(
     "path",
@@ -31,7 +38,7 @@ export const OntologyEditorInformationPanel = () => {
 
   useEffect(() => {
     setPathParam(currentNode ? currentNode.path : "");
-  }, [currentNode]);
+  }, [currentNode, setPathParam]);
 
   if (currentNode == null) {
     return null;
@@ -71,8 +78,8 @@ export const OntologyEditorInformationPanel = () => {
             defaultColor={currentNode.color}
             onSelect={(color) =>
               updateOntology.mutate({
-                id: currentNode.id,
-                values: {
+                body: {
+                  id: currentNode.id!,
                   color,
                 },
               })
@@ -83,7 +90,7 @@ export const OntologyEditorInformationPanel = () => {
       <div
         className={cn(
           "flex flex-col gap-1 border-b pb-2",
-          Object.keys(currentNode.properties).length > 0 && "pb-5!",
+          Object.keys(currentNode.properties ?? {}).length > 0 && "pb-5!",
         )}
       >
         <div className="flex items-center justify-between gap-2 pb-2">
@@ -103,8 +110,8 @@ export const OntologyEditorInformationPanel = () => {
               }
               onSelect={(properties) => {
                 updateOntology.mutate({
-                  id: currentNode.id,
-                  values: {
+                  body: {
+                    id: currentNode.id!,
                     properties,
                   },
                 });
@@ -112,7 +119,7 @@ export const OntologyEditorInformationPanel = () => {
             />
           )}
         </div>
-        {Object.keys(currentNode.properties).length > 0 ? (
+        {Object.keys(currentNode.properties ?? {}).length > 0 ? (
           <table className="border text-sm">
             <thead>
               <tr className="bg-heading text-white">
@@ -121,11 +128,11 @@ export const OntologyEditorInformationPanel = () => {
               </tr>
             </thead>
             <tbody>
-              {Object.entries(currentNode.properties).map(([k, v]) => (
+              {Object.entries(currentNode.properties ?? {}).map(([k, v]) => (
                 <tr className="bg-row odd:bg-alternate-row" key={k}>
                   <td className="p-1">{k}</td>
                   <td className="p-1">
-                    {v.value} {v.definedBy && <>({v.definedBy})</>}
+                    {String(v.value)} {v.definedBy && <>({v.definedBy})</>}
                   </td>
                 </tr>
               ))}
@@ -153,11 +160,11 @@ export const OntologyEditorInformationPanel = () => {
                   </span>
                 </div>
               }
-              defaultValues={currentNode.mappings}
-              onSelect={(mapping) => {
+              defaultValues={currentNode.mappings?.map((m) => m.mapping) ?? []}
+              onSelectAction={(mapping) => {
                 updateOntology.mutate({
-                  id: currentNode.id,
-                  values: {
+                  body: {
+                    id: currentNode.id!,
                     mapping,
                   },
                 });
@@ -165,7 +172,7 @@ export const OntologyEditorInformationPanel = () => {
             />
           )}
         </div>
-        {currentNode.mappings.length > 0 ? (
+        {currentNode.mappings && currentNode.mappings.length > 0 ? (
           <table className="border text-sm">
             <thead>
               <tr className="bg-heading text-white">
@@ -175,9 +182,9 @@ export const OntologyEditorInformationPanel = () => {
             </thead>
             <tbody>
               {currentNode.mappings.map((m) => (
-                <tr className="bg-row odd:bg-alternate-row" key={m}>
-                  <td className="p-1">{m.split(":")[0]}</td>
-                  <td className="p-1">{m.split(":")[1]}</td>
+                <tr className="bg-row odd:bg-alternate-row" key={m.mapping}>
+                  <td className="p-1">{m.mapping.split(":")[0]}</td>
+                  <td className="p-1">{m.mapping.split(":")[1]}</td>
                 </tr>
               ))}
             </tbody>
@@ -196,35 +203,21 @@ export const OntologyEditorInformationPanel = () => {
 };
 
 const PublishChangesButton = () => {
-  const [updating, setUpdating] = useConfigValue("update-analytics", false);
-  const updateTables = useTRPCMutation((trpc) => ({
-    mutation: trpc.analytics.updateAnalyticsTables.mutationOptions({
-      onMutate: () => setUpdating(true),
-      onSuccess: (_, __, ___, context) => {
-        context.client.invalidateQueries(
-          trpc.config.getValue.queryOptions({
-            name: "update-analytics",
-          }),
-        );
-      },
-    }),
-
-    errorToast: "Failed to publish changes and update analytics",
-  }));
-
-  const updateProgress = useCallback(async () => {
-    setUpdating(false);
-  }, []);
-
-  useAnalyticsUpdateMonitor(updateProgress);
+  const updateTables = useMutation({
+    mutationFn: async (user: BasicUserInfo) => updateAnalytics(user),
+    onError: () => {
+      toast.error("Failed to publish changes and update analytics");
+    },
+  });
+  const user = useUser();
   return (
     <LoadingButton
-      isLoading={updateTables.isPending || updating}
-      disabled={updateTables.isPending || updating}
+      isLoading={updateTables.isPending}
+      disabled={updateTables.isPending}
       type="button"
       variant="ghost"
       size="sm"
-      onClick={() => updateTables.mutate()}
+      onClick={() => updateTables.mutate(user)}
     >
       <div className="flex items-center gap-2">
         <ArrowUpFromLine /> Publish changes to analytics

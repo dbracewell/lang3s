@@ -8,11 +8,15 @@ from lang3s.core import config
 from lang3s.core.logger import get_logger
 from lang3s.data.db import session_manager
 from lang3s.services.helpers import create_fastapi_app
+from lang3s.services.routers.document_router import document_router
 from lang3s.services.routers.embedding_router import (
     embedding_lifecycle,
     embedding_router,
 )
 from lang3s.services.routers.jobs_router import jobs_router
+from lang3s.services.routers.metadata_router import metadata_router
+from lang3s.services.routers.ontology_router import ontology_router
+from lang3s.services.routers.precomputed_stats_router import stats_router
 from lang3s.services.routers.topics_router import topic_router
 
 logger = get_logger("CORE_API")
@@ -38,15 +42,19 @@ app = create_fastapi_app(
     lifespan=lifespan,
 )
 
+
 app.include_router(jobs_router)
 app.include_router(topic_router)
 app.include_router(embedding_router)
-# app.include_router(agent_router)
+app.include_router(document_router)
+app.include_router(ontology_router)
+app.include_router(metadata_router)
+app.include_router(stats_router)
 
 if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=config.FASTAPI_PORT,
-        access_log=False,
+        # access_log=False,
     )

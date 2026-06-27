@@ -1,14 +1,14 @@
 "use client";
 import { ColumnDef } from "@/components/data-table/data-table-types";
 import { StringStartsWith } from "@/components/data-table/FilterFunctions";
-import { formatDuration } from "@/lib/utils/formatters";
 import { JobIdCell } from "@/features/jobs/ui/views/JobsPageView/JobIdCell";
 import { ProgressCell } from "@/features/jobs/ui/views/JobsPageView/ProgressCell";
 import { StatusCell } from "@/features/jobs/ui/views/JobsPageView/StatusCell";
-import { RouterOutputs } from "@/lib/trpc/types";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { RefreshCcwIcon } from "lucide-react";
+import { Job } from "@/clients/core";
+import { StartTimeCell } from "@/features/jobs/ui/views/JobsPageView/StartTimeCell";
+import { ElapsedTimeCell } from "@/features/jobs/ui/views/JobsPageView/ElapsedTimeCell";
 
 const ProgressHeader = () => {
   return (
@@ -27,8 +27,7 @@ const ProgressHeader = () => {
   );
 };
 
-export type JobType = RouterOutputs["jobs"]["getAll"][number];
-export const columns: ColumnDef<JobType>[] = [
+export const columns: ColumnDef<Job>[] = [
   {
     name: "id",
     sortFn: (a, b) => a.id - b.id,
@@ -61,41 +60,23 @@ export const columns: ColumnDef<JobType>[] = [
     align: "center",
     cellClassName: "items-center",
     sortFn: (a, b) => {
-      if (a.startedAt) {
-        if (b.startedAt) {
-          return a.startedAt.getTime() - b.startedAt.getTime();
+      if (a.started_at) {
+        if (b.started_at) {
+          return Date.parse(a.started_at) - Date.parse(b.started_at);
         }
         return -1;
       }
       return 1;
     },
     size: "200px",
-    cell: ({ row }) => (
-      <p className="text-center whitespace-pre-line">
-        {row.startedAt
-          ? new Intl.DateTimeFormat("en-US", {
-              dateStyle: "short",
-              timeStyle: "short",
-            }).format(row.startedAt)
-          : "-"}
-      </p>
-    ),
+    cell: ({ row }) => <StartTimeCell row={row} />,
   },
   {
     name: "elapsed",
     size: "100px",
     align: "center",
     cellClassName: "items-center",
-    cell: ({ row }) => {
-      if (row.startedAt == null) {
-        return <div>-</div>;
-      }
-      const endTime = row.completedAt ?? new Date();
-      const elapsed = formatDuration(
-        endTime.getTime() - row.startedAt.getTime(),
-      );
-      return <div>{elapsed}</div>;
-    },
+    cell: ({ row }) => <ElapsedTimeCell row={row} />,
   },
   {
     name: "progress",

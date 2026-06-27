@@ -2,7 +2,6 @@
 
 import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import {
   ArrowDownIcon,
   ChartNetworkIcon,
@@ -23,20 +22,28 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RouterOutputs } from "@/lib/trpc/types";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
+import { AnnotationCount } from "@/clients/analytics";
+import { useQuery } from "@tanstack/react-query";
+import { annotationCountsOptions } from "@/clients/analytics/@tanstack/react-query.gen";
+import { PAGE_LIMIT } from "@/features/common/constants";
+import { analyticsClient } from "@/lib/api";
 
 export const TopEntitiesList = () => {
   const [params, setParams] = useEntitySearchParams();
   const { setContext } = useChatContext();
-  const { data, isLoading, error } = useTRPCQuery((trpc) =>
-    trpc.analytics.getAnnotationCounts.queryOptions({
-      page: params.page,
-      sortBy: params.sortBy,
-      filter: !!params.filter.trim() ? params.filter : undefined,
-      values: params.tags,
+  const { data, isLoading, error } = useQuery({
+    ...annotationCountsOptions({
+      client: analyticsClient,
+      body: {
+        page: params.page,
+        page_size: PAGE_LIMIT,
+        order_by: params.sortBy,
+        filter: !!params.filter.trim() ? params.filter.trim() : undefined,
+        mappings: params.tags,
+      },
     }),
-  );
+  });
 
   useEffect(() => {
     if (params.entityType && params.entity) {
@@ -46,13 +53,12 @@ export const TopEntitiesList = () => {
       setContext("");
     } else {
       setContext(
-        data.results.map((row) => `${row.content}/${row.value}`).join("\n"),
+        data.items.map((row) => `${row.content}/${row.value}`).join("\n"),
       );
     }
   }, [data, params]);
 
   if (error != null) {
-    console.log(error);
     throw error;
   }
 
@@ -60,14 +66,12 @@ export const TopEntitiesList = () => {
     return <SkeletonPage />;
   }
 
-  console.log(data.results[0]);
-
   return (
     <div className="mx-auto flex min-h-0 w-full flex-1 flex-col gap-2 p-3">
       <div className="flex items-center gap-5">
         <Filter />
         <div className="hidden flex-1 text-lg font-semibold md:block">
-          {formatNumber(data.total)} total Entities
+          {formatNumber(data.total ?? 0)} total Entities
         </div>
       </div>
       <div className="flex flex-1 flex-col overflow-hidden rounded-lg border bg-white shadow dark:bg-zinc-900">
@@ -93,13 +97,13 @@ export const TopEntitiesList = () => {
           />
         </div>
         <div className="scrollable flex-1">
-          {data.results.map((r) => {
+          {data.items.map((r) => {
             return <EntityRow entity={r} key={`${r.content}-${r.value}`} />;
           })}
         </div>
       </div>
       <PageNumbers
-        totalPages={data.totalPages}
+        totalPages={data.total_pages ?? 0}
         currentPage={params.page}
         pageLink={(nextPage) => setParams({ page: nextPage })}
       />
@@ -107,11 +111,7 @@ export const TopEntitiesList = () => {
   );
 };
 
-const EntityRow = ({
-  entity,
-}: {
-  entity: RouterOutputs["analytics"]["getAnnotationCounts"]["results"][number];
-}) => {
+const EntityRow = ({ entity }: { entity: AnnotationCount }) => {
   const [, setParams] = useEntitySearchParams();
   return (
     <div className="hover:bg-accent even:bg-alternate-row bg-row grid h-10 grid-cols-5 divide-x text-sm hover:font-bold">
@@ -225,6 +225,7 @@ const Filter = () => {
   const [params, setParams] = useEntitySearchParams();
   const [filter, setFilter] = useState<string>("");
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFilter(params.filter);
   }, [params.filter]);
 

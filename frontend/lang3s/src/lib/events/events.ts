@@ -23,7 +23,6 @@ export const parseEventMessage = (msg: string) => {
   } catch {
     return undefined;
   }
-
   const env = EventMessageSchema.safeParse(raw);
   if (!env.success) return undefined;
 

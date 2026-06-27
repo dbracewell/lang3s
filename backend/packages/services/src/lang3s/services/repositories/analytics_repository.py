@@ -5,12 +5,40 @@ from typing import Any
 import networkx as nx
 import numpy as np
 
+from lang3s.core.collections_extras import hashed_select
+from lang3s.core.constants import SAFE_COLOR_NAMES
 from lang3s.core.logger import get_logger
 from lang3s.ml.math_extras import remap
 from lang3s.services.analytics import AnalyticsDB, template_engine
-from lang3s.services.models.analytics_models import *
+from lang3s.services.models.analytics_models import (
+    AnnotationCohortInformationRequest,
+    AnnotationCoOccurrence,
+    AnnotationCoOccurrenceRequest,
+    AnnotationCoOccurrenceResult,
+    AnnotationCount,
+    AnnotationCountsRequest,
+    AnnotationCountsResult,
+    AnnotationEvent,
+    AnnotationEventByType,
+    AnnotationEventRequest,
+    AnnotationEventResult,
+    AnnotationMetric,
+    AnnotationMetricRequest,
+    AnnotationMetricResult,
+    CohortClusterEntry,
+    CohortClustering,
+    CohortClusterSimilarity,
+    CohortInformationEdge,
+    CohortInformationRank,
+    CohortInformationResult,
+    CohortNode,
+)
 
 logger = get_logger("ANALYTICS_SERVICE")
+
+
+def get_color_name(cid: str):
+    return hashed_select(cid, SAFE_COLOR_NAMES)
 
 
 def truncate(text: str, max_length: int = 35) -> str:
@@ -23,7 +51,6 @@ def truncate(text: str, max_length: int = 35) -> str:
 
 
 def cluster_points(similarities):
-    # 1. Build a Graph
     G = nx.Graph()
 
     # Add all edges (similarities)
@@ -39,16 +66,16 @@ def cluster_points(similarities):
     # 2. Find Connected Components (The "Clustering")
     # This replaces the loop of 50
     # Returns a list of sets: [{'id1', 'id2'}, {'id3'}, ...]
-    components = list(nx.connected_components(G))
+    components: list[set[str]] = list(nx.connected_components(G))
 
     # 3. Sort by size (largest groups first)
     components.sort(key=len, reverse=True)
 
     # 4. Format the output
-    final_clusters = []
-    id_cid = {}
+    final_clusters: list[list[CohortClusterEntry]] = []
+    id_cid: dict[str, str] = {}
     for comp in components:
-        group = []
+        group: list[CohortClusterEntry] = []
         comp_id = None
         for p_id in comp:
             if comp_id is None:
@@ -57,8 +84,14 @@ def cluster_points(similarities):
             parts = p_id.split("-")
             name = "-".join(parts[:-1])
             p_type = parts[-1]
-
-            group.append({"id": p_id, "name": name, "type": p_type})
+            group.append(
+                CohortClusterEntry(
+                    id=p_id,
+                    name=name,
+                    type=p_type,
+                    color=f"var(--color-{get_color_name(id_cid[p_id]).lower()}-500)",
+                )
+            )
         final_clusters.append(group)
 
     return final_clusters, id_cid
@@ -69,7 +102,9 @@ class AnalyticsRepository:
         self.db: AnalyticsDB = db
         self.queries = template_engine
 
-    def get_annotation_counts(self, request: AnnotationCountsRequest):
+    def get_annotation_counts(
+        self, request: AnnotationCountsRequest
+    ) -> AnnotationCountsResult:
         params: list[Any] = self.queries.prepare_path_params(request.mappings)
         total_query = self.queries.render(
             "analytics/annotation_total_unique_filtered.sql.j2",
@@ -100,15 +135,19 @@ class AnalyticsRepository:
             filter=request.filter,
         )
         total_pages = math.ceil(total / request.page_size)
-        return {
-            "total": total,
-            "totalPages": math.ceil(total / request.page_size),
-            "results": result,
-            "nextPage": request.page + 1 if request.page + 1 <= total_pages else None,
-            "prevPage": request.page - 1 if request.page > 1 else None,
-        }
+        next_cursor = request.page + 1 if request.page + 1 <= total_pages else None
+        previous_cursor = request.page - 1 if request.page > 1 else None
+        return AnnotationCountsResult(
+            total=total,
+            total_pages=total_pages,
+            items=[AnnotationCount(**row) for row in result],
+            next_cursor=next_cursor,
+            previous_cursor=previous_cursor,
+        )
 
-    def get_annotation_co_occurrences(self, request: AnnotationCoOccurrenceRequest):
+    def get_annotation_co_occurrences(
+        self, request: AnnotationCoOccurrenceRequest
+    ) -> AnnotationCoOccurrenceResult:
         params = [request.value, request.entity]
         params.extend(self.queries.prepare_path_params(request.targets))
         result = self.db.run_query(
@@ -116,10 +155,15 @@ class AnalyticsRepository:
             parameters=params,
             mapping_list=request.targets,
         )
-        return result
+        return AnnotationCoOccurrenceResult.model_validate(
+            [AnnotationCoOccurrence(**r) for r in result]
+        )
 
     def _calculate_norm_score(
-        self, group: list[dict[str, Any]], low_value_index: int, high_value_index: int
+        self,
+        group: list[dict[str, Any]],
+        low_value_index: int,
+        high_value_index: int,
     ) -> list[dict[str, Any]]:
         min_value = group[low_value_index]["rawScore"] if group else 0
         max_value = group[high_value_index]["rawScore"] if group else 0
@@ -127,7 +171,9 @@ class AnalyticsRepository:
             x.update({"normScore": remap(x["rawScore"], min_value, max_value, 0, 1)})
         return group
 
-    def get_annotation_affinity_metrics(self, request: AnnotationMetricRequest):
+    def get_annotation_affinity_metrics(
+        self, request: AnnotationMetricRequest
+    ) -> AnnotationMetricResult:
         params = self.queries.prepare_path_params(request.values)
         data = self.db.run_query(
             "analytics/annotation_affinity_metric.sql.j2",
@@ -139,9 +185,13 @@ class AnalyticsRepository:
         low_group = self._calculate_norm_score(low_group, -1, 0)
         high_group = self._calculate_norm_score(high_group, -1, 0)
         high_group.reverse()
-        return low_group + high_group
+        return AnnotationMetricResult.model_validate(
+            [AnnotationMetric(**e) for e in low_group + high_group]
+        )
 
-    def get_annotation_topic_score_metrics(self, request: AnnotationMetricRequest):
+    def get_annotation_topic_score_metrics(
+        self, request: AnnotationMetricRequest
+    ) -> AnnotationMetricResult:
         params = self.queries.prepare_path_params(request.values)
         data = self.db.run_query(
             "analytics/annotation_topic_metric.sql.j2",
@@ -153,9 +203,13 @@ class AnalyticsRepository:
         low_group = self._calculate_norm_score(low_group, -1, 0)
         high_group = self._calculate_norm_score(high_group, -1, 0)
         high_group.reverse()
-        return low_group + high_group
+        return AnnotationMetricResult.model_validate(
+            [AnnotationMetric(**e) for e in low_group + high_group]
+        )
 
-    def get_annotation_events(self, request: AnnotationEventRequest):
+    def get_annotation_events(
+        self, request: AnnotationEventRequest
+    ) -> AnnotationEventResult:
         result = self.db.run_query(
             "analytics/annotation_events.sql.j2",
             parameters=[
@@ -167,18 +221,30 @@ class AnalyticsRepository:
                 request.entity,
             ],
         )
+
+        by_value = defaultdict(list)
         for record in result:
             if isinstance(record["A0"], np.ndarray):
                 record["A0"] = record["A0"].tolist()
             if isinstance(record["A1"], np.ndarray):
                 record["A1"] = record["A1"].tolist()
+            if not isinstance(record["TIME"], str):
+                record["TIME"] = None
+            if not isinstance(record["LOC"], str):
+                record["LOC"] = None
+            by_value[record["value"]].append(AnnotationEvent(**record))
 
-        return result
+        flattened = [
+            AnnotationEventByType(value=k, events=v, count=len(v))
+            for k, v in by_value.items()
+        ]
 
-    def get_annotation_cohorts(self):
+        return AnnotationEventResult.model_validate(flattened)
+
+    def get_annotation_cohorts(self) -> CohortClustering:
         edges = self.db.run_query("analytics/annotation_cohorts.sql.j2")
         seen = set()
-        nodes = []
+        nodes: list[CohortNode] = []
         for x in edges:
             for id, name, support in [
                 (x["id1"], x["source"], x["source_document_count"]),
@@ -187,41 +253,58 @@ class AnalyticsRepository:
                 if id not in seen:
                     seen.add(id)
                     nodes.append(
-                        {
-                            "id": id,
-                            "text": name,
-                            "display": truncate(name),
-                            "value": support,
-                            "r": 20,
-                        }
+                        CohortNode(
+                            id=id,
+                            text=name,
+                            display=truncate(name),
+                            value=support,
+                            r=20,
+                            cid="",
+                            color="",
+                        )
                     )
         clusters, id_cid = cluster_points(edges)
+
         for node in nodes:
-            node["cid"] = id_cid.get(node["id"], None)
-        return {"edges": edges, "nodes": nodes, "clusters": clusters, "id_cid": id_cid}
+            node.cid = id_cid.get(node.id, node.id)
+            node.color = f"var(--color-{get_color_name(id_cid[node.id]).lower()}-500)"
+
+        return CohortClustering(
+            similarities=[CohortClusterSimilarity(**row) for row in edges],
+            points=nodes,
+            clusters=clusters,
+        )
 
     def get_annotation_cohort_information(
-        self, request: AnnotationCohortInformationRequest
-    ):
+        self,
+        request: AnnotationCohortInformationRequest,
+    ) -> CohortInformationResult:
         edges = self.db.run_query(
             "analytics/annotation_cohort_information.sql.j2",
             parameters=request.ids + request.ids,
             cohort=request.ids,
         )
+        edges = [CohortInformationEdge(**e) for e in edges]
         grouped = defaultdict(list)
         for e in edges:
-            s1_id = e["sourceId"]
-            s2_id = e["targetId"]
+            s1_id = e.sourceId
+            s2_id = e.targetId
             grouped[s2_id].append(s1_id)
             grouped[s1_id].append(s2_id)
 
-        ranked = [
-            {"id": entity_id, "value": len(neighbors)}
+        ranked: list[CohortInformationRank] = [
+            CohortInformationRank(
+                id=entity_id,
+                value=len(neighbors),
+            )
             for entity_id, neighbors in grouped.items()
         ]
-        ranked.sort(key=lambda x: x["value"], reverse=True)
+        ranked.sort(key=lambda x: x.value, reverse=True)
 
-        return {"edges": edges, "ranked": ranked}
+        return CohortInformationResult(
+            edges=edges,
+            ranked=ranked,
+        )
 
     def get_ranked_entities_for_topic(self, id: str):
         params = [id, 5000]

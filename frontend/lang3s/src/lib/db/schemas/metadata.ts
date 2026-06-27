@@ -16,7 +16,7 @@ export type MetadataSource = (typeof MetadataSources)[number];
 
 export const DataTypeNames = [
   "string",
-  "string[]",
+  "string_array",
   "int",
   "float",
   "boolean",
@@ -53,7 +53,7 @@ export const getMetadataValue = <K extends DataType>({
   metadataKey: string;
   metadataType: K;
 }): SQL<DataTypeNameToTypeMap[K]> => {
-  if (metadataType === "string[]") {
+  if (metadataType === "string_array") {
     return sql<
       DataTypeNameToTypeMap[K]
     >`json_each(${metadataColumn}->>'${metadataKey}')`;

@@ -1,4 +1,4 @@
-import { Chart, ChartData, CountType } from "@/features/reports/types";
+import { Chart } from "@/features/reports/types";
 import { SeriesFormType } from "@/features/reports/schema";
 import {
   CartesianGrid,
@@ -15,17 +15,17 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { RefObject, useMemo } from "react";
-import { DataTypeCategory } from "@/features/common/types";
+import { useMemo } from "react";
+import type { ChartData, CountType, DataCategory } from "@/clients/analytics";
 
 type LineChartProps = {
-  data: ChartData;
+  data: ChartData[];
   xSeries: SeriesFormType;
   ySeries: SeriesFormType;
   className?: string;
   countType: CountType;
-  xDataType: DataTypeCategory;
-  yDataType: DataTypeCategory;
+  xDataType: DataCategory;
+  yDataType: DataCategory;
 };
 
 const chartConfig = {} satisfies ChartConfig;

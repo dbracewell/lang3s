@@ -1,9 +1,12 @@
 "use client";
 import { useConfirmationDialog } from "@/components/dialogs/ConfirmationDialog";
 import { Trash2Icon } from "lucide-react";
-import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { useRouter } from "next/navigation";
 import { LoadingButton } from "@/components/ui/loading-button";
+import { useMutation } from "@tanstack/react-query";
+import { metadataDeleteMutation } from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
+import { toast } from "sonner";
 
 export const DeleteMetadataButton = ({
   name,
@@ -18,18 +21,25 @@ export const DeleteMetadataButton = ({
     confirmVariant: "destructive",
   });
   const router = useRouter();
-  const deleteMetadata = useTRPCMutation((trpc) => ({
-    mutation: trpc.system.deleteMetadata.mutationOptions({
-      onSuccess: () => router.refresh(),
+  const deleteMetadata = useMutation({
+    ...metadataDeleteMutation({
+      client: coreClient,
     }),
-    successToast: `Successfully deleted ${name}`,
-    errorToast: `Failed to delete ${name}`,
-  }));
+    onSuccess: () => {
+      toast.success("Successfully deleted metadata");
+      router.refresh();
+    },
+    onError: () => toast.error("Failed to delete metadata"),
+  });
 
   const onClick = async () => {
     const response = await confirm();
     if (response) {
-      deleteMetadata.mutate({ id });
+      deleteMetadata.mutate({
+        path: {
+          metadata_id: id,
+        },
+      });
     }
   };
 

@@ -19,3 +19,25 @@ COLOR_NAMES = [
     "ROSE",
     "STONE",
 ]
+
+SAFE_COLOR_NAMES = [
+    "BLUE",
+    "RED",
+    "GREEN",
+    "YELLOW",
+    "GRAY",
+    "INDIGO",
+    "PURPLE",
+    "SLATE",
+    "PINK",
+    "LIME",
+    "SKY",
+    "AMBER",
+    "ORANGE",
+    "CYAN",
+    "EMERALD",
+    "FUCHSIA",
+    "TEAL",
+    "ROSE",
+    "STONE",
+]

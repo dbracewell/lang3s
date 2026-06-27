@@ -1,34 +1,35 @@
 "use client";
 import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Spinner } from "@/components/Spinner";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { cn } from "@/lib/utils/cn";
-import { Hint } from "@/components/hint";
-import { randomAlphaUnderscore } from "@/lib/utils/random";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { affinityScoreOptions, topicScoreOptions } from "@/clients/analytics/@tanstack/react-query.gen";
+import { analyticsClient } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { AnnotationMetricResult } from "@/clients/analytics";
 
 export const EntityMetrics = () => {
   const [params] = useEntitySearchParams();
   const [metric, setMetric] = useState("affinity");
 
-  const { data: cooc } = useTRPCQuery((trpc) =>
-    trpc.analytics.getAnnotationLoners.queryOptions({
-      values: params.tags,
+  const { data: cooc } = useQuery({
+    ...affinityScoreOptions({
+      client: analyticsClient,
+      body: {
+        values: params.tags,
+      },
     }),
-  );
-  const { data: entropy } = useTRPCQuery((trpc) =>
-    trpc.analytics.getAnnotationEntropy.queryOptions({
-      values: params.tags,
+  });
+  const { data: entropy } = useQuery({
+    ...topicScoreOptions({
+      client: analyticsClient,
+      body: {
+        values: params.tags,
+      },
     }),
-  );
+  });
 
   return (
     <div className="mt-2 flex h-full min-h-0 flex-1 flex-col gap-3 p-2">
@@ -78,13 +79,7 @@ const Chart = ({
   description: string;
   lowSubtitle: string;
   highSubtitle: string;
-  data?: {
-    entityId: string;
-    entityType: string;
-    normScore: number;
-    rawScore: number;
-    category: string;
-  }[];
+  data?: AnnotationMetricResult;
 }) => {
   const minHeight = 50;
   const maxHeight = 250;
@@ -136,7 +131,7 @@ const Chart = ({
           return (
             <div
               className="hover:bg-alternate-row flex flex-col select-none"
-              key={`${entry.entityId}=${entry.entityType}`}
+              key={`${entry.entityId}-${entry.category}=${entry.entityType}`}
               onMouseMove={(e) => {
                 if (tooltipRef.current && containerRef.current) {
                   tooltipRef.current.style.visibility = `visible`;
@@ -150,7 +145,7 @@ const Chart = ({
                 }
               }}
             >
-              <div className="border-dodger-blue-900 dark:border-dodger-blue-300 flex h-1/2 shrink-0 items-end border-b-1 px-0.5 pb-1">
+              <div className="border-dodger-blue-900 dark:border-dodger-blue-300 flex h-1/2 shrink-0 items-end border-b px-0.5 pb-1">
                 {entry.category === "high" ? (
                   <Bar
                     entity={entry.entityId}

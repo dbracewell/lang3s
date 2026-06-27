@@ -18,11 +18,14 @@ event.listen(Base.metadata, "before_create", create_jsonb_array_func)
 from .annotation_ontology_mapping import AnnotationOntologyMapping  # noqa: E402
 from .claim import Claim  # noqa: E402
 from .document import Document  # noqa: E402
+from .global_metadata import GlobalMetadata  # noqa: E402
 from .job import Job, JobStatus, JobType  # noqa: E402
 from .ontology import Ontology  # noqa: E402
+from .precomputed_stats import PreComputedStats  # noqa: E402
 from .text import Text  # noqa: E402
 from .text_annotation import TextAnnotation  # noqa: E402
 from .topic import Topic  # noqa: E402
+from .topic_sentences import TopicSentences  # noqa: E402
 
 __all__ = [
     "Base",
@@ -36,4 +39,7 @@ __all__ = [
     "Job",
     "JobStatus",
     "Claim",
+    "TopicSentences",
+    "PreComputedStats",
+    "GlobalMetadata",
 ]

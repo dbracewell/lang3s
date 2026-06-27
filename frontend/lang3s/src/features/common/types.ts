@@ -35,7 +35,7 @@ export type DataTypeCategory = (typeof DataTypeCategories)[number];
 
 export const DataTypeNameToCategoryMap: Record<DataType, DataTypeCategory> = {
   string: "string",
-  "string[]": "string",
+  string_array: "string",
   int: "number",
   float: "number",
   boolean: "boolean",

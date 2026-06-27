@@ -10,25 +10,36 @@ import {
 } from "@/components/form-controls/select-form-field";
 import { Button } from "@/components/ui/button";
 import { MinusIcon, PlusIcon } from "lucide-react";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { useEffect, useMemo, useState } from "react";
-import { Chart, SeriesSourceType } from "@/features/reports/types";
+import { Chart } from "@/features/reports/types";
 import {
   DefaultOntologyTrigger,
   OntologySelectorDialog,
 } from "@/features/ontology/ui/components/OntologySelectorDialog";
-import { MetadataConfiguration, MetadataItem } from "@/features/metadata/types";
 import { useChartParams } from "@/features/reports/hooks/useChartParams";
 import { useRouter } from "next/navigation";
 import { formatURL } from "@/lib/utils/formatters";
+import { useQuery } from "@tanstack/react-query";
+import { metadataGetBySourceOptions } from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
+import {
+  GlobalMetadataBySource,
+  GlobalMetadataLinkedSource,
+} from "@/clients/core";
+import { SeriesType } from "@/clients/analytics";
 
 const getMetadataOptions = (
-  metadata: MetadataConfiguration,
-  source: SeriesSourceType,
+  metadata: GlobalMetadataBySource,
+  source: SeriesType,
 ) => {
   if (metadata == null) return [];
-  const records: Record<string, MetadataItem> =
-    metadata[Chart.getMetadataType(source)];
+  const metadataType = Chart.getMetadataType(source);
+  const records: Record<string, GlobalMetadataLinkedSource> =
+    metadataType === "documents"
+      ? metadata.documents
+      : metadataType === "sentences"
+        ? metadata.sentences
+        : metadata.annotations;
   return Object.entries(records).map(
     ([name, info]) =>
       ({
@@ -36,7 +47,7 @@ const getMetadataOptions = (
         value: name,
         node: (
           <>
-            {name} - {info.dataType}
+            {name} - {info.data_type}
           </>
         ),
       }) as SelectOptionItem,
@@ -47,9 +58,11 @@ export const DualAxisForm = () => {
   const router = useRouter();
   const [params] = useChartParams();
 
-  const { data: metadata } = useTRPCQuery((trpc) =>
-    trpc.system.getMetadata.queryOptions(),
-  );
+  const { data: metadata } = useQuery({
+    ...metadataGetBySourceOptions({
+      client: coreClient,
+    }),
+  });
 
   const form = useForm({
     resolver: zodResolver(ChartFormSchema),
@@ -97,10 +110,7 @@ export const DualAxisForm = () => {
     form.setValue("count", possibleTypes[0]);
   }, [x, y, countTypeOptions, form]);
 
-  const updateCountType = (
-    xType: SeriesSourceType,
-    yType?: SeriesSourceType,
-  ) => {
+  const updateCountType = (xType: SeriesType, yType?: SeriesType) => {
     const possibleTypes = Chart.getCountTypes(xType, yType);
     if (possibleTypes.length === 1 || !possibleTypes.includes(countType)) {
       form.setValue("count", possibleTypes[0]);
@@ -161,7 +171,11 @@ export const DualAxisForm = () => {
                 form={form}
                 axisType={form.watch("x.type")}
                 metadata={
-                  metadata ?? { document: {}, annotation: {}, sentence: {} }
+                  metadata ?? {
+                    documents: {},
+                    annotations: {},
+                    sentences: {},
+                  }
                 }
               />
             </div>
@@ -179,7 +193,11 @@ export const DualAxisForm = () => {
                   form={form}
                   axisType={form.watch("y.type") ?? "TOPIC"}
                   metadata={
-                    metadata ?? { document: {}, annotation: {}, sentence: {} }
+                    metadata ?? {
+                      documents: {},
+                      annotations: {},
+                      sentences: {},
+                    }
                   }
                 />
               </div>
@@ -214,9 +232,9 @@ const SeriesInformation = <T extends FieldValues>({
   typeField: Path<T>;
   valueField: Path<T>;
   form: UseFormReturn<T>;
-  metadata: MetadataConfiguration;
-  axisType: SeriesSourceType;
-  onTypeChange: (newType: SeriesSourceType) => void;
+  metadata: GlobalMetadataBySource;
+  axisType: SeriesType;
+  onTypeChange: (newType: SeriesType) => void;
 }) => {
   const metadataOptions = useMemo(
     () => getMetadataOptions(metadata, axisType),
@@ -233,7 +251,7 @@ const SeriesInformation = <T extends FieldValues>({
         label="Series Element"
         onValueChange={(v) => {
           form.setValue(valueField, "" as any);
-          onTypeChange(v as SeriesSourceType);
+          onTypeChange(v as SeriesType);
         }}
       />
       {axisType === "ANNOTATION" && (

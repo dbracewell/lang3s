@@ -4,7 +4,9 @@ export const EventSchemas = {
   "job:update": z.object({
     jobId: z.number(),
     progress: z.number().min(0).max(100),
-    status: z.enum(["waiting", "processing", "complete", "failed"]),
+    status: z.enum(["waiting", "running", "completed", "failed", "canceled"]),
+    started_at: z.string().optional(),
+    completed_at: z.string().optional(),
   }),
 
   analytics_update: z.object({

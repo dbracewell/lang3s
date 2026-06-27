@@ -60,7 +60,7 @@ async def load_ontology():
     for file in ["entity_ontology.json", "verb_ontology.json"]:
         with open(f"./data/{file}") as f:
             for key, value in json.load(f).items():
-                _walk_treen(root_node, key, value)
+                _walk_tree(root_node, key, value)
 
     async with session_manager.session() as session:
         session.add(root_node)
@@ -68,7 +68,7 @@ async def load_ontology():
         await session.commit()
 
 
-def _walk_treen(
+def _walk_tree(
     parent: Ontology,
     node_name: str,
     node_info: dict[str, Any],
@@ -97,7 +97,7 @@ def _walk_treen(
     for child_dict in children_list:
         child_name = child_dict.get("name")
         if child_name:
-            _walk_treen(new_node, child_name, child_dict)
+            _walk_tree(new_node, child_name, child_dict)
 
 
 async def create_hash_partitions(conn, table_name: str, modulus: int = 4):

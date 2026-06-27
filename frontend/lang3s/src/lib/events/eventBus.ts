@@ -25,7 +25,10 @@ export class EventBus {
   }
 
   emit<K extends EventType>(type: K, payload: SSEEventMap[K]) {
+    console.log("EVENT BUS", type);
+    console.log("EVENT BUS", payload);
     const set = this.handlers[type];
+    console.log("EVENT BUS", set);
     if (!set) return;
     for (const h of set) h(payload);
   }

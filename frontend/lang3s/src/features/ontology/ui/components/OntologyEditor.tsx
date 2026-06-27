@@ -13,7 +13,7 @@ export const OntologyEditor = ({ selectedNode }: { selectedNode?: string }) => {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-3">
       <OntologySelector.Provider selectedNode={selectedNode}>
-        <OntologySelector.SelectedInformation className="scrollable hidden h-full min-h-0 sm:block sm:w-[300px] lg:w-[500px]">
+        <OntologySelector.SelectedInformation className="scrollable hidden h-full min-h-0 sm:block sm:w-75 lg:w-125">
           <OntologyEditorInformationPanel />
         </OntologySelector.SelectedInformation>
         <div className="flex h-full min-h-full flex-1 flex-col justify-between gap-2 overflow-hidden">
@@ -39,7 +39,7 @@ const sectionFooter = (section: Section) => {
   return (
     <div className="px-2 py-2">
       <AddConceptDialog
-        parentId={section[0].parentId ?? -1}
+        parentId={section[0].parent_id ?? -1}
         parentPath={parentPath}
         triggerClassName={buttonVariants({
           variant: "outline",
@@ -53,7 +53,7 @@ const sectionFooter = (section: Section) => {
 
 const entryAddButton = (item: Section[number]) => (
   <AddConceptDialog
-    parentId={item.id}
+    parentId={item.id!}
     parentPath={item.path}
     triggerClassName={buttonVariants({
       variant: "ghost",
@@ -64,5 +64,5 @@ const entryAddButton = (item: Section[number]) => (
 
 const entryDeleteButton = (item: Section[number]) => {
   if (item.path.split(".").length == 2) return null;
-  return <DeleteConceptButton path={item.path} />;
+  return <DeleteConceptButton nodeId={item.id!} />;
 };

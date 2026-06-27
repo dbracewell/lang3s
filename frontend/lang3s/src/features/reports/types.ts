@@ -1,9 +1,12 @@
-import { DataTypeCategory } from "@/features/common/types";
 import { capitalize } from "@/lib/utils/formatters";
 import { SelectOptionItem } from "@/components/form-controls/select-form-field";
-import { Column, sql, SQL } from "drizzle-orm";
 import { SeriesFormType } from "@/features/reports/schema";
-import Aliased = SQL.Aliased;
+import {
+  ChartData,
+  ChartType,
+  CountType,
+  SeriesType,
+} from "@/clients/analytics";
 
 export const SERIES_SOURCES = [
   "TOPIC",
@@ -12,18 +15,10 @@ export const SERIES_SOURCES = [
   "SENTENCE_METADATA",
   "ANNOTATION_METADATA",
 ] as const;
-const COUNT_TYPES = ["document", "sentence", "mention"] as const;
-
-export const CHART_TYPES = [
-  "heatmap",
-  "barchart",
-  "linechart",
-  "scatterplot",
-] as const;
 
 const SourceToCountType: Record<
-  SeriesSourceType,
-  Record<SeriesSourceType | "NONE", CountType[]>
+  SeriesType,
+  Record<SeriesType | "NONE", CountType[]>
 > = {
   TOPIC: {
     NONE: ["document", "sentence"],
@@ -80,59 +75,7 @@ export const getChartTypeTitle = (chartType: ChartType) => {
   }
 };
 
-const DataTypeToChart: Record<
-  DataTypeCategory,
-  Record<DataTypeCategory | "none", ChartType>
-> = {
-  string: {
-    none: "barchart",
-    string: "heatmap",
-    number: "linechart",
-    date: "linechart",
-    boolean: "heatmap",
-  },
-  boolean: {
-    none: "barchart",
-    string: "heatmap",
-    number: "linechart",
-    date: "linechart",
-    boolean: "heatmap",
-  },
-  number: {
-    none: "linechart",
-    string: "linechart",
-    boolean: "linechart",
-    number: "scatterplot",
-    date: "scatterplot",
-  },
-  date: {
-    none: "linechart",
-    string: "linechart",
-    boolean: "linechart",
-    number: "scatterplot",
-    date: "scatterplot",
-  },
-};
-
-export type CountType = (typeof COUNT_TYPES)[number];
-export type SeriesSourceType = (typeof SERIES_SOURCES)[number];
-export type ChartType = (typeof CHART_TYPES)[number];
-export type DisplayType = "text" | "value" | "text-value";
-export type ChartSeries = {
-  text1: string | number;
-  text2: string | number;
-  value1: string | number;
-  value2: string | number;
-  mentionCount: number;
-  sentenceCount: number;
-  documentCount: number;
-};
-export type ChartData = ChartSeries[];
-
 export const Chart = {
-  sourceTypes: SERIES_SOURCES,
-  countTypes: COUNT_TYPES,
-  chartTypes: CHART_TYPES,
   sourceSelectOptions: SERIES_SOURCES.map(
     (source) =>
       ({
@@ -141,10 +84,10 @@ export const Chart = {
         node: capitalize(source.split("_").join(" "), true),
       }) as SelectOptionItem,
   ),
-  getCountTypes: function (x: SeriesSourceType, y?: SeriesSourceType) {
+  getCountTypes: function (x: SeriesType, y?: SeriesType) {
     return SourceToCountType[x][y ?? "NONE"];
   },
-  getCountSelectOptions: function (x: SeriesSourceType, y?: SeriesSourceType) {
+  getCountSelectOptions: function (x: SeriesType, y?: SeriesType) {
     return SourceToCountType[x][y ?? "NONE"].map(
       (v) =>
         ({
@@ -154,61 +97,21 @@ export const Chart = {
         }) as SelectOptionItem,
     );
   },
-  getMetadataType: function (value: SeriesSourceType) {
+  getMetadataType: function (value: SeriesType) {
     switch (value) {
       case "TOPIC":
-        return "sentence";
+        return "sentences";
       case "ANNOTATION":
-        return "annotation";
+        return "annotations";
       case "DOCUMENT_METADATA":
-        return "document";
+        return "documents";
       case "SENTENCE_METADATA":
-        return "sentence";
+        return "sentences";
       case "ANNOTATION_METADATA":
-        return "annotation";
+        return "annotations";
     }
   },
-  getChartType: function (x: DataTypeCategory, y?: DataTypeCategory) {
-    return DataTypeToChart[x][y ?? "none"];
-  },
-  getCountColumn: function (
-    countType: CountType,
-    t: {
-      documentCount: SQL<number>;
-      sentenceCount: SQL<number>;
-      mentionCount: SQL<number>;
-    },
-  ) {
-    switch (countType) {
-      case "document":
-        return t.documentCount;
-      case "sentence":
-        return t.sentenceCount;
-      default:
-        return t.mentionCount;
-    }
-  },
-  convertToDisplay: function ({
-    content,
-    value,
-    displayType,
-    isValue,
-  }: {
-    content: Column | Aliased<string>;
-    value: Column | Aliased<string> | SQL<string>;
-    displayType: DisplayType;
-    isValue: boolean;
-  }) {
-    switch (displayType) {
-      case "text":
-        return isValue ? sql<string>`${value}` : sql<string>`${content}`;
-      case "value":
-        return sql<string>`${value}`;
-      default:
-        return sql<string>`CONCAT(${content}, ' (', ${value}, ')')`;
-    }
-  },
-  getCount: function (series: ChartSeries, countType: CountType) {
+  getCount: function (series: ChartData, countType: CountType) {
     switch (countType) {
       case "mention":
         return series.mentionCount;
@@ -227,6 +130,7 @@ export const Chart = {
       case "document":
         return "Documents";
     }
+    return "Mentions";
   },
   getAxisLabel: function (axis: SeriesFormType) {
     switch (axis.type) {

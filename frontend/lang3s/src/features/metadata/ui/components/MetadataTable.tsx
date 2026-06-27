@@ -1,16 +1,35 @@
+"use client";
 import { Fragment } from "react";
 import { DeleteMetadataButton } from "@/features/metadata/ui/components/DeleteMetadataButton";
 import Link from "next/link";
 import { formatURL } from "@/lib/utils/formatters";
 import { buttonVariants } from "@/components/ui/button";
 import { PencilIcon } from "lucide-react";
-import { MetadataConfiguration, MetadataItem } from "@/features/metadata/types";
+import { useQuery } from "@tanstack/react-query";
+import { metadataGetBySourceOptions } from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
+import { Spinner } from "@/components/Spinner";
+import { GlobalMetadataLinkedSource } from "@/clients/core";
 
-export const MetadataTable = ({
-  metadata,
-}: {
-  metadata: MetadataConfiguration;
-}) => {
+export const MetadataTable = () => {
+  const {
+    data: metadata,
+    isPending,
+    error,
+  } = useQuery({
+    ...metadataGetBySourceOptions({
+      client: coreClient,
+    }),
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (isPending) {
+    return <Spinner />;
+  }
+
   return (
     <table>
       <thead>
@@ -23,7 +42,7 @@ export const MetadataTable = ({
         </tr>
       </thead>
       <tbody>
-        {Object.entries(metadata).map(([source, items]) => (
+        {Object.entries(metadata ?? {}).map(([source, items]) => (
           <Fragment key={source}>
             {Object.entries(items).map(([name, data]) => (
               <Row
@@ -47,13 +66,13 @@ const Row = ({
 }: {
   source: string;
   name: string;
-  data: MetadataItem;
+  data: GlobalMetadataLinkedSource;
 }) => {
   return (
     <tr key={`${source}-${name}`} className="bg-row odd:bg-alternate-row">
       <td className="p-1 pl-4">{source}</td>
       <td className="p-1">{name}</td>
-      <td className="p-1">{data.dataType}</td>
+      <td className="p-1">{data.data_type}</td>
       <td className="p-1">{data.formatter}</td>
       <td className="w-10 p-1 pr-4">
         <div className="flex items-center gap-2">
@@ -64,7 +83,7 @@ const Row = ({
               id: data.id,
               source,
               name,
-              dataType: data.dataType,
+              dataType: data.data_type,
               formatter: data.formatter,
             })}
             className={buttonVariants({

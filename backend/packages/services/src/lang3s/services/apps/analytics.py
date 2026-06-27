@@ -16,6 +16,7 @@ from lang3s.core.clients.redis_client import (
 from lang3s.core.logger import get_logger
 from lang3s.data import filestore
 from lang3s.data.constants import DUCKDB_QUEUE_NAME
+from lang3s.data.db import session_manager
 from lang3s.data.schemas import AnnotationTypes, Document
 from lang3s.data.schemas.job import JobMessage
 from lang3s.services.analytics import get_analytics_db, init_analytics_db
@@ -51,7 +52,7 @@ def ingest_documents(
                         {
                             "id": annotation.id,
                             "content": annotation.coref.content,
-                            "normalized": annotation.normalized,
+                            "normalized": annotation.coref.normalized,
                             "type": annotation.type_,
                             "mapping": annotation.mapping,
                             "value": annotation.value,
@@ -109,6 +110,7 @@ background_tasks = set()
 async def lifespan(app: FastAPI):
     logger.info("Initializing Analytics API...")
     init_analytics_db()
+    session_manager.init()
     worker_task = asyncio.create_task(asyncio.to_thread(analytics_worker, app.state))
     background_tasks.add(worker_task)
     worker_task.add_done_callback(background_tasks.discard)
@@ -119,12 +121,14 @@ async def lifespan(app: FastAPI):
         await asyncio.wait_for(worker_task, timeout=5.0)
     except asyncio.TimeoutError:
         pass
+    await session_manager.close()
 
 
 app = create_fastapi_app(
     title="Lang3s Analytics",
     version="1.0.0",
     lifespan=lifespan,
+    root_path="/analytics",
 )
 
 app.include_router(analytics_router)

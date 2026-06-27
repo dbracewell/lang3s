@@ -5,7 +5,7 @@ import io
 import numpy as np
 
 from lang3s.core.clients import RedisAsyncClient
-from lang3s.core.decorators import as_sync
+from lang3s.core.decorators import asyncio_run
 from lang3s.core.logger import get_logger
 from lang3s.core.typing_extras import ShutdownEvent
 from lang3s.data.constants import TOPIC_FINISHED, TOPIC_QUEUE_NAME
@@ -14,7 +14,7 @@ from lang3s.nlp.components.topics import Lang3sTopicModel
 from lang3s.services.models.topics_models import Task
 
 
-@as_sync
+@asyncio_run
 async def topic_worker(
     shutdown_event: ShutdownEvent,
 ):

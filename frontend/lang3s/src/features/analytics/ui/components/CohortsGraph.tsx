@@ -13,9 +13,12 @@ import {
   getNodeElement,
   getTextElement,
 } from "@/components/d3/ForceGraph/functions";
-import { CohortPoint } from "@/features/analytics/server/analyticsApi";
 import { NavigationBar } from "@/components/d3/NavigationBar";
+import { CohortClustering } from "@/clients/analytics";
 
+export type CohortPoint = ForceGraphPoint & {
+  cid: string;
+};
 const styleFn = (svg: SVGSVGElement) => {
   getNodeElement(svg)
     .style("fill", (d: ForceGraphPoint) => d.color!)
@@ -65,17 +68,7 @@ const onMouseOut = ({ getRef }: ForceGraphMouseEventProps<CohortPoint>) => {
   return true;
 };
 
-export const CohortsGraph = ({
-  data,
-}: {
-  data: {
-    points: CohortPoint[];
-    similarities: Omit<
-      ForceGraphSimilarity<CohortPoint>,
-      "source" | "target"
-    >[];
-  };
-}) => {
+export const CohortsGraph = ({ data }: { data: CohortClustering }) => {
   const [params, setParams] = useCohortsParams();
 
   const onMouseClick = useCallback(
@@ -94,7 +87,7 @@ export const CohortsGraph = ({
     <D3ContextProvider>
       <ForceGraph
         svgClassName="rounded-lg"
-        points={data.points}
+        points={data.points as CohortPoint[]}
         similarities={data.similarities}
         styleFn={styleFn}
         textSplitlines={true}

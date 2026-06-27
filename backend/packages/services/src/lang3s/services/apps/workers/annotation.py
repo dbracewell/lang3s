@@ -43,7 +43,7 @@ from lang3s.data.models import JobStatus, TextAnnotation
 from lang3s.data.repositories.job_repository import JobRepository
 from lang3s.data.schemas import Document
 from lang3s.data.schemas.claim import DocumentClaimRequest
-from lang3s.data.schemas.job import JobMessage
+from lang3s.data.schemas.job import JobMessage, JobUpdateRequest
 from lang3s.nlp.analytics.corpus import corpus_summarization, probe_metadata
 from lang3s.nlp.pipeline import pipeline
 from lang3s.services.models.topics_models import Task
@@ -229,8 +229,10 @@ async def annotation_worker(event: Event[AnnotationTask]) -> Event[WorkerResult]
                 doc.detach()
 
             await job_repository.update(
-                job_id=job.id,
-                completed=len(task.files),
+                JobUpdateRequest(
+                    id=job.id,
+                    completed=len(task.files),
+                )
             )
             return Event(
                 payload=WorkerResult(
@@ -252,8 +254,10 @@ async def annotation_worker(event: Event[AnnotationTask]) -> Event[WorkerResult]
 
             traceback.print_exc(file=sys.stdout)
             await job_repository.update(
-                job_id=task.job_id,
-                failed=len(task.files),
+                JobUpdateRequest(
+                    id=job.id,
+                    failed=len(task.files),
+                )
             )
             return Event(payload=WorkerResult(failed=len(task.files)))
 
@@ -321,28 +325,28 @@ async def on_annotation_job_complete(event: JobCompleteEvent):
         logger.error(f"Failed to send JobComplete message to analytics server ({e})")
         traceback.print_exc(file=sys.stdout)
 
-    # logger.info("Finalizing Topics")
-    # try:
-    #     with RedisClient() as redis_client:
-    #         uid = shortuuid.uuid()
-    #         redis_client.enqueue(
-    #             TOPIC_QUEUE_NAME,
-    #             Task(
-    #                 method="finalize",
-    #                 data=None,
-    #                 id=uid,
-    #             ),
-    #         )
-    #         p = redis_client.subscribe(TOPIC_FINISHED)
-    #         for msg in p.listen():
-    #             if msg.get("type") == "message":
-    #                 data = msg.get("data").decode("utf-8")
-    #                 if data == uid:
-    #                     break
-    #     logger.info("Topics finalized")
-    # except Exception as e:
-    #     logger.error(f"Topic finalization failed ({e})")
-    #     traceback.print_exc(file=sys.stdout)
+    logger.info("Finalizing Topics")
+    try:
+        with RedisClient() as redis_client:
+            uid = shortuuid.uuid()
+            redis_client.enqueue(
+                TOPIC_QUEUE_NAME,
+                Task(
+                    method="finalize",
+                    data=None,
+                    id=uid,
+                ),
+            )
+            p = redis_client.subscribe(TOPIC_FINISHED)
+            for msg in p.listen():
+                if msg.get("type") == "message":
+                    data = msg.get("data").decode("utf-8")
+                    if data == uid:
+                        break
+        logger.info("Topics finalized")
+    except Exception as e:
+        logger.error(f"Topic finalization failed ({e})")
+        traceback.print_exc(file=sys.stdout)
 
     logger.info("Generating corpus summary")
     try:
@@ -358,6 +362,19 @@ async def on_annotation_job_complete(event: JobCompleteEvent):
         logger.info("Probe metadata completed")
     except Exception as e:
         logger.error(f"Probing metadata failed ({e})")
+        traceback.print_exc(file=sys.stdout)
+
+    try:
+        async with async_db_session() as session:
+            repository = JobRepository(session)
+            await repository.update(
+                JobUpdateRequest(
+                    id=event.job_id,
+                    status=JobStatus.Completed,
+                )
+            )
+    except Exception as e:
+        logger.error(f"Updating Job Status failed ({e})")
         traceback.print_exc(file=sys.stdout)
 
     logger.info(f"🏁 Job completed {event.job_id}")

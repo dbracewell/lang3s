@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from lang3s.core import config
 from lang3s.data.models import Base
-from lang3s.data.repositories.onotolgy_repository import OntologyRepository
+from lang3s.data.repositories.ontology_repository import OntologyRepository
 from lang3s.data.schemas import Ontology
 
 

@@ -17,10 +17,14 @@ export function useJobStatusSync(
   const lastNew = useRef<number[]>([]);
 
   useEffect(() => {
+    console.log(status);
     if (!status.length || data == null) return;
 
     const completed = status.filter(
-      (j) => j.status === "complete" || j.status === "failed",
+      (j) =>
+        j.status === "completed" ||
+        j.status === "failed" ||
+        j.status === "canceled",
     );
 
     const newJobs = status.filter(
@@ -41,7 +45,8 @@ export function useJobStatusSync(
       });
     } else if (newJobs.length > 0) {
       refetch().then(() => clear());
+      console.log("DO");
       lastNew.current = newJobs.map((j) => j.jobId);
     }
-  }, [status, data, refetch, remove]);
+  }, [status, data, refetch, remove, clear]);
 }

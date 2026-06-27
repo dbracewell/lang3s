@@ -347,7 +347,7 @@ export const CorpusMap = ({
       });
 
     return [selectedTopic, filteredNodes, data.similarities];
-  }, [params.topicId]);
+  }, [data.nodes, data.similarities, params.topicId]);
 
   const valueRanges = useFindMultiTypeMinMaxValue({
     points: data?.nodes,
@@ -525,7 +525,7 @@ const ToolTipContent = () => {
       .style("left", `${left}px`)
       .style("top", `${top}px`)
       .transition("transform 0.3s ease-in-out;");
-  }, [hoveredNode]);
+  }, [getRef, hoveredNode]);
 
   return (
     <Tooltip

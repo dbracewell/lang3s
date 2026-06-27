@@ -1,12 +1,17 @@
 from functools import partial
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from starlette.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from lang3s.core.exceptions.custom import CodedException
+from lang3s.data.db import get_db_session
+
+type DBSessionDep = Annotated[AsyncSession, Depends(get_db_session)]
 
 
 class ErrorDetail(BaseModel):
@@ -33,14 +38,18 @@ def create_fastapi_app(
     version: str = "1.0.0",
     lifespan=None,
     cors_origins: list[str] | None = None,
+    root_path: str = "/",
+    openapi_url: str = "/openapi.json",
 ):
     if cors_origins is None:
         cors_origins = ["*"]
 
     app = FastAPI(
+        root_path=root_path,
         title=title,
         version=version,
         lifespan=lifespan,
+        openapi_url=openapi_url,
     )
 
     app.add_middleware(
@@ -59,6 +68,17 @@ def create_fastapi_app(
         error_data = ErrorDetail(code=exc.code, detail=str(exc))
         return JSONResponse(
             status_code=exc.code,
+            content=error_data.model_dump(),
+        )
+
+    @app.exception_handler(ValidationError)
+    async def global_validation_exception_handler(
+        request: Request,
+        exc: ValidationError,
+    ):
+        error_data = ErrorDetail(code=400, detail=str(exc))
+        return JSONResponse(
+            status_code=400,
             content=error_data.model_dump(),
         )
 

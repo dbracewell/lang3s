@@ -2,13 +2,49 @@ import numpy as np
 from sqlalchemy import Boolean, cast, func, not_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from lang3s.data.models import Document as DocumentModel
+from lang3s.data.models import Text as TextModel
 from lang3s.data.models import TextAnnotation as TextAnnotationModel
 from lang3s.data.schemas import TextAnnotation as TextAnnotationSchema
+from lang3s.services.models.common import PaginatedQuery
+from lang3s.services.models.text_models import DocumentInfo, DocumentListResponse
 
 
 class TextRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def list_documents(self, query: PaginatedQuery) -> DocumentListResponse:
+        if query.cursor == 1:
+            total_docs = (
+                await self.session.scalar(select(func.count(DocumentModel.id))) or 0
+            )
+        else:
+            total_docs = 0
+
+        stmt = (
+            select(DocumentModel.id, DocumentModel.title, TextModel.content)
+            .join(TextModel)
+            .order_by(DocumentModel.id)
+            .offset(query.offset)
+            .limit(query.limit + 1)
+        )
+        result = await self.session.execute(stmt)
+        next_cursor, docs = query.generate_page(
+            [
+                DocumentInfo(
+                    id=doc_id,
+                    title=title,
+                    snippet=f"{snippet[:512]}...",
+                )
+                for doc_id, title, snippet in result
+            ]
+        )
+        return DocumentListResponse(
+            items=docs,
+            total=total_docs,
+            next_cursor=next_cursor,
+        )
 
     async def get_semantically_similar_sentences(
         self,

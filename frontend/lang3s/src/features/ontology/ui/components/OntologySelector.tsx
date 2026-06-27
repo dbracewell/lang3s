@@ -9,10 +9,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils/cn";
-import { RouterOutputs } from "@/lib/trpc/types";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/Spinner";
 import { Button } from "@/components/ui/button";
@@ -30,6 +28,15 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { ONTOLOGY_ROOT } from "@/features/common/constants";
+import { useQuery } from "@tanstack/react-query";
+import { ontologyGetOptions } from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
+import {
+  IsolatedOntologyEntry,
+  OntologyFrontEnd,
+  OntologyMapping,
+  OntologyProperty,
+} from "@/clients/core";
 
 const getBreadCrumbPart = (
   value: string,
@@ -70,29 +77,29 @@ const getBreadCrumbPart = (
   );
 };
 
-type OntologyNode = RouterOutputs["ontology"]["getOntology"][number];
+type OntNode = IsolatedOntologyEntry & {
+  hasChildren: boolean;
+};
 
 type OntologyInfo = {
-  ontology: RouterOutputs["ontology"]["getOntology"];
+  ontology?: OntologyFrontEnd;
   breadcrumbs: string[];
   rootNode: string;
   current: string;
-  currentNode?: OntologyNode;
-  checkedNodes?: string[];
+  currentNode?: IsolatedOntologyEntry;
+  checkedNodes: string[];
   setCheckedNodes?: Dispatch<React.SetStateAction<string[]>>;
   setCurrent: (value: string) => void;
-  sections: (RouterOutputs["ontology"]["getOntology"][number] & {
-    hasChildren: boolean;
-  })[][];
+  sections: OntNode[][];
 };
 
 export const OntologyContext = createContext<OntologyInfo>({
   breadcrumbs: [],
   rootNode: ONTOLOGY_ROOT,
-  ontology: [],
   current: "",
   setCurrent: () => {},
   sections: [],
+  checkedNodes: [],
 });
 
 export const useOntology = (): OntologyInfo => {
@@ -117,35 +124,40 @@ const Provider = ({
   checkedNodes?: string[];
   setCheckedNodes?: Dispatch<React.SetStateAction<string[]>>;
 }) => {
-  const { data: ontology, isPending } = useTRPCQuery((trpc) =>
-    trpc.ontology.getOntology.queryOptions(undefined, {
-      staleTime: 5 * 60 * 1000,
+  const { data: ontology, isPending } = useQuery({
+    ...ontologyGetOptions({
+      client: coreClient,
     }),
-  );
+  });
   const [current, setCurrent] = useState(selectedNode ?? rootNode);
+
+  const validPaths = useMemo(() => {
+    if (ontology) {
+      return new Set(ontology.paths);
+    }
+    return new Set();
+  }, [ontology]);
 
   useEffect(() => {
     if (!ontology || !checkedNodes || !setCheckedNodes) return;
-
-    const validPaths = new Set(ontology.map((o) => o.path));
     const filteredNodes = checkedNodes.filter((path) => validPaths.has(path));
 
     if (filteredNodes.length !== checkedNodes.length) {
       setCheckedNodes(filteredNodes);
     }
-  }, [ontology, checkedNodes, setCheckedNodes]);
+  }, [ontology, checkedNodes, setCheckedNodes, validPaths]);
 
   const currentNode = useMemo(() => {
     if (ontology == null) return undefined;
     if (current === rootNode) {
-      return ontology.find((o) => o.path === rootNode);
+      return ontology.nodes[rootNode]!;
     }
-    return ontology.find((o) => o.path === current);
+    return ontology.nodes[current]!;
   }, [current, ontology, rootNode]);
 
   const breadcrumbs = useMemo(() => {
     if (ontology == null) return [];
-    if (!ontology.find((o) => o.path === current)) return [rootNode];
+    if (!ontology.nodes[current]) return [rootNode];
     const parts = current.split(".");
     const topIndex = parts.findIndex((n) => n === rootNode);
     return parts.slice(topIndex);
@@ -156,12 +168,14 @@ const Provider = ({
       return [];
     }
 
-    const ALL_NODE = ontology.filter((o) => o.path === rootNode)[0].id;
-    const firstSection = ontology
-      .filter((o) => o.parentId === ALL_NODE)
+    const ALL_NODE = ontology.nodes[rootNode]!.id;
+    const firstSection = Object.values(ontology.nodes)
+      .filter((o) => o.parent_id === ALL_NODE)
       .map((o) => ({
         ...o,
-        hasChildren: ontology.filter((c) => c.parentId === o.id).length > 0,
+        hasChildren:
+          Object.values(ontology.nodes).filter((c) => c.parent_id === o.id)
+            .length > 0,
       }))
       .sort((a, b) => a.path.localeCompare(b.path));
 
@@ -180,11 +194,13 @@ const Provider = ({
         continue;
       }
       const lastId = lastPart[0].id;
-      const children = ontology
-        .filter((o) => o.parentId === lastId)
+      const children = Object.values(ontology.nodes)
+        .filter((o) => o.parent_id === lastId)
         .map((o) => ({
           ...o,
-          hasChildren: ontology.filter((c) => c.parentId === o.id).length > 0,
+          hasChildren:
+            Object.values(ontology.nodes).filter((c) => c.parent_id === o.id)
+              .length > 0,
         }));
       if (children.length > 0) {
         sections.push(children.sort((a, b) => a.path.localeCompare(b.path)));
@@ -193,28 +209,18 @@ const Provider = ({
     return sections;
   }, [current, ontology, rootNode]);
 
-  const value: OntologyInfo = useMemo(
-    () => ({
-      current,
-      setCurrent,
-      breadcrumbs,
-      ontology: ontology ?? [],
-      checkedNodes,
-      setCheckedNodes,
-      sections,
-      currentNode,
-      rootNode,
-    }),
-    [
-      current,
-      breadcrumbs,
-      ontology,
-      checkedNodes,
-      sections,
-      setCheckedNodes,
-      rootNode,
-    ],
-  );
+  const finalCheckedNodes = checkedNodes ?? [];
+  const value: OntologyInfo = {
+    current,
+    setCurrent,
+    breadcrumbs,
+    ontology: ontology,
+    checkedNodes: finalCheckedNodes,
+    setCheckedNodes,
+    sections,
+    currentNode,
+    rootNode,
+  };
 
   if (isPending) {
     return <Spinner />;
@@ -270,7 +276,7 @@ const BreadCrumbs = ({ maxBreadcrumbs = 4 }: { maxBreadcrumbs?: number }) => {
 const SelectorSectionEntryCheckbox = ({
   o,
 }: {
-  o: RouterOutputs["ontology"]["getOntology"][number] & {
+  o: IsolatedOntologyEntry & {
     hasChildren: boolean;
   };
 }) => {
@@ -308,9 +314,7 @@ const SectionSelectAll = ({
   section: { path: string }[];
 }) => {
   const { checkedNodes, setCheckedNodes } = useOntology();
-  if (checkedNodes == null || setCheckedNodes == null) {
-    return null;
-  }
+
   const isParentChecked = useMemo(() => {
     return section.some(
       (o) => !!checkedNodes.find((p) => o.path.startsWith(p) && o.path !== p),
@@ -323,6 +327,10 @@ const SectionSelectAll = ({
         .length === section.length
     );
   }, [checkedNodes, section]);
+
+  if (checkedNodes == null || setCheckedNodes == null) {
+    return null;
+  }
 
   return (
     <div
@@ -369,7 +377,7 @@ const SelectionSummary = () => {
   if (checkedNodes == null || checkedNodes.length == 0) {
     return null;
   }
-  const selected = ontology.filter((o) =>
+  const selected = Object.values(ontology?.nodes ?? {}).filter((o) =>
     checkedNodes.some((c) => o.path.startsWith(c)),
   ).length;
   return (
@@ -379,7 +387,19 @@ const SelectionSummary = () => {
   );
 };
 
-export type Section = RouterOutputs["ontology"]["getOntology"];
+export type Section = {
+  hasChildren: boolean;
+  id?: number;
+  name: string;
+  path: string;
+  description: string;
+  color: string;
+  parent_id?: number;
+  mappings?: Array<OntologyMapping>;
+  properties?: {
+    [p: string]: OntologyProperty;
+  };
+}[];
 
 const Sections = ({
   className,
@@ -406,7 +426,7 @@ const Sections = ({
         {sections.map((section, i) => (
           <div className="flex flex-col" key={i}>
             <div
-              className="bg-card flex h-full w-[200px] flex-col rounded border"
+              className="bg-card flex h-full w-50 flex-col rounded border"
               style={{
                 width: sectionWidth ? `${sectionWidth}px` : undefined,
               }}
@@ -479,13 +499,13 @@ const SelectorSearch = () => {
           <NetworkIcon />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0 sm:w-[500px]" align="start">
+      <PopoverContent className="w-50 p-0 sm:w-125" align="start">
         <Command>
           <CommandInput placeholder="Search for concept..." />
           <CommandList className="w-full">
             <CommandEmpty>Nothing found.</CommandEmpty>
             <CommandGroup>
-              {ontology
+              {Object.values(ontology?.nodes ?? {})
                 .filter(
                   (o) => o.path.startsWith(rootNode) && o.path !== rootNode,
                 )
@@ -532,7 +552,7 @@ const SelectedInformation = ({
     return (
       <div
         className={cn(
-          "flex h-full! w-[200px] gap-1 rounded-lg border bg-slate-100 p-2 dark:bg-slate-950/50",
+          "flex h-full! w-50 gap-1 rounded-lg border bg-slate-100 p-2 dark:bg-slate-950/50",
           className,
         )}
       />
@@ -542,7 +562,7 @@ const SelectedInformation = ({
   return (
     <div
       className={cn(
-        "flex w-[200px] flex-col gap-2 rounded-lg border bg-slate-100 p-2 dark:bg-slate-950/50",
+        "flex w-50 flex-col gap-2 rounded-lg border bg-slate-100 p-2 dark:bg-slate-950/50",
         className,
       )}
     >

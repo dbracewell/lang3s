@@ -120,7 +120,7 @@ class Document(BaseModel):
                     cleaned=annotation.cleaned,
                     normalized=annotation.normalized,
                     mapping=annotation.mapping,
-                    sentence_id=annotation.id,
+                    sentence_id=annotation.sentence_id,
                     is_stopword=annotation.is_stopword,
                 )
             )
@@ -697,7 +697,7 @@ class TextAnnotation(TextObject):
         return self
 
     @property
-    def sentence_aid(self) -> str:
+    def sentence_id(self) -> str:
         return self.sentence.id
 
     @property

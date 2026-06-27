@@ -3,10 +3,11 @@ from typing import Any, Literal
 
 from dateutil import parser
 from sqlalchemy import ScalarResult, select, text
+from sqlalchemy.dialects.postgresql import insert
 
 from lang3s.core.logger import get_logger
-from lang3s.data.db import async_db_session, sync_db_session
-from lang3s.data.models import Document, TextAnnotation
+from lang3s.data.db import async_db_session
+from lang3s.data.models import Document, GlobalMetadata, TextAnnotation
 from lang3s.data.schemas import Metadata
 
 
@@ -171,11 +172,11 @@ async def probe_metadata():
         return
 
     async with async_db_session() as session:
-        pass
-        # session.execute(
-        #     insert(MetadataTable)
-        #     .values(values)
-        #     .on_conflict_do_nothing(
-        #         index_elements=[MetadataTable.source, MetadataTable.name]
-        #     )
-        # )
+        stmt = insert(GlobalMetadata).values(values)
+        stmt = stmt.on_conflict_do_nothing(
+            index_elements=[
+                GlobalMetadata.source,
+                GlobalMetadata.name,
+            ]
+        )
+        await session.execute(stmt)

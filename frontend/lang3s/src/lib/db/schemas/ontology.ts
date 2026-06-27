@@ -22,9 +22,6 @@ export const OntologyPropertyValueDataTypes = [
   "metadata",
 ] as const;
 
-export type OntologyPropertyValueDataType =
-  (typeof OntologyPropertyValueDataTypes)[number];
-
 export const OntologyPropertyValueSchema = z.object({
   value: z.string().min(1, "Value is required"),
   dataType: z.enum(OntologyPropertyValueDataTypes),

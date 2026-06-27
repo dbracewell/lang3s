@@ -13,19 +13,15 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { cn } from "@/lib/utils/cn";
-import {
-  Chart,
-  ChartData,
-  CountType,
-  SeriesSourceType,
-} from "@/features/reports/types";
+import { Chart } from "@/features/reports/types";
 import { useTheme } from "next-themes";
 import { capitalize } from "@/lib/utils/formatters";
 import { truncateLabel } from "@/features/reports/utils";
+import type { ChartData, CountType, SeriesType } from "@/clients/analytics";
 
 type BarChartProps = {
-  data: ChartData;
-  xAxisType: SeriesSourceType;
+  data: ChartData[];
+  xAxisType: SeriesType;
   xAxisValue: string;
   countType: CountType;
   className?: string;

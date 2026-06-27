@@ -13,7 +13,8 @@
     "auth:generate": "@better-auth/cli generate --config src/lib/auth/auth.ts",
     "drizzle:push": "drizzle-kit push",
     "drizzle:studio": "drizzle-kit studio",
-    "tsx-server": "tsx --conditions=react-server --env-file=.env"
+    "tsx-server": "tsx --conditions=react-server --env-file=.env",
+    "codegen": "openapi-ts"
   },
   "overrides": {
     "eslint-plugin-react-hooks": "6.1.0"
@@ -88,6 +89,7 @@
   "devDependencies": {
     "@eslint/compat": "^2.1.0",
     "@eslint/eslintrc": "^3",
+    "@hey-api/openapi-ts": "^0.99.0",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.19",
     "@types/d3": "^7.4.3",

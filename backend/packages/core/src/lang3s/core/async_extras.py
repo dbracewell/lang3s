@@ -7,17 +7,26 @@ from typing import Any, AsyncGenerator, Callable, Coroutine, Generator, TypeVar
 _ReturnType = TypeVar("_ReturnType")
 T = TypeVar("T")
 
+_async_loop = asyncio.new_event_loop()
+
+
+def _start_background_loop(loop: asyncio.AbstractEventLoop):
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+
+_loop_thread = threading.Thread(
+    target=_start_background_loop,
+    args=(_async_loop,),
+    daemon=True,
+)
+_loop_thread.start()
+
 
 def run_sync(
     coro: Coroutine[Any, Any, _ReturnType],
 ) -> _ReturnType:
-    try:
-        asyncio.get_running_loop()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(asyncio.run, coro)
-            return future.result()
-    except RuntimeError:
-        return asyncio.run(coro)
+    return asyncio.run_coroutine_threadsafe(coro, _async_loop).result()
 
 
 def get_async_event_loop():

@@ -11,7 +11,8 @@ export function JobStatusListener() {
 
   useEffect(() => {
     return eventBus.on("job:update", (event) => {
-      if (event.status === "complete") {
+      console.log("EVENT BUS", event);
+      if (event.status === "completed") {
         toast.success(`Job ${event.jobId} completed successfully.`, {
           duration: Number.POSITIVE_INFINITY,
           closeButton: true,
@@ -23,6 +24,8 @@ export function JobStatusListener() {
         jobId: event.jobId,
         status: event.status,
         progress: event.progress,
+        completed_at: event.completed_at,
+        started_at: event.started_at,
       });
     });
   }, [upsert]);

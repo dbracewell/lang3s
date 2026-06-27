@@ -1,24 +1,25 @@
 from __future__ import annotations
 
-import asyncio
 import time
 import traceback
 from typing import Iterable, List
 
 import numpy as np
-from lang3s.ml.decomposition import OnlineReducer
-from lang3s.ml.math_extras import cosine, normalize
 from numpy.typing import NDArray
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy_utils import refresh_materialized_view
 from tqdm import tqdm
 
 from lang3s.core import config
 from lang3s.core.formatters import format_duration
 from lang3s.core.logger import get_logger
 from lang3s.core.typing_extras import SingletonMeta
+from lang3s.data.db import sync_db_session
 from lang3s.data.repositories.text_repository import TextRepository
 from lang3s.data.repositories.topic_repository import TopicRepository
 from lang3s.data.schemas import Document
+from lang3s.ml.decomposition import OnlineReducer
+from lang3s.ml.math_extras import cosine, normalize
 
 from .schemas import TopicCollection, TopicInfo
 from .topic_naming import label_topics
@@ -284,7 +285,12 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         await repository.update_topics(to_upsert)
 
         # Update the topic views (topic_sentences)
-        # db.refresh_topic_views()
+        with sync_db_session() as session:
+            refresh_materialized_view(
+                session=session,
+                name="topic_sentences",
+                concurrently=True,
+            )
 
         # Save the online PCA
         self._reducer.save(config.MODELS_DIR / "topic_reducer.pkl")

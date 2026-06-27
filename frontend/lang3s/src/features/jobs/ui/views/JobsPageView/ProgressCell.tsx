@@ -1,15 +1,11 @@
 "use client";
 import { Progress } from "@/components/ui/progress";
-import { RouterOutputs } from "@/lib/trpc/types";
 import React from "react";
 import { jobStatusByIdAtom } from "@/features/events/stores/job-stores";
 import { useAtomValue } from "jotai";
+import { Job } from "@/clients/core";
 
-export const ProgressCell = ({
-  row,
-}: {
-  row: RouterOutputs["jobs"]["getAll"][number];
-}) => {
+export const ProgressCell = ({ row }: { row: Job }) => {
   const job = useAtomValue(jobStatusByIdAtom(row.id));
   const pct = Math.floor(
     job?.progress ??

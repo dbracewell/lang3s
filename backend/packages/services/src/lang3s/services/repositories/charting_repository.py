@@ -1,12 +1,17 @@
 import math
 from typing import Any, Literal
 
+from lang3s.core.exceptions import BadDataException
+from lang3s.data.models.global_metadata import DataType
+from lang3s.data.schemas.global_metadata import GlobalMetadataBySource
 from lang3s.services.analytics import AnalyticsDB, template_engine
 from lang3s.services.models.charting_models import (
     ChartData,
     ChartDataRequest,
     ChartResult,
     ChartSeries,
+    ChartType,
+    CountType,
     SeriesType,
 )
 
@@ -16,7 +21,13 @@ class ChartingRepository:
         self.db: AnalyticsDB = db
         self.queries = template_engine
 
-    def get_chart_data(self, request: ChartDataRequest) -> ChartResult:
+    async def get_chart_data(
+        self,
+        request: ChartDataRequest,
+        metadata: GlobalMetadataBySource,
+    ) -> ChartResult:
+
+        request.update(metadata)
         x_total, x_template, x_params = self._build_chart_series_query(
             series=request.x,
             count_type=request.count_type,
@@ -90,6 +101,9 @@ class ChartingRepository:
             x_prev_page=x_page - 1 if x_page > 0 else None,
             y_next_page=y_page + 1 if y_page + 1 <= y_num_pages else None,
             y_prev_page=y_page - 1 if y_page > 0 else None,
+            x_data_type=request.x.data_type.category,
+            y_data_type=request.y.data_type.category if request.y else None,
+            chart_type=request.chart_type or ChartType.barchart,
             results=[
                 ChartData(
                     text1=str(row["text1"]),
@@ -136,7 +150,7 @@ class ChartingRepository:
     def _build_chart_series_query(
         self,
         series: ChartSeries,
-        count_type: Literal["document", "sentence", "mention"],
+        count_type: CountType,
         axis: Literal["X", "Y"],
     ) -> tuple[int, str, list[Any]]:
         template_name = series.type.get_series_data_template()
