@@ -6,8 +6,8 @@ from lang3s.data.models import Document as DocumentModel
 from lang3s.data.models import Text as TextModel
 from lang3s.data.models import TextAnnotation as TextAnnotationModel
 from lang3s.data.schemas import TextAnnotation as TextAnnotationSchema
-from lang3s.services.models.common import PaginatedQuery
-from lang3s.services.models.text_models import DocumentInfo, DocumentListResponse
+from lang3s.data.schemas.common import PaginatedQuery
+from lang3s.data.schemas.text import DocumentInfo, DocumentListResponse
 
 
 class TextRepository:

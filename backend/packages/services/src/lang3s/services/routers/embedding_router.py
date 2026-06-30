@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from lang3s.core.logger import get_logger
 from lang3s.nlp.components.embedder import Embedder
-from lang3s.services.models.embedding_models import EmbeddingRequest
+from lang3s.services.schemas.embedding_api_schema import EmbeddingRequest
 
 embedding_router = APIRouter(
     prefix="/embed",

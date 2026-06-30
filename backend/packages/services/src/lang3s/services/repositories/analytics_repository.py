@@ -10,7 +10,7 @@ from lang3s.core.constants import SAFE_COLOR_NAMES
 from lang3s.core.logger import get_logger
 from lang3s.ml.math_extras import remap
 from lang3s.services.analytics import AnalyticsDB, template_engine
-from lang3s.services.models.analytics_models import (
+from lang3s.services.schemas.analytics_api_schema import (
     AnnotationCohortInformationRequest,
     AnnotationCoOccurrence,
     AnnotationCoOccurrenceRequest,

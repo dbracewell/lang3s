@@ -15,23 +15,7 @@ const SearchPage = async (props: PageProps<"/search">) => {
   const paramsLoader = createLoader(SearchQueryParams);
   const { tab, ...rest } = await paramsLoader(props.searchParams);
   void prefetch(
-    trpc.search.searchDocuments.infiniteQueryOptions(
-      { ...rest },
-      {
-        getNextPageParam: (lastPage) => lastPage?.nextCursor,
-      },
-    ),
-  );
-  void prefetch(
     trpc.search.searchAnnotations.infiniteQueryOptions(
-      { ...rest },
-      {
-        getNextPageParam: (lastPage) => lastPage?.nextCursor,
-      },
-    ),
-  );
-  void prefetch(
-    trpc.search.searchTopics.infiniteQueryOptions(
       { ...rest },
       {
         getNextPageParam: (lastPage) => lastPage?.nextCursor,

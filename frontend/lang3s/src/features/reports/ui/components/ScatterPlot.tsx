@@ -1,4 +1,3 @@
-import { Chart } from "@/features/reports/types";
 import { SeriesFormType } from "@/features/reports/schema";
 import {
   CartesianGrid,
@@ -17,6 +16,7 @@ import {
 } from "@/components/ui/chart";
 import { useMemo } from "react";
 import type { ChartData, CountType, DataCategory } from "@/clients/analytics";
+import { formatAxisLabel } from "@/features/reports/lib/formatters";
 
 type LineChartProps = {
   data: ChartData[];
@@ -69,7 +69,7 @@ export const ScatterPlotChart = ({
           type={xDataType === "number" ? "number" : "category"}
           label={
             <Label
-              value={Chart.getAxisLabel(xSeries)}
+              value={formatAxisLabel(xSeries)}
               fontSize={13}
               fontWeight={600}
               style={{
@@ -88,7 +88,7 @@ export const ScatterPlotChart = ({
           label={
             <Label
               angle={-90}
-              value={Chart.getAxisLabel(ySeries)}
+              value={formatAxisLabel(ySeries)}
               style={{
                 fill: "var(--color-foreground)",
                 textAnchor: "middle",

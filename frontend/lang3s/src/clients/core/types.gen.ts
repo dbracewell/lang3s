@@ -5,6 +5,46 @@ export type ClientOptions = {
 };
 
 /**
+ * AnnotationDocResult
+ */
+export type AnnotationDocResult = {
+    /**
+     * Document Id
+     */
+    document_id: string;
+    /**
+     * Document Title
+     */
+    document_title: string;
+    /**
+     * Highlights
+     */
+    highlights: Array<AnnotationHighlight>;
+};
+
+/**
+ * AnnotationHighlight
+ */
+export type AnnotationHighlight = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Sentence Id
+     */
+    sentence_id: string;
+    /**
+     * Annotation
+     */
+    annotation: string;
+    /**
+     * Sentence
+     */
+    sentence: string;
+};
+
+/**
  * AnnotationIdOntologyMapping
  */
 export type AnnotationIdOntologyMapping = {
@@ -36,6 +76,42 @@ export type AnnotationOntologyMappingList = {
     mapping: {
         [key: string]: AnnotationIdOntologyMapping;
     };
+};
+
+/**
+ * AnnotationSearchResult
+ */
+export type AnnotationSearchResult = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Docs
+     */
+    docs: Array<AnnotationDocResult>;
+};
+
+/**
+ * AnnotationSearchResults
+ */
+export type AnnotationSearchResults = {
+    /**
+     * Next Cursor
+     */
+    next_cursor: number | null;
+    /**
+     * Results
+     */
+    results: Array<AnnotationSearchResult>;
+    /**
+     * Total
+     */
+    total: number;
 };
 
 /**
@@ -85,6 +161,42 @@ export type DocumentListResponse = {
      * Previous Cursor
      */
     previous_cursor?: number | unknown;
+};
+
+/**
+ * DocumentSearchResult
+ */
+export type DocumentSearchResult = {
+    /**
+     * Document Id
+     */
+    document_id: string;
+    /**
+     * Document Title
+     */
+    document_title: string;
+    /**
+     * Highlights
+     */
+    highlights: Array<Highlight>;
+};
+
+/**
+ * DocumentSearchResults
+ */
+export type DocumentSearchResults = {
+    /**
+     * Next Cursor
+     */
+    next_cursor: number | null;
+    /**
+     * Results
+     */
+    results: Array<DocumentSearchResult>;
+    /**
+     * Total
+     */
+    total: number;
 };
 
 /**
@@ -282,6 +394,24 @@ export type HttpValidationError = {
      * Detail
      */
     detail?: Array<ValidationError>;
+};
+
+/**
+ * Highlight
+ */
+export type Highlight = {
+    /**
+     * Document Id
+     */
+    document_id: string;
+    /**
+     * Sentence Id
+     */
+    sentence_id: string;
+    /**
+     * Text
+     */
+    text: string;
 };
 
 /**
@@ -606,6 +736,40 @@ export type PreComputedStats = {
 };
 
 /**
+ * SearchParams
+ */
+export type SearchParams = {
+    /**
+     * Cursor
+     */
+    cursor?: number | null;
+    /**
+     * Limit
+     */
+    limit?: number;
+    /**
+     * Q
+     */
+    q?: string | null;
+    /**
+     * Aid
+     */
+    aid?: Array<string> | null;
+    /**
+     * Sid
+     */
+    sid?: Array<string> | null;
+    /**
+     * Tid
+     */
+    tid?: Array<number> | null;
+    /**
+     * Is Strict
+     */
+    is_strict: boolean;
+};
+
+/**
  * TopicEntity
  */
 export type TopicEntity = {
@@ -659,6 +823,42 @@ export type TopicFrontendResult = {
      * Keywords
      */
     keywords: Array<string>;
+};
+
+/**
+ * TopicSearchResult
+ */
+export type TopicSearchResult = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Highlights
+     */
+    highlights: Array<Highlight>;
+};
+
+/**
+ * TopicSearchResults
+ */
+export type TopicSearchResults = {
+    /**
+     * Next Cursor
+     */
+    next_cursor: number | null;
+    /**
+     * Results
+     */
+    results: Array<TopicSearchResult>;
+    /**
+     * Total
+     */
+    total: number;
 };
 
 /**
@@ -980,7 +1180,7 @@ export type DocumentsGetAllData = {
         /**
          * Cursor
          */
-        cursor?: number;
+        cursor?: number | null;
         /**
          * Limit
          */
@@ -1526,3 +1726,114 @@ export type PrecomputedStatsGetByNameResponses = {
 };
 
 export type PrecomputedStatsGetByNameResponse = PrecomputedStatsGetByNameResponses[keyof PrecomputedStatsGetByNameResponses];
+
+export type SearchDocumentsData = {
+    body: SearchParams;
+    path?: never;
+    query?: never;
+    url: '/search/docs';
+};
+
+export type SearchDocumentsErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorDetail;
+    /**
+     * Unauthorized
+     */
+    401: ErrorDetail;
+    /**
+     * Not Found
+     */
+    404: ErrorDetail;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchDocumentsError = SearchDocumentsErrors[keyof SearchDocumentsErrors];
+
+export type SearchDocumentsResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentSearchResults;
+};
+
+export type SearchDocumentsResponse = SearchDocumentsResponses[keyof SearchDocumentsResponses];
+
+export type SearchTopicsData = {
+    body: SearchParams;
+    path?: never;
+    query?: never;
+    url: '/search/topics';
+};
+
+export type SearchTopicsErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorDetail;
+    /**
+     * Unauthorized
+     */
+    401: ErrorDetail;
+    /**
+     * Not Found
+     */
+    404: ErrorDetail;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchTopicsError = SearchTopicsErrors[keyof SearchTopicsErrors];
+
+export type SearchTopicsResponses = {
+    /**
+     * Successful Response
+     */
+    200: TopicSearchResults;
+};
+
+export type SearchTopicsResponse = SearchTopicsResponses[keyof SearchTopicsResponses];
+
+export type SearchAnnotationsData = {
+    body: SearchParams;
+    path?: never;
+    query?: never;
+    url: '/search/annotations';
+};
+
+export type SearchAnnotationsErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorDetail;
+    /**
+     * Unauthorized
+     */
+    401: ErrorDetail;
+    /**
+     * Not Found
+     */
+    404: ErrorDetail;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchAnnotationsError = SearchAnnotationsErrors[keyof SearchAnnotationsErrors];
+
+export type SearchAnnotationsResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationSearchResults;
+};
+
+export type SearchAnnotationsResponse = SearchAnnotationsResponses[keyof SearchAnnotationsResponses];

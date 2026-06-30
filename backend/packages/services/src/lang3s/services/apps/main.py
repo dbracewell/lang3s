@@ -17,6 +17,7 @@ from lang3s.services.routers.jobs_router import jobs_router
 from lang3s.services.routers.metadata_router import metadata_router
 from lang3s.services.routers.ontology_router import ontology_router
 from lang3s.services.routers.precomputed_stats_router import stats_router
+from lang3s.services.routers.search_router import search_router
 from lang3s.services.routers.topics_router import topic_router
 
 logger = get_logger("CORE_API")
@@ -50,6 +51,7 @@ app.include_router(document_router)
 app.include_router(ontology_router)
 app.include_router(metadata_router)
 app.include_router(stats_router)
+app.include_router(search_router)
 
 if __name__ == "__main__":
     uvicorn.run(

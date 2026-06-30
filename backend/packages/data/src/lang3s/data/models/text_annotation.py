@@ -1,6 +1,7 @@
 import datetime
 from typing import Any, Optional
 
+from pgvector import HalfVector
 from pgvector.sqlalchemy import HALFVEC
 from sqlalchemy import (
     ARRAY,
@@ -102,7 +103,7 @@ class TextAnnotation(Base):
         nullable=False,
         index=True,
     )
-    embedding: Mapped[list] = mapped_column(
+    embedding: Mapped[HalfVector] = mapped_column(
         "embedding",
         HALFVEC(config.SEMANTIC_EMBEDDING_DIMENSION),
         nullable=False,

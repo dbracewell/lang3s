@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends
 
 from lang3s.core.logger import get_logger
 from lang3s.data.repositories.text_repository import TextRepository
+from lang3s.data.schemas.common import PaginatedQuery
+from lang3s.data.schemas.text import DocumentListResponse
 from lang3s.services.helpers import DBSessionDep, ErrorDetail
-from lang3s.services.models.common import PaginatedQuery
-from lang3s.services.models.text_models import DocumentListResponse
 
 logger = get_logger(__name__)
 

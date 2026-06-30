@@ -12,7 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getChartTypeTitle } from "@/features/reports/types";
 import { capitalize, formatURL } from "@/lib/utils/formatters";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +32,7 @@ import { analyticsClient } from "@/lib/api";
 import { ChartSeries, DataCategory } from "@/clients/analytics";
 import { PAGE_LIMIT } from "@/features/common/constants";
 import { Spinner } from "@/components/Spinner";
+import { formatChartName } from "@/features/reports/lib/formatters";
 
 export const ChartView = () => {
   const [params, setParams] = useChartParams();
@@ -147,7 +147,7 @@ export const ChartView = () => {
               )}
             </span>
             <span className="text-muted-foreground">
-              {getChartTypeTitle(chartType)}
+              {formatChartName(chartType)}
             </span>
           </CardTitle>
           <CardDescription>

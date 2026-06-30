@@ -4,8 +4,8 @@ from lang3s.core.logger import get_logger
 from lang3s.data.repositories.metadata_repository import MetadataRepository
 from lang3s.services.analytics import get_analytics_db
 from lang3s.services.helpers import DBSessionDep, ErrorDetail
-from lang3s.services.models.charting_models import ChartDataRequest, ChartResult
 from lang3s.services.repositories.charting_repository import ChartingRepository
+from lang3s.services.schemas.charting_api_schema import ChartDataRequest, ChartResult
 
 logger = get_logger(__name__)
 

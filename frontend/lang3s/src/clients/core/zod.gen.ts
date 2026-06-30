@@ -3,6 +3,25 @@
 import * as z from 'zod';
 
 /**
+ * AnnotationHighlight
+ */
+export const zAnnotationHighlight = z.object({
+    id: z.string(),
+    sentence_id: z.string(),
+    annotation: z.string(),
+    sentence: z.string()
+});
+
+/**
+ * AnnotationDocResult
+ */
+export const zAnnotationDocResult = z.object({
+    document_id: z.string(),
+    document_title: z.string(),
+    highlights: z.array(zAnnotationHighlight)
+});
+
+/**
  * AnnotationIdOntologyMapping
  */
 export const zAnnotationIdOntologyMapping = z.object({
@@ -17,6 +36,24 @@ export const zAnnotationIdOntologyMapping = z.object({
  */
 export const zAnnotationOntologyMappingList = z.object({
     mapping: z.record(z.string(), zAnnotationIdOntologyMapping)
+});
+
+/**
+ * AnnotationSearchResult
+ */
+export const zAnnotationSearchResult = z.object({
+    name: z.string(),
+    path: z.string(),
+    docs: z.array(zAnnotationDocResult)
+});
+
+/**
+ * AnnotationSearchResults
+ */
+export const zAnnotationSearchResults = z.object({
+    next_cursor: z.int().nullable(),
+    results: z.array(zAnnotationSearchResult),
+    total: z.int()
 });
 
 /**
@@ -84,6 +121,33 @@ export const zGlobalMetadataAvailable = z.object({
  * GlobalMetadataAvailableList
  */
 export const zGlobalMetadataAvailableList = z.array(zGlobalMetadataAvailable);
+
+/**
+ * Highlight
+ */
+export const zHighlight = z.object({
+    document_id: z.string(),
+    sentence_id: z.string(),
+    text: z.string()
+});
+
+/**
+ * DocumentSearchResult
+ */
+export const zDocumentSearchResult = z.object({
+    document_id: z.string(),
+    document_title: z.string(),
+    highlights: z.array(zHighlight)
+});
+
+/**
+ * DocumentSearchResults
+ */
+export const zDocumentSearchResults = z.object({
+    next_cursor: z.int().nullable(),
+    results: z.array(zDocumentSearchResult),
+    total: z.int()
+});
 
 /**
  * JobStatus
@@ -377,12 +441,43 @@ export const zPreComputedStats = z.object({
 });
 
 /**
+ * SearchParams
+ */
+export const zSearchParams = z.object({
+    cursor: z.int().gte(1).nullish().default(1),
+    limit: z.int().gte(5).optional().default(5),
+    q: z.string().nullish(),
+    aid: z.array(z.string()).nullish(),
+    sid: z.array(z.string()).nullish(),
+    tid: z.array(z.int()).nullish(),
+    is_strict: z.boolean().default(false)
+});
+
+/**
  * TopicEntity
  */
 export const zTopicEntity = z.object({
     entity: z.string(),
     type: z.string(),
     count: z.number()
+});
+
+/**
+ * TopicSearchResult
+ */
+export const zTopicSearchResult = z.object({
+    id: z.int(),
+    name: z.string(),
+    highlights: z.array(zHighlight)
+});
+
+/**
+ * TopicSearchResults
+ */
+export const zTopicSearchResults = z.object({
+    next_cursor: z.int().nullable(),
+    results: z.array(zTopicSearchResult),
+    total: z.int()
 });
 
 /**
@@ -478,7 +573,7 @@ export const zTopicsGetTopicResponse = zTopicFrontendResult;
 export const zEmbedEmbedPostBody = zEmbeddingRequest;
 
 export const zDocumentsGetAllQuery = z.object({
-    cursor: z.int().gte(1).optional().default(1),
+    cursor: z.int().gte(1).nullish().default(1),
     limit: z.int().gte(5).optional().default(5)
 });
 
@@ -572,3 +667,24 @@ export const zPrecomputedStatsGetByNamePath = z.object({
  * Successful Response
  */
 export const zPrecomputedStatsGetByNameResponse = zPreComputedStats;
+
+export const zSearchDocumentsBody = zSearchParams;
+
+/**
+ * Successful Response
+ */
+export const zSearchDocumentsResponse = zDocumentSearchResults;
+
+export const zSearchTopicsBody = zSearchParams;
+
+/**
+ * Successful Response
+ */
+export const zSearchTopicsResponse = zTopicSearchResults;
+
+export const zSearchAnnotationsBody = zSearchParams;
+
+/**
+ * Successful Response
+ */
+export const zSearchAnnotationsResponse = zAnnotationSearchResults;

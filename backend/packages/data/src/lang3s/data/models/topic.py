@@ -1,6 +1,7 @@
 import datetime
 import uuid
 
+from pgvector import HalfVector
 from pgvector.sqlalchemy import HALFVEC
 from sqlalchemy import Boolean, DateTime, Index, Integer, Text, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -30,7 +31,7 @@ class Topic(Base):
         Boolean,
         nullable=False,
     )
-    embedding: Mapped[list] = mapped_column(
+    embedding: Mapped[HalfVector] = mapped_column(
         "embedding",
         HALFVEC(config.SEMANTIC_EMBEDDING_DIMENSION),
         nullable=False,

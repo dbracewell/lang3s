@@ -4,7 +4,7 @@ import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutation
 
 import { client } from '../client.gen';
 import { ApiClient, type Options } from '../sdk.gen';
-import type { AddOntologyEntryData, AddOntologyEntryError, DeleteOntologyEntryData, DeleteOntologyEntryError, DocumentsGetAllData, DocumentsGetAllError, DocumentsGetAllResponse, EmbedEmbedPostData, EmbedEmbedPostError, JobsCreateJobData, JobsCreateJobError, JobsCreateJobResponse, JobsDeleteJobData, JobsDeleteJobError, JobsDeleteJobResponse, JobsGetJobData, JobsGetJobError, JobsGetJobResponse, JobsListJobsData, JobsListJobsError, JobsListJobsResponse, JobsUpdateJobData, JobsUpdateJobError, JobsUpdateJobResponse, MetadataCreateData, MetadataCreateError, MetadataDeleteData, MetadataDeleteError, MetadataDeleteResponse, MetadataGetBySourceData, MetadataGetBySourceError, MetadataGetBySourceResponse, MetadataProbeData, MetadataProbeError, MetadataProbeResponse, MetadataUpdateData, MetadataUpdateError, MetadataUpdateResponse, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentError, OntologyGetAnnotationsForDocumentResponse, OntologyGetData, OntologyGetError, OntologyGetNodePathData, OntologyGetNodePathError, OntologyGetNodePathResponse, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsError, OntologyGetPotentialMappingsResponse, OntologyGetResponse, OntologyNameExistsData, OntologyNameExistsError, OntologyNameExistsResponse, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameError, PrecomputedStatsGetByNameResponse, TopicsGetTopicData, TopicsGetTopicError, TopicsGetTopicResponse, UpdateOntologyEntryData, UpdateOntologyEntryError } from '../types.gen';
+import type { AddOntologyEntryData, AddOntologyEntryError, DeleteOntologyEntryData, DeleteOntologyEntryError, DocumentsGetAllData, DocumentsGetAllError, DocumentsGetAllResponse, EmbedEmbedPostData, EmbedEmbedPostError, JobsCreateJobData, JobsCreateJobError, JobsCreateJobResponse, JobsDeleteJobData, JobsDeleteJobError, JobsDeleteJobResponse, JobsGetJobData, JobsGetJobError, JobsGetJobResponse, JobsListJobsData, JobsListJobsError, JobsListJobsResponse, JobsUpdateJobData, JobsUpdateJobError, JobsUpdateJobResponse, MetadataCreateData, MetadataCreateError, MetadataDeleteData, MetadataDeleteError, MetadataDeleteResponse, MetadataGetBySourceData, MetadataGetBySourceError, MetadataGetBySourceResponse, MetadataProbeData, MetadataProbeError, MetadataProbeResponse, MetadataUpdateData, MetadataUpdateError, MetadataUpdateResponse, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentError, OntologyGetAnnotationsForDocumentResponse, OntologyGetData, OntologyGetError, OntologyGetNodePathData, OntologyGetNodePathError, OntologyGetNodePathResponse, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsError, OntologyGetPotentialMappingsResponse, OntologyGetResponse, OntologyNameExistsData, OntologyNameExistsError, OntologyNameExistsResponse, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameError, PrecomputedStatsGetByNameResponse, SearchAnnotationsData, SearchAnnotationsError, SearchAnnotationsResponse, SearchDocumentsData, SearchDocumentsError, SearchDocumentsResponse, SearchTopicsData, SearchTopicsError, SearchTopicsResponse, TopicsGetTopicData, TopicsGetTopicError, TopicsGetTopicResponse, UpdateOntologyEntryData, UpdateOntologyEntryError } from '../types.gen';
 
 /**
  * Delete Job
@@ -214,7 +214,7 @@ export const documentsGetAllInfiniteQueryKey = (options?: Options<DocumentsGetAl
  * List Documents
  */
 export const documentsGetAllInfiniteOptions = (options?: Options<DocumentsGetAllData>) => {
-    const opts = infiniteQueryOptions<DocumentsGetAllResponse, DocumentsGetAllError, InfiniteData<DocumentsGetAllResponse>, QueryKey<Options<DocumentsGetAllData>>, number | Pick<QueryKey<Options<DocumentsGetAllData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    const opts = infiniteQueryOptions<DocumentsGetAllResponse, DocumentsGetAllError, InfiniteData<DocumentsGetAllResponse>, QueryKey<Options<DocumentsGetAllData>>, number | null | Pick<QueryKey<Options<DocumentsGetAllData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
     // @ts-ignore
     {
         queryFn: async ({ pageParam, queryKey, signal }) => {
@@ -483,3 +483,147 @@ export const precomputedStatsGetByNameOptions = (options: Options<PrecomputedSta
     },
     queryKey: precomputedStatsGetByNameQueryKey(options)
 });
+
+export const searchDocumentsQueryKey = (options: Options<SearchDocumentsData>) => createQueryKey('searchDocuments', options);
+
+/**
+ * Search Documents
+ */
+export const searchDocumentsOptions = (options: Options<SearchDocumentsData>) => queryOptions<SearchDocumentsResponse, SearchDocumentsError, SearchDocumentsResponse, ReturnType<typeof searchDocumentsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await ApiClient.__registry.get().searchDocuments({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: searchDocumentsQueryKey(options)
+});
+
+export const searchDocumentsInfiniteQueryKey = (options: Options<SearchDocumentsData>): QueryKey<Options<SearchDocumentsData>> => createQueryKey('searchDocuments', options, true);
+
+/**
+ * Search Documents
+ */
+export const searchDocumentsInfiniteOptions = (options: Options<SearchDocumentsData>) => {
+    const opts = infiniteQueryOptions<SearchDocumentsResponse, SearchDocumentsError, InfiniteData<SearchDocumentsResponse>, QueryKey<Options<SearchDocumentsData>>, number | null | Pick<QueryKey<Options<SearchDocumentsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<SearchDocumentsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                body: {
+                    cursor: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await ApiClient.__registry.get().searchDocuments({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: searchDocumentsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const searchTopicsQueryKey = (options: Options<SearchTopicsData>) => createQueryKey('searchTopics', options);
+
+/**
+ * Search Topics
+ */
+export const searchTopicsOptions = (options: Options<SearchTopicsData>) => queryOptions<SearchTopicsResponse, SearchTopicsError, SearchTopicsResponse, ReturnType<typeof searchTopicsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await ApiClient.__registry.get().searchTopics({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: searchTopicsQueryKey(options)
+});
+
+export const searchTopicsInfiniteQueryKey = (options: Options<SearchTopicsData>): QueryKey<Options<SearchTopicsData>> => createQueryKey('searchTopics', options, true);
+
+/**
+ * Search Topics
+ */
+export const searchTopicsInfiniteOptions = (options: Options<SearchTopicsData>) => {
+    const opts = infiniteQueryOptions<SearchTopicsResponse, SearchTopicsError, InfiniteData<SearchTopicsResponse>, QueryKey<Options<SearchTopicsData>>, number | null | Pick<QueryKey<Options<SearchTopicsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<SearchTopicsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                body: {
+                    cursor: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await ApiClient.__registry.get().searchTopics({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: searchTopicsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const searchAnnotationsQueryKey = (options: Options<SearchAnnotationsData>) => createQueryKey('searchAnnotations', options);
+
+/**
+ * Search Annotations
+ */
+export const searchAnnotationsOptions = (options: Options<SearchAnnotationsData>) => queryOptions<SearchAnnotationsResponse, SearchAnnotationsError, SearchAnnotationsResponse, ReturnType<typeof searchAnnotationsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await ApiClient.__registry.get().searchAnnotations({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: searchAnnotationsQueryKey(options)
+});
+
+export const searchAnnotationsInfiniteQueryKey = (options: Options<SearchAnnotationsData>): QueryKey<Options<SearchAnnotationsData>> => createQueryKey('searchAnnotations', options, true);
+
+/**
+ * Search Annotations
+ */
+export const searchAnnotationsInfiniteOptions = (options: Options<SearchAnnotationsData>) => {
+    const opts = infiniteQueryOptions<SearchAnnotationsResponse, SearchAnnotationsError, InfiniteData<SearchAnnotationsResponse>, QueryKey<Options<SearchAnnotationsData>>, number | null | Pick<QueryKey<Options<SearchAnnotationsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<SearchAnnotationsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                body: {
+                    cursor: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await ApiClient.__registry.get().searchAnnotations({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: searchAnnotationsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};

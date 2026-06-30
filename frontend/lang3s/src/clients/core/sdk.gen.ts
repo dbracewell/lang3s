@@ -4,8 +4,8 @@ import * as z from 'zod';
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddOntologyEntryData, AddOntologyEntryErrors, AddOntologyEntryResponses, DeleteOntologyEntryData, DeleteOntologyEntryErrors, DeleteOntologyEntryResponses, DocumentsGetAllData, DocumentsGetAllErrors, DocumentsGetAllResponses, EmbedEmbedPostData, EmbedEmbedPostErrors, EmbedEmbedPostResponses, JobsCreateJobData, JobsCreateJobErrors, JobsCreateJobResponses, JobsDeleteJobData, JobsDeleteJobErrors, JobsDeleteJobResponses, JobsGetJobData, JobsGetJobErrors, JobsGetJobResponses, JobsListJobsData, JobsListJobsErrors, JobsListJobsResponses, JobsUpdateJobData, JobsUpdateJobErrors, JobsUpdateJobResponses, MetadataCreateData, MetadataCreateErrors, MetadataCreateResponses, MetadataDeleteData, MetadataDeleteErrors, MetadataDeleteResponses, MetadataGetBySourceData, MetadataGetBySourceErrors, MetadataGetBySourceResponses, MetadataProbeData, MetadataProbeErrors, MetadataProbeResponses, MetadataUpdateData, MetadataUpdateErrors, MetadataUpdateResponses, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentErrors, OntologyGetAnnotationsForDocumentResponses, OntologyGetData, OntologyGetErrors, OntologyGetNodePathData, OntologyGetNodePathErrors, OntologyGetNodePathResponses, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsErrors, OntologyGetPotentialMappingsResponses, OntologyGetResponses, OntologyNameExistsData, OntologyNameExistsErrors, OntologyNameExistsResponses, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameErrors, PrecomputedStatsGetByNameResponses, TopicsGetTopicData, TopicsGetTopicErrors, TopicsGetTopicResponses, UpdateOntologyEntryData, UpdateOntologyEntryErrors, UpdateOntologyEntryResponses } from './types.gen';
-import { zAddOntologyEntryBody, zDeleteOntologyEntryPath, zDocumentsGetAllQuery, zDocumentsGetAllResponse, zEmbedEmbedPostBody, zJobsCreateJobBody, zJobsCreateJobResponse, zJobsDeleteJobPath, zJobsDeleteJobResponse, zJobsGetJobPath, zJobsGetJobResponse, zJobsListJobsResponse, zJobsUpdateJobBody, zJobsUpdateJobResponse, zMetadataCreateBody, zMetadataDeletePath, zMetadataDeleteResponse, zMetadataGetBySourceResponse, zMetadataProbeResponse, zMetadataUpdateBody, zMetadataUpdateResponse, zOntologyGetAnnotationsForDocumentPath, zOntologyGetAnnotationsForDocumentResponse, zOntologyGetNodePathPath, zOntologyGetNodePathResponse, zOntologyGetPotentialMappingsResponse, zOntologyGetResponse, zOntologyNameExistsPath, zOntologyNameExistsResponse, zPrecomputedStatsGetByNamePath, zPrecomputedStatsGetByNameResponse, zTopicsGetTopicPath, zTopicsGetTopicResponse, zUpdateOntologyEntryBody } from './zod.gen';
+import type { AddOntologyEntryData, AddOntologyEntryErrors, AddOntologyEntryResponses, DeleteOntologyEntryData, DeleteOntologyEntryErrors, DeleteOntologyEntryResponses, DocumentsGetAllData, DocumentsGetAllErrors, DocumentsGetAllResponses, EmbedEmbedPostData, EmbedEmbedPostErrors, EmbedEmbedPostResponses, JobsCreateJobData, JobsCreateJobErrors, JobsCreateJobResponses, JobsDeleteJobData, JobsDeleteJobErrors, JobsDeleteJobResponses, JobsGetJobData, JobsGetJobErrors, JobsGetJobResponses, JobsListJobsData, JobsListJobsErrors, JobsListJobsResponses, JobsUpdateJobData, JobsUpdateJobErrors, JobsUpdateJobResponses, MetadataCreateData, MetadataCreateErrors, MetadataCreateResponses, MetadataDeleteData, MetadataDeleteErrors, MetadataDeleteResponses, MetadataGetBySourceData, MetadataGetBySourceErrors, MetadataGetBySourceResponses, MetadataProbeData, MetadataProbeErrors, MetadataProbeResponses, MetadataUpdateData, MetadataUpdateErrors, MetadataUpdateResponses, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentErrors, OntologyGetAnnotationsForDocumentResponses, OntologyGetData, OntologyGetErrors, OntologyGetNodePathData, OntologyGetNodePathErrors, OntologyGetNodePathResponses, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsErrors, OntologyGetPotentialMappingsResponses, OntologyGetResponses, OntologyNameExistsData, OntologyNameExistsErrors, OntologyNameExistsResponses, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameErrors, PrecomputedStatsGetByNameResponses, SearchAnnotationsData, SearchAnnotationsErrors, SearchAnnotationsResponses, SearchDocumentsData, SearchDocumentsErrors, SearchDocumentsResponses, SearchTopicsData, SearchTopicsErrors, SearchTopicsResponses, TopicsGetTopicData, TopicsGetTopicErrors, TopicsGetTopicResponses, UpdateOntologyEntryData, UpdateOntologyEntryErrors, UpdateOntologyEntryResponses } from './types.gen';
+import { zAddOntologyEntryBody, zDeleteOntologyEntryPath, zDocumentsGetAllQuery, zDocumentsGetAllResponse, zEmbedEmbedPostBody, zJobsCreateJobBody, zJobsCreateJobResponse, zJobsDeleteJobPath, zJobsDeleteJobResponse, zJobsGetJobPath, zJobsGetJobResponse, zJobsListJobsResponse, zJobsUpdateJobBody, zJobsUpdateJobResponse, zMetadataCreateBody, zMetadataDeletePath, zMetadataDeleteResponse, zMetadataGetBySourceResponse, zMetadataProbeResponse, zMetadataUpdateBody, zMetadataUpdateResponse, zOntologyGetAnnotationsForDocumentPath, zOntologyGetAnnotationsForDocumentResponse, zOntologyGetNodePathPath, zOntologyGetNodePathResponse, zOntologyGetPotentialMappingsResponse, zOntologyGetResponse, zOntologyNameExistsPath, zOntologyNameExistsResponse, zPrecomputedStatsGetByNamePath, zPrecomputedStatsGetByNameResponse, zSearchAnnotationsBody, zSearchAnnotationsResponse, zSearchDocumentsBody, zSearchDocumentsResponse, zSearchTopicsBody, zSearchTopicsResponse, zTopicsGetTopicPath, zTopicsGetTopicResponse, zUpdateOntologyEntryBody } from './zod.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -432,6 +432,66 @@ export class ApiClient extends HeyApiClient {
             responseValidator: async (data) => await zPrecomputedStatsGetByNameResponse.parseAsync(data),
             url: '/stats/{name}',
             ...options
+        });
+    }
+    
+    /**
+     * Search Documents
+     */
+    public searchDocuments<ThrowOnError extends boolean = false>(options: Options<SearchDocumentsData, ThrowOnError>): RequestResult<SearchDocumentsResponses, SearchDocumentsErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<SearchDocumentsResponses, SearchDocumentsErrors, ThrowOnError>({
+            requestValidator: async (data) => await z.object({
+                body: zSearchDocumentsBody,
+                path: z.never().optional(),
+                query: z.never().optional()
+            }).parseAsync(data),
+            responseValidator: async (data) => await zSearchDocumentsResponse.parseAsync(data),
+            url: '/search/docs',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+    
+    /**
+     * Search Topics
+     */
+    public searchTopics<ThrowOnError extends boolean = false>(options: Options<SearchTopicsData, ThrowOnError>): RequestResult<SearchTopicsResponses, SearchTopicsErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<SearchTopicsResponses, SearchTopicsErrors, ThrowOnError>({
+            requestValidator: async (data) => await z.object({
+                body: zSearchTopicsBody,
+                path: z.never().optional(),
+                query: z.never().optional()
+            }).parseAsync(data),
+            responseValidator: async (data) => await zSearchTopicsResponse.parseAsync(data),
+            url: '/search/topics',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+    
+    /**
+     * Search Annotations
+     */
+    public searchAnnotations<ThrowOnError extends boolean = false>(options: Options<SearchAnnotationsData, ThrowOnError>): RequestResult<SearchAnnotationsResponses, SearchAnnotationsErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<SearchAnnotationsResponses, SearchAnnotationsErrors, ThrowOnError>({
+            requestValidator: async (data) => await z.object({
+                body: zSearchAnnotationsBody,
+                path: z.never().optional(),
+                query: z.never().optional()
+            }).parseAsync(data),
+            responseValidator: async (data) => await zSearchAnnotationsResponse.parseAsync(data),
+            url: '/search/annotations',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
         });
     }
 }

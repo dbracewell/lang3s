@@ -1,19 +1,26 @@
-from typing import Optional
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, WithJsonSchema
 
 
 class PaginatedQuery(BaseModel):
-    cursor: int = Field(default=1, ge=1)
+    cursor: Annotated[
+        int | None,
+        WithJsonSchema(
+            {"nullable": True, "type": "integer", "minimum": 1, "default": 1}
+        ),
+    ] = 1
     limit: int = Field(default=5, ge=5)
 
     @property
     def offset(self) -> int:
-        return (self.cursor - 1) * self.limit
+        cursor = self.cursor or 1
+        return (cursor - 1) * self.limit
 
     def generate_page(self, r: list) -> tuple[int | None, list]:
+        cursor = self.cursor or 1
         if len(r) > self.limit:
-            return self.cursor + 1, r[:-1]
+            return cursor + 1, r[:-1]
         return None, r
 
 

@@ -1,11 +1,9 @@
 import math
 from typing import Any, Literal
 
-from lang3s.core.exceptions import BadDataException
-from lang3s.data.models.global_metadata import DataType
 from lang3s.data.schemas.global_metadata import GlobalMetadataBySource
 from lang3s.services.analytics import AnalyticsDB, template_engine
-from lang3s.services.models.charting_models import (
+from lang3s.services.schemas.charting_api_schema import (
     ChartData,
     ChartDataRequest,
     ChartResult,
@@ -43,7 +41,8 @@ class ChartingRepository:
 
         if request.y is None:
             order_by = request.x.type.get_order_by_clause(
-                request.x.data_type, count_type=request.count_type
+                request.x.data_type,
+                count_type=request.count_type,
             )
             query = f"""
                                 WITH

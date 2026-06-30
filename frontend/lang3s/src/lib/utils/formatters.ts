@@ -39,7 +39,7 @@ export const formatURL = (
   path: string,
   searchParams: Record<
     string,
-    string | number | boolean | null | undefined | string[]
+    string | number | boolean | null | undefined | string[] | number[]
   >,
 ) => {
   const paramBuilder = new URLSearchParams();

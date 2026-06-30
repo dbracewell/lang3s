@@ -20,6 +20,7 @@ from lang3s.data.models import TextAnnotation as TextAnnotationModel
 from lang3s.data.schemas.validators import NumpyArray
 
 from .annotation_types import AnnotationTypes
+from .common import PaginatedResponse
 from .metadata import Metadata
 
 
@@ -782,3 +783,13 @@ class Event(BaseModel):
 
     def __repr__(self) -> str:
         return str(self)
+
+
+class DocumentInfo(BaseModel):
+    id: str
+    title: str
+    snippet: str
+
+
+class DocumentListResponse(PaginatedResponse[DocumentInfo]):
+    pass

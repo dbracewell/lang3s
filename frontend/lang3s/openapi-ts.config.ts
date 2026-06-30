@@ -16,6 +16,17 @@ export default [
         },
       },
     ],
+    parser: {
+      hooks: {
+        operations: {
+          getKind: (op) => {
+            if (op.method === "post" && op.path.includes("/search")) {
+              return ["query"];
+            }
+          },
+        },
+      },
+    },
   },
   {
     input: "http://localhost:8003/analytics/openapi.json",

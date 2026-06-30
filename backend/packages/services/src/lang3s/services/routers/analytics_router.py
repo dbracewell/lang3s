@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends
 from lang3s.core.logger import get_logger
 from lang3s.services.analytics import get_analytics_db
 from lang3s.services.helpers import ErrorDetail
-from lang3s.services.models.analytics_models import (
+from lang3s.services.repositories.analytics_repository import AnalyticsRepository
+from lang3s.services.schemas.analytics_api_schema import (
     AnnotationCohortInformationRequest,
     AnnotationCoOccurrenceRequest,
     AnnotationCoOccurrenceResult,
@@ -18,7 +19,6 @@ from lang3s.services.models.analytics_models import (
     CohortClustering,
     CohortInformationResult,
 )
-from lang3s.services.repositories.analytics_repository import AnalyticsRepository
 
 logger = get_logger(__name__)
 

@@ -1,10 +1,10 @@
-import { Chart } from "@/features/reports/types";
 import { cn } from "@/lib/utils/cn";
 import React, { CSSProperties, useEffect, useRef, useState } from "react";
 import { select } from "d3-selection";
 import * as d3 from "d3";
-import { truncateLabel } from "@/features/reports/utils";
 import type { ChartData, ChartSeries, CountType } from "@/clients/analytics";
+import { selectCountValue, truncateLabel } from "@/features/reports/lib/utils";
+import { formatCountTypeName } from "@/features/reports/lib/formatters";
 
 type HeatMapProps = {
   data: ChartData[];
@@ -69,7 +69,7 @@ export const HeatMap = ({
       .reverse();
     const maxvalue = Math.max(
       ...data.map((d) =>
-        d.text1 === d.text2 ? 0 : Chart.getCount(d, countType),
+        d.text1 === d.text2 ? 0 : selectCountValue(d, countType),
       ),
     );
     const x = d3
@@ -141,7 +141,7 @@ export const HeatMap = ({
       .attr("width", x.bandwidth())
       .attr("height", y.bandwidth())
       .style("fill", function (d) {
-        return myColor(Math.log(Chart.getCount(d, countType)));
+        return myColor(Math.log(selectCountValue(d, countType)));
       })
       .style("stroke-width", 2)
       .style("stroke", "none")
@@ -150,7 +150,7 @@ export const HeatMap = ({
         tooltip
           .style("visibility", "visible")
           .html(
-            `<p>X Axis: <b>${d.text1}</b></p><p>Y Axis: <b>${d.text2}</b></p><p>${Chart.formatCountTypeName(countType)}: <b>${Chart.getCount(d, countType)}</b></p>`,
+            `<p>X Axis: <b>${d.text1}</b></p><p>Y Axis: <b>${d.text2}</b></p><p>${formatCountTypeName(countType)}: <b>${selectCountValue(d, countType)}</b></p>`,
           );
         d3.select(this)
           .style("stroke", "var(--color-foreground)")

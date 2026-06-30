@@ -11,7 +11,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { MinusIcon, PlusIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Chart } from "@/features/reports/types";
 import {
   DefaultOntologyTrigger,
   OntologySelectorDialog,
@@ -27,13 +26,19 @@ import {
   GlobalMetadataLinkedSource,
 } from "@/clients/core";
 import { SeriesType } from "@/clients/analytics";
+import { formatMetadataType } from "@/features/reports/lib/formatters";
+import {
+  createSelectableCountTypes,
+  selectAllowableCountTypes,
+  SeriesSelectOptions,
+} from "@/features/reports/lib/utils";
 
 const getMetadataOptions = (
   metadata: GlobalMetadataBySource,
   source: SeriesType,
 ) => {
   if (metadata == null) return [];
-  const metadataType = Chart.getMetadataType(source);
+  const metadataType = formatMetadataType(source);
   const records: Record<string, GlobalMetadataLinkedSource> =
     metadataType === "documents"
       ? metadata.documents
@@ -100,18 +105,18 @@ export const DualAxisForm = () => {
   const countType = form.watch("count");
 
   const countTypeOptions = useMemo(() => {
-    return Chart.getCountSelectOptions(x.type, y?.type);
+    return createSelectableCountTypes(x.type, y?.type);
   }, [x.type, y?.type]);
 
   useEffect(() => {
     const currentCountType = form.getValues("count");
     if (!!currentCountType) return;
-    const possibleTypes = Chart.getCountTypes(x.type, y?.type);
+    const possibleTypes = selectAllowableCountTypes(x.type, y?.type);
     form.setValue("count", possibleTypes[0]);
   }, [x, y, countTypeOptions, form]);
 
   const updateCountType = (xType: SeriesType, yType?: SeriesType) => {
-    const possibleTypes = Chart.getCountTypes(xType, yType);
+    const possibleTypes = selectAllowableCountTypes(xType, yType);
     if (possibleTypes.length === 1 || !possibleTypes.includes(countType)) {
       form.setValue("count", possibleTypes[0]);
     }
@@ -245,7 +250,7 @@ const SeriesInformation = <T extends FieldValues>({
   return (
     <div className="flex flex-col gap-4">
       <SelectFormField
-        options={Chart.sourceSelectOptions}
+        options={SeriesSelectOptions}
         reactHookForm={form}
         name={typeField}
         label="Series Element"

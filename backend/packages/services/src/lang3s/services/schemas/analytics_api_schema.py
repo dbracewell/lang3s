@@ -2,7 +2,7 @@ from typing import Annotated, List, Literal
 
 from pydantic import BaseModel, Field, RootModel, WithJsonSchema
 
-from lang3s.services.models.common import PaginatedResponse
+from lang3s.data.schemas.common import PaginatedResponse
 
 
 class AnnotationCountsRequest(BaseModel):
