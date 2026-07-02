@@ -46,7 +46,7 @@ from lang3s.data.schemas.claim import DocumentClaimRequest
 from lang3s.data.schemas.job import JobMessage, JobUpdateRequest
 from lang3s.nlp.analytics.corpus import corpus_summarization, probe_metadata
 from lang3s.nlp.pipeline import pipeline
-from lang3s.services.models.topics_models import Task
+from lang3s.services.schemas.topics_api_schema import Task
 
 
 def get_local_logger():
@@ -190,6 +190,8 @@ async def annotation_worker(event: Event[AnnotationTask]) -> Event[WorkerResult]
     pid = os.getpid()
     logger = get_local_logger()
     task = event.payload
+
+    logger.info(f"Began processing {len(task.files)} files (WORKER {pid})")
 
     async with async_db_session() as session:
         try:

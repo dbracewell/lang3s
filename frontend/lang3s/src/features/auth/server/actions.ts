@@ -4,7 +4,7 @@ import { apikey as ApiKeyTable, user as UserTable } from "@/lib/db/schema";
 import { t3env } from "@/lib/t3env";
 import { auth } from "@/lib/auth/auth";
 import { logAndRethrow } from "@/lib/utils/try-catch";
-import { BasicUserInfo } from "@/features/common/types";
+import { BasicUserInfo, FullUserInfo } from "@/features/common/types";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -12,33 +12,182 @@ import { cache } from "react";
 import {
   AdminAccountSchema,
   AdminAccountSchemaType,
+  UserAccountEditSchema,
+  UserAccountEditSchemaType,
+  UserAccountSchema,
+  UserAccountSchemaType,
 } from "@/features/auth/schemas";
 import { Permission, UserRole } from "@/lib/auth/permissions";
 import { RolePermissions } from "@/lib/auth/role-permissions";
-import { TRPCError } from "@trpc/server";
+import { PAGE_LIMIT } from "@/features/common/constants";
+import { UserType } from "@/features/auth/ui/components/UserListColumns";
+import {
+  NAVIGATION_LINKS,
+  NavigationGroup,
+  NavigationItem,
+} from "@/features/common/navigation";
 
 export const requireAdmin = cache(async () => {
-  const user = await getUser();
+  const user = await getCurrentUser();
   if (user.role !== "admin") {
     redirect("/");
   }
   return user;
 });
 
-export const getUser = cache(async (): Promise<BasicUserInfo> => {
+export const getUserAndNavigation = cache(async () => {
+  const user = await getCurrentUser();
+  const links: NavigationGroup[] = [];
+  for (const section of NAVIGATION_LINKS) {
+    const hasSectionPermission =
+      section.permissions == null ||
+      (await roleHasPermissions(user.role, section.permissions));
+    if (hasSectionPermission) {
+      const trimmed: NavigationItem[] = [];
+      for (const link of section.links) {
+        if (link.separator) {
+          trimmed.push(link);
+        } else {
+          const hasLinkPermission =
+            link.permissions == null ||
+            (await roleHasPermissions(user.role, link.permissions));
+          if (hasLinkPermission) {
+            trimmed.push(link);
+          }
+        }
+      }
+      section.links = trimmed;
+      links.push(section);
+    }
+  }
+  return {
+    user,
+    navigation: links,
+  };
+});
+
+export const getCurrentUser = cache(async (): Promise<FullUserInfo> => {
+  const headersList = await headers();
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: headersList,
   });
   if (!session?.user || session.user.role == null) {
     redirect("/sign-in");
   }
+  const apiKeys = await auth.api.listApiKeys({
+    headers: headersList,
+  });
   return {
     id: session.user.id,
     username: session.user.username as string,
     role: session.user.role as UserRole,
     name: session.user.name,
+    email: session.user.email as string,
+    keys: [
+      ...apiKeys.values().map((key) => ({
+        id: key.id,
+        name: key.name ?? undefined,
+        key: key.id,
+      })),
+    ],
   };
 });
+
+export const removeUser = async (userId: string) => {
+  await requireAdmin();
+  const result = await auth.api.removeUser({
+    headers: await headers(),
+    body: {
+      userId: userId,
+    },
+  });
+  return result.success;
+};
+
+export const listUsers = async (page: number) => {
+  await requireAdmin();
+  const actualPage = Number.isNaN(page) || page < 1 ? 1 : page;
+  const { users } = await auth.api.listUsers({
+    headers: await headers(),
+    query: {
+      limit: PAGE_LIMIT,
+      offset: actualPage - 1,
+      sortBy: "name",
+      filterField: "role",
+      filterValue: "admin",
+      filterOperator: "ne",
+    },
+  });
+  return users.map((u) => ({
+    ...u,
+    role: u.role as UserRole,
+  })) as UserType[];
+};
+
+export const createUser = async (user: UserAccountSchemaType) => {
+  await requireAdmin();
+  const parsed = UserAccountSchema.safeParse(user);
+  if (!parsed.success) {
+    return {
+      code: 400,
+      message: "Username already taken",
+      path: "username",
+    };
+  }
+
+  const headersList = await headers();
+
+  const usernameResult = await auth.api.isUsernameAvailable({
+    headers: headersList,
+    body: {
+      username: parsed.data.username,
+    },
+  });
+
+  if (!usernameResult.available) {
+    return {
+      code: 400,
+      message: "Username already taken",
+      path: "username",
+    };
+  }
+
+  try {
+    const { user } = await auth.api.createUser({
+      headers: headersList,
+      body: {
+        ...parsed.data,
+        data: { username: parsed.data.username },
+      },
+    });
+    return { code: 200, userId: user.id };
+  } catch (error) {
+    if (error instanceof Error) {
+      return { code: 400, message: error.message, path: "email" };
+    }
+    return { code: 500, message: "Something went wrong" };
+  }
+};
+
+export const updateUser = async (user: UserAccountEditSchemaType) => {
+  await requireAdmin();
+  const parsed = UserAccountEditSchema.safeParse(user);
+  if (!parsed.success) {
+    return {
+      code: 400,
+    };
+  }
+  return await auth.api.adminUpdateUser({
+    headers: await headers(),
+    body: {
+      userId: parsed.data.userId,
+      data: {
+        role: parsed.data.role,
+        banned: !parsed.data.isActive,
+      },
+    },
+  });
+};
 
 export const getUserRoleByApiKey = cache(async (apiKey: string) => {
   const user = await getUserByApiKey(apiKey);
@@ -46,6 +195,12 @@ export const getUserRoleByApiKey = cache(async (apiKey: string) => {
 });
 
 export const getUserByApiKey = cache(async (apiKey: string) => {
+  auth.api.getApiKey({
+    headers: await headers(),
+    query: {
+      id: apiKey,
+    },
+  });
   const [user] = await logAndRethrow(() =>
     db
       .select()
@@ -111,19 +266,6 @@ export const createAdminAccount = async (values: AdminAccountSchemaType) => {
   }
 };
 
-export const getUserApiKeys = async (userId: string) => {
-  return await logAndRethrow(() =>
-    db
-      .select({
-        id: ApiKeyTable.id,
-        name: ApiKeyTable.name,
-        key: ApiKeyTable.key,
-      })
-      .from(ApiKeyTable)
-      .where(eq(ApiKeyTable.userId, userId)),
-  );
-};
-
 export const roleHasPermissions = cache(
   async (
     role: UserRole,
@@ -156,7 +298,7 @@ export const requirePermissions = cache(
     );
     if (!hasApiPermission) {
       if (!user) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
+        throw new Error("UNAUTHORIZED");
       }
       const hasUserPermissions = await roleHasPermissions(
         user.role,
@@ -164,7 +306,7 @@ export const requirePermissions = cache(
         requireAll,
       );
       if (!hasUserPermissions) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
+        throw new Error("UNAUTHORIZED");
       }
     }
   },

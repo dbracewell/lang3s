@@ -11,6 +11,7 @@ class EffectiveSearchParams(PaginatedQuery):
     q: str | None = None
     embedding: np.ndarray | None = None
     is_strict: bool = False
+    has_case: bool = False
 
 
 class SearchParams(PaginatedQuery):
@@ -42,12 +43,6 @@ class SearchParams(PaginatedQuery):
     ]
 
 
-class Highlight(BaseModel):
-    document_id: str
-    sentence_id: str
-    text: str
-
-
 class SearchResults[T](BaseModel):
     next_cursor: Annotated[
         int | None,
@@ -57,16 +52,33 @@ class SearchResults[T](BaseModel):
     total: int
 
 
+class DocumentHighlight(BaseModel):
+    document_id: str
+    sentence_id: str
+    text: str
+
+
 class DocumentSearchResult(BaseModel):
     document_id: str
     document_title: str
-    highlights: list[Highlight]
+    highlights: list[DocumentHighlight]
+
+
+class TopicHighlight(BaseModel):
+    sentence_id: str
+    text: str
+
+
+class TopicDocSearchResult(BaseModel):
+    document_id: str
+    document_title: str
+    highlights: list[TopicHighlight]
 
 
 class TopicSearchResult(BaseModel):
     id: int
     name: str
-    highlights: list[Highlight]
+    docs: list[TopicDocSearchResult]
 
 
 class AnnotationHighlight(BaseModel):
@@ -98,3 +110,8 @@ class TopicSearchResults(SearchResults[TopicSearchResult]):
 
 class AnnotationSearchResults(SearchResults[AnnotationSearchResult]):
     pass
+
+
+class HumanizedQuery(BaseModel):
+    annotations: list[str]
+    topics: list[str]

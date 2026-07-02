@@ -11,14 +11,14 @@ import {
 import * as React from "react";
 import { Suspense } from "react";
 import Link from "next/link";
-import { NavigationGroup, useNavigation } from "@/features/common/navigation";
+import { NavigationGroup } from "@/features/common/navigation";
 import { DynamicIcon } from "@/components/DynamicIcon";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import { SearchBar } from "@/features/search/ui/components/SearchBar";
 import { UserButton } from "@/components/buttons/UserButton";
 import { useAnalyticsUpdate } from "@/features/events/hooks/useAnalyticsUpdate";
-import { useUser } from "@/features/auth/contexts/UserContext";
+import { useNavigation, useUser } from "@/features/auth/contexts/UserContext";
 import { useAtomValue } from "jotai";
 import { currentProjectAtom } from "@/features/projects/store/projectStore";
 import { useChatWindowStatus } from "@/features/chat/hooks/useChatWindowStatus";

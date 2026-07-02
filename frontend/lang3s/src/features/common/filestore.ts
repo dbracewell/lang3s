@@ -26,7 +26,6 @@ export class FileStore {
   async getLang3sDocument(id: string) {
     const filePath = path.join(this.basePath, "documents", `${id}.msgpack`);
     const deserializedData = decode(await fs.readFile(filePath));
-    console.log(deserializedData);
     return DocumentSchema.parse(deserializedData);
   }
 

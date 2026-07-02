@@ -127,7 +127,6 @@ class SyncDatabaseSessionManager:
 
 
 session_manager = DatabaseSessionManager()
-
 sync_session_manager = SyncDatabaseSessionManager()
 
 _ontology: Ontology | None = None
@@ -152,35 +151,29 @@ async def get_db_session():
 
 
 @contextmanager
-def sync_db_session(autocommit: bool = True):
-    temp_manager = SyncDatabaseSessionManager()
-    temp_manager.init()
-    try:
-        with temp_manager.session() as session:
+def sync_db_session(autocommit: bool = False):
+    sync_session_manager.init()
+    with sync_session_manager.session() as session:
+        try:
             yield session
             if autocommit:
                 session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        temp_manager.close()
+        except Exception:
+            session.rollback()
+            raise
 
 
 @asynccontextmanager
 async def async_db_session(autocommit: bool = False):
-    temp_manager = DatabaseSessionManager()
-    temp_manager.init()
-    try:
-        async with temp_manager.session() as session:
+    session_manager.init()
+    async with session_manager.session() as session:
+        try:
             yield session
             if autocommit:
                 await session.commit()
-    except Exception:
-        await session.rollback()
-        raise
-    finally:
-        await temp_manager.close()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 T = TypeVar("T", bound=Base)

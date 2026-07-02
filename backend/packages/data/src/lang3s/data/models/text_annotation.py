@@ -225,6 +225,11 @@ class TextAnnotation(Base):
             postgresql_using="pgroonga",
         ),
         Index(
+            "idx_text_annotations_normalized_fts",
+            "normalized",
+            postgresql_using="pgroonga",
+        ),
+        Index(
             "idx_text_annotations_embedding_hnsw",
             "embedding",
             postgresql_using="hnsw",

@@ -27,8 +27,12 @@ import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { cn } from "@/lib/utils/cn";
 import { useEffect, useMemo } from "react";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { DataTypeNames, MetadataSources } from "@/lib/db/schemas/metadata";
-import { MetadataSchema, MetadataSchemaType } from "@/features/common/schemas";
+import {
+  DataTypeNames,
+  MetadataSchema,
+  MetadataSchemaType,
+  MetadataSources,
+} from "@/features/common/schemas";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   metadataCreateMutation,
@@ -38,6 +42,7 @@ import {
 import { coreClient } from "@/lib/api";
 import { Spinner } from "@/components/Spinner";
 import { toast } from "sonner";
+import { MetadataSource } from "@/clients/core";
 
 const SourceOptions = MetadataSources.map(
   (source) =>
@@ -151,7 +156,7 @@ export const MetadataDialog = () => {
           name: values.name,
           data_type: values.dataType,
           formatter: values.formatter,
-          source: values.source,
+          source: values.source as MetadataSource,
         },
       });
     }

@@ -9,8 +9,10 @@ export const CopyButton = ({
   className,
   variant = "ghost",
   size = "icon",
+  disabled = false,
 }: {
   text: string;
+  disabled?: boolean;
   className?: string;
   variant?: VariantProps<typeof buttonVariants>["variant"];
   size?: VariantProps<typeof buttonVariants>["size"];
@@ -31,7 +33,7 @@ export const CopyButton = ({
     <Button
       variant={variant}
       size={size}
-      disabled={copied}
+      disabled={copied || disabled}
       onClick={onCopy}
       className={className}
     >

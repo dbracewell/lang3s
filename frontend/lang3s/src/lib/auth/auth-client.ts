@@ -3,6 +3,7 @@ import {
   adminClient,
   apiKeyClient,
   inferAdditionalFields,
+  jwtClient,
   usernameClient,
 } from "better-auth/client/plugins";
 import {
@@ -18,6 +19,7 @@ import { nextCookies } from "better-auth/next-js";
 export const authClient = createAuthClient({
   plugins: [
     inferAdditionalFields(),
+    jwtClient(),
     usernameClient(),
     apiKeyClient(),
     adminClient({

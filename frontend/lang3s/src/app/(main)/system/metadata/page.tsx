@@ -1,4 +1,7 @@
-import { getUser, roleHasPermissions } from "@/features/auth/server/actions";
+import {
+  getCurrentUser,
+  roleHasPermissions,
+} from "@/features/auth/server/actions";
 import { redirect } from "next/navigation";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import Link from "next/link";
@@ -8,7 +11,7 @@ import { MetadataTable } from "@/features/metadata/ui/components/MetadataTable";
 import { MetadataDialog } from "@/features/metadata/ui/components/MetadataDialog";
 
 const Page = async () => {
-  const user = await getUser();
+  const user = await getCurrentUser();
   if (!(await roleHasPermissions(user.role, ["metadata:edit"]))) {
     redirect("/");
   }

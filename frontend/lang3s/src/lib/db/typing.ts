@@ -1,14 +1,4 @@
-import { AnyColumn, isSQLWrapper, sql, SQL, type Table } from "drizzle-orm";
-
-export type PickColumns<T extends Table, K extends keyof T["_"]["columns"]> = {
-  [P in K]: T["_"]["columns"][P];
-};
-
-export type CoalesceArgument<T> =
-  | T
-  | SQL<T>
-  | SQL.Aliased<T>
-  | AnyColumn<{ data: T }>;
+import { AnyColumn, isSQLWrapper, sql, SQL } from "drizzle-orm";
 
 export type InferValue<T> =
   // 1. Handle SQL<T> (Raw SQL chunks)

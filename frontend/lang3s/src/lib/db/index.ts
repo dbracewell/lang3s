@@ -1,4 +1,4 @@
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
 import { t3env } from "@/lib/t3env";
 

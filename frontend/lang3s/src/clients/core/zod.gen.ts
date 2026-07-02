@@ -69,6 +69,15 @@ export const zDataType = z.enum([
 ]);
 
 /**
+ * DocumentHighlight
+ */
+export const zDocumentHighlight = z.object({
+    document_id: z.string(),
+    sentence_id: z.string(),
+    text: z.string()
+});
+
+/**
  * DocumentInfo
  */
 export const zDocumentInfo = z.object({
@@ -92,6 +101,24 @@ export const zDocumentListResponse = z.object({
         z.int(),
         z.unknown()
     ]).optional()
+});
+
+/**
+ * DocumentSearchResult
+ */
+export const zDocumentSearchResult = z.object({
+    document_id: z.string(),
+    document_title: z.string(),
+    highlights: z.array(zDocumentHighlight)
+});
+
+/**
+ * DocumentSearchResults
+ */
+export const zDocumentSearchResults = z.object({
+    next_cursor: z.int().nullable(),
+    results: z.array(zDocumentSearchResult),
+    total: z.int()
 });
 
 /**
@@ -123,30 +150,11 @@ export const zGlobalMetadataAvailable = z.object({
 export const zGlobalMetadataAvailableList = z.array(zGlobalMetadataAvailable);
 
 /**
- * Highlight
+ * HumanizedQuery
  */
-export const zHighlight = z.object({
-    document_id: z.string(),
-    sentence_id: z.string(),
-    text: z.string()
-});
-
-/**
- * DocumentSearchResult
- */
-export const zDocumentSearchResult = z.object({
-    document_id: z.string(),
-    document_title: z.string(),
-    highlights: z.array(zHighlight)
-});
-
-/**
- * DocumentSearchResults
- */
-export const zDocumentSearchResults = z.object({
-    next_cursor: z.int().nullable(),
-    results: z.array(zDocumentSearchResult),
-    total: z.int()
+export const zHumanizedQuery = z.object({
+    annotations: z.array(z.string()),
+    topics: z.array(z.string())
 });
 
 /**
@@ -445,7 +453,7 @@ export const zPreComputedStats = z.object({
  */
 export const zSearchParams = z.object({
     cursor: z.int().gte(1).nullish().default(1),
-    limit: z.int().gte(5).optional().default(5),
+    limit: z.int().gte(5).optional().default(25),
     q: z.string().nullish(),
     aid: z.array(z.string()).nullish(),
     sid: z.array(z.string()).nullish(),
@@ -463,12 +471,29 @@ export const zTopicEntity = z.object({
 });
 
 /**
+ * TopicHighlight
+ */
+export const zTopicHighlight = z.object({
+    sentence_id: z.string(),
+    text: z.string()
+});
+
+/**
+ * TopicDocSearchResult
+ */
+export const zTopicDocSearchResult = z.object({
+    document_id: z.string(),
+    document_title: z.string(),
+    highlights: z.array(zTopicHighlight)
+});
+
+/**
  * TopicSearchResult
  */
 export const zTopicSearchResult = z.object({
     id: z.int(),
     name: z.string(),
-    highlights: z.array(zHighlight)
+    docs: z.array(zTopicDocSearchResult)
 });
 
 /**
@@ -574,7 +599,7 @@ export const zEmbedEmbedPostBody = zEmbeddingRequest;
 
 export const zDocumentsGetAllQuery = z.object({
     cursor: z.int().gte(1).nullish().default(1),
-    limit: z.int().gte(5).optional().default(5)
+    limit: z.int().gte(5).optional().default(25)
 });
 
 /**
@@ -667,6 +692,13 @@ export const zPrecomputedStatsGetByNamePath = z.object({
  * Successful Response
  */
 export const zPrecomputedStatsGetByNameResponse = zPreComputedStats;
+
+export const zSearchHumanizeBody = zSearchParams;
+
+/**
+ * Successful Response
+ */
+export const zSearchHumanizeResponse = zHumanizedQuery;
 
 export const zSearchDocumentsBody = zSearchParams;
 

@@ -29,16 +29,5 @@ export const AnnotationColors: Record<string, string> = {
 export const PAGE_LIMIT = 25;
 export const DEFAULT_ONTOLOGY_COLOR = "SLATE";
 export const DEFAULT_MIN_SIMILARITY = 0.5;
-export const MIN_TOPIC_SIMILARITY = 0.65;
-
-export const SEARCH_DOCUMENT_CASED_THRESHOLD = 0.5;
-export const SEARCH_DOCUMENT_UNCASED_THRESHOLD = 0.3;
-
-export const SEARCH_TOPIC_CASED_THRESHOLD = 0.65;
-export const SEARCH_TOPIC_UNCASED_THRESHOLD = 0.3;
-
-export const SEARCH_ANNOTATION_CASED_THRESHOLD = 0.65;
-export const SEARCH_ANNOTATION_UNCASED_THRESHOLD = 0.35;
-
 export const ONTOLOGY_ROOT = "ALL";
 export const ONTOLOGY_ENTITY_ROOT = `${ONTOLOGY_ROOT}.Entity`;

@@ -1,11 +1,14 @@
 "use client";
 import { BasicUserInfo } from "@/features/common/types";
 import React, { createContext } from "react";
+import { NavigationGroup } from "@/features/common/navigation";
 
 export const UserContext = createContext<{
   user: BasicUserInfo | null;
+  navigation: NavigationGroup[];
 }>({
   user: null,
+  navigation: [],
 });
 
 export const useUser = (): BasicUserInfo => {
@@ -16,15 +19,27 @@ export const useUser = (): BasicUserInfo => {
   return user.user;
 };
 
+export const useNavigation = (): NavigationGroup[] => {
+  const context = React.useContext(UserContext);
+  if (context.navigation == null) {
+    throw new Error("useNavigation must be used within a UserProvider");
+  }
+  return context.navigation;
+};
+
 export const UserProvider = ({
   user,
+  navigation,
   children,
 }: {
   user: BasicUserInfo;
+  navigation: NavigationGroup[];
   children: React.ReactNode;
 }) => {
   return (
-    <UserContext.Provider value={{ user }}>{children}</UserContext.Provider>
+    <UserContext.Provider value={{ user, navigation }}>
+      {children}
+    </UserContext.Provider>
   );
 };
 

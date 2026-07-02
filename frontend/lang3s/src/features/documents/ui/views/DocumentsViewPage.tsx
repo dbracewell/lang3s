@@ -17,6 +17,7 @@ export const DocumentsViewPage = () => {
   const {
     data: docs,
     isFetchingNextPage,
+    error,
     hasNextPage,
     fetchNextPage,
   } = useInfiniteQuery({
@@ -36,6 +37,20 @@ export const DocumentsViewPage = () => {
       setContext(ctxt);
     }
   }, [docs, setContext]);
+
+  // useEffect(() => {
+  //   const t = async () => {
+  //     const docs = await new ApiClient({
+  //       client: coreClient,
+  //     }).documentsGetAll();
+  //     console.log(docs);
+  //   };
+  //   t();
+  // }, []);
+
+  if (error) {
+    console.log(error);
+  }
 
   if (docs == null) {
     return <DocumentsViewPageSkeleton />;

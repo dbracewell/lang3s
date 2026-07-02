@@ -1,26 +1,26 @@
 "use client";
 import { useConfirmationDialog } from "@/components/dialogs/ConfirmationDialog";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { UserX2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { removeUser } from "@/features/auth/server/actions";
+import { useMutation } from "@tanstack/react-query";
 
 export const DeleteUser = ({ userId }: { userId: string }) => {
   const router = useRouter();
-  const { isPending, mutate } = useTRPCMutation((trpc) => ({
-    mutation: trpc.auth.deleteUser.mutationOptions({
-      onSuccess: (data) => {
-        if (data) {
-          toast.success("Successfully removed user");
-          router.replace("/admin/users");
-          return;
-        } else {
-          toast.error("Failed to delete user");
-        }
-      },
-    }),
-  }));
+  const { isPending, mutate } = useMutation({
+    mutationFn: removeUser,
+    onSuccess: (data) => {
+      if (data) {
+        toast.success("Successfully removed user");
+        router.replace("/admin/users");
+        return;
+      } else {
+        toast.error("Failed to delete user");
+      }
+    },
+  });
   const { confirm, Dialog } = useConfirmationDialog({
     title: "Delete user",
     description: "This action cannot be undone",
@@ -29,7 +29,7 @@ export const DeleteUser = ({ userId }: { userId: string }) => {
   const onDelete = async () => {
     const ok = await confirm();
     if (ok) {
-      mutate({ userId });
+      mutate(userId);
     }
   };
   return (

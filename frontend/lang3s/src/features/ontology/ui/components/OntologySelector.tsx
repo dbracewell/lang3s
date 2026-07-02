@@ -77,9 +77,19 @@ const getBreadCrumbPart = (
   );
 };
 
-type OntNode = IsolatedOntologyEntry & {
+export type Section = {
   hasChildren: boolean;
-};
+  id: number;
+  name: string;
+  path: string;
+  description: string;
+  color: string;
+  parent_id?: number;
+  mappings?: Array<OntologyMapping>;
+  properties?: {
+    [p: string]: OntologyProperty;
+  };
+}[];
 
 type OntologyInfo = {
   ontology?: OntologyFrontEnd;
@@ -90,7 +100,7 @@ type OntologyInfo = {
   checkedNodes: string[];
   setCheckedNodes?: Dispatch<React.SetStateAction<string[]>>;
   setCurrent: (value: string) => void;
-  sections: OntNode[][];
+  sections: Section[];
 };
 
 export const OntologyContext = createContext<OntologyInfo>({
@@ -173,6 +183,8 @@ const Provider = ({
       .filter((o) => o.parent_id === ALL_NODE)
       .map((o) => ({
         ...o,
+        id: o.id!,
+        parent_id: o.parent_id ?? undefined,
         hasChildren:
           Object.values(ontology.nodes).filter((c) => c.parent_id === o.id)
             .length > 0,
@@ -198,6 +210,8 @@ const Provider = ({
         .filter((o) => o.parent_id === lastId)
         .map((o) => ({
           ...o,
+          id: o.id!,
+          parent_id: o.parent_id ?? undefined,
           hasChildren:
             Object.values(ontology.nodes).filter((c) => c.parent_id === o.id)
               .length > 0,
@@ -387,20 +401,6 @@ const SelectionSummary = () => {
   );
 };
 
-export type Section = {
-  hasChildren: boolean;
-  id?: number;
-  name: string;
-  path: string;
-  description: string;
-  color: string;
-  parent_id?: number;
-  mappings?: Array<OntologyMapping>;
-  properties?: {
-    [p: string]: OntologyProperty;
-  };
-}[];
-
 const Sections = ({
   className,
   sectionHeader,
@@ -420,6 +420,7 @@ const Sections = ({
     useOntology();
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => endRef.current?.scrollIntoView(), [current]);
+
   return (
     <div className="scrollable flex h-full flex-1 flex-col gap-2 overflow-auto">
       <div className="flex w-fit flex-1 gap-1.5">

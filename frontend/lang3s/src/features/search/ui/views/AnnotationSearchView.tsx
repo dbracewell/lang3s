@@ -43,7 +43,7 @@ export const AnnotationSearchView = () => {
       {results.pages
         .flatMap((page) => page.results)
         .map((r) => (
-          <Fragment key={JSON.stringify(r)}>
+          <Fragment key={`${r.name}-${r.path}`}>
             <details className="group flex w-full flex-col px-2 py-1 first:pt-3">
               <AnnotationFormat result={r} />
               <div className="bg-row dark:bg-background-lighter flex max-h-50 gap-3 border-x px-5 text-sm font-semibold">
@@ -54,13 +54,10 @@ export const AnnotationSearchView = () => {
                   })}
                 </span>
                 <span>
-                  {formatCount(
-                    r.docs.flatMap((d) => d.highlights.length).length,
-                    {
-                      single: "mention",
-                      plural: "mentions",
-                    },
-                  )}
+                  {formatCount(r.docs.flatMap((d) => d.highlights).length, {
+                    single: "mention",
+                    plural: "mentions",
+                  })}
                 </span>
               </div>
               <div className="bg-card flex flex-col gap-1 border p-1 px-2 text-sm">
@@ -74,13 +71,15 @@ export const AnnotationSearchView = () => {
                       <FileIcon className="size-4" /> {h.document_title}
                     </Link>
                     {h.highlights.map((highlight) => (
-                      <div key={highlight.sentence_id}>
+                      <div key={highlight.id} className="pl-5">
                         <span
                           dangerouslySetInnerHTML={{
-                            __html: highlight.annotation.replaceAll(
-                              '<span class="keyword">',
-                              "<b class='text-dodger-blue-500'>",
-                            ),
+                            __html: highlight.annotation
+                              .replaceAll(
+                                '<span class="keyword">',
+                                "<b class='text-dodger-blue-500'>",
+                              )
+                              .replaceAll("</span>", "</b>"),
                           }}
                         />
                         : {highlight.sentence}

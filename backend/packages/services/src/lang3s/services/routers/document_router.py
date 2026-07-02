@@ -2,11 +2,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from lang3s.core.exceptions import UnauthorizedException
 from lang3s.core.logger import get_logger
 from lang3s.data.repositories.text_repository import TextRepository
 from lang3s.data.schemas.common import PaginatedQuery
 from lang3s.data.schemas.text import DocumentListResponse
 from lang3s.services.helpers import DBSessionDep, ErrorDetail
+from lang3s.services.security import AuthenticatedUserId
 
 logger = get_logger(__name__)
 
@@ -38,5 +40,7 @@ document_router = APIRouter(
 async def list_documents(
     query: PaginatedQueryDep,
     repository: TextRepositoryDep,
+    claim: AuthenticatedUserId,
 ):
+    print(claim)
     return await repository.list_documents(query)

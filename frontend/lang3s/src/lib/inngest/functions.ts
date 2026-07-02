@@ -5,9 +5,8 @@ import { eq } from "drizzle-orm";
 import { roleHasPermissions } from "@/features/auth/server/actions";
 import { NonRetriableError } from "inngest";
 import { UserRole } from "@/lib/auth/permissions";
-import { user } from "@/lib/db/schemas/auth";
-import { ConfigTable } from "@/lib/db/schemas/config";
 import { putJson } from "@/lib/utils/superFetch";
+import { user } from "@/lib/db/schema";
 
 const BASE_PATH = `${process.env.PYTHON_SERVER}/analytics`;
 
@@ -17,10 +16,10 @@ export const update = inngest.createFunction(
   async ({ event, step }) => {
     try {
       await step.run("update_status", async () => {
-        return db.insert(ConfigTable).values({
-          name: "update-analytics",
-          value: "true",
-        });
+        // return db.insert(ConfigTable).values({
+        //   name: "update-analytics",
+        //   value: "true",
+        // });
       });
     } catch (e) {
       await publishMessage({
@@ -74,9 +73,9 @@ export const update = inngest.createFunction(
       throw e;
     } finally {
       await step.run("delete_status", async () => {
-        return db
-          .delete(ConfigTable)
-          .where(eq(ConfigTable.name, "update-analytics"));
+        //   return db
+        //     .delete(ConfigTable)
+        //     .where(eq(ConfigTable.name, "update-analytics"));
       });
     }
   },

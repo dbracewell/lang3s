@@ -2,11 +2,20 @@
 
 import { Provider as JotaiProvider } from "jotai";
 import { ThemeProvider } from "@/components/ui/theme-provider";
-import { TRPCReactProvider } from "@/lib/trpc/client";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { SSEProvider } from "@/lib/events/SSEProvider";
 import { Toaster } from "@/components/ui/sonner";
 import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    mutations: {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries();
+      },
+    },
+  },
+});
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -17,11 +26,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
     >
       <JotaiProvider>
-        <TRPCReactProvider>
-          <NuqsAdapter>
-            <SSEProvider>{children}</SSEProvider>
-          </NuqsAdapter>
-        </TRPCReactProvider>
+        <QueryClientProvider client={queryClient}>
+          <NuqsAdapter>{children}</NuqsAdapter>
+        </QueryClientProvider>
       </JotaiProvider>
       <Toaster richColors position="top-center" />
     </ThemeProvider>

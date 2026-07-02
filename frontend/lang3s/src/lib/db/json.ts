@@ -1,6 +1,5 @@
 import { Column, sql, SQL, SQLWrapper } from "drizzle-orm";
-import { asSQL, InferValue } from "@/lib/db/helpers/typing";
-import { CHAT_HISTORY_STORAGE_KEY } from "@/features/chat/constants";
+import { asSQL, InferValue } from "./typing";
 
 export function jsonBuildObject<T extends Record<string, any>>(
   obj: T,

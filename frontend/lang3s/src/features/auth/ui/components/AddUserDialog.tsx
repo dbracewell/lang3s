@@ -15,7 +15,6 @@ import {
 import { Form } from "@/components/ui/form";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { UserRoles } from "@/lib/auth/permissions";
-import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { UserRoundPlusIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -27,32 +26,33 @@ import {
   UserAccountSchemaType,
 } from "@/features/auth/schemas";
 import { UserRoleDescriptions } from "@/features/auth/constants";
+import { useMutation } from "@tanstack/react-query";
+import { createUser } from "@/features/auth/server/actions";
 
 export const AddUserDialog = () => {
   const router = useRouter();
 
-  const { isPending, mutate } = useTRPCMutation((trpc) => ({
-    mutation: trpc.auth.createUser.mutationOptions({
-      onError: () => toast.error("Something went wrong"),
-      onSuccess: (data) => {
-        if (data.code === 200) {
-          toast.success("Successfully created user");
-          router.replace("/admin/users");
-          onClose();
+  const { isPending, mutate } = useMutation({
+    mutationFn: createUser,
+    onError: () => toast.error("Something went wrong"),
+    onSuccess: (data) => {
+      if (data.code === 200) {
+        toast.success("Successfully created user");
+        router.replace("/admin/users");
+        onClose();
+        return;
+      } else {
+        if (data.path) {
+          form.setError(data.path as "username" | "email", {
+            type: "server",
+            message: data.message,
+          });
           return;
-        } else {
-          if (data.path) {
-            form.setError(data.path as "username" | "email", {
-              type: "server",
-              message: data.message,
-            });
-            return;
-          }
-          toast.error(data.message ?? "Something went wrong");
         }
-      },
-    }),
-  }));
+        toast.error(data.message ?? "Something went wrong");
+      }
+    },
+  });
 
   const form = useForm<UserAccountSchemaType>({
     resolver: zodResolver(UserAccountSchema),
@@ -83,8 +83,6 @@ export const AddUserDialog = () => {
       ...values,
     });
   };
-
-  const role = form.watch("role");
 
   return (
     <Dialog open={open} onOpenChange={onClose}>

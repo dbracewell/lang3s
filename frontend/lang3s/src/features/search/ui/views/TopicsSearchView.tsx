@@ -73,38 +73,45 @@ export const TopicSearchView = () => {
               </summary>
               <div className="bg-background-lighter text-muted-foreground flex max-h-50 flex-col items-center gap-4 border-x px-5 pb-2 text-sm font-medium md:flex-row">
                 <h3>
-                  {formatCount(
-                    new Set(r.highlights.map((h) => h.document_id)).size,
-                    { single: "document", plural: "documents" },
-                  )}
+                  {formatCount(r.docs.length, {
+                    single: "document",
+                    plural: "documents",
+                  })}
                 </h3>
                 <h3>
-                  {formatCount(
-                    new Set(r.highlights.map((h) => h.sentence_id)).size,
-                    { single: "sentence", plural: "sentences" },
-                  )}
+                  {formatCount(r.docs.flatMap((d) => d.highlights).length, {
+                    single: "sentence",
+                    plural: "sentences",
+                  })}
                 </h3>
               </div>
               <div className="bg-card flex flex-col gap-1 border p-1 px-2 text-sm">
-                {r.highlights.map((h) => (
-                  <div className="flex items-center gap-2" key={h.sentence_id}>
+                {r.docs.map((doc) => (
+                  <div className="flex flex-col gap-1" key={doc.document_id}>
                     <Link
-                      href={`/documents/${h.document_id}`}
+                      href={`/documents/${doc.document_id}`}
                       className="link flex gap-1 first:pt-2 last:pb-2"
                     >
-                      <FileIcon className="size-4" />
+                      <FileIcon className="size-4" /> {doc.document_title}
                     </Link>
-                    <div
-                      className="contents"
-                      dangerouslySetInnerHTML={{
-                        __html: `<p class='text-base'>${h.text
-                          .replaceAll(
-                            '<span class="keyword">',
-                            "<b class='text-dodger-blue-500'>",
-                          )
-                          .replaceAll("</span>", "</b>")}</p>`,
-                      }}
-                    />
+                    {doc.highlights.map((h) => (
+                      <div
+                        className="flex items-center gap-2 pl-5"
+                        key={h.sentence_id}
+                      >
+                        <div
+                          className="contents"
+                          dangerouslySetInnerHTML={{
+                            __html: `<p class='text-base'>${h.text
+                              .replaceAll(
+                                '<span class="keyword">',
+                                "<b class='text-dodger-blue-500'>",
+                              )
+                              .replaceAll("</span>", "</b>")}</p>`,
+                          }}
+                        />
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>

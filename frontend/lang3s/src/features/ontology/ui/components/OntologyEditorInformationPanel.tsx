@@ -5,27 +5,31 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { AnnotationColors, ONTOLOGY_ROOT } from "@/features/common/constants";
 import { AddPropertyDialog } from "@/features/ontology/ui/components/AddPropertyDialog";
 import { useOntology } from "@/features/ontology/ui/components/OntologySelector";
-import { OntologyProperties } from "@/lib/db/schemas/ontology";
 import { cn } from "@/lib/utils/cn";
 import { ArrowUpFromLine, RouteIcon, TablePropertiesIcon } from "lucide-react";
 import { parseAsString, useQueryState } from "nuqs";
 import { useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateOntologyEntryMutation } from "@/clients/core/@tanstack/react-query.gen";
 import { coreClient } from "@/lib/api";
 import { toast } from "sonner";
 import { BasicUserInfo } from "@/features/common/types";
 import { updateAnalytics } from "@/features/analytics/server/actions";
 import { useUser } from "@/features/auth/contexts/UserContext";
+import { z } from "zod";
+import { zOntologyProperty } from "@/clients/core/zod.gen";
 
 export const OntologyEditorInformationPanel = () => {
   const { currentNode, rootNode } = useOntology();
-
+  const queryClient = useQueryClient();
   const updateOntology = useMutation({
     ...updateOntologyEntryMutation({
       client: coreClient,
     }),
-    onSuccess: () => toast.success("Successfully updated ontology"),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+      toast.success("Successfully updated ontology");
+    },
     onError: () => toast.error("Failed to update ontology"),
   });
 
@@ -106,7 +110,9 @@ export const OntologyEditorInformationPanel = () => {
                 </>
               }
               defaultValues={
-                currentNode.properties as unknown as OntologyProperties
+                currentNode.properties as unknown as z.infer<
+                  typeof zOntologyProperty
+                >[]
               }
               onSelect={(properties) => {
                 updateOntology.mutate({

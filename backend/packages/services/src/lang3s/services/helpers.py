@@ -54,10 +54,10 @@ def create_fastapi_app(
 
     app.add_middleware(
         CORSMiddleware,  # type: ignore
-        allow_origins=cors_origins,
+        allow_origins=["http://localhost:3000"],
         allow_credentials=True,
         allow_methods=["*"],
-        allow_headers=["*"],
+        allow_headers=["Content-Type", "Authorization", "Accept"],
     )
 
     @app.exception_handler(CodedException)

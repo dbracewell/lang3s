@@ -15,6 +15,7 @@ from lang3s.core.formatters import format_duration
 from lang3s.core.logger import get_logger
 from lang3s.core.typing_extras import SingletonMeta
 from lang3s.data.db import sync_db_session
+from lang3s.data.models import TopicSentences
 from lang3s.data.repositories.text_repository import TextRepository
 from lang3s.data.repositories.topic_repository import TopicRepository
 from lang3s.data.schemas import Document
@@ -285,10 +286,10 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         await repository.update_topics(to_upsert)
 
         # Update the topic views (topic_sentences)
-        with sync_db_session() as session:
+        with sync_db_session(autocommit=True) as session:
             refresh_materialized_view(
                 session=session,
-                name="topic_sentences",
+                name=TopicSentences.__table__.name,
                 concurrently=True,
             )
 

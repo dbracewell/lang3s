@@ -1,17 +1,24 @@
-import { caller } from "@/lib/trpc/server";
 import React from "react";
 import { AccountHeader } from "@/features/auth/ui/components/AccountHeader";
 import { UserInformation } from "@/features/auth/ui/components/UserInformation";
+import {
+  getCurrentUser,
+  roleHasPermissions,
+} from "@/features/auth/server/actions";
+import { UserRole } from "@/lib/auth/permissions";
 import { UserProjects } from "@/features/auth/ui/components/UserProjects";
 import { UserApiKeys } from "@/features/auth/ui/components/UserApiKeys";
-import { roleHasPermissions } from "@/features/auth/server/actions";
+import { redirect } from "next/navigation";
 
 const UserPage = async () => {
-  const user = await caller.auth.getAccount();
-  const hasApiPermission = await roleHasPermissions(user.role, [
+  const user = await getCurrentUser();
+  const hasApiPermission = await roleHasPermissions(user.role as UserRole, [
     "data:load",
     "model:create",
   ]);
+  if (!hasApiPermission) {
+    throw redirect("/");
+  }
   return (
     <div className="m-1 flex h-full flex-1 flex-col gap-5 overflow-hidden p-2">
       <AccountHeader user={user} />

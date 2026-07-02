@@ -10,7 +10,7 @@ class PaginatedQuery(BaseModel):
             {"nullable": True, "type": "integer", "minimum": 1, "default": 1}
         ),
     ] = 1
-    limit: int = Field(default=5, ge=5)
+    limit: int = Field(default=25, ge=5)
 
     @property
     def offset(self) -> int:

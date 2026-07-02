@@ -16,7 +16,6 @@ import { Form } from "@/components/ui/form";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { UserType } from "@/features/auth/ui/components/UserListColumns";
 import { UserRoles } from "@/lib/auth/permissions";
-import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PencilIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -24,6 +23,9 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
 import { UserRoleDescriptions } from "@/features/auth/constants";
+import { useMutation } from "@tanstack/react-query";
+import { updateUser } from "@/features/auth/server/actions";
+import { toast } from "sonner";
 
 export const UserRoleSchema = z.object({
   role: z.enum(UserRoles),
@@ -35,16 +37,16 @@ export const EditUserDialog = ({ row }: { row: UserType }) => {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
-  const { isPending, mutate } = useTRPCMutation((trpc) => ({
-    mutation: trpc.auth.updateUser.mutationOptions({
-      onSuccess: () => {
-        router.replace("/admin/users");
-        onClose();
-      },
-    }),
-    successToast: "Successfully updated user",
-    errorToast: "Failed to update user",
-  }));
+  const { isPending, mutate } = useMutation({
+    mutationFn: updateUser,
+    onSuccess: () => {
+      form.reset();
+      setOpen(false);
+      router.refresh();
+      toast.success("Successfully updated user");
+    },
+    onError: () => toast.error("Error updating user"),
+  });
 
   const form = useForm<UserRoleSchemaType>({
     resolver: zodResolver(UserRoleSchema),
@@ -54,19 +56,12 @@ export const EditUserDialog = ({ row }: { row: UserType }) => {
     },
   });
 
-  const onClose = () => {
+  const onClose = (value: boolean) => {
     if (isPending) {
       return;
     }
-    if (open === true) {
-      form.reset();
-    }
-    setOpen((prev) => {
-      if (prev === false) {
-        return true;
-      }
-      return false;
-    });
+    form.reset();
+    setOpen(value);
   };
 
   const handleSubmit = (values: UserRoleSchemaType) => {
@@ -89,7 +84,7 @@ export const EditUserDialog = ({ row }: { row: UserType }) => {
             <DialogHeader>
               <DialogTitle>Edit User</DialogTitle>
               <DialogDescription>
-                Change a user's role or mark their account as inactive
+                Change a user&#39;s role or mark their account as inactive
               </DialogDescription>
             </DialogHeader>
             <SelectFormField

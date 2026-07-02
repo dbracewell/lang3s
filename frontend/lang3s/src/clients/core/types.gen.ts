@@ -120,6 +120,24 @@ export type AnnotationSearchResults = {
 export type DataType = 'string' | 'string_array' | 'int' | 'float' | 'boolean' | 'date';
 
 /**
+ * DocumentHighlight
+ */
+export type DocumentHighlight = {
+    /**
+     * Document Id
+     */
+    document_id: string;
+    /**
+     * Sentence Id
+     */
+    sentence_id: string;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
  * DocumentInfo
  */
 export type DocumentInfo = {
@@ -178,7 +196,7 @@ export type DocumentSearchResult = {
     /**
      * Highlights
      */
-    highlights: Array<Highlight>;
+    highlights: Array<DocumentHighlight>;
 };
 
 /**
@@ -397,21 +415,17 @@ export type HttpValidationError = {
 };
 
 /**
- * Highlight
+ * HumanizedQuery
  */
-export type Highlight = {
+export type HumanizedQuery = {
     /**
-     * Document Id
+     * Annotations
      */
-    document_id: string;
+    annotations: Array<string>;
     /**
-     * Sentence Id
+     * Topics
      */
-    sentence_id: string;
-    /**
-     * Text
-     */
-    text: string;
+    topics: Array<string>;
 };
 
 /**
@@ -770,6 +784,24 @@ export type SearchParams = {
 };
 
 /**
+ * TopicDocSearchResult
+ */
+export type TopicDocSearchResult = {
+    /**
+     * Document Id
+     */
+    document_id: string;
+    /**
+     * Document Title
+     */
+    document_title: string;
+    /**
+     * Highlights
+     */
+    highlights: Array<TopicHighlight>;
+};
+
+/**
  * TopicEntity
  */
 export type TopicEntity = {
@@ -826,6 +858,20 @@ export type TopicFrontendResult = {
 };
 
 /**
+ * TopicHighlight
+ */
+export type TopicHighlight = {
+    /**
+     * Sentence Id
+     */
+    sentence_id: string;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
  * TopicSearchResult
  */
 export type TopicSearchResult = {
@@ -838,9 +884,9 @@ export type TopicSearchResult = {
      */
     name: string;
     /**
-     * Highlights
+     * Docs
      */
-    highlights: Array<Highlight>;
+    docs: Array<TopicDocSearchResult>;
 };
 
 /**
@@ -1726,6 +1772,43 @@ export type PrecomputedStatsGetByNameResponses = {
 };
 
 export type PrecomputedStatsGetByNameResponse = PrecomputedStatsGetByNameResponses[keyof PrecomputedStatsGetByNameResponses];
+
+export type SearchHumanizeData = {
+    body: SearchParams;
+    path?: never;
+    query?: never;
+    url: '/search/humanize';
+};
+
+export type SearchHumanizeErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorDetail;
+    /**
+     * Unauthorized
+     */
+    401: ErrorDetail;
+    /**
+     * Not Found
+     */
+    404: ErrorDetail;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchHumanizeError = SearchHumanizeErrors[keyof SearchHumanizeErrors];
+
+export type SearchHumanizeResponses = {
+    /**
+     * Successful Response
+     */
+    200: HumanizedQuery;
+};
+
+export type SearchHumanizeResponse = SearchHumanizeResponses[keyof SearchHumanizeResponses];
 
 export type SearchDocumentsData = {
     body: SearchParams;

@@ -10,11 +10,6 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import z from "zod";
-import {
-  OntologyProperties,
-  OntologyPropertyValueDataTypes,
-  OntologyPropertyValueSchema,
-} from "@/lib/db/schemas/ontology";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "@/components/ui/form";
@@ -25,17 +20,18 @@ import {
   SelectFormField,
   SelectOptionItem,
 } from "@/components/form-controls/select-form-field";
+import { zOntologyProperty } from "@/clients/core/zod.gen";
 
 const formSchema = z.object({
   entries: z.array(
     z.object({
       name: z.string().min(1, "Property name is required."),
-      value: OntologyPropertyValueSchema,
+      value: zOntologyProperty,
     }),
   ),
 });
 
-const DataTypeOptions = OntologyPropertyValueDataTypes.map(
+const DataTypeOptions = ["string", "boolean", "number", "metadata"].map(
   (d) =>
     ({
       type: "item",
@@ -50,11 +46,10 @@ export const AddPropertyDialog = ({
   onSelect,
 }: {
   title: string | React.ReactNode;
-  defaultValues?: OntologyProperties;
+  defaultValues?: z.infer<typeof zOntologyProperty>[];
   onSelect: (value: Record<string, any>) => void;
 }) => {
   const [open, setOpen] = useState(false);
-
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {

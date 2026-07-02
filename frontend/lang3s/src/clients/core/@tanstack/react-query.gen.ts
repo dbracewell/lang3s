@@ -4,7 +4,7 @@ import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutation
 
 import { client } from '../client.gen';
 import { ApiClient, type Options } from '../sdk.gen';
-import type { AddOntologyEntryData, AddOntologyEntryError, DeleteOntologyEntryData, DeleteOntologyEntryError, DocumentsGetAllData, DocumentsGetAllError, DocumentsGetAllResponse, EmbedEmbedPostData, EmbedEmbedPostError, JobsCreateJobData, JobsCreateJobError, JobsCreateJobResponse, JobsDeleteJobData, JobsDeleteJobError, JobsDeleteJobResponse, JobsGetJobData, JobsGetJobError, JobsGetJobResponse, JobsListJobsData, JobsListJobsError, JobsListJobsResponse, JobsUpdateJobData, JobsUpdateJobError, JobsUpdateJobResponse, MetadataCreateData, MetadataCreateError, MetadataDeleteData, MetadataDeleteError, MetadataDeleteResponse, MetadataGetBySourceData, MetadataGetBySourceError, MetadataGetBySourceResponse, MetadataProbeData, MetadataProbeError, MetadataProbeResponse, MetadataUpdateData, MetadataUpdateError, MetadataUpdateResponse, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentError, OntologyGetAnnotationsForDocumentResponse, OntologyGetData, OntologyGetError, OntologyGetNodePathData, OntologyGetNodePathError, OntologyGetNodePathResponse, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsError, OntologyGetPotentialMappingsResponse, OntologyGetResponse, OntologyNameExistsData, OntologyNameExistsError, OntologyNameExistsResponse, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameError, PrecomputedStatsGetByNameResponse, SearchAnnotationsData, SearchAnnotationsError, SearchAnnotationsResponse, SearchDocumentsData, SearchDocumentsError, SearchDocumentsResponse, SearchTopicsData, SearchTopicsError, SearchTopicsResponse, TopicsGetTopicData, TopicsGetTopicError, TopicsGetTopicResponse, UpdateOntologyEntryData, UpdateOntologyEntryError } from '../types.gen';
+import type { AddOntologyEntryData, AddOntologyEntryError, DeleteOntologyEntryData, DeleteOntologyEntryError, DocumentsGetAllData, DocumentsGetAllError, DocumentsGetAllResponse, EmbedEmbedPostData, EmbedEmbedPostError, JobsCreateJobData, JobsCreateJobError, JobsCreateJobResponse, JobsDeleteJobData, JobsDeleteJobError, JobsDeleteJobResponse, JobsGetJobData, JobsGetJobError, JobsGetJobResponse, JobsListJobsData, JobsListJobsError, JobsListJobsResponse, JobsUpdateJobData, JobsUpdateJobError, JobsUpdateJobResponse, MetadataCreateData, MetadataCreateError, MetadataDeleteData, MetadataDeleteError, MetadataDeleteResponse, MetadataGetBySourceData, MetadataGetBySourceError, MetadataGetBySourceResponse, MetadataProbeData, MetadataProbeError, MetadataProbeResponse, MetadataUpdateData, MetadataUpdateError, MetadataUpdateResponse, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentError, OntologyGetAnnotationsForDocumentResponse, OntologyGetData, OntologyGetError, OntologyGetNodePathData, OntologyGetNodePathError, OntologyGetNodePathResponse, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsError, OntologyGetPotentialMappingsResponse, OntologyGetResponse, OntologyNameExistsData, OntologyNameExistsError, OntologyNameExistsResponse, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameError, PrecomputedStatsGetByNameResponse, SearchAnnotationsData, SearchAnnotationsError, SearchAnnotationsResponse, SearchDocumentsData, SearchDocumentsError, SearchDocumentsResponse, SearchHumanizeData, SearchHumanizeError, SearchHumanizeResponse, SearchTopicsData, SearchTopicsError, SearchTopicsResponse, TopicsGetTopicData, TopicsGetTopicError, TopicsGetTopicResponse, UpdateOntologyEntryData, UpdateOntologyEntryError } from '../types.gen';
 
 /**
  * Delete Job
@@ -483,6 +483,54 @@ export const precomputedStatsGetByNameOptions = (options: Options<PrecomputedSta
     },
     queryKey: precomputedStatsGetByNameQueryKey(options)
 });
+
+export const searchHumanizeQueryKey = (options: Options<SearchHumanizeData>) => createQueryKey('searchHumanize', options);
+
+/**
+ * Humanize Query
+ */
+export const searchHumanizeOptions = (options: Options<SearchHumanizeData>) => queryOptions<SearchHumanizeResponse, SearchHumanizeError, SearchHumanizeResponse, ReturnType<typeof searchHumanizeQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await ApiClient.__registry.get().searchHumanize({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: searchHumanizeQueryKey(options)
+});
+
+export const searchHumanizeInfiniteQueryKey = (options: Options<SearchHumanizeData>): QueryKey<Options<SearchHumanizeData>> => createQueryKey('searchHumanize', options, true);
+
+/**
+ * Humanize Query
+ */
+export const searchHumanizeInfiniteOptions = (options: Options<SearchHumanizeData>) => {
+    const opts = infiniteQueryOptions<SearchHumanizeResponse, SearchHumanizeError, InfiniteData<SearchHumanizeResponse>, QueryKey<Options<SearchHumanizeData>>, number | null | Pick<QueryKey<Options<SearchHumanizeData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<SearchHumanizeData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                body: {
+                    cursor: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await ApiClient.__registry.get().searchHumanize({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: searchHumanizeInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const searchDocumentsQueryKey = (options: Options<SearchDocumentsData>) => createQueryKey('searchDocuments', options);
 

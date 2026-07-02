@@ -75,8 +75,22 @@ class Config:
     # NODEJS BACKEND AND SYSTEM KEY
     #####################################################################################
     @property
-    def NODEJS_HOST(self) -> str:
-        return self.get_config_value("NODEJS_HOST", "http://localhost:3000")
+    def BETTER_AUTH_URL(self) -> str:
+        return self.get_config_value("BETTER_AUTH_URL", "http://localhost:3000")
+
+    @property
+    def JWT_ISSUER(self) -> str:
+        return self.get_config_value("JWT_ISSUER", self.BETTER_AUTH_URL)
+
+    @property
+    def JWT_AUDIENCE(self) -> str:
+        return self.get_config_value("JWT_AUDIENCE", self.BETTER_AUTH_URL)
+
+    @property
+    def JWKS_URL(self) -> str:
+        return self.get_config_value(
+            "JWKS_URL", f"{self.BETTER_AUTH_URL}/api/auth/jwks"
+        )
 
     #####################################################################################
 

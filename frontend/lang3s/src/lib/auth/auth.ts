@@ -9,12 +9,17 @@ import {
 } from "@/lib/auth/permissions";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { admin as adminPlugin, apiKey, username } from "better-auth/plugins";
+import {
+  admin as adminPlugin,
+  apiKey,
+  jwt,
+  username,
+} from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
-    provider: "pg",
+    provider: "sqlite",
   }),
   emailAndPassword: {
     enabled: true,
@@ -23,8 +28,24 @@ export const auth = betterAuth({
     maxPasswordLength: 16,
   },
   plugins: [
+    jwt({
+      jwks: {
+        rotationInterval: 60 * 60 * 24 * 30,
+        gracePeriod: 60 * 60 * 24 * 2,
+        keyPairConfig: {
+          alg: "RS256",
+        },
+      },
+    }),
     apiKey({
-      disableKeyHashing: true,
+      enableSessionForAPIKeys: true,
+      apiKeyHeaders: ["lang3s-api-key"],
+      defaultPrefix: "lang3s-api-key-",
+      rateLimit: {
+        enabled: false,
+        timeWindow: 1000 * 60,
+        maxRequests: 100,
+      },
     }),
     adminPlugin({
       ac: ac,

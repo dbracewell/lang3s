@@ -11,7 +11,7 @@ from lang3s.core.typing_extras import ShutdownEvent
 from lang3s.data.constants import TOPIC_FINISHED, TOPIC_QUEUE_NAME
 from lang3s.data.db import async_db_session
 from lang3s.nlp.components.topics import Lang3sTopicModel
-from lang3s.services.models.topics_models import Task
+from lang3s.services.schemas.topics_api_schema import Task
 
 
 @asyncio_run

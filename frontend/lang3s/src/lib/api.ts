@@ -1,40 +1,34 @@
-import { client as _coreClient } from "@/clients/core/client.gen";
-import {
-  ApiClient as CoreApiClient,
-  ErrorDetail,
-  HttpValidationError,
-} from "@/clients/core";
-import { client as _analyticsClient } from "@/clients/analytics/client.gen";
+import { client as coreClient } from "@/clients/core/client.gen";
+import { client as analyticsClient } from "@/clients/analytics/client.gen";
+import { authClient } from "@/lib/auth/auth-client";
+import { t3env } from "@/lib/t3env";
+import { ApiClient as CoreApiClient } from "@/clients/core";
 import { ApiClient as AnalyticsApiClient } from "@/clients/analytics";
 
-_coreClient.setConfig({
-  baseUrl: "http://localhost:3000/api/backend",
+coreClient.setConfig({
+  baseUrl: t3env.NEXT_PUBLIC_BACKEND_URL,
 });
-_analyticsClient.setConfig({
-  baseUrl: "http://localhost:3000/api/backend/analytics",
+analyticsClient.setConfig({
+  baseUrl: `${t3env.NEXT_PUBLIC_BACKEND_URL}/analytics`,
 });
 
-export const coreClient = _coreClient;
-export const analyticsClient = _analyticsClient;
-
-export const coreApi = new CoreApiClient({ client: coreClient });
-export const analyticsApi = new AnalyticsApiClient({ client: analyticsClient });
-
-export const handleResult = <T>({
-  data,
-  error,
-}: {
-  data: T | undefined;
-  error: ErrorDetail | HttpValidationError | undefined;
-}) => {
-  if (error != null) {
-    if (typeof error.detail === "string") {
-      throw Error(error.detail);
-    }
-    throw Error("Validation Error");
+coreClient.interceptors.request.use(async (request) => {
+  const { data } = await authClient.token();
+  if (data?.token) {
+    request.headers.set("Authorization", `Bearer ${data.token}`);
   }
-  if (data == null) {
-    throw Error("Internal Server Error");
+  return request;
+});
+
+analyticsClient.interceptors.request.use(async (request) => {
+  const { data } = await authClient.token();
+  if (data?.token) {
+    request.headers.set("Authorization", `Bearer ${data.token}`);
   }
-  return data;
-};
+  return request;
+});
+
+new CoreApiClient({ client: coreClient });
+new AnalyticsApiClient({ client: analyticsClient });
+
+export { coreClient, analyticsClient };

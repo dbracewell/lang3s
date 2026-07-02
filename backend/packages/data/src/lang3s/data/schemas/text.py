@@ -731,9 +731,7 @@ class TextAnnotation(TextObject):
     def normalized(self) -> str:
         if self.type_ == AnnotationTypes.SENTENCE:
             return self.content.upper()
-        return (
-            self.get(Metadata.COREF_TEXT) or self.get(Metadata.LEMMA) or self.content
-        ).upper()
+        return self.coref.content.upper()
 
     def previous_token(self) -> Optional[TextAnnotation]:
         if self.start == 0:

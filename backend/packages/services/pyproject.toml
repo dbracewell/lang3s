@@ -20,6 +20,8 @@ dependencies = [
     "python-multipart>=0.0.32",
     "pandas>=3.0.3",
     "cachetools>=7.1.4",
+    "pyjwt[crypto]>=2.13.0",
+    "requests>=2.34.2",
 ]
 
 [tool.uv.sources]
