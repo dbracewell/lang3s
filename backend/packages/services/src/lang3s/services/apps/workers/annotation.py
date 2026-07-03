@@ -194,6 +194,7 @@ async def annotation_worker(event: Event[AnnotationTask]) -> Event[WorkerResult]
     logger.info(f"Began processing {len(task.files)} files (WORKER {pid})")
 
     async with async_db_session() as session:
+        global_start_time = time.perf_counter()
         try:
             job_repository = JobRepository(session)
             try:

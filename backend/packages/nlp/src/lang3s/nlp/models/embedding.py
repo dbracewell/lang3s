@@ -53,7 +53,9 @@ class Lang3sMultiObjectiveEmbeddingModel(nn.Module):
             for key, value in layer2model.items():
                 model_file = os.path.join(base_model_name, value)
                 if os.path.exists(model_file):
-                    self.tasks[task][key].load_state_dict(torch.load(model_file))
+                    self.tasks[task][key].load_state_dict(
+                        torch.load(model_file, map_location="cpu")
+                    )
                 else:
                     print(
                         f"Warning could not find {key} layer for {task}, "

@@ -5,12 +5,11 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-load_dotenv()
-load_dotenv(os.environ.get("LANG3S_BACKEND_ENV", "lang3s_backend.env"))
-
 
 class Config:
     def __init__(self):
+        load_dotenv()
+
         #####################################################################################
         # TOPIC MODELLING OPTIONS
         #####################################################################################
