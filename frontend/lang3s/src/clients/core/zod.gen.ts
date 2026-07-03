@@ -488,6 +488,18 @@ export const zTopicDocSearchResult = z.object({
 });
 
 /**
+ * TopicNode
+ */
+export const zTopicNode = z.object({
+    id: z.string(),
+    text: z.string(),
+    display: z.string(),
+    value: z.number(),
+    type: z.string().optional().default('topic'),
+    subvalues: z.record(z.string(), z.int())
+});
+
+/**
  * TopicSearchResult
  */
 export const zTopicSearchResult = z.object({
@@ -527,6 +539,23 @@ export const zTopicFrontendResult = z.object({
     sentences: z.array(zTopicSimilarSentence),
     entities: z.array(zTopicEntity),
     keywords: z.array(z.string())
+});
+
+/**
+ * TopicSimilarity
+ */
+export const zTopicSimilarity = z.object({
+    id1: z.string(),
+    id2: z.string(),
+    similarity: z.number()
+});
+
+/**
+ * TopicGraph
+ */
+export const zTopicGraph = z.object({
+    nodes: z.array(zTopicNode),
+    similarities: z.array(zTopicSimilarity)
 });
 
 /**
@@ -594,6 +623,11 @@ export const zTopicsGetTopicPath = z.object({
  * Successful Response
  */
 export const zTopicsGetTopicResponse = zTopicFrontendResult;
+
+/**
+ * Successful Response
+ */
+export const zTopicsGetTopicGraphResponse = zTopicGraph;
 
 export const zEmbedEmbedPostBody = zEmbeddingRequest;
 

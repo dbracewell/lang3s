@@ -2,8 +2,6 @@ from typing import Any, AsyncGenerator, Callable, Type, TypeVar, Unpack
 
 from pydantic import BaseModel
 
-from lang3s.core import config
-
 from .client import ChatCompletionParams, LLMClient
 from .typedefs import LLMEvent, Message
 

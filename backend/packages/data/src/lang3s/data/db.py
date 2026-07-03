@@ -1,3 +1,4 @@
+import asyncio
 import re
 import threading
 from contextlib import asynccontextmanager, contextmanager
@@ -22,8 +23,10 @@ class DatabaseSessionManager:
     def __init__(self) -> None:
         self._engine: Optional[AsyncEngine] = None
         self._session_maker: Optional[async_sessionmaker[AsyncSession]] = None
+        self._bound_loop = None
 
     def init(self):
+        self._bound_loop = asyncio.get_running_loop()
         if self._engine is None:
             db_url = config.DB_URL
             if "postgresql+asyncpg:" not in db_url:
@@ -36,6 +39,16 @@ class DatabaseSessionManager:
                 expire_on_commit=False,
                 bind=self._engine,
             )
+
+    def is_current_loop(self) -> bool:
+        """Check if the current executing loop matches the DB loop."""
+        if self._bound_loop is None:
+            return True
+
+        try:
+            return asyncio.get_running_loop() is self._bound_loop
+        except RuntimeError:
+            return False
 
     @property
     def is_initialized(self) -> bool:
@@ -165,8 +178,12 @@ def sync_db_session(autocommit: bool = False):
 
 @asynccontextmanager
 async def async_db_session(autocommit: bool = False):
-    session_manager.init()
-    async with session_manager.session() as session:
+    if not session_manager.is_current_loop():
+        temp = DatabaseSessionManager()
+    else:
+        temp = session_manager
+    temp.init()
+    async with temp.session() as session:
         try:
             yield session
             if autocommit:

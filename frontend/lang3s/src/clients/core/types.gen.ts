@@ -858,6 +858,20 @@ export type TopicFrontendResult = {
 };
 
 /**
+ * TopicGraph
+ */
+export type TopicGraph = {
+    /**
+     * Nodes
+     */
+    nodes: Array<TopicNode>;
+    /**
+     * Similarities
+     */
+    similarities: Array<TopicSimilarity>;
+};
+
+/**
  * TopicHighlight
  */
 export type TopicHighlight = {
@@ -869,6 +883,38 @@ export type TopicHighlight = {
      * Text
      */
     text: string;
+};
+
+/**
+ * TopicNode
+ */
+export type TopicNode = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Display
+     */
+    display: string;
+    /**
+     * Value
+     */
+    value: number;
+    /**
+     * Type
+     */
+    type?: string;
+    /**
+     * Subvalues
+     */
+    subvalues: {
+        [key: string]: number;
+    };
 };
 
 /**
@@ -927,6 +973,24 @@ export type TopicSimilarSentence = {
      * Content
      */
     content: string;
+};
+
+/**
+ * TopicSimilarity
+ */
+export type TopicSimilarity = {
+    /**
+     * Id1
+     */
+    id1: string;
+    /**
+     * Id2
+     */
+    id2: string;
+    /**
+     * Similarity
+     */
+    similarity: number;
 };
 
 /**
@@ -1159,7 +1223,7 @@ export type TopicsGetTopicData = {
         topic_id: number;
     };
     query?: never;
-    url: '/topics/{topic_id}';
+    url: '/topics/id/{topic_id}';
 };
 
 export type TopicsGetTopicErrors = {
@@ -1191,6 +1255,39 @@ export type TopicsGetTopicResponses = {
 };
 
 export type TopicsGetTopicResponse = TopicsGetTopicResponses[keyof TopicsGetTopicResponses];
+
+export type TopicsGetTopicGraphData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/topics/graph';
+};
+
+export type TopicsGetTopicGraphErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorDetail;
+    /**
+     * Unauthorized
+     */
+    401: ErrorDetail;
+    /**
+     * Not Found
+     */
+    404: ErrorDetail;
+};
+
+export type TopicsGetTopicGraphError = TopicsGetTopicGraphErrors[keyof TopicsGetTopicGraphErrors];
+
+export type TopicsGetTopicGraphResponses = {
+    /**
+     * Successful Response
+     */
+    200: TopicGraph;
+};
+
+export type TopicsGetTopicGraphResponse = TopicsGetTopicGraphResponses[keyof TopicsGetTopicGraphResponses];
 
 export type EmbedEmbedPostData = {
     body: EmbeddingRequest;

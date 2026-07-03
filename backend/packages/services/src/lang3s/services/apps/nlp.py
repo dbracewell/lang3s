@@ -36,8 +36,10 @@ def main():
     args = parser.parse_args()
     logger = get_logger("NLP")
     with MultiprocessingManager(workers=args.num_workers) as manager:
+        logger.info("Starting topic worker...")
         manager.submit(topic_worker)
-        # manager.submit(claims_worker)
+        logger.info("Starting claims worker...")
+        manager.submit(claims_worker)
 
         q: QueueSource[AnnotationTask] = manager.create_queue(maxsize=args.num_workers)
         manager.submit(

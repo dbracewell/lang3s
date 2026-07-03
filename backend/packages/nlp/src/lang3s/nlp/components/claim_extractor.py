@@ -1,8 +1,8 @@
 import numpy as np
 
-from lang3s.agent.llm import LoRaClient, Message
 from lang3s.data.models.claim import Certainty, ClaimType, Modality, Sentiment
 from lang3s.data.schemas.claim import Claim
+from lang3s.llm import LoRaClient, Message
 
 
 class ClaimExtractor:

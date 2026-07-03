@@ -16,6 +16,7 @@ members = [
     "lang3s-client",
     "lang3s-core",
     "lang3s-data",
+    "lang3s-llm",
     "lang3s-ml",
     "lang3s-nlp",
     "lang3s-services",
@@ -680,13 +681,13 @@ name = "lang3s-agent"
 version = "0.1.0"
 source = { editable = "packages/agent" }
 dependencies = [
-    { name = "openai" },
+    { name = "lang3s-llm" },
     { name = "pydantic" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "openai", specifier = ">=2.42.0" },
+    { name = "lang3s-llm", editable = "packages/llm" },
     { name = "pydantic", specifier = ">=2.13.4" },
 ]
 
@@ -764,6 +765,23 @@ requires-dist = [
 ]
 
 [[package]]
+name = "lang3s-llm"
+version = "0.1.0"
+source = { editable = "packages/llm" }
+dependencies = [
+    { name = "lang3s-core" },
+    { name = "openai" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "lang3s-core", editable = "packages/core" },
+    { name = "openai", specifier = ">=2.42.0" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+]
+
+[[package]]
 name = "lang3s-ml"
 version = "0.1.0"
 source = { editable = "packages/ml" }
@@ -809,6 +827,7 @@ dependencies = [
     { name = "lang3s-agent" },
     { name = "lang3s-core" },
     { name = "lang3s-data" },
+    { name = "lang3s-llm" },
     { name = "lang3s-ml" },
     { name = "lingua-language-detector", version = "2.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "lingua-language-detector", version = "2.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -838,6 +857,7 @@ requires-dist = [
     { name = "lang3s-agent", editable = "packages/agent" },
     { name = "lang3s-core", editable = "packages/core" },
     { name = "lang3s-data", editable = "packages/data" },
+    { name = "lang3s-llm", editable = "packages/llm" },
     { name = "lang3s-ml", editable = "packages/ml" },
     { name = "lingua-language-detector", specifier = ">=2.1.1" },
     { name = "more-itertools", specifier = ">=11.1.0" },

@@ -63,8 +63,12 @@ def format_messages_for_model(
     messages: list[Message],
     response_model=None,
 ) -> list[dict[str, Any]]:
-    # LLM Supports everything so we just need to conver to a dict normally
-    if config.LLM_SUPPORTS_SYSTEM_PROMPT and config.LLM_NATIVE_TOOL_SUPPORT:
+    # LLM Supports everything so we just need to convert to a dict normally
+    if (
+        config.LLM_SUPPORTS_SYSTEM_PROMPT
+        and config.LLM_NATIVE_TOOL_SUPPORT
+        and config.LLM_SUPPORTS_STRUCTURED_OUTPUT
+    ):
         return [msg.to_dict() for msg in messages]
 
     formatted = []

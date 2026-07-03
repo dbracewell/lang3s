@@ -4,6 +4,7 @@ from typing import Iterable, List, Optional
 import numpy as np
 from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 from sqlalchemy_utils import Ltree
 
 from lang3s.core import config
@@ -20,6 +21,11 @@ from lang3s.data.schemas.topic import (
     TopicEntity,
     TopicFrontendResult,
     TopicSimilarSentence,
+)
+from lang3s.services.schemas.topics_api_schema import (
+    TopicGraph,
+    TopicNode,
+    TopicSimilarity,
 )
 
 
@@ -173,3 +179,55 @@ class TopicRepository:
         )
         topic_info.sentences = sentences
         return topic_info
+
+    async def get_topic_map(self):
+        def truncate(name: str) -> str:
+            parts = name.split(" ")
+            display = parts[0]
+            for i in range(2, len(parts)):
+                next_display = f"{display} {parts[i]}"
+                if len(next_display) >= 44:
+                    break
+                display = next_display
+            return f"{display}..."
+
+        t1 = aliased(TopicModel, name="t1")
+        t2 = aliased(TopicModel, name="t2")
+
+        r = await self.session.execute(
+            select(TopicModel.id, TopicModel.name, TopicModel.document_count)
+        )
+        nodes: list[TopicNode] = []
+        for topic_id, topic_name, topic_value in r.all():
+            nodes.append(
+                TopicNode(
+                    id=str(topic_id),
+                    text=topic_name,
+                    display=truncate(topic_name),
+                    value=topic_value,
+                )
+            )
+
+        similarity = 1 - t1.embedding.cosine_distance(t2.embedding)  # type: ignore
+        stmt = (
+            select(
+                t1.id.label("id1"),  # type:ignore
+                t2.id.label("id2"),  # type:ignore
+                similarity,
+            )
+            .join(t2, t1.id != t2.id)  # type:ignore
+            .where(similarity >= 0.7)
+        )
+
+        r = await self.session.execute(stmt)
+        similarities: list[TopicSimilarity] = []
+        for id1, id2, sim in r.all():
+            similarities.append(
+                TopicSimilarity(
+                    id1=str(id1),
+                    id2=str(id2),
+                    similarity=sim,
+                )
+            )
+
+        return TopicGraph(nodes=nodes, similarities=similarities)

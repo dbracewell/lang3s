@@ -3,9 +3,9 @@ import subprocess
 import sys
 import time
 
-from lang3s.agent.llm import adapters
 from lang3s.core import config
 from lang3s.core.logger import get_logger
+from lang3s.llm import adapters
 
 logger = get_logger("LOCAL_LLM")
 

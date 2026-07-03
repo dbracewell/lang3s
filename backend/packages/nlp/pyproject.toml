@@ -11,6 +11,7 @@ dependencies = [
     "lang3s-data",
     "lang3s-core",
     "lang3s-ml",
+    "lang3s-llm",
     "lang3s-agent",
     "spacy>=3.8.14",
     "spacy-download>=1.1.0",
@@ -38,6 +39,7 @@ dependencies = [
 lang3s-core = { workspace = true }
 lang3s-data = { workspace = true }
 lang3s-ml = { workspace = true }
+lang3s-llm = { workspace = true }
 lang3s-agent = { workspace = true }
 
 

@@ -1,87 +1,145 @@
 from collections import defaultdict
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from dateutil import parser
-from sqlalchemy import ScalarResult, select, text
+from sqlalchemy import ScalarResult, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 
+from lang3s.agent import Agent, Session
+from lang3s.agent.strategy import DiscoveryStrategy
 from lang3s.core.logger import get_logger
 from lang3s.data.db import async_db_session
-from lang3s.data.models import Document, GlobalMetadata, TextAnnotation
+from lang3s.data.models import (
+    Document,
+    GlobalMetadata,
+    PreComputedStats,
+    TextAnnotation,
+    Topic,
+)
+from lang3s.data.repositories.text_repository import TextRepository
 from lang3s.data.schemas import Metadata
+from lang3s.llm import ArgDesc, tool
+from lang3s.nlp import Embedder
+
+
+@tool(description="Searches the database for results similar to the given query.")
+async def search_database(query: Annotated[str, ArgDesc("The query to search.")]):
+    if query == "*":
+        async with async_db_session() as session:
+            return [
+                a.content
+                for a in await TextRepository(session).get_random_sentences(50)
+            ]
+
+    if query in (
+        "a",
+        "the",
+        "data",
+        "report",
+        "sports",
+        "economy",
+        "business",
+        "computers",
+        "life",
+        "entertainment",
+    ):
+        async with async_db_session() as session:
+            return [
+                a.content
+                for a in await TextRepository(session).full_text_sentence_search(
+                    query=query,
+                    limit=50,
+                )
+            ]
+
+    embedder = Embedder()
+    embedding = embedder([query]).sentence_embeddings[0]
+    async with async_db_session() as session:
+        return [
+            a.content
+            for a in await TextRepository(session).get_semantically_similar_sentences(
+                embedding,
+                limit=10,
+                min_similarity=0.3,
+            )
+        ]
 
 
 async def corpus_summarization():
     logger = get_logger("GENERATE_CORPUS_SUMMARY")
     logger.info("Starting to process: discovery")
-    # corpus_discovery = DiscoveryStrategy(
-    #     search_tool="search_database",
-    #     rounds=2,
-    #     queries_per_round=3,
-    # )
-    # agent = Agent(
-    #     session=Session(
-    #         available_tools=[search_database],
-    #     )
-    # )
-    #
-    # response = agent.sync_run(
-    #     task="Determine the main topics of the corpus. The corpus is comprised of news articles.",
-    #     strategy=corpus_discovery,
-    # )
-    # logger.info("Finished discovery")
-    # logger.info("Starting collecting statistics")
-    # with db.get_session() as session:
-    #     stmt = select(TopicsTable).order_by(TopicsTable.support.desc()).limit(7)
-    #     topics = session.execute(stmt).scalars().all()
-    #     total_docs = session.scalar(
-    #         select(func.count().label("count")).select_from(DocumentsTable)
-    #     )
-    #     total_sentences = session.scalar(
-    #         select(func.count().label("count"))
-    #         .select_from(TextAnnotationsTable)
-    #         .where(TextAnnotationsTable.type_ == "sentence")
-    #     )
-    #     total_annotations = session.scalar(
-    #         select(func.count().label("count"))
-    #         .select_from(TextAnnotationsTable)
-    #         .where(TextAnnotationsTable.type_ != "sentence")
-    #     )
-    #
-    #     topic_summary = []
-    #     for topic in topics:
-    #         topic_summary.append(
-    #             {
-    #                 "name": topic.name,
-    #                 "support": topic.support,
-    #             }
-    #         )
+    corpus_discovery = DiscoveryStrategy(
+        search_tool="search_database",
+        rounds=7,
+        queries_per_round=3,
+        allow_random_search=True,
+    )
+    agent = Agent(
+        session=Session(
+            available_tools=[search_database],
+        )
+    )
+
+    response = await agent.run(
+        task="Determine the main topics of the corpus. "
+        "The corpus is comprised of news articles.",
+        strategy=corpus_discovery,
+    )
+    logger.info("Finished discovery")
+
+    logger.info("Starting collecting statistics")
+    async with async_db_session() as session:
+        stmt = select(Topic).order_by(Topic.document_count.desc()).limit(7)
+        topics = (await session.scalars(stmt)).all()
+        total_docs = await session.scalar(
+            select(func.count().label("count")).select_from(Document)
+        )
+        total_sentences = await session.scalar(
+            select(func.count().label("count"))
+            .select_from(TextAnnotation)
+            .where(TextAnnotation.type_ == "sentence")
+        )
+        total_annotations = await session.scalar(
+            select(func.count().label("count"))
+            .select_from(TextAnnotation)
+            .where(TextAnnotation.type_ != "sentence")
+        )
+
+        topic_summary = []
+        for topic in topics:
+            topic_summary.append(
+                {
+                    "name": topic.name,
+                    "support": topic.document_count,
+                }
+            )
 
     logger.info("Finished collecting statistics")
     logger.info("Saving results")
-    # with db.get_session() as session:
-    #     if response.exception:
-    #         response.print_exception()
-    #         return
-    #     stmt = insert(PrecomputedStatsTable).values(
-    #         {
-    #             "name": "corpus_summary",
-    #             "value": {
-    #                 "corpus_summary": response.content[-1],
-    #                 "topic_summary": topic_summary,
-    #                 "overall_stats": {
-    #                     "documents": total_docs,
-    #                     "sentences": total_sentences,
-    #                     "annotations": total_annotations,
-    #                 },
-    #             },
-    #         }
-    #     )
-    #     stmt = stmt.on_conflict_do_update(
-    #         index_elements=[PrecomputedStatsTable.name],
-    #         set_={"value": stmt.excluded.value},
-    #     )
-    #     session.execute(stmt)
+    async with async_db_session() as session:
+        if response.exception:
+            print(response.exception)
+            return
+        stmt = insert(PreComputedStats).values(
+            {
+                "name": "corpus_summary",
+                "value": {
+                    "corpus_summary": response.content[-1],
+                    "topic_summary": topic_summary,
+                    "overall_stats": {
+                        "documents": total_docs,
+                        "sentences": total_sentences,
+                        "annotations": total_annotations,
+                    },
+                },
+            }
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[PreComputedStats.name],
+            set_={"value": stmt.excluded.value},
+        )
+        await session.execute(stmt)
+        await session.commit()
     logger.info("Finished saving results")
 
 

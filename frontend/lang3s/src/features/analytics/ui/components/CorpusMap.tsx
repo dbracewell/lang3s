@@ -7,7 +7,6 @@ import React, {
   useRef,
 } from "react";
 import { useCorpusMapParams } from "@/features/analytics/hooks/useCorpusMapParams";
-import { Spinner } from "@/components/Spinner";
 import { ForceGraph } from "@/components/d3/ForceGraph";
 import { NavigationBar } from "@/components/d3/NavigationBar";
 import {
@@ -62,6 +61,10 @@ import {
 } from "@/components/d3/hooks";
 import { ScreenShotButton } from "@/components/d3/ScreenShotButton";
 import { CorpusExplorerPoint } from "@/features/analytics/types";
+import { useQuery } from "@tanstack/react-query";
+import { topicsGetTopicGraphOptions } from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
+import { TopicGraph, TopicNode } from "@/clients/core";
 
 const simulator = ({
   simulation,
@@ -284,11 +287,146 @@ const hideActionMenu = ({
   tooltip.style.visibility = "hidden";
 };
 
+export const CorpusMapRouter = () => {
+  const { data, isPending, error } = useQuery({
+    ...topicsGetTopicGraphOptions({
+      client: coreClient,
+    }),
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (isPending || data == null) {
+    return null;
+  }
+
+  return <CorpusMap data={data} />;
+};
+
+export const SimpleGraph = ({ data }: { data: TopicGraph }) => {
+  const [params, setParams] = useCorpusMapParams();
+  const { theme } = useTheme();
+  const getTypeFontRange = useCallback(({ bound }: GetTypeBoundsProps) => {
+    return bound === "min" ? 24 : 100;
+  }, []);
+
+  const valueRanges = useFindMultiTypeMinMaxValue({
+    points: data.nodes as CorpusExplorerPoint[],
+    getType,
+    getValue,
+  });
+
+  const fontScales = useMultiTypeLinearScaler({
+    valueRanges,
+    getTypeBounds: getTypeFontRange,
+  });
+
+  const nodeScaler = useCallback(
+    (point: CorpusExplorerPoint) =>
+      fontScales ? fontScales[point.type](point.value) * 1.5 : 10,
+    [fontScales],
+  );
+
+  const fontScaler = useCallback(
+    (point: CorpusExplorerPoint) =>
+      fontScales ? fontScales[point.type](point.value) : 10,
+    [fontScales],
+  );
+
+  const colliderFn = useCallback(
+    (point: CorpusExplorerPoint) => {
+      if (fontScales != null) {
+        const scale = fontScales[point.type](point.value);
+        switch (point.type) {
+          case "topic":
+            return scale * 4;
+          default:
+            return scale * 3;
+        }
+      }
+      return 10;
+    },
+    [fontScales],
+  );
+
+  const colorScales = useMemo(() => {
+    if (!valueRanges) return null;
+    return {
+      topic: d3
+        .scaleSequential((t) => d3.interpolateBlues(0.2 + t * 0.7))
+        .domain([
+          theme === "dark" ? valueRanges.topic.max : valueRanges.topic.min,
+          theme === "dark" ? valueRanges.topic.min : valueRanges.topic.max,
+        ]),
+      // concept: d3
+      //   .scaleSequential((t) => d3.interpolateGreens(0.2 + t * 0.6))
+      //   .domain([
+      //     theme === "dark" ? valueRanges.topic.max : valueRanges.topic.min,
+      //     theme === "dark" ? valueRanges.topic.min : valueRanges.topic.max,
+      //   ]),
+    };
+  }, [valueRanges, theme]);
+
+  const styleFn = useCallback(
+    (svg: SVGSVGElement) => {
+      selectSVGElement(svg, ".concept-path")
+        .style("fill", () =>
+          theme === "dark" ? "rgba(255,255,255,0.1)" : "rgba(100,100,100,0.1)",
+        )
+        .style("opacity", 0.5);
+      getTextElement<CorpusExplorerPoint>(svg)
+        .attr("fill", (point) =>
+          colorScales
+            ? colorScales[point.type as "topic"](point.value)
+            : "dodger-blue-500",
+        )
+        .style("truncate");
+    },
+    [colorScales, theme],
+  );
+  return (
+    <>
+      <Activity mode={params.tab === "chart" ? "visible" : "hidden"}>
+        <D3ContextProvider>
+          <ForceGraph
+            points={data.nodes as CorpusExplorerPoint[]}
+            similarities={data.similarities}
+            svgClassName="rounded-lg"
+            nodeClassName="fill-transparent cursor-pointer"
+            textClassName="pointer-events-none"
+            fontScaler={fontScaler}
+            nodeScaler={nodeScaler}
+            colliderFn={colliderFn}
+            styleFn={styleFn}
+            onMouseEnter={onMouseEnter}
+            onMouseOut={onMouseOut}
+            // onMouseClick={onMouseClick}
+            onInitialize={graphInitializer}
+            simulator={simulator}
+          >
+            <ScreenShotButton
+              fileNamePrefix={"CorpusExplorer"}
+              className="top-2.5 right-15"
+            />
+            <NavigationBar className="top-2.5 right-2.5" />
+            {/*<ToolTipContent />*/}
+          </ForceGraph>
+        </D3ContextProvider>
+      </Activity>
+      <Activity mode={params.tab === "list" ? "visible" : "hidden"}>
+        <TopicsList points={data.nodes.filter((a) => a.type === "topic")} />
+      </Activity>
+    </>
+  );
+};
+
 export const CorpusMap = ({
   data,
 }: {
   data: {
-    nodes: CorpusExplorerPoint[];
+    nodes: TopicNode[];
     similarities: Omit<
       ForceGraphSimilarity<CorpusExplorerPoint>,
       "source" | "target"
@@ -307,7 +445,7 @@ export const CorpusMap = ({
   );
 
   const [selectedTopic, nodes, links] = useMemo(() => {
-    let selectedTopic: CorpusExplorerPoint | undefined = data.nodes.find(
+    let selectedTopic: TopicNode | undefined = data.nodes.find(
       (node) => node.type === "topic" && node.id === params.topicId.trim(),
     );
 
@@ -350,7 +488,7 @@ export const CorpusMap = ({
   }, [data.nodes, data.similarities, params.topicId]);
 
   const valueRanges = useFindMultiTypeMinMaxValue({
-    points: data?.nodes,
+    points: data?.nodes as CorpusExplorerPoint[],
     getType,
     getValue,
   });
@@ -404,8 +542,8 @@ export const CorpusMap = ({
       concept: d3
         .scaleSequential((t) => d3.interpolateGreens(0.2 + t * 0.6))
         .domain([
-          theme === "dark" ? valueRanges.concept.max : valueRanges.concept.min,
-          theme === "dark" ? valueRanges.concept.min : valueRanges.concept.max,
+          theme === "dark" ? valueRanges.topic.max : valueRanges.topic.min,
+          theme === "dark" ? valueRanges.topic.min : valueRanges.topic.max,
         ]),
     };
   }, [valueRanges, theme]);
@@ -440,20 +578,16 @@ export const CorpusMap = ({
     [setParams],
   );
 
-  if (data == null) {
-    return <Spinner />;
-  }
-
   return (
     <>
       <Activity mode={params.tab === "chart" ? "visible" : "hidden"}>
         <D3ContextProvider externalRefs={externalRefs}>
           <Filter points={nodes} />
           <ForceGraph
-            points={nodes}
+            points={nodes as CorpusExplorerPoint[]}
             similarities={links}
             svgClassName="rounded-lg"
-            nodeClassName="fill-transparent cursor-pointer"
+            nodeClassName="fill-transparent cursor-pointer truncate"
             textClassName="pointer-events-none"
             fontScaler={fontScaler}
             nodeScaler={nodeScaler}
@@ -470,7 +604,9 @@ export const CorpusMap = ({
               className="top-2.5 right-15"
             />
             <NavigationBar className="top-2.5 right-2.5" />
-            <TopicDetails selectedTopic={selectedTopic} />
+            <TopicDetails
+              selectedTopic={selectedTopic as CorpusExplorerPoint}
+            />
             <ToolTipContent />
           </ForceGraph>
         </D3ContextProvider>
@@ -720,7 +856,7 @@ const TopicDetails = ({
   );
 };
 
-const Filter = ({ points }: { points: CorpusExplorerPoint[] }) => {
+const Filter = ({ points }: { points: TopicNode[] }) => {
   const [params, setParams] = useCorpusMapParams();
   const { getRef, setHoveredNode, registerRef } =
     useD3Context<CorpusExplorerPoint>();

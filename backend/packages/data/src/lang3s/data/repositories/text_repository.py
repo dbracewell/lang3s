@@ -1,5 +1,5 @@
 import numpy as np
-from sqlalchemy import Boolean, cast, func, not_, select
+from sqlalchemy import Boolean, cast, func, not_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lang3s.data.models import Document as DocumentModel
@@ -88,6 +88,28 @@ class TextRepository:
                 not_(cast(TextAnnotationModel.metadata_json["is_stopword"], Boolean)),
             )
             .order_by(func.random())
+            .limit(limit)
+        )
+        result = await self.session.scalars(stmt)
+        return [TextAnnotationSchema.model_validate(a) for a in result.all()]
+
+    async def full_text_sentence_search(
+        self,
+        query: str,
+        limit: int = 500,
+    ) -> list[TextAnnotationSchema]:
+        stmt = (
+            select(TextAnnotationModel)
+            .where(
+                not_(TextAnnotationModel.is_stopword),
+                TextAnnotationModel.type_ == "sentence",
+                TextAnnotationModel.content.op("&@~")(query),
+            )
+            .order_by(
+                func.dense_rank().over(
+                    order_by=func.pgroonga_score(text("tableoid"), text("ctid")).desc()
+                )
+            )
             .limit(limit)
         )
         result = await self.session.scalars(stmt)

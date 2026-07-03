@@ -14,8 +14,6 @@ from typing import (
     TypeVar,
 )
 
-from lang3s.core.async_extras import get_async_event_loop
-
 from .threading_manager import BasicQueueSource
 from .typedefs import (
     BaseManager,
@@ -166,7 +164,7 @@ class AsyncManager(BaseManager):
                 if not isinstance(item, Event):
                     item = Event(payload=item)
 
-                self._tasks.append(get_async_event_loop().create_task(func(item)))
+                self._tasks.append(asyncio.get_running_loop().create_task(func(item)))
 
             except queue.Empty:
                 await asyncio.sleep(0.1)

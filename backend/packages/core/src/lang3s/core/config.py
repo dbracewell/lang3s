@@ -178,22 +178,22 @@ class Config:
 
     @property
     def LLM_NATIVE_TOOL_SUPPORT(self) -> bool:
-        val = self.get_config_value("LLM_NATIVE_TOOL_SUPPORT", True)
+        val = self.get_config_value("LLM_NATIVE_TOOL_SUPPORT", "true")
         return str(val).lower() == "true" if isinstance(val, str) else bool(val)
 
     @property
     def LLM_SUPPORTS_SYSTEM_PROMPT(self) -> bool:
-        val = self.get_config_value("LLM_SUPPORTS_SYSTEM_PROMPT", True)
+        val = self.get_config_value("LLM_SUPPORTS_SYSTEM_PROMPT", "true")
         return str(val).lower() == "true" if isinstance(val, str) else bool(val)
 
     @property
     def LLM_SUPPORTS_STRUCTURED_OUTPUT(self) -> bool:
-        val = self.get_config_value("LLM_SUPPORTS_STRUCTURED_OUTPUT", True)
+        val = self.get_config_value("LLM_SUPPORTS_STRUCTURED_OUTPUT", "true")
         return str(val).lower() == "true" if isinstance(val, str) else bool(val)
 
     @property
     def LLM_CONTEXT_WINDOW(self) -> int:
-        return int(self.get_config_value("LLM_CONTEXT_WINDOW", 8000))
+        return int(self.get_config_value("LLM_CONTEXT_WINDOW", 32000))
 
     @property
     def LOCAL_LLM_DEVICE(self) -> str:

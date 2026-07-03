@@ -55,7 +55,7 @@ class ChatCompletionParams(TypedDict):
     audio: NotRequired[dict[str, Any]]
     prediction: NotRequired[dict[str, Any]]
     parallel_tool_calls: NotRequired[bool]
-    stream_options: NotRequired[dict[str, Any]]  # E.g., {"include_usage": True}
+    # stream_options: NotRequired[dict[str, Any]]  # E.g., {"include_usage": True}
     n: NotRequired[int]
     logit_bias: NotRequired[dict[str, int]]  #
     logprobs: NotRequired[bool]
@@ -79,7 +79,11 @@ class LLMClient:
         self.api_key: str = api_key or config.LLM_API_KEY
         self.base_url: str = llm_host or config.LLM_HOST
         self.model_name: str = model_name or config.LLM_MODEL
-        self._client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+        self._client = AsyncOpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
+            timeout=120.0,
+        )
 
     @staticmethod
     def _error_to_event(e: Exception) -> LLMEvent:
@@ -120,14 +124,26 @@ class LLMClient:
             completion_args["tools"] = [t.schema for _, t in available_tools.items()]
 
         if response_model and config.LLM_SUPPORTS_STRUCTURED_OUTPUT:
-            raw = response_model.model_json_schema()
-            description = raw.pop("description", None)
+
+            def clean_schema(raw_schema: Any) -> Any:
+                if isinstance(raw_schema, dict):
+                    raw_schema.pop("title", None)
+                    for key, value in list(raw_schema.items()):
+                        if isinstance(value, (dict, list)):
+                            clean_schema(value)
+                elif isinstance(raw_schema, list):
+                    for item in raw_schema:
+                        clean_schema(item)
+                return raw_schema
+
+            sanitized_schema = clean_schema(response_model.model_json_schema())
+            description = sanitized_schema.pop("description", "")
             completion_args["response_format"] = ResponseFormatJSONSchema(
                 json_schema=JSONSchema(
                     name=response_model.__name__,
                     strict=False,
+                    schema=sanitized_schema,
                     description=description,
-                    schema=raw,
                 ),
                 type="json_schema",
             )
@@ -298,7 +314,7 @@ class LLMClient:
         **kwargs: Unpack[ChatCompletionParams],
     ) -> Generator[LLMEvent[T], None, None]:
         for event in async_generator_to_sync(
-            lambda: self.chat(
+            self.chat(
                 messages=messages,
                 stream=stream,
                 tools=tools,

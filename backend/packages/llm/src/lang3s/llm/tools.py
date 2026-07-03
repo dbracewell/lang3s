@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
 from pydantic.json_schema import DEFAULT_REF_TEMPLATE
 
-from lang3s.agent.llm.typedefs import ArgDesc, LLMTool
+from lang3s.llm.typedefs import ArgDesc, LLMTool
 
 
 def tool(

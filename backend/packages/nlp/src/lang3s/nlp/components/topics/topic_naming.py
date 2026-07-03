@@ -7,11 +7,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sqlalchemy.ext.asyncio import AsyncSession
 from tqdm.asyncio import tqdm_asyncio
 
-from lang3s.agent.llm import LLMClient, Message
 from lang3s.core.exceptions import try_catch
 from lang3s.core.parallel import AsyncManager, Event
 from lang3s.data.db import async_db_session
 from lang3s.data.repositories.text_repository import TextRepository
+from lang3s.llm import LLMClient, Message
 from lang3s.ml.cluster import ClusterNode
 
 from .schemas import Topic, TopicCollection

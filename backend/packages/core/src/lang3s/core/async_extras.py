@@ -1,71 +1,78 @@
 import asyncio
-import concurrent.futures
-import queue
+import atexit
 import threading
-from typing import Any, AsyncGenerator, Callable, Coroutine, Generator, TypeVar
+from concurrent.futures import Future
+from typing import Any, AsyncGenerator, Coroutine, TypeVar
+
+
+class BackgroundAsyncRunner:
+    def __init__(self):
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(target=self._start_background_loop, daemon=True)
+        self._thread.start()
+
+        # Ensure the loop shuts down gracefully when the program exits
+        atexit.register(self.shutdown)
+
+    def _start_background_loop(self):
+        asyncio.set_event_loop(self._loop)
+        self._loop.run_forever()
+
+        # Clean up pending tasks when run_forever() stops
+        pending = asyncio.all_tasks(self._loop)
+        for task in pending:
+            task.cancel()
+
+        # Run the loop briefly to allow cancellations to process
+        self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        self._loop.close()
+
+    def submit(self, coro) -> Future:
+        """Thread-safe way to schedule a coroutine."""
+        if not self._loop.is_running():
+            raise RuntimeError("Background event loop is not running.")
+        return asyncio.run_coroutine_threadsafe(coro, self._loop)
+
+    def run(self, coro, force_sync=False):
+        try:
+            asyncio.get_running_loop()
+            is_async = True
+        except RuntimeError:
+            is_async = False
+
+        if is_async and not force_sync:
+            return coro
+
+        future = self.submit(coro)
+        return future.result()
+
+    def shutdown(self):
+        """Stops the loop and joins the thread cleanly."""
+        if self._loop.is_running():
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            self._thread.join(timeout=5.0)
+
+
+runner = BackgroundAsyncRunner()
 
 _ReturnType = TypeVar("_ReturnType")
 T = TypeVar("T")
-
-_async_loop = asyncio.new_event_loop()
-
-
-def _start_background_loop(loop: asyncio.AbstractEventLoop):
-    asyncio.set_event_loop(loop)
-    loop.run_forever()
-
-
-_loop_thread = threading.Thread(
-    target=_start_background_loop,
-    args=(_async_loop,),
-    daemon=True,
-)
-_loop_thread.start()
 
 
 def run_sync(
     coro: Coroutine[Any, Any, _ReturnType],
 ) -> _ReturnType:
-    return asyncio.run_coroutine_threadsafe(coro, _async_loop).result()
-
-
-def get_async_event_loop():
-    try:
-        return asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        return loop
+    return runner.run(coro, force_sync=True)
 
 
 def async_generator_to_sync(
-    gen_factory: Callable[[], AsyncGenerator[T, None]],
-) -> Generator[T, None, None]:
-    q = queue.Queue()
-
-    def async_runner():
-        loop = get_async_event_loop()
-
-        async def iterate():
+    async_gen: AsyncGenerator[T, None],
+):
+    try:
+        while True:
             try:
-                async for item in gen_factory():
-                    q.put(item)
-            finally:
-                q.put(None)
-
-        try:
-            loop.run_until_complete(iterate())
-            loop.run_until_complete(loop.shutdown_asyncgens())
-        finally:
-            loop.close()
-
-    t = threading.Thread(target=async_runner)
-    t.start()
-
-    while True:
-        item = q.get()
-        if item is None:
-            break
-        yield item
-
-    t.join()
+                yield runner.run(anext(async_gen), force_sync=True)
+            except StopAsyncIteration:
+                break
+    finally:
+        runner.run(async_gen.aclose())

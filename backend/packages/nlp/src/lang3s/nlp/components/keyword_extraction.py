@@ -5,10 +5,10 @@ from typing import NamedTuple, Tuple
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
-from lang3s.agent.llm import LLMClient, Message
 from lang3s.core.exceptions import try_catch
 from lang3s.core.logger import get_logger
 from lang3s.data.schemas import Text
+from lang3s.llm import LLMClient, Message
 
 
 class KeywordItem(NamedTuple):

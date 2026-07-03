@@ -1,20 +1,20 @@
 [project]
-name = "lang3s-agent"
+name = "lang3s-llm"
 version = "0.1.0"
-description = "Lang3s Agent Packages"
+description = "Lang3s LLM Packages"
 authors = [
     { name = "David Bracewell" }
 ]
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    "lang3s-llm",
+    "lang3s-core",
+    "openai>=2.42.0",
     "pydantic>=2.13.4",
 ]
 
 [tool.uv.sources]
-lang3s-llm = { workspace = true }
-
+lang3s-core = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
