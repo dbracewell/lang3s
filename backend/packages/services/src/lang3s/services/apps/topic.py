@@ -5,24 +5,19 @@ import io
 import numpy as np
 
 from lang3s.core.clients import RedisAsyncClient
-from lang3s.core.decorators import asyncio_run
 from lang3s.core.logger import get_logger
-from lang3s.core.typing_extras import ShutdownEvent
 from lang3s.data.constants import TOPIC_FINISHED, TOPIC_QUEUE_NAME
 from lang3s.data.db import async_db_session
 from lang3s.nlp.components.topics import Lang3sTopicModel
 from lang3s.services.schemas.topics_api_schema import Task
 
 
-@asyncio_run
-async def topic_worker(
-    shutdown_event: ShutdownEvent,
-):
+async def main():
     logger = get_logger("TOPIC_SERVER")
     logger.info("Topic server started")
     async with RedisAsyncClient() as client, async_db_session() as session:
         topic_model = Lang3sTopicModel(session)
-        while not shutdown_event.is_set():
+        while True:
             try:
                 task = await client.dequeue(TOPIC_QUEUE_NAME, timeout=0.5)
                 if task is None:
@@ -49,3 +44,7 @@ async def topic_worker(
 
                 traceback.print_exc()
                 continue
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

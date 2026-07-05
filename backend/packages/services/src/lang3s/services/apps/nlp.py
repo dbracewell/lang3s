@@ -15,7 +15,6 @@ from lang3s.services.apps.workers.annotation import (
     on_annotation_job_complete,
     poll_redis,
 )
-from lang3s.services.apps.workers.topic import topic_worker
 
 
 def main():
@@ -35,11 +34,6 @@ def main():
     args = parser.parse_args()
     logger = get_logger("NLP")
     with MultiprocessingManager(workers=args.num_workers) as manager:
-        logger.info("Starting topic worker...")
-        manager.submit(topic_worker)
-        # logger.info("Starting claims worker...")
-        # manager.submit(claims_worker)
-
         q: QueueSource[AnnotationTask] = manager.create_queue(maxsize=args.num_workers)
         manager.submit(
             partial(poll_redis, batch_size=args.batch_size),

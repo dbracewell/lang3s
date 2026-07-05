@@ -16,6 +16,18 @@ procs:
     autostart: true
     autorestart: true
 
+  topic-server:
+    cwd: "backend/"
+    shell: "uv run --package lang3s-services  python -m lang3s.services.apps.topic"
+    autostart: true
+    autorestart: true
+
+  claim-server:
+    cwd: "backend/"
+    shell: "uv run --package lang3s-services  python -m lang3s.services.apps.claims"
+    autostart: true
+    autorestart: true
+
   analytics-server:
     cwd: "backend/"
     shell: "uv  run  --package lang3s-services python -m lang3s.services.apps.analytics"

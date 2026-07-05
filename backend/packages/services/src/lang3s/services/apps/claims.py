@@ -6,7 +6,6 @@ from transformers import AutoTokenizer
 from lang3s.core.logger import get_logger
 from lang3s.core.parallel import Event, ThreadingManager
 from lang3s.core.parallel.redis_queue import RedisQueueSource
-from lang3s.core.typing_extras import ShutdownEvent
 from lang3s.data.constants import CLAIM_EXTRACT_QUEUE_NAME
 from lang3s.data.db import sync_db_session
 from lang3s.data.models import Claim as ClaimModel
@@ -56,7 +55,7 @@ def process_task(item: Event[dict]):
     return Event(payload=0)
 
 
-def claims_worker(shutdown_event: ShutdownEvent):
+def main():
     total_documents = 0
     total_tokens = 0
     WORKER_COUNT = 4
@@ -70,9 +69,6 @@ def claims_worker(shutdown_event: ShutdownEvent):
         )
         start_time = time.perf_counter()
         for r in manager.imap(process_task, queue):
-            if shutdown_event.is_set():
-                manager.shutdown()
-                return
             total_documents += 1
             total_tokens += r.payload
             total_time = time.perf_counter() - start_time
@@ -83,3 +79,7 @@ def claims_worker(shutdown_event: ShutdownEvent):
                     f"({total_documents / total_time:.2f} docs / second) "
                     f"({total_tokens / total_time:.2f} tokens / second)"
                 )
+
+
+if __name__ == "__main__":
+    main()
