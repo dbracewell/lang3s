@@ -65,6 +65,13 @@ def main():
 
             server_process.wait()
             logger.info("llama-server terminated")
+
+        if sys.platform != "win32":
+            try:
+                kill_pattern = f"llama-server.*{config.LOCAL_LLM_PORT}"
+                subprocess.run(["pkill", "-f", kill_pattern], check=False)
+            except Exception as e:
+                logger.error(f"Failed to run pkill cleanup: {e}")
         sys.exit(0)
 
     signal.signal(signal.SIGINT, handle_termination)
