@@ -28,7 +28,7 @@ class ClaimExtractor:
             if parsed_claim is None:
                 continue
 
-            subject: str = parsed_claim["OBJ"]
+            subject: str = parsed_claim["subject"]
             predicate: str = parsed_claim["predicate"]
             obj: str = parsed_claim["object"]
             stance = parsed_claim["stance"]
