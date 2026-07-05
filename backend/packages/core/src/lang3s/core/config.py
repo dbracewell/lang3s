@@ -250,9 +250,12 @@ class Config:
         except ImportError:
             return "cpu"
 
+        if is_inference:
+            return "cpu"
+
         if torch.cuda.is_available():
             return "cuda"
-        elif not is_inference and torch.backends.mps.is_available():
+        elif torch.backends.mps.is_available():
             return "mps"
         return "cpu"
 

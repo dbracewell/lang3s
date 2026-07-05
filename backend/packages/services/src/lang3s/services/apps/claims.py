@@ -1,3 +1,4 @@
+import argparse
 import time
 
 from pydantic import ValidationError
@@ -55,16 +56,15 @@ def process_task(item: Event[dict]):
     return Event(payload=0)
 
 
-def main():
+def main(workers: int):
     total_documents = 0
     total_tokens = 0
-    WORKER_COUNT = 4
-
+    logger.info(f"Claim Worker started with {workers} workers")
     with ThreadingManager(
-        workers=WORKER_COUNT,
+        workers=workers,
     ) as manager:
         queue = RedisQueueSource(
-            workers=WORKER_COUNT,
+            workers=workers,
             queue_name=CLAIM_EXTRACT_QUEUE_NAME,
         )
         start_time = time.perf_counter()
@@ -72,14 +72,23 @@ def main():
             total_documents += 1
             total_tokens += r.payload
             total_time = time.perf_counter() - start_time
+            docs_per_minute = total_documents / total_time * 60
             if total_documents % 10 == 0:
                 logger.info(
                     f"Claim Extractor: Processed {total_documents} documents in "
                     f"{total_time:.2f} "
-                    f"({total_documents / total_time:.2f} docs / second) "
+                    f"({docs_per_minute:.2f} docs / minute) "
                     f"({total_tokens / total_time:.2f} tokens / second)"
                 )
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--num_workers",
+        help="The number of worker processes to use",
+        default=4,
+        type=int,
+    )
+    args = parser.parse_args()
+    main(args.num_workers)

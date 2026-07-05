@@ -24,7 +24,7 @@ procs:
 
   claim-server:
     cwd: "backend/"
-    shell: "uv run --package lang3s-services  python -m lang3s.services.apps.claims"
+    shell: "uv run --package lang3s-services  python -m lang3s.services.apps.claims --num_workers 4"
     autostart: true
     autorestart: true
 
