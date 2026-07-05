@@ -19,72 +19,74 @@ class ClaimExtractor:
             max_completion_tokens=4096,
             stop=["<|im_end|>", "<|endoftext|>"],
         )
-        all_claims: list[Claim] = []
         if not response.content:
-            return all_claims
+            return []
 
+        unique_claims = {}
         for raw_claim in response.content.split("\n"):
             parsed_claim = _parse_claim_string(raw_claim)
-            if parsed_claim:
-                subject = parsed_claim["subject"]
-                predicate = parsed_claim["predicate"]
-                obj = parsed_claim["object"]
-                stance = parsed_claim["stance"]
-                if parsed_claim["modality"] in (
-                    "factual",
-                    "normative",
-                    "hypothetical",
-                    "conditional",
-                    "predictive",
-                ):
-                    mod = Modality(parsed_claim["modality"])
-                else:
-                    mod = "factual"
-                neg = parsed_claim["negation"]
+            if parsed_claim is None:
+                continue
 
-                if parsed_claim["certainty"] in (
-                    "certain",
-                    "probable",
-                    "possible",
-                    "speculative",
-                ):
-                    certain = Certainty(parsed_claim["certainty"])
-                else:
-                    certain = Certainty.unknown
+            subject: str = parsed_claim["OBJ"]
+            predicate: str = parsed_claim["predicate"]
+            obj: str = parsed_claim["object"]
+            stance = parsed_claim["stance"]
+            if parsed_claim["modality"] in (
+                "factual",
+                "normative",
+                "hypothetical",
+                "conditional",
+                "predictive",
+            ):
+                mod = Modality(parsed_claim["modality"])
+            else:
+                mod = "factual"
+            neg = parsed_claim["negation"]
 
-                time_param = parsed_claim["time"]
-                loc = parsed_claim["location"]
-                source = parsed_claim["source"]
-                keywords = [
-                    item.strip("' ")
-                    for item in parsed_claim["keywords"].strip("[] ").split(",")
-                ]
+            if parsed_claim["certainty"] in (
+                "certain",
+                "probable",
+                "possible",
+                "speculative",
+            ):
+                certain = Certainty(parsed_claim["certainty"])
+            else:
+                certain = Certainty.unknown
 
-                if subject and predicate and obj:
-                    all_claims.append(
-                        Claim(
-                            document_id=document_id,
-                            subject=subject,
-                            predicate=predicate,
-                            type_=ClaimType.Fact,
-                            object=obj,
-                            stance=stance,
-                            claim=f"{subject} {predicate} {obj}",
-                            keywords=keywords,
-                            time=time_param,
-                            source=source,
-                            evidence="",
-                            location=loc,
-                            embedding=np.zeros(1),
-                            modality=mod,  # type: ignore
-                            negation=neg.lower() == "true",
-                            certainty=certain,  # type: ignore
-                            condition="",
-                            sentiment=Sentiment.neutral,
-                        )
+            time_param = parsed_claim["time"]
+            loc = parsed_claim["location"]
+            source = parsed_claim["source"]
+            keywords = [
+                item.strip("' ")
+                for item in parsed_claim["keywords"].strip("[] ").split(",")
+            ]
+
+            if subject and predicate and obj:
+                unique_claims[(subject.lower(), predicate.lower(), obj.lower())] = (
+                    Claim(
+                        document_id=document_id,
+                        subject=subject,
+                        predicate=predicate,
+                        type_=ClaimType.Fact,
+                        object=obj,
+                        stance=stance,
+                        claim=f"{subject} {predicate} {obj}",
+                        keywords=keywords,
+                        time=time_param,
+                        source=source,
+                        evidence="",
+                        location=loc,
+                        embedding=np.zeros(1),
+                        modality=mod,  # type: ignore
+                        negation=neg.lower() == "true",
+                        certainty=certain,  # type: ignore
+                        condition="",
+                        sentiment=Sentiment.neutral,
                     )
+                )
 
-        return all_claims
+        return list(unique_claims.values())
 
 
 def _parse_claim_string(text: str) -> dict | None:
@@ -113,7 +115,7 @@ def _parse_claim_string(text: str) -> dict | None:
 
     found_markers.sort(key=lambda x: x[0])
 
-    parsed = {key: "" for key in markers.values()}
+    parsed: dict[str, str] = {key: "" for key in markers.values()}
 
     for i in range(len(found_markers)):
         current_idx = found_markers[i][0]
@@ -128,7 +130,7 @@ def _parse_claim_string(text: str) -> dict | None:
 
         parsed[key] = text[start_idx:end_idx].strip()
 
-    if not (parsed["subject"] and parsed["predicate"] and parsed["object"]):
-        return None
+    if parsed["subject"] and parsed["predicate"] and parsed["object"]:
+        return parsed
 
-    return parsed
+    return None
