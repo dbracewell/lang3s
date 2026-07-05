@@ -1,4 +1,5 @@
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -49,25 +50,45 @@ def main():
         cmd.append(os.path.join(root, "adapters", lora))
 
     logger.info(f"Server is starting at http://localhost:{config.LOCAL_LLM_PORT}")
+    server_process = None
+
+    def handle_termination(signum, frame):
+        if server_process and server_process.poll() is None:
+            logger.info("Terminating llama-server...")
+            if os.name == "posix":
+                try:
+                    os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+            else:
+                server_process.terminate()
+
+            server_process.wait()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_termination)
+    signal.signal(signal.SIGTERM, handle_termination)
+
+    posix_kwargs = {"start_new_session": True} if os.name == "posix" else {}
 
     with open("llama_server.log", "w") as log_file:
-        try:
-            server_process = subprocess.Popen(
-                cmd,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-            )
+        server_process = subprocess.Popen(
+            cmd,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            **posix_kwargs,
+        )
 
-            while True:
-                time.sleep(1)
-                if server_process.poll() is not None:
-                    print("llama.cpp terminated unexpectedly. Restarting...")
-                    server_process = subprocess.Popen(cmd)
-
-        except KeyboardInterrupt:
-            server_process.terminate()
-            server_process.wait()
-            return
+        while True:
+            time.sleep(1)
+            if server_process.poll() is not None:
+                print("llama.cpp terminated unexpectedly. Restarting...")
+                server_process = subprocess.Popen(
+                    cmd,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    **posix_kwargs,
+                )
 
 
 if __name__ == "__main__":
