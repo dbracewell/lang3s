@@ -64,6 +64,7 @@ def main():
                 server_process.terminate()
 
             server_process.wait()
+            logger.info("llama-server terminated")
         sys.exit(0)
 
     signal.signal(signal.SIGINT, handle_termination)
