@@ -115,6 +115,34 @@ export type AnnotationSearchResults = {
 };
 
 /**
+ * AuthedUser
+ */
+export type AuthedUser = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Role
+     */
+    role: string;
+    /**
+     * Permissions
+     */
+    permissions?: {
+        [key: string]: Array<string>;
+    };
+};
+
+/**
+ * Body_embed_embed__post
+ */
+export type BodyEmbedEmbedPost = {
+    request: EmbeddingRequest;
+    user: AuthedUser;
+};
+
+/**
  * DataType
  */
 export type DataType = 'string' | 'string_array' | 'int' | 'float' | 'boolean' | 'date';
@@ -239,6 +267,38 @@ export type ErrorDetail = {
      * Code
      */
     code: number;
+};
+
+/**
+ * File
+ */
+export type File = {
+    /**
+     * Path
+     */
+    path?: string | unknown;
+    /**
+     * Docid
+     */
+    docId?: string | unknown;
+    /**
+     * Mime Type
+     */
+    mime_type?: string;
+    /**
+     * Encoding
+     */
+    encoding?: string | unknown;
+    /**
+     * Content
+     */
+    content: string;
+    /**
+     * Metadata
+     */
+    metadata?: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -511,15 +571,33 @@ export type Job = {
      */
     completed_at?: string | null;
     /**
-     * Api Key
-     */
-    api_key?: string | null;
-    /**
      * Metadata Json
      */
     metadata_json?: {
         [key: string]: unknown;
     };
+    /**
+     * Deleting
+     */
+    deleting?: boolean;
+};
+
+/**
+ * JobAnnotateRequest
+ */
+export type JobAnnotateRequest = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Files
+     */
+    files: Array<File>;
+    /**
+     * Complete
+     */
+    complete?: boolean;
 };
 
 /**
@@ -532,17 +610,10 @@ export type JobCreateRequest = {
     name: string;
     type_: JobType;
     /**
-     * User Id
-     */
-    user_id?: string | null;
-    /**
      * Total
      */
     total?: number;
-    /**
-     * Api Key
-     */
-    api_key?: string | null;
+    status?: JobStatus | unknown;
     /**
      * Metadata Json
      */
@@ -564,7 +635,7 @@ export type JobStatus = 'waiting' | 'running' | 'completed' | 'cancelled' | 'fai
 /**
  * JobType
  */
-export type JobType = 'annotation' | 'update' | 'other';
+export type JobType = 'annotation' | 'update' | 'analyticsupdate' | 'other';
 
 /**
  * JobUpdateRequest
@@ -912,7 +983,7 @@ export type TopicNode = {
     /**
      * Subvalues
      */
-    subvalues: {
+    subvalues?: {
         [key: string]: number;
     };
 };
@@ -1056,11 +1127,9 @@ export type JobsDeleteJobError = JobsDeleteJobErrors[keyof JobsDeleteJobErrors];
 
 export type JobsDeleteJobResponses = {
     /**
-     * Response 200 Jobsdeletejob
-     *
      * Successful Response
      */
-    200: boolean;
+    200: Job;
 };
 
 export type JobsDeleteJobResponse = JobsDeleteJobResponses[keyof JobsDeleteJobResponses];
@@ -1106,6 +1175,47 @@ export type JobsGetJobResponses = {
 };
 
 export type JobsGetJobResponse = JobsGetJobResponses[keyof JobsGetJobResponses];
+
+export type JobsGetRunningCountData = {
+    body?: never;
+    path: {
+        job_type: JobType;
+    };
+    query?: never;
+    url: '/job/running/{job_type}';
+};
+
+export type JobsGetRunningCountErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorDetail;
+    /**
+     * Unauthorized
+     */
+    401: ErrorDetail;
+    /**
+     * Not Found
+     */
+    404: ErrorDetail;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type JobsGetRunningCountError = JobsGetRunningCountErrors[keyof JobsGetRunningCountErrors];
+
+export type JobsGetRunningCountResponses = {
+    /**
+     * Response 200 Jobsgetrunningcount
+     *
+     * Successful Response
+     */
+    200: number;
+};
+
+export type JobsGetRunningCountResponse = JobsGetRunningCountResponses[keyof JobsGetRunningCountResponses];
 
 export type JobsListJobsData = {
     body?: never;
@@ -1161,9 +1271,9 @@ export type JobsCreateJobErrors = {
      */
     404: unknown;
     /**
-     * Validation Error
+     * Unprocessable Entity
      */
-    422: HttpValidationError;
+    422: ErrorDetail;
 };
 
 export type JobsCreateJobError = JobsCreateJobErrors[keyof JobsCreateJobErrors];
@@ -1171,6 +1281,10 @@ export type JobsCreateJobError = JobsCreateJobErrors[keyof JobsCreateJobErrors];
 export type JobsCreateJobResponses = {
     /**
      * Successful Response
+     */
+    200: Job;
+    /**
+     * Created
      */
     201: Job;
 };
@@ -1213,6 +1327,43 @@ export type JobsUpdateJobResponses = {
 };
 
 export type JobsUpdateJobResponse = JobsUpdateJobResponses[keyof JobsUpdateJobResponses];
+
+export type JobsAnnotateData = {
+    body: JobAnnotateRequest;
+    path?: never;
+    query?: never;
+    url: '/job/annotate';
+};
+
+export type JobsAnnotateErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorDetail;
+    /**
+     * Unauthorized
+     */
+    401: ErrorDetail;
+    /**
+     * Not Found
+     */
+    404: ErrorDetail;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type JobsAnnotateError = JobsAnnotateErrors[keyof JobsAnnotateErrors];
+
+export type JobsAnnotateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Job;
+};
+
+export type JobsAnnotateResponse = JobsAnnotateResponses[keyof JobsAnnotateResponses];
 
 export type TopicsGetTopicData = {
     body?: never;
@@ -1290,7 +1441,7 @@ export type TopicsGetTopicGraphResponses = {
 export type TopicsGetTopicGraphResponse = TopicsGetTopicGraphResponses[keyof TopicsGetTopicGraphResponses];
 
 export type EmbedEmbedPostData = {
-    body: EmbeddingRequest;
+    body: BodyEmbedEmbedPost;
     path?: never;
     query?: never;
     url: '/embed/';

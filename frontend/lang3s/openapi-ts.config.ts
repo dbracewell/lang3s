@@ -6,7 +6,12 @@ export default [
       "@hey-api/typescript",
       "@hey-api/client-fetch",
       "@tanstack/react-query",
-      "zod",
+      {
+        name: "zod",
+        dates: {
+          local: true,
+        },
+      },
       {
         name: "@hey-api/sdk",
         validator: true,
@@ -19,7 +24,7 @@ export default [
     parser: {
       hooks: {
         operations: {
-          getKind: (op) => {
+          getKind: (op: any) => {
             if (op.method === "post" && op.path.includes("/search")) {
               return ["query"];
             }
@@ -35,10 +40,16 @@ export default [
       "@hey-api/typescript",
       "@hey-api/client-fetch",
       "@tanstack/react-query",
-      "zod",
+      {
+        name: "zod",
+        dates: {
+          local: true,
+        },
+      },
       {
         name: "@hey-api/sdk",
         validator: true,
+
         operations: {
           strategy: "single",
           containerName: "ApiClient",

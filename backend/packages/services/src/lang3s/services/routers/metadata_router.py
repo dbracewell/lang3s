@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
+from lang3s.core.exceptions import UnauthorizedException
 from lang3s.core.logger import get_logger
 from lang3s.data.repositories.metadata_repository import MetadataRepository
 from lang3s.data.schemas.global_metadata import (
@@ -12,6 +13,8 @@ from lang3s.data.schemas.global_metadata import (
     GlobalMetadataUpdate,
 )
 from lang3s.services.helpers import DBSessionDep, ErrorDetail
+from lang3s.services.permissions import Permissions
+from lang3s.services.security import AuthenticatedUserDep
 
 logger = get_logger(__name__)
 
@@ -43,7 +46,10 @@ metadata_router = APIRouter(
 async def metadata_create(
     item: GlobalMetadata,
     repository: MetadataRepositoryDep,
+    user: AuthenticatedUserDep,
 ) -> None:
+    if user is None or not user.has_permission(Permissions.metadata.edit):
+        raise UnauthorizedException()
     await repository.add(item)
 
 
@@ -57,7 +63,10 @@ async def metadata_create(
 )
 async def get_all_by_source(
     repository: MetadataRepositoryDep,
+    user: AuthenticatedUserDep,
 ) -> GlobalMetadataBySource:
+    if user is None:
+        raise UnauthorizedException()
     return await repository.get_all_by_source()
 
 
@@ -71,7 +80,10 @@ async def get_all_by_source(
 )
 async def get_available(
     repository: MetadataRepositoryDep,
+    user: AuthenticatedUserDep,
 ) -> GlobalMetadataAvailableList:
+    if user is None or not user.has_permission(Permissions.job.create):
+        raise UnauthorizedException()
     return await repository.probe()
 
 
@@ -87,7 +99,10 @@ async def get_available(
 async def metadata_delete(
     metadata_id: uuid.UUID,
     repository: MetadataRepositoryDep,
+    user: AuthenticatedUserDep,
 ) -> bool:
+    if user is None or not user.has_permission(Permissions.metadata.edit):
+        raise UnauthorizedException()
     return await repository.delete_by_id(metadata_id)
 
 
@@ -103,5 +118,8 @@ async def metadata_delete(
 async def metadata_update(
     update: GlobalMetadataUpdate,
     repository: MetadataRepositoryDep,
+    user: AuthenticatedUserDep,
 ) -> bool:
+    if user is None or not user.has_permission(Permissions.metadata.edit):
+        raise UnauthorizedException()
     return await repository.update(update)

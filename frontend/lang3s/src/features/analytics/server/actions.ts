@@ -1,6 +1,6 @@
 "use server";
 import { inngest } from "@/lib/inngest/client";
-import { BasicUserInfo } from "@/features/common/types";
+import { BasicUserInfo } from "@/lib/types";
 
 export const updateAnalytics = async (user: BasicUserInfo) => {
   await inngest.send({

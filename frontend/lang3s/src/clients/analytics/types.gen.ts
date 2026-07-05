@@ -569,6 +569,70 @@ export type HttpValidationError = {
 };
 
 /**
+ * Job
+ */
+export type Job = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    status: JobStatus;
+    type_: JobType;
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Completed
+     */
+    completed: number;
+    /**
+     * Failed
+     */
+    failed: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Completed At
+     */
+    completed_at?: string | null;
+    /**
+     * Metadata Json
+     */
+    metadata_json?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Deleting
+     */
+    deleting?: boolean;
+};
+
+/**
+ * JobStatus
+ */
+export type JobStatus = 'waiting' | 'running' | 'completed' | 'cancelled' | 'failed';
+
+/**
+ * JobType
+ */
+export type JobType = 'annotation' | 'update' | 'analyticsupdate' | 'other';
+
+/**
  * SeriesType
  */
 export type SeriesType = 'TOPIC' | 'ANNOTATION' | 'DOCUMENT_METADATA' | 'SENTENCE_METADATA' | 'ANNOTATION_METADATA';
@@ -851,26 +915,44 @@ export type EntityCoOccurrenceResponses = {
 
 export type EntityCoOccurrenceResponse = EntityCoOccurrenceResponses[keyof EntityCoOccurrenceResponses];
 
-export type UpdateStatsUpdatestatsPutData = {
-    body?: never;
+export type AnalysisUpdateStatsData = {
+    body: Job;
     path?: never;
     query?: never;
     url: '/updatestats';
 };
 
-export type UpdateStatsUpdatestatsPutErrors = {
+export type AnalysisUpdateStatsErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorDetail;
+    /**
+     * Unauthorized
+     */
+    401: ErrorDetail;
     /**
      * Not found
      */
     404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
 };
 
-export type UpdateStatsUpdatestatsPutResponses = {
+export type AnalysisUpdateStatsError = AnalysisUpdateStatsErrors[keyof AnalysisUpdateStatsErrors];
+
+export type AnalysisUpdateStatsResponses = {
     /**
+     * Response 200 Analysisupdatestats
+     *
      * Successful Response
      */
-    200: unknown;
+    200: boolean;
 };
+
+export type AnalysisUpdateStatsResponse = AnalysisUpdateStatsResponses[keyof AnalysisUpdateStatsResponses];
 
 export type EntityEventsData = {
     body: AnnotationEventRequest;

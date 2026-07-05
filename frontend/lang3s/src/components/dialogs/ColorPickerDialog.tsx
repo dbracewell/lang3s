@@ -1,4 +1,4 @@
-import { AnnotationColors } from "@/features/common/constants";
+import { AnnotationColors } from "@/lib/constants";
 import z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";

@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from lang3s.core.exceptions import UnauthorizedException
 from lang3s.data.repositories.ontology_repository import OntologyRepository
 from lang3s.data.schemas.ontology import (
     AnnotationOntologyMappingList,
@@ -14,6 +15,8 @@ from lang3s.data.schemas.ontology import (
     PotentialMappingList,
 )
 from lang3s.services.helpers import DBSessionDep, ErrorDetail
+from lang3s.services.permissions import Permissions
+from lang3s.services.security import AuthenticatedUserDep
 
 ontology_router = APIRouter(
     prefix="/ontology",
@@ -45,7 +48,10 @@ type OntologyRepositoryDep = Annotated[
 )
 async def get_ontology(
     repository: OntologyRepositoryDep,
+    user: AuthenticatedUserDep,
 ) -> OntologyFrontEnd:
+    if user is None:
+        raise UnauthorizedException()
     ontology = await repository.load_ontology()
     return OntologyFrontEnd(
         paths=list(ontology.path_to_node.keys()),
@@ -70,7 +76,10 @@ async def get_ontology(
 async def name_exists(
     name: str,
     repository: OntologyRepositoryDep,
+    user: AuthenticatedUserDep,
 ) -> OntologyNameExists:
+    if user is None:
+        raise UnauthorizedException()
     return OntologyNameExists(exists=await repository.name_exists(name))
 
 
@@ -88,7 +97,10 @@ async def name_exists(
 async def get_annotations_for_doc(
     doc_id: str,
     repository: OntologyRepositoryDep,
+    user: AuthenticatedUserDep,
 ) -> AnnotationOntologyMappingList:
+    if user is None:
+        raise UnauthorizedException()
     return await repository.get_annotations_for_document(doc_id)
 
 
@@ -104,7 +116,10 @@ async def get_annotations_for_doc(
 async def update_entry(
     payload: OntologyUpdateRequest,
     repository: OntologyRepositoryDep,
+    user: AuthenticatedUserDep,
 ):
+    if user is None or not user.has_permission(Permissions.ontology.edit):
+        raise UnauthorizedException()
     return await repository.update_entry(payload)
 
 
@@ -120,7 +135,10 @@ async def update_entry(
 async def delete_entry(
     node_id: int,
     repository: OntologyRepositoryDep,
+    user: AuthenticatedUserDep,
 ):
+    if user is None or not user.has_permission(Permissions.ontology.edit):
+        raise UnauthorizedException()
     return await repository.delete_entry(node_id)
 
 
@@ -138,7 +156,10 @@ async def delete_entry(
 async def get_node_path(
     path: str,
     repository: OntologyRepositoryDep,
+    user: AuthenticatedUserDep,
 ):
+    if user is None:
+        raise UnauthorizedException()
     return await repository.get_node_path(path)
 
 
@@ -154,7 +175,10 @@ async def get_node_path(
 async def add_ontology_entry(
     payload: OntologyEntryCreationRequest,
     repository: OntologyRepositoryDep,
+    user: AuthenticatedUserDep,
 ):
+    if user is None or not user.has_permission(Permissions.ontology.edit):
+        raise UnauthorizedException()
     return await repository.add_entry(payload)
 
 
@@ -169,5 +193,8 @@ async def add_ontology_entry(
 )
 async def get_potential_mappings(
     repository: OntologyRepositoryDep,
+    user: AuthenticatedUserDep,
 ) -> PotentialMappingList:
+    if user is None:
+        raise UnauthorizedException()
     return await repository.get_all_potential_mappings()

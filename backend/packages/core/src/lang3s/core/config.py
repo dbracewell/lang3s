@@ -46,6 +46,13 @@ class Config:
             return value
         return os.environ.get(key, default)
 
+    @property
+    def SYSTEM_KEY(self) -> str:
+        value = self.get_config_value("SYSTEM_KEY", None)
+        if value is None:
+            raise RuntimeError("SYSTEM_KEY not set")
+        return value
+
     #####################################################################################
     # PROXY  PORT
     #####################################################################################

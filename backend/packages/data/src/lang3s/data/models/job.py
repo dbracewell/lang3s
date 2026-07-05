@@ -1,5 +1,4 @@
 import datetime
-import enum
 from typing import Any, Optional
 
 from sqlalchemy import DateTime, Enum, Integer, String, func
@@ -7,24 +6,9 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column
 
+from lang3s.core.schemas.job import JobStatus, JobType
+
 from . import Base
-
-
-class JobStatus(enum.StrEnum):
-    Waiting = enum.auto()
-    Running = enum.auto()
-    Completed = enum.auto()
-    Cancelled = enum.auto()
-    Failed = enum.auto()
-
-    def is_completed(self):
-        return self not in (JobStatus.Running, JobStatus.Waiting)
-
-
-class JobType(enum.StrEnum):
-    Annotation = enum.auto()
-    Update = enum.auto()
-    Other = enum.auto()
 
 
 class Job(Base):
@@ -49,12 +33,6 @@ class Job(Base):
     type_: Mapped[JobType] = mapped_column(
         "type",
         Enum(JobType, name="job_type_enum"),
-        index=True,
-    )
-    api_key: Mapped[Optional[str]] = mapped_column(
-        "api_key",
-        String,
-        nullable=True,
         index=True,
     )
     user_id: Mapped[str] = mapped_column(

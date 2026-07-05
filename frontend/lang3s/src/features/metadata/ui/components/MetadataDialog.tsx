@@ -32,7 +32,7 @@ import {
   MetadataSchema,
   MetadataSchemaType,
   MetadataSources,
-} from "@/features/common/schemas";
+} from "@/lib/schemas";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   metadataCreateMutation,

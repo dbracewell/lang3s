@@ -2,26 +2,29 @@
 import { AnnotationTypeValueFormDialog } from "@/components/dialogs/AnnotationTypeValueFormDialog";
 import { ColorPickerDialog } from "@/components/dialogs/ColorPickerDialog";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { AnnotationColors, ONTOLOGY_ROOT } from "@/features/common/constants";
+import { AnnotationColors, ONTOLOGY_ROOT } from "@/lib/constants";
 import { AddPropertyDialog } from "@/features/ontology/ui/components/AddPropertyDialog";
 import { useOntology } from "@/features/ontology/ui/components/OntologySelector";
 import { cn } from "@/lib/utils/cn";
 import { ArrowUpFromLine, RouteIcon, TablePropertiesIcon } from "lucide-react";
 import { parseAsString, useQueryState } from "nuqs";
 import { useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { updateOntologyEntryMutation } from "@/clients/core/@tanstack/react-query.gen";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  jobsGetRunningCountOptions,
+  jobsGetRunningCountQueryKey,
+  updateOntologyEntryMutation,
+} from "@/clients/core/@tanstack/react-query.gen";
 import { coreClient } from "@/lib/api";
 import { toast } from "sonner";
-import { BasicUserInfo } from "@/features/common/types";
-import { updateAnalytics } from "@/features/analytics/server/actions";
-import { useUser } from "@/features/auth/contexts/UserContext";
 import { z } from "zod";
 import { zOntologyProperty } from "@/clients/core/zod.gen";
+import { updateAnalytics } from "@/features/ontology/server/actions";
 
 export const OntologyEditorInformationPanel = () => {
   const { currentNode, rootNode } = useOntology();
   const queryClient = useQueryClient();
+
   const updateOntology = useMutation({
     ...updateOntologyEntryMutation({
       client: coreClient,
@@ -209,21 +212,46 @@ export const OntologyEditorInformationPanel = () => {
 };
 
 const PublishChangesButton = () => {
-  const updateTables = useMutation({
-    mutationFn: async (user: BasicUserInfo) => updateAnalytics(user),
+  const queryClient = useQueryClient();
+  const { data: updateCount } = useQuery({
+    ...jobsGetRunningCountOptions({
+      client: coreClient,
+      path: {
+        job_type: "analyticsupdate",
+      },
+    }),
+  });
+  const startUpdate = useMutation({
+    mutationFn: updateAnalytics,
+    onSuccess: () => {
+      queryClient.setQueryData(
+        jobsGetRunningCountQueryKey({
+          path: {
+            job_type: "analyticsupdate",
+          },
+        }),
+        () => {
+          return 1;
+        },
+      );
+    },
     onError: () => {
-      toast.error("Failed to publish changes and update analytics");
+      toast.error("Failed to publish changes");
     },
   });
-  const user = useUser();
+
   return (
     <LoadingButton
-      isLoading={updateTables.isPending}
-      disabled={updateTables.isPending}
+      isLoading={startUpdate.isPending}
+      disabled={startUpdate.isPending || (updateCount ?? 0) > 0}
       type="button"
       variant="ghost"
       size="sm"
-      onClick={() => updateTables.mutate(user)}
+      onClick={async () => {
+        if ((updateCount ?? 0) <= 0) {
+          startUpdate.mutate();
+        }
+      }}
     >
       <div className="flex items-center gap-2">
         <ArrowUpFromLine /> Publish changes to analytics

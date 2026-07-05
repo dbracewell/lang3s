@@ -1,34 +1,31 @@
 "use client";
 
 import { useEffect } from "react";
-import { useSetAtom } from "jotai";
 import { eventBus } from "@/lib/events/eventBus";
-import { toast } from "sonner";
-import { upsertJobStatusAtom } from "@/features/events/stores/job-stores";
+import { useQueryClient } from "@tanstack/react-query";
+import { jobsListJobsQueryKey } from "@/clients/core/@tanstack/react-query.gen";
+import { Job } from "@/clients/core";
 
 export function JobStatusListener() {
-  const upsert = useSetAtom(upsertJobStatusAtom);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     return eventBus.on("job:update", (event) => {
-      console.log("EVENT BUS", event);
-      if (event.status === "completed") {
-        toast.success(`Job ${event.jobId} completed successfully.`, {
-          duration: Number.POSITIVE_INFINITY,
-          closeButton: true,
-        });
-      } else if (event.status === "failed") {
-        toast.error(`Job ${event.jobId} failed.`);
-      }
-      upsert({
-        jobId: event.jobId,
-        status: event.status,
-        progress: event.progress,
-        completed_at: event.completed_at,
-        started_at: event.started_at,
+      queryClient.setQueryData(jobsListJobsQueryKey(), (prev: Job[]) => {
+        const isDeleting = event.deleting;
+        if (!prev) {
+          return isDeleting ? [] : [event];
+        }
+        const currentJob = prev.find((job) => job.id === event.id);
+        if (currentJob) {
+          return isDeleting
+            ? prev.filter((job) => job.id !== event.id)
+            : prev.map((job) => (job.id === event.id ? event : job));
+        }
+        return isDeleting ? prev : [...prev, event];
       });
     });
-  }, [upsert]);
+  }, [queryClient]);
 
   return null;
 }

@@ -2,12 +2,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from lang3s.core.exceptions import UnauthorizedException
 from lang3s.core.logger import get_logger
 from lang3s.data.repositories.topic_repository import TopicRepository
 from lang3s.data.schemas.topic import TopicFrontendResult
 from lang3s.services.helpers import DBSessionDep, ErrorDetail
 from lang3s.services.schemas.topics_api_schema import TopicGraph
-from lang3s.services.security import AuthenticatedUserId
+from lang3s.services.security import AuthenticatedUserDep
 
 logger = get_logger(__name__)
 
@@ -42,8 +43,10 @@ type TopicRepositoryDep = Annotated[
 async def get_topic(
     topic_id: int,
     repository: TopicRepositoryDep,
-    user: AuthenticatedUserId,
+    user: AuthenticatedUserDep,
 ) -> TopicFrontendResult:
+    if user is None:
+        raise UnauthorizedException()
     return await repository.get_topic_info(topic_id)
 
 
@@ -60,6 +63,8 @@ async def get_topic(
 )
 async def get_topic_graph(
     repository: TopicRepositoryDep,
-    user: AuthenticatedUserId,
+    user: AuthenticatedUserDep,
 ) -> TopicGraph:
+    if user is None:
+        raise UnauthorizedException()
     return await repository.get_topic_map()

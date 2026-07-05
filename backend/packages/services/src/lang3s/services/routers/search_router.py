@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from lang3s.core.exceptions import UnauthorizedException
 from lang3s.services.helpers import DBSessionDep, ErrorDetail
 from lang3s.services.repositories.search_repository import (
     SearchRepository,
@@ -13,7 +14,7 @@ from lang3s.services.schemas.search_api_schema import (
     SearchParams,
     TopicSearchResults,
 )
-from lang3s.services.security import AuthenticatedUserId
+from lang3s.services.security import AuthenticatedUserDep
 
 
 def get_search_repository(session: DBSessionDep):
@@ -44,8 +45,10 @@ search_router = APIRouter(
 async def humanize_query(
     query: SearchParams,
     repository: SearchRepositoryDep,
-    user_id: AuthenticatedUserId,
+    user: AuthenticatedUserDep,
 ):
+    if user is None:
+        raise UnauthorizedException()
     return await repository.humanize_query(query)
 
 
@@ -63,8 +66,10 @@ async def humanize_query(
 async def search_documents(
     query: SearchParams,
     repository: SearchRepositoryDep,
-    user_id: AuthenticatedUserId,
+    user: AuthenticatedUserDep,
 ):
+    if user is None:
+        raise UnauthorizedException()
     return await repository.search_documents(query)
 
 
@@ -82,8 +87,10 @@ async def search_documents(
 async def search_topics(
     query: SearchParams,
     repository: SearchRepositoryDep,
-    user_id: AuthenticatedUserId,
+    user: AuthenticatedUserDep,
 ):
+    if user is None:
+        raise UnauthorizedException()
     return await repository.search_topics(query)
 
 
@@ -101,6 +108,8 @@ async def search_topics(
 async def search_annotations(
     query: SearchParams,
     repository: SearchRepositoryDep,
-    user_id: AuthenticatedUserId,
+    user: AuthenticatedUserDep,
 ):
+    if user is None:
+        raise UnauthorizedException()
     return await repository.search_annotations(query)

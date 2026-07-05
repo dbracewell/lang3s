@@ -1,4 +1,4 @@
-import { FullUserInfo } from "@/features/common/types";
+import { FullUserInfo } from "@/lib/types";
 import React from "react";
 import { FolderKanbanIcon } from "lucide-react";
 

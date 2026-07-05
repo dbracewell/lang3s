@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
 import useClickOutside from "@/hooks/useClickOutside";
-import { ONTOLOGY_ENTITY_ROOT } from "@/features/common/constants";
+import { ONTOLOGY_ENTITY_ROOT } from "@/lib/constants";
 
 export const EntityTypeSelector = ({ values }: { values: string[] }) => {
   const [params, setParams] = useEntitySearchParams();

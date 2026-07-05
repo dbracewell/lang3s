@@ -22,3 +22,4 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lang3s"]
+dev-mode-dirs = ["src"]

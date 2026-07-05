@@ -312,6 +312,46 @@ export const zErrorDetail = z.object({
 });
 
 /**
+ * JobStatus
+ */
+export const zJobStatus = z.enum([
+    'waiting',
+    'running',
+    'completed',
+    'cancelled',
+    'failed'
+]);
+
+/**
+ * JobType
+ */
+export const zJobType = z.enum([
+    'annotation',
+    'update',
+    'analyticsupdate',
+    'other'
+]);
+
+/**
+ * Job
+ */
+export const zJob = z.object({
+    id: z.int(),
+    name: z.string(),
+    status: zJobStatus,
+    type_: zJobType,
+    user_id: z.string(),
+    total: z.int(),
+    completed: z.int(),
+    failed: z.int(),
+    created_at: z.iso.datetime({ local: true }),
+    started_at: z.iso.datetime({ local: true }).nullish(),
+    completed_at: z.iso.datetime({ local: true }).nullish(),
+    metadata_json: z.record(z.string(), z.unknown()).optional(),
+    deleting: z.boolean().optional().default(false)
+});
+
+/**
  * SeriesType
  */
 export const zSeriesType = z.enum([
@@ -411,6 +451,15 @@ export const zEntityCoOccurrenceBody = zAnnotationCoOccurrenceRequest;
  * Successful Response
  */
 export const zEntityCoOccurrenceResponse = zAnnotationCoOccurrenceResult;
+
+export const zAnalysisUpdateStatsBody = zJob;
+
+/**
+ * Response 200 Analysisupdatestats
+ *
+ * Successful Response
+ */
+export const zAnalysisUpdateStatsResponse = z.boolean();
 
 export const zEntityEventsBody = zAnnotationEventRequest;
 

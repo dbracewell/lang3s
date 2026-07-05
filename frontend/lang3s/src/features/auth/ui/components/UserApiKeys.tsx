@@ -1,7 +1,7 @@
 "use client";
 import { DeleteButton } from "@/components/buttons/DeleteButton";
 import { Button } from "@/components/ui/button";
-import { FullUserInfo } from "@/features/common/types";
+import { FullUserInfo } from "@/lib/types";
 import { KeyIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";

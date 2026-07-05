@@ -57,6 +57,15 @@ export const zAnnotationSearchResults = z.object({
 });
 
 /**
+ * AuthedUser
+ */
+export const zAuthedUser = z.object({
+    user_id: z.string(),
+    role: z.string(),
+    permissions: z.record(z.string(), z.array(z.string())).optional()
+});
+
+/**
  * DataType
  */
 export const zDataType = z.enum([
@@ -129,11 +138,40 @@ export const zEmbeddingRequest = z.object({
 });
 
 /**
+ * Body_embed_embed__post
+ */
+export const zBodyEmbedEmbedPost = z.object({
+    request: zEmbeddingRequest,
+    user: zAuthedUser
+});
+
+/**
  * ErrorDetail
  */
 export const zErrorDetail = z.object({
     detail: z.string(),
     code: z.int()
+});
+
+/**
+ * File
+ */
+export const zFile = z.object({
+    path: z.union([
+        z.string(),
+        z.unknown()
+    ]).optional(),
+    docId: z.union([
+        z.string(),
+        z.unknown()
+    ]).optional(),
+    mime_type: z.string().optional().default('text/plain'),
+    encoding: z.union([
+        z.string(),
+        z.unknown()
+    ]).optional(),
+    content: z.string(),
+    metadata: z.record(z.string(), z.unknown()).optional()
 });
 
 /**
@@ -158,6 +196,15 @@ export const zHumanizedQuery = z.object({
 });
 
 /**
+ * JobAnnotateRequest
+ */
+export const zJobAnnotateRequest = z.object({
+    id: z.int(),
+    files: z.array(zFile),
+    complete: z.boolean().optional().default(false)
+});
+
+/**
  * JobStatus
  */
 export const zJobStatus = z.enum([
@@ -174,6 +221,7 @@ export const zJobStatus = z.enum([
 export const zJobType = z.enum([
     'annotation',
     'update',
+    'analyticsupdate',
     'other'
 ]);
 
@@ -189,11 +237,11 @@ export const zJob = z.object({
     total: z.int(),
     completed: z.int(),
     failed: z.int(),
-    created_at: z.iso.datetime(),
-    started_at: z.iso.datetime().nullish(),
-    completed_at: z.iso.datetime().nullish(),
-    api_key: z.string().nullish(),
-    metadata_json: z.record(z.string(), z.unknown()).optional()
+    created_at: z.iso.datetime({ local: true }),
+    started_at: z.iso.datetime({ local: true }).nullish(),
+    completed_at: z.iso.datetime({ local: true }).nullish(),
+    metadata_json: z.record(z.string(), z.unknown()).optional(),
+    deleting: z.boolean().optional().default(false)
 });
 
 /**
@@ -202,9 +250,11 @@ export const zJob = z.object({
 export const zJobCreateRequest = z.object({
     name: z.string(),
     type_: zJobType,
-    user_id: z.string().nullish(),
-    total: z.int().optional(),
-    api_key: z.string().nullish(),
+    total: z.int().optional().default(0),
+    status: z.union([
+        zJobStatus,
+        z.unknown()
+    ]).optional(),
     metadata_json: z.record(z.string(), z.unknown()).optional()
 });
 
@@ -496,7 +546,7 @@ export const zTopicNode = z.object({
     display: z.string(),
     value: z.number(),
     type: z.string().optional().default('topic'),
-    subvalues: z.record(z.string(), z.int())
+    subvalues: z.record(z.string(), z.int()).optional()
 });
 
 /**
@@ -581,11 +631,9 @@ export const zJobsDeleteJobPath = z.object({
 });
 
 /**
- * Response 200 Jobsdeletejob
- *
  * Successful Response
  */
-export const zJobsDeleteJobResponse = z.boolean();
+export const zJobsDeleteJobResponse = zJob;
 
 export const zJobsGetJobPath = z.object({
     job_id: z.int()
@@ -595,6 +643,17 @@ export const zJobsGetJobPath = z.object({
  * Successful Response
  */
 export const zJobsGetJobResponse = zJob;
+
+export const zJobsGetRunningCountPath = z.object({
+    job_type: zJobType
+});
+
+/**
+ * Response 200 Jobsgetrunningcount
+ *
+ * Successful Response
+ */
+export const zJobsGetRunningCountResponse = z.int();
 
 /**
  * Successful Response
@@ -615,6 +674,13 @@ export const zJobsUpdateJobBody = zJobUpdateRequest;
  */
 export const zJobsUpdateJobResponse = zJob;
 
+export const zJobsAnnotateBody = zJobAnnotateRequest;
+
+/**
+ * Successful Response
+ */
+export const zJobsAnnotateResponse = zJob;
+
 export const zTopicsGetTopicPath = z.object({
     topic_id: z.int()
 });
@@ -629,7 +695,7 @@ export const zTopicsGetTopicResponse = zTopicFrontendResult;
  */
 export const zTopicsGetTopicGraphResponse = zTopicGraph;
 
-export const zEmbedEmbedPostBody = zEmbeddingRequest;
+export const zEmbedEmbedPostBody = zBodyEmbedEmbedPost;
 
 export const zDocumentsGetAllQuery = z.object({
     cursor: z.int().gte(1).nullish().default(1),

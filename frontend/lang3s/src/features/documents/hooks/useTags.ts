@@ -1,5 +1,5 @@
 import { parseAsArrayOf, parseAsString, useQueryState } from "nuqs";
-import { ONTOLOGY_ENTITY_ROOT } from "@/features/common/constants";
+import { ONTOLOGY_ENTITY_ROOT } from "@/lib/constants";
 
 export const useTags = () => {
   return useQueryState(

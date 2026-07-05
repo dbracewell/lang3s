@@ -1,4 +1,4 @@
-import { DocumentSchema, TextAnnotationSchema } from "@/features/nlp/schemas";
+import { DocumentSchema, TextAnnotationSchema } from "@/lib/nlp/schemas";
 import z from "zod";
 
 export type TextAnnotationProps = z.infer<typeof TextAnnotationSchema> & {

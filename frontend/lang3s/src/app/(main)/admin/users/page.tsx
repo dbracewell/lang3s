@@ -4,7 +4,7 @@ import {
   requireAdmin,
 } from "@/features/auth/server/actions";
 import { UserList } from "@/features/auth/ui/components/UserList";
-import { PAGE_LIMIT } from "@/features/common/constants";
+import { PAGE_LIMIT } from "@/lib/constants";
 
 const AdminUsersPage = async (props: PageProps<"/admin/users">) => {
   await requireAdmin();
@@ -16,6 +16,7 @@ const AdminUsersPage = async (props: PageProps<"/admin/users">) => {
     listUsers(parsedPage),
     getUserCount(),
   ]);
+
   return (
     <UserList
       users={data}

@@ -4,7 +4,7 @@ import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutation
 
 import { client } from '../client.gen';
 import { ApiClient, type Options } from '../sdk.gen';
-import type { AddOntologyEntryData, AddOntologyEntryError, DeleteOntologyEntryData, DeleteOntologyEntryError, DocumentsGetAllData, DocumentsGetAllError, DocumentsGetAllResponse, EmbedEmbedPostData, EmbedEmbedPostError, JobsCreateJobData, JobsCreateJobError, JobsCreateJobResponse, JobsDeleteJobData, JobsDeleteJobError, JobsDeleteJobResponse, JobsGetJobData, JobsGetJobError, JobsGetJobResponse, JobsListJobsData, JobsListJobsError, JobsListJobsResponse, JobsUpdateJobData, JobsUpdateJobError, JobsUpdateJobResponse, MetadataCreateData, MetadataCreateError, MetadataDeleteData, MetadataDeleteError, MetadataDeleteResponse, MetadataGetBySourceData, MetadataGetBySourceError, MetadataGetBySourceResponse, MetadataProbeData, MetadataProbeError, MetadataProbeResponse, MetadataUpdateData, MetadataUpdateError, MetadataUpdateResponse, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentError, OntologyGetAnnotationsForDocumentResponse, OntologyGetData, OntologyGetError, OntologyGetNodePathData, OntologyGetNodePathError, OntologyGetNodePathResponse, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsError, OntologyGetPotentialMappingsResponse, OntologyGetResponse, OntologyNameExistsData, OntologyNameExistsError, OntologyNameExistsResponse, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameError, PrecomputedStatsGetByNameResponse, SearchAnnotationsData, SearchAnnotationsError, SearchAnnotationsResponse, SearchDocumentsData, SearchDocumentsError, SearchDocumentsResponse, SearchHumanizeData, SearchHumanizeError, SearchHumanizeResponse, SearchTopicsData, SearchTopicsError, SearchTopicsResponse, TopicsGetTopicData, TopicsGetTopicError, TopicsGetTopicGraphData, TopicsGetTopicGraphError, TopicsGetTopicGraphResponse, TopicsGetTopicResponse, UpdateOntologyEntryData, UpdateOntologyEntryError } from '../types.gen';
+import type { AddOntologyEntryData, AddOntologyEntryError, DeleteOntologyEntryData, DeleteOntologyEntryError, DocumentsGetAllData, DocumentsGetAllError, DocumentsGetAllResponse, EmbedEmbedPostData, EmbedEmbedPostError, JobsAnnotateData, JobsAnnotateError, JobsAnnotateResponse, JobsCreateJobData, JobsCreateJobError, JobsCreateJobResponse, JobsDeleteJobData, JobsDeleteJobError, JobsDeleteJobResponse, JobsGetJobData, JobsGetJobError, JobsGetJobResponse, JobsGetRunningCountData, JobsGetRunningCountError, JobsGetRunningCountResponse, JobsListJobsData, JobsListJobsError, JobsListJobsResponse, JobsUpdateJobData, JobsUpdateJobError, JobsUpdateJobResponse, MetadataCreateData, MetadataCreateError, MetadataDeleteData, MetadataDeleteError, MetadataDeleteResponse, MetadataGetBySourceData, MetadataGetBySourceError, MetadataGetBySourceResponse, MetadataProbeData, MetadataProbeError, MetadataProbeResponse, MetadataUpdateData, MetadataUpdateError, MetadataUpdateResponse, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentError, OntologyGetAnnotationsForDocumentResponse, OntologyGetData, OntologyGetError, OntologyGetNodePathData, OntologyGetNodePathError, OntologyGetNodePathResponse, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsError, OntologyGetPotentialMappingsResponse, OntologyGetResponse, OntologyNameExistsData, OntologyNameExistsError, OntologyNameExistsResponse, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameError, PrecomputedStatsGetByNameResponse, SearchAnnotationsData, SearchAnnotationsError, SearchAnnotationsResponse, SearchDocumentsData, SearchDocumentsError, SearchDocumentsResponse, SearchHumanizeData, SearchHumanizeError, SearchHumanizeResponse, SearchTopicsData, SearchTopicsError, SearchTopicsResponse, TopicsGetTopicData, TopicsGetTopicError, TopicsGetTopicGraphData, TopicsGetTopicGraphError, TopicsGetTopicGraphResponse, TopicsGetTopicResponse, UpdateOntologyEntryData, UpdateOntologyEntryError } from '../types.gen';
 
 /**
  * Delete Job
@@ -74,6 +74,24 @@ export const jobsGetJobOptions = (options: Options<JobsGetJobData>) => queryOpti
     queryKey: jobsGetJobQueryKey(options)
 });
 
+export const jobsGetRunningCountQueryKey = (options: Options<JobsGetRunningCountData>) => createQueryKey('jobsGetRunningCount', options);
+
+/**
+ * Get Running Count
+ */
+export const jobsGetRunningCountOptions = (options: Options<JobsGetRunningCountData>) => queryOptions<JobsGetRunningCountResponse, JobsGetRunningCountError, JobsGetRunningCountResponse, ReturnType<typeof jobsGetRunningCountQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await ApiClient.__registry.get().jobsGetRunningCount({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: jobsGetRunningCountQueryKey(options)
+});
+
 export const jobsListJobsQueryKey = (options?: Options<JobsListJobsData>) => createQueryKey('jobsListJobs', options);
 
 /**
@@ -116,6 +134,23 @@ export const jobsUpdateJobMutation = (options?: Partial<Options<JobsUpdateJobDat
     const mutationOptions: UseMutationOptions<JobsUpdateJobResponse, JobsUpdateJobError, Options<JobsUpdateJobData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await ApiClient.__registry.get().jobsUpdateJob({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Annotate
+ */
+export const jobsAnnotateMutation = (options?: Partial<Options<JobsAnnotateData>>): UseMutationOptions<JobsAnnotateResponse, JobsAnnotateError, Options<JobsAnnotateData>> => {
+    const mutationOptions: UseMutationOptions<JobsAnnotateResponse, JobsAnnotateError, Options<JobsAnnotateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await ApiClient.__registry.get().jobsAnnotate({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

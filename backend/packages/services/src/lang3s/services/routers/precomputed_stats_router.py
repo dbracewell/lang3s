@@ -2,11 +2,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from lang3s.core.exceptions import UnauthorizedException
 from lang3s.data.repositories.precomputed_stats_repository import (
     PreComputedStatsRepository,
 )
 from lang3s.data.schemas.precomputed_stats import PreComputedStats
 from lang3s.services.helpers import DBSessionDep, ErrorDetail
+from lang3s.services.security import AuthenticatedUserDep
 
 
 def get_precomputed_stas_repository(session: DBSessionDep):
@@ -35,7 +37,8 @@ stats_router = APIRouter(
     },
 )
 async def get_by_name(
-    name: str,
-    repository: PreComputedStatsRepositoryDep,
+    name: str, repository: PreComputedStatsRepositoryDep, user: AuthenticatedUserDep
 ) -> PreComputedStats:
+    if user is None:
+        raise UnauthorizedException()
     return await repository.get_by_name(name)

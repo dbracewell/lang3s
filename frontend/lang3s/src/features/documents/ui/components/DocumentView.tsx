@@ -1,18 +1,18 @@
 "use client";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { Sentence } from "@/features/documents/ui/components/Sentence";
-import { Lan3gsDocument } from "@/features/nlp/classes";
+import { Lan3gsDocument } from "@/lib/nlp/classes";
 import { useEffect, useState } from "react";
 import { OntologySelectorDialog } from "@/features/ontology/ui/components/OntologySelectorDialog";
 import { PaletteIcon } from "lucide-react";
 import { useTags } from "@/features/documents/hooks/useTags";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
 import { z } from "zod";
-import { DocumentSchema } from "@/features/nlp/schemas";
+import { DocumentSchema } from "@/lib/nlp/schemas";
 import { useQuery } from "@tanstack/react-query";
 import { ontologyGetAnnotationsForDocumentOptions } from "@/clients/core/@tanstack/react-query.gen";
 import { coreClient } from "@/lib/api";
-import { DEFAULT_ONTOLOGY_COLOR } from "@/features/common/constants";
+import { DEFAULT_ONTOLOGY_COLOR } from "@/lib/constants";
 import { Spinner } from "@/components/Spinner";
 
 type DocumentViewProps = {

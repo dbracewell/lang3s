@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+import enum
+from dataclasses import dataclass, field
 from typing import Annotated
 
 import jwt
@@ -8,6 +9,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from lang3s.core import config
+from lang3s.services.permissions import PermissionAction, PermissionCategory
 
 jwks_client = jwt.PyJWKClient(
     config.JWKS_URL,
@@ -17,16 +19,24 @@ jwks_client = jwt.PyJWKClient(
 )
 
 
+@dataclass(frozen=True)
+class AuthedUser:
+    user_id: str
+    role: str
+    permissions: dict[str, list[str]] = field(default_factory=dict)
+
+    def has_permission(self, *action: PermissionAction) -> bool:
+        for a in action:
+            if a.value not in self.permissions.get(a.category, []):
+                return False
+        return True
+
+
 class AuthTokenError(Exception):
     pass
 
 
-@dataclass(frozen=True)
-class AuthClaims:
-    sub: str
-    role: str
-    email: str | None = None
-    name: str | None = None
+SYSTEM_USER = AuthedUser(user_id="SYSTEM", role=config.SYSTEM_KEY)
 
 
 @cached(TTLCache(maxsize=1024, ttl=3600))
@@ -39,9 +49,10 @@ def _check_api_key(api_key: str):
         if r.ok:
             payload = r.json()
             if payload.get("valid", False):
-                return AuthClaims(
-                    sub=payload.get("user"),
+                return AuthedUser(
+                    user_id=payload.get("id"),
                     role=payload.get("role"),
+                    permissions=payload.get("permissions"),
                 )
         return None
     except Exception:
@@ -56,7 +67,7 @@ def require_auth(
         HTTPAuthorizationCredentials | None,
         Depends(security),
     ],
-) -> AuthClaims:
+) -> AuthedUser:
     if not credentials:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -72,15 +83,15 @@ def require_auth(
 
 
 def get_authenticated_claim(
-    claims: Annotated[AuthClaims, Depends(require_auth)],
-) -> AuthClaims:
+    claims: Annotated[AuthedUser, Depends(require_auth)],
+) -> AuthedUser:
     return claims
 
 
-type AuthenticatedUserId = Annotated[AuthClaims, Depends(get_authenticated_claim)]
+type AuthenticatedUserDep = Annotated[AuthedUser, Depends(get_authenticated_claim)]
 
 
-def verify_jwks_token(token: str) -> AuthClaims:
+def verify_jwks_token(token: str) -> AuthedUser:
     """Verifies a Better Auth JWT using the JWKS endpoint and
     returns normalized auth claims."""
     try:
@@ -92,15 +103,14 @@ def verify_jwks_token(token: str) -> AuthClaims:
             audience=config.JWT_AUDIENCE,
             issuer=config.JWT_ISSUER,
         )
-        user_id = payload.get("sub")
+        user_id = payload.get("id")
         if not user_id:
             raise AuthTokenError("Missing token subject")
 
-        return AuthClaims(
-            sub=str(user_id),
-            email=payload.get("email"),
-            name=payload.get("name"),
+        return AuthedUser(
+            user_id=str(user_id),
             role=payload.get("role"),
+            permissions=payload.get("permissions"),
         )
     except jwt.PyJWTError as exc:
         raise AuthTokenError("Invalid token") from exc

@@ -14,6 +14,7 @@ import shortuuid
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from lang3s.core.clients import RedisAsyncClient
 from lang3s.core.clients.redis_client import (
     RedisClient,
     redis_get_message_batch,
@@ -28,6 +29,7 @@ from lang3s.core.parallel import (
     QueueSource,
 )
 from lang3s.core.schemas import File
+from lang3s.core.schemas.job import JobMessage, JobStatus, JobUpdateRequest
 from lang3s.core.typing_extras import ShutdownEvent
 from lang3s.data import filestore
 from lang3s.data.constants import (
@@ -39,11 +41,11 @@ from lang3s.data.constants import (
     TOPIC_QUEUE_NAME,
 )
 from lang3s.data.db import async_db_session, create_indexes, get_ontology
-from lang3s.data.models import JobStatus, TextAnnotation
+from lang3s.data.events import EventType
+from lang3s.data.models import TextAnnotation
 from lang3s.data.repositories.job_repository import JobRepository
 from lang3s.data.schemas import Document
 from lang3s.data.schemas.claim import DocumentClaimRequest
-from lang3s.data.schemas.job import JobMessage, JobUpdateRequest
 from lang3s.nlp.analytics.corpus import corpus_summarization, probe_metadata
 from lang3s.nlp.pipeline import pipeline
 from lang3s.services.schemas.topics_api_schema import Task
@@ -235,8 +237,15 @@ async def annotation_worker(event: Event[AnnotationTask]) -> Event[WorkerResult]
                 JobUpdateRequest(
                     id=job.id,
                     completed=len(task.files),
-                )
+                ),
             )
+            job.completed += len(task.files)
+            async with RedisAsyncClient() as redis:
+                await redis.publish_event(
+                    event_type=EventType.JOB_UPDATE,
+                    user_id=job.user_id,
+                    payload=job.model_dump(mode="json"),
+                )
             return Event(
                 payload=WorkerResult(
                     completed=len(task.files),
@@ -260,8 +269,15 @@ async def annotation_worker(event: Event[AnnotationTask]) -> Event[WorkerResult]
                 JobUpdateRequest(
                     id=job.id,
                     failed=len(task.files),
-                )
+                ),
             )
+            job.failed += len(task.files)
+            async with RedisAsyncClient() as redis:
+                await redis.publish_event(
+                    event_type=EventType.JOB_UPDATE,
+                    user_id=job.user_id,
+                    payload=job.model_dump(mode="json"),
+                )
             return Event(payload=WorkerResult(failed=len(task.files)))
 
 
@@ -298,6 +314,10 @@ def poll_redis(
 @as_sync
 async def on_annotation_job_complete(event: JobCompleteEvent):
     logger = get_local_logger()
+
+    async with async_db_session(autocommit=True) as session:
+        job_repository = JobRepository(session)
+        await job_repository.update(JobUpdateRequest(id=event.job_id, total=20))
 
     logger.info("Constructing Indexes")
     try:
@@ -374,10 +394,28 @@ async def on_annotation_job_complete(event: JobCompleteEvent):
                 JobUpdateRequest(
                     id=event.job_id,
                     status=JobStatus.Completed,
-                )
+                ),
             )
+            job = await repository.get(event.job_id)
+            async with RedisAsyncClient() as redis:
+                await redis.publish_event(
+                    event_type=EventType.JOB_UPDATE,
+                    user_id=job.user_id,
+                    payload=job.model_dump(mode="json"),
+                )
+
     except Exception as e:
         logger.error(f"Updating Job Status failed ({e})")
         traceback.print_exc(file=sys.stdout)
+
+    async with async_db_session(autocommit=True) as session:
+        job_repository = JobRepository(session)
+        await job_repository.update(
+            JobUpdateRequest(
+                id=event.job_id,
+                completed=20,
+                status=JobStatus.Completed,
+            )
+        )
 
     logger.info(f"🏁 Job completed {event.job_id}")

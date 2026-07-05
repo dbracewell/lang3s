@@ -1,6 +1,6 @@
 "use client";
 import { useOntology } from "@/features/ontology/ui/components/OntologySelector";
-import { AnnotationColors } from "@/features/common/constants";
+import { AnnotationColors } from "@/lib/constants";
 import { cn } from "@/lib/utils/cn";
 import { RouteIcon, TablePropertiesIcon } from "lucide-react";
 import React, { useEffect } from "react";

@@ -5,16 +5,23 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { Trash2Icon } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { toast } from "sonner";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { jobsDeleteJobMutation } from "@/clients/core/@tanstack/react-query.gen";
 import { coreClient } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export const JobIdCell = ({ id }: { id: number }) => {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const deleteJobMutation = useMutation({
     ...jobsDeleteJobMutation({
       client: coreClient,
     }),
-    onSuccess: () => toast.success("Job deleted successfully."),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+      router.refresh();
+      toast.success("Job deleted successfully.");
+    },
     onError: () => toast.error("Job deleted failed"),
   });
   const { context } = useDataTableContext();

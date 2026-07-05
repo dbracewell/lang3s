@@ -4,8 +4,8 @@ import * as z from 'zod';
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AffinityScoreData, AffinityScoreErrors, AffinityScoreResponses, AnalyticsGetChartDataData, AnalyticsGetChartDataErrors, AnalyticsGetChartDataResponses, AnnotationCountsData, AnnotationCountsErrors, AnnotationCountsResponses, CohortInformationData, CohortInformationErrors, CohortInformationResponses, CohortsData, CohortsErrors, CohortsResponses, EntityCoOccurrenceData, EntityCoOccurrenceErrors, EntityCoOccurrenceResponses, EntityEventsData, EntityEventsErrors, EntityEventsResponses, TopicGetByIdData, TopicGetByIdErrors, TopicGetByIdResponses, TopicScoreData, TopicScoreErrors, TopicScoreResponses, UpdateStatsUpdatestatsPutData, UpdateStatsUpdatestatsPutErrors, UpdateStatsUpdatestatsPutResponses } from './types.gen';
-import { zAffinityScoreBody, zAffinityScoreResponse, zAnalyticsGetChartDataBody, zAnalyticsGetChartDataResponse, zAnnotationCountsBody, zAnnotationCountsResponse, zCohortInformationBody, zCohortInformationResponse, zCohortsResponse, zEntityCoOccurrenceBody, zEntityCoOccurrenceResponse, zEntityEventsBody, zEntityEventsResponse, zTopicGetByIdPath, zTopicScoreBody, zTopicScoreResponse } from './zod.gen';
+import type { AffinityScoreData, AffinityScoreErrors, AffinityScoreResponses, AnalysisUpdateStatsData, AnalysisUpdateStatsErrors, AnalysisUpdateStatsResponses, AnalyticsGetChartDataData, AnalyticsGetChartDataErrors, AnalyticsGetChartDataResponses, AnnotationCountsData, AnnotationCountsErrors, AnnotationCountsResponses, CohortInformationData, CohortInformationErrors, CohortInformationResponses, CohortsData, CohortsErrors, CohortsResponses, EntityCoOccurrenceData, EntityCoOccurrenceErrors, EntityCoOccurrenceResponses, EntityEventsData, EntityEventsErrors, EntityEventsResponses, TopicGetByIdData, TopicGetByIdErrors, TopicGetByIdResponses, TopicScoreData, TopicScoreErrors, TopicScoreResponses } from './types.gen';
+import { zAffinityScoreBody, zAffinityScoreResponse, zAnalysisUpdateStatsBody, zAnalysisUpdateStatsResponse, zAnalyticsGetChartDataBody, zAnalyticsGetChartDataResponse, zAnnotationCountsBody, zAnnotationCountsResponse, zCohortInformationBody, zCohortInformationResponse, zCohortsResponse, zEntityCoOccurrenceBody, zEntityCoOccurrenceResponse, zEntityEventsBody, zEntityEventsResponse, zTopicGetByIdPath, zTopicScoreBody, zTopicScoreResponse } from './zod.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -70,6 +70,7 @@ export class ApiClient extends HeyApiClient {
                 path: zTopicGetByIdPath,
                 query: z.never().optional()
             }).parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/topic/{id}',
             ...options
         });
@@ -86,6 +87,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zCohortInformationResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/cohortinformation',
             ...options,
             headers: {
@@ -106,6 +108,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zCohortsResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/cohorts',
             ...options
         });
@@ -122,6 +125,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zTopicScoreResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/topicscore',
             ...options,
             headers: {
@@ -142,6 +146,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zAffinityScoreResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/affinity',
             ...options,
             headers: {
@@ -162,6 +167,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zAnnotationCountsResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/counts',
             ...options,
             headers: {
@@ -182,6 +188,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zEntityCoOccurrenceResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/cooccurrence',
             ...options,
             headers: {
@@ -194,15 +201,21 @@ export class ApiClient extends HeyApiClient {
     /**
      * Update Stats
      */
-    public updateStatsUpdatestatsPut<ThrowOnError extends boolean = false>(options?: Options<UpdateStatsUpdatestatsPutData, ThrowOnError>): RequestResult<UpdateStatsUpdatestatsPutResponses, UpdateStatsUpdatestatsPutErrors, ThrowOnError> {
-        return (options?.client ?? this.client).put<UpdateStatsUpdatestatsPutResponses, UpdateStatsUpdatestatsPutErrors, ThrowOnError>({
+    public analysisUpdateStats<ThrowOnError extends boolean = false>(options: Options<AnalysisUpdateStatsData, ThrowOnError>): RequestResult<AnalysisUpdateStatsResponses, AnalysisUpdateStatsErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<AnalysisUpdateStatsResponses, AnalysisUpdateStatsErrors, ThrowOnError>({
             requestValidator: async (data) => await z.object({
-                body: z.never().optional(),
+                body: zAnalysisUpdateStatsBody,
                 path: z.never().optional(),
                 query: z.never().optional()
             }).parseAsync(data),
+            responseValidator: async (data) => await zAnalysisUpdateStatsResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/updatestats',
-            ...options
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
         });
     }
     
@@ -217,6 +230,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zEntityEventsResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/events',
             ...options,
             headers: {
@@ -237,6 +251,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zAnalyticsGetChartDataResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/charts',
             ...options,
             headers: {

@@ -23,14 +23,14 @@ import {
   XIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { useSvgExport } from "@/features/common/hooks/useSvgExport";
+import { useSvgExport } from "@/hooks/useSvgExport";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { analyticsGetChartDataOptions } from "@/clients/analytics/@tanstack/react-query.gen";
 import { analyticsClient } from "@/lib/api";
 import { ChartSeries, DataCategory } from "@/clients/analytics";
-import { PAGE_LIMIT } from "@/features/common/constants";
+import { PAGE_LIMIT } from "@/lib/constants";
 import { Spinner } from "@/components/Spinner";
 import { formatChartName } from "@/features/reports/lib/formatters";
 

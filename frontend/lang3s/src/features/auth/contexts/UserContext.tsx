@@ -1,7 +1,7 @@
 "use client";
-import { BasicUserInfo } from "@/features/common/types";
+import { BasicUserInfo } from "@/lib/types";
 import React, { createContext } from "react";
-import { NavigationGroup } from "@/features/common/navigation";
+import { NavigationGroup } from "@/lib/navigation";
 
 export const UserContext = createContext<{
   user: BasicUserInfo | null;

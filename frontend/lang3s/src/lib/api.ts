@@ -7,9 +7,11 @@ import { ApiClient as AnalyticsApiClient } from "@/clients/analytics";
 
 coreClient.setConfig({
   baseUrl: t3env.NEXT_PUBLIC_BACKEND_URL,
+  throwOnError: true,
 });
 analyticsClient.setConfig({
   baseUrl: `${t3env.NEXT_PUBLIC_BACKEND_URL}/analytics`,
+  throwOnError: true,
 });
 
 coreClient.interceptors.request.use(async (request) => {
@@ -28,7 +30,7 @@ analyticsClient.interceptors.request.use(async (request) => {
   return request;
 });
 
-new CoreApiClient({ client: coreClient });
-new AnalyticsApiClient({ client: analyticsClient });
+export const coreApi = new CoreApiClient({ client: coreClient });
+export const analyticsApi = new AnalyticsApiClient({ client: analyticsClient });
 
 export { coreClient, analyticsClient };

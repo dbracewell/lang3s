@@ -27,7 +27,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { ONTOLOGY_ROOT } from "@/features/common/constants";
+import { ONTOLOGY_ROOT } from "@/lib/constants";
 import { useQuery } from "@tanstack/react-query";
 import { ontologyGetOptions } from "@/clients/core/@tanstack/react-query.gen";
 import { coreClient } from "@/lib/api";
@@ -419,7 +419,11 @@ const Sections = ({
   const { sections, current, setCurrent, breadcrumbs, checkedNodes } =
     useOntology();
   const endRef = useRef<HTMLDivElement>(null);
-  useEffect(() => endRef.current?.scrollIntoView(), [current]);
+  useEffect(() => {
+    if (endRef.current) {
+      endRef.current?.scrollIntoView();
+    }
+  }, [current]);
 
   return (
     <div className="scrollable flex h-full flex-1 flex-col gap-2 overflow-auto">

@@ -1,17 +1,26 @@
 from functools import partial
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from lang3s.core.clients import RedisAsyncClient
 from lang3s.core.exceptions.custom import CodedException
 from lang3s.data.db import get_db_session
 
+
+async def get_redist_client():
+    async with RedisAsyncClient() as client:
+        yield client
+
+
 type DBSessionDep = Annotated[AsyncSession, Depends(get_db_session)]
+type RedisDep = Annotated[RedisAsyncClient, Depends(get_redist_client)]
 
 
 class ErrorDetail(BaseModel):
@@ -71,14 +80,15 @@ def create_fastapi_app(
             content=error_data.model_dump(),
         )
 
-    @app.exception_handler(ValidationError)
-    async def global_validation_exception_handler(
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(
         request: Request,
-        exc: ValidationError,
+        exc: RequestValidationError,
     ):
-        error_data = ErrorDetail(code=400, detail=str(exc))
+        body = await request.body()
+        error_data = ErrorDetail(code=422, detail=body.decode("utf-8"))
         return JSONResponse(
-            status_code=400,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content=error_data.model_dump(),
         )
 

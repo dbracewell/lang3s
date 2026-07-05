@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { formatURL } from "@/lib/utils/formatters";
 import { cn } from "@/lib/utils/cn";
-import { Lang3sTextAnnotation } from "@/features/nlp/classes";
+import { Lang3sTextAnnotation } from "@/lib/nlp/classes";
 import {
   AnnotationColors,
   DEFAULT_MIN_SIMILARITY,
   ONTOLOGY_ENTITY_ROOT,
-} from "@/features/common/constants";
+} from "@/lib/constants";
 import { SearchIcon } from "lucide-react";
 import Link from "next/link";
 import React from "react";

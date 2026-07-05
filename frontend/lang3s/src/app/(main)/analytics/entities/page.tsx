@@ -3,7 +3,7 @@ import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { EntityTypeSelector } from "@/features/analytics/ui/components/EntityTypeSelector";
 import { EntityEvents } from "@/features/analytics/ui/components/EntityEvents";
 import { EntityCoOccurrenceVisualization } from "@/features/analytics/ui/components/EntityCoOccurrenceVisualization";
-import { ONTOLOGY_ENTITY_ROOT } from "@/features/common/constants";
+import { ONTOLOGY_ENTITY_ROOT } from "@/lib/constants";
 import { EntitiesPageTabs } from "@/features/analytics/ui/components/EntitiesPageTabs";
 import { useQuery } from "@tanstack/react-query";
 import { ontologyGetNodePathOptions } from "@/clients/core/@tanstack/react-query.gen";

@@ -2,13 +2,13 @@
 import { ColumnDef } from "@/components/data-table/data-table-types";
 import { StringStartsWith } from "@/components/data-table/FilterFunctions";
 import { JobIdCell } from "@/features/jobs/ui/views/JobsPageView/JobIdCell";
-import { ProgressCell } from "@/features/jobs/ui/views/JobsPageView/ProgressCell";
 import { StatusCell } from "@/features/jobs/ui/views/JobsPageView/StatusCell";
 import { Button } from "@/components/ui/button";
 import { RefreshCcwIcon } from "lucide-react";
 import { Job } from "@/clients/core";
-import { StartTimeCell } from "@/features/jobs/ui/views/JobsPageView/StartTimeCell";
-import { ElapsedTimeCell } from "@/features/jobs/ui/views/JobsPageView/ElapsedTimeCell";
+import React from "react";
+import { formatDuration } from "@/lib/utils/formatters";
+import { Progress } from "@/components/ui/progress";
 
 const ProgressHeader = () => {
   return (
@@ -69,14 +69,33 @@ export const columns: ColumnDef<Job>[] = [
       return 1;
     },
     size: "200px",
-    cell: ({ row }) => <StartTimeCell row={row} />,
+    cell: ({ row }) => (
+      <p className="text-center whitespace-pre-line">
+        {row.started_at != null
+          ? new Intl.DateTimeFormat("en-US", {
+              dateStyle: "short",
+              timeStyle: "short",
+            }).format(Date.parse(row.started_at))
+          : "-"}
+      </p>
+    ),
   },
   {
     name: "elapsed",
     size: "100px",
     align: "center",
     cellClassName: "items-center",
-    cell: ({ row }) => <ElapsedTimeCell row={row} />,
+    cell: ({ row }) => {
+      const started_at = row.started_at;
+      if (started_at == null) {
+        return <div>-</div>;
+      }
+      const end_time_date = row.completed_at
+        ? Date.parse(row.completed_at)
+        : Date.now();
+      const elapsed = formatDuration(end_time_date - Date.parse(started_at));
+      return <div>{elapsed}</div>;
+    },
   },
   {
     name: "progress",
@@ -89,6 +108,23 @@ export const columns: ColumnDef<Job>[] = [
       return aPct - bPct;
     },
     cellClassName: "h-full!",
-    cell: ({ row }) => <ProgressCell row={row} />,
+    cell: ({ row }) => {
+      const pct = Math.floor(
+        (row.total > 0 ? (row.completed + row.failed) / row.total : 0) * 100,
+      ).toFixed(0);
+      return (
+        <div className="relative flex w-full items-center">
+          <Progress value={Number(pct)} />
+          <div
+            className="border-dodger-blue-600 bg-dodger-blue-600 absolute top-1/2 w-10 -translate-y-1/2 rounded-sm border p-0.5 text-center text-xs text-white shadow"
+            style={{
+              left: `min( max( ${pct}% - 30px , 3px ), 100% - 40px )`,
+            }}
+          >
+            {pct}%
+          </div>
+        </div>
+      );
+    },
   },
 ];

@@ -4,8 +4,8 @@ import * as z from 'zod';
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddOntologyEntryData, AddOntologyEntryErrors, AddOntologyEntryResponses, DeleteOntologyEntryData, DeleteOntologyEntryErrors, DeleteOntologyEntryResponses, DocumentsGetAllData, DocumentsGetAllErrors, DocumentsGetAllResponses, EmbedEmbedPostData, EmbedEmbedPostErrors, EmbedEmbedPostResponses, JobsCreateJobData, JobsCreateJobErrors, JobsCreateJobResponses, JobsDeleteJobData, JobsDeleteJobErrors, JobsDeleteJobResponses, JobsGetJobData, JobsGetJobErrors, JobsGetJobResponses, JobsListJobsData, JobsListJobsErrors, JobsListJobsResponses, JobsUpdateJobData, JobsUpdateJobErrors, JobsUpdateJobResponses, MetadataCreateData, MetadataCreateErrors, MetadataCreateResponses, MetadataDeleteData, MetadataDeleteErrors, MetadataDeleteResponses, MetadataGetBySourceData, MetadataGetBySourceErrors, MetadataGetBySourceResponses, MetadataProbeData, MetadataProbeErrors, MetadataProbeResponses, MetadataUpdateData, MetadataUpdateErrors, MetadataUpdateResponses, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentErrors, OntologyGetAnnotationsForDocumentResponses, OntologyGetData, OntologyGetErrors, OntologyGetNodePathData, OntologyGetNodePathErrors, OntologyGetNodePathResponses, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsErrors, OntologyGetPotentialMappingsResponses, OntologyGetResponses, OntologyNameExistsData, OntologyNameExistsErrors, OntologyNameExistsResponses, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameErrors, PrecomputedStatsGetByNameResponses, SearchAnnotationsData, SearchAnnotationsErrors, SearchAnnotationsResponses, SearchDocumentsData, SearchDocumentsErrors, SearchDocumentsResponses, SearchHumanizeData, SearchHumanizeErrors, SearchHumanizeResponses, SearchTopicsData, SearchTopicsErrors, SearchTopicsResponses, TopicsGetTopicData, TopicsGetTopicErrors, TopicsGetTopicGraphData, TopicsGetTopicGraphErrors, TopicsGetTopicGraphResponses, TopicsGetTopicResponses, UpdateOntologyEntryData, UpdateOntologyEntryErrors, UpdateOntologyEntryResponses } from './types.gen';
-import { zAddOntologyEntryBody, zDeleteOntologyEntryPath, zDocumentsGetAllQuery, zDocumentsGetAllResponse, zEmbedEmbedPostBody, zJobsCreateJobBody, zJobsCreateJobResponse, zJobsDeleteJobPath, zJobsDeleteJobResponse, zJobsGetJobPath, zJobsGetJobResponse, zJobsListJobsResponse, zJobsUpdateJobBody, zJobsUpdateJobResponse, zMetadataCreateBody, zMetadataDeletePath, zMetadataDeleteResponse, zMetadataGetBySourceResponse, zMetadataProbeResponse, zMetadataUpdateBody, zMetadataUpdateResponse, zOntologyGetAnnotationsForDocumentPath, zOntologyGetAnnotationsForDocumentResponse, zOntologyGetNodePathPath, zOntologyGetNodePathResponse, zOntologyGetPotentialMappingsResponse, zOntologyGetResponse, zOntologyNameExistsPath, zOntologyNameExistsResponse, zPrecomputedStatsGetByNamePath, zPrecomputedStatsGetByNameResponse, zSearchAnnotationsBody, zSearchAnnotationsResponse, zSearchDocumentsBody, zSearchDocumentsResponse, zSearchHumanizeBody, zSearchHumanizeResponse, zSearchTopicsBody, zSearchTopicsResponse, zTopicsGetTopicGraphResponse, zTopicsGetTopicPath, zTopicsGetTopicResponse, zUpdateOntologyEntryBody } from './zod.gen';
+import type { AddOntologyEntryData, AddOntologyEntryErrors, AddOntologyEntryResponses, DeleteOntologyEntryData, DeleteOntologyEntryErrors, DeleteOntologyEntryResponses, DocumentsGetAllData, DocumentsGetAllErrors, DocumentsGetAllResponses, EmbedEmbedPostData, EmbedEmbedPostErrors, EmbedEmbedPostResponses, JobsAnnotateData, JobsAnnotateErrors, JobsAnnotateResponses, JobsCreateJobData, JobsCreateJobErrors, JobsCreateJobResponses, JobsDeleteJobData, JobsDeleteJobErrors, JobsDeleteJobResponses, JobsGetJobData, JobsGetJobErrors, JobsGetJobResponses, JobsGetRunningCountData, JobsGetRunningCountErrors, JobsGetRunningCountResponses, JobsListJobsData, JobsListJobsErrors, JobsListJobsResponses, JobsUpdateJobData, JobsUpdateJobErrors, JobsUpdateJobResponses, MetadataCreateData, MetadataCreateErrors, MetadataCreateResponses, MetadataDeleteData, MetadataDeleteErrors, MetadataDeleteResponses, MetadataGetBySourceData, MetadataGetBySourceErrors, MetadataGetBySourceResponses, MetadataProbeData, MetadataProbeErrors, MetadataProbeResponses, MetadataUpdateData, MetadataUpdateErrors, MetadataUpdateResponses, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentErrors, OntologyGetAnnotationsForDocumentResponses, OntologyGetData, OntologyGetErrors, OntologyGetNodePathData, OntologyGetNodePathErrors, OntologyGetNodePathResponses, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsErrors, OntologyGetPotentialMappingsResponses, OntologyGetResponses, OntologyNameExistsData, OntologyNameExistsErrors, OntologyNameExistsResponses, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameErrors, PrecomputedStatsGetByNameResponses, SearchAnnotationsData, SearchAnnotationsErrors, SearchAnnotationsResponses, SearchDocumentsData, SearchDocumentsErrors, SearchDocumentsResponses, SearchHumanizeData, SearchHumanizeErrors, SearchHumanizeResponses, SearchTopicsData, SearchTopicsErrors, SearchTopicsResponses, TopicsGetTopicData, TopicsGetTopicErrors, TopicsGetTopicGraphData, TopicsGetTopicGraphErrors, TopicsGetTopicGraphResponses, TopicsGetTopicResponses, UpdateOntologyEntryData, UpdateOntologyEntryErrors, UpdateOntologyEntryResponses } from './types.gen';
+import { zAddOntologyEntryBody, zDeleteOntologyEntryPath, zDocumentsGetAllQuery, zDocumentsGetAllResponse, zEmbedEmbedPostBody, zJobsAnnotateBody, zJobsAnnotateResponse, zJobsCreateJobBody, zJobsCreateJobResponse, zJobsDeleteJobPath, zJobsDeleteJobResponse, zJobsGetJobPath, zJobsGetJobResponse, zJobsGetRunningCountPath, zJobsGetRunningCountResponse, zJobsListJobsResponse, zJobsUpdateJobBody, zJobsUpdateJobResponse, zMetadataCreateBody, zMetadataDeletePath, zMetadataDeleteResponse, zMetadataGetBySourceResponse, zMetadataProbeResponse, zMetadataUpdateBody, zMetadataUpdateResponse, zOntologyGetAnnotationsForDocumentPath, zOntologyGetAnnotationsForDocumentResponse, zOntologyGetNodePathPath, zOntologyGetNodePathResponse, zOntologyGetPotentialMappingsResponse, zOntologyGetResponse, zOntologyNameExistsPath, zOntologyNameExistsResponse, zPrecomputedStatsGetByNamePath, zPrecomputedStatsGetByNameResponse, zSearchAnnotationsBody, zSearchAnnotationsResponse, zSearchDocumentsBody, zSearchDocumentsResponse, zSearchHumanizeBody, zSearchHumanizeResponse, zSearchTopicsBody, zSearchTopicsResponse, zTopicsGetTopicGraphResponse, zTopicsGetTopicPath, zTopicsGetTopicResponse, zUpdateOntologyEntryBody } from './zod.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -71,6 +71,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zJobsDeleteJobResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/job/id/{job_id}',
             ...options
         });
@@ -87,7 +88,25 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zJobsGetJobResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/job/id/{job_id}',
+            ...options
+        });
+    }
+    
+    /**
+     * Get Running Count
+     */
+    public jobsGetRunningCount<ThrowOnError extends boolean = false>(options: Options<JobsGetRunningCountData, ThrowOnError>): RequestResult<JobsGetRunningCountResponses, JobsGetRunningCountErrors, ThrowOnError> {
+        return (options.client ?? this.client).get<JobsGetRunningCountResponses, JobsGetRunningCountErrors, ThrowOnError>({
+            requestValidator: async (data) => await z.object({
+                body: z.never().optional(),
+                path: zJobsGetRunningCountPath,
+                query: z.never().optional()
+            }).parseAsync(data),
+            responseValidator: async (data) => await zJobsGetRunningCountResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/job/running/{job_type}',
             ...options
         });
     }
@@ -103,6 +122,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zJobsListJobsResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/job',
             ...options
         });
@@ -119,6 +139,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zJobsCreateJobResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/job',
             ...options,
             headers: {
@@ -139,7 +160,29 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zJobsUpdateJobResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/job',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+    
+    /**
+     * Annotate
+     */
+    public jobsAnnotate<ThrowOnError extends boolean = false>(options: Options<JobsAnnotateData, ThrowOnError>): RequestResult<JobsAnnotateResponses, JobsAnnotateErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<JobsAnnotateResponses, JobsAnnotateErrors, ThrowOnError>({
+            requestValidator: async (data) => await z.object({
+                body: zJobsAnnotateBody,
+                path: z.never().optional(),
+                query: z.never().optional()
+            }).parseAsync(data),
+            responseValidator: async (data) => await zJobsAnnotateResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/job/annotate',
             ...options,
             headers: {
                 'Content-Type': 'application/json',
@@ -229,6 +272,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zOntologyGetResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/ontology',
             ...options
         });
@@ -244,6 +288,7 @@ export class ApiClient extends HeyApiClient {
                 path: z.never().optional(),
                 query: z.never().optional()
             }).parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/ontology',
             ...options,
             headers: {
@@ -264,6 +309,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zOntologyNameExistsResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/ontology/exists/{name}',
             ...options
         });
@@ -280,6 +326,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zOntologyGetAnnotationsForDocumentResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/ontology/document/{doc_id}',
             ...options
         });
@@ -295,6 +342,7 @@ export class ApiClient extends HeyApiClient {
                 path: z.never().optional(),
                 query: z.never().optional()
             }).parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/ontology/update',
             ...options,
             headers: {
@@ -314,6 +362,7 @@ export class ApiClient extends HeyApiClient {
                 path: zDeleteOntologyEntryPath,
                 query: z.never().optional()
             }).parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/ontology/node/{node_id}',
             ...options
         });
@@ -330,6 +379,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zOntologyGetNodePathResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/ontology/node/{path}/path',
             ...options
         });
@@ -346,6 +396,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zOntologyGetPotentialMappingsResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/ontology/potential_mappings',
             ...options
         });
@@ -361,6 +412,7 @@ export class ApiClient extends HeyApiClient {
                 path: z.never().optional(),
                 query: z.never().optional()
             }).parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/metadata/',
             ...options,
             headers: {
@@ -381,6 +433,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zMetadataGetBySourceResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/metadata',
             ...options
         });
@@ -397,6 +450,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zMetadataProbeResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/metadata/probe',
             ...options
         });
@@ -413,6 +467,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zMetadataDeleteResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/metadata/{metadata_id}',
             ...options
         });
@@ -429,6 +484,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zMetadataUpdateResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/metadata/{metadata_id}',
             ...options,
             headers: {
@@ -449,6 +505,7 @@ export class ApiClient extends HeyApiClient {
                 query: z.never().optional()
             }).parseAsync(data),
             responseValidator: async (data) => await zPrecomputedStatsGetByNameResponse.parseAsync(data),
+            security: [{ scheme: 'bearer', type: 'http' }],
             url: '/stats/{name}',
             ...options
         });

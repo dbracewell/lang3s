@@ -19,7 +19,7 @@ from .annotation_ontology_mapping import AnnotationOntologyMapping  # noqa: E402
 from .claim import Claim  # noqa: E402
 from .document import Document  # noqa: E402
 from .global_metadata import GlobalMetadata  # noqa: E402
-from .job import Job, JobStatus, JobType  # noqa: E402
+from .job import Job  # noqa: E402
 from .ontology import Ontology  # noqa: E402
 from .precomputed_stats import PreComputedStats  # noqa: E402
 from .text import Text  # noqa: E402
@@ -35,9 +35,7 @@ __all__ = [
     "TextAnnotation",
     "Ontology",
     "AnnotationOntologyMapping",
-    "JobType",
     "Job",
-    "JobStatus",
     "Claim",
     "TopicSentences",
     "PreComputedStats",

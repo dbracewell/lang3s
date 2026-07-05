@@ -26,7 +26,7 @@ import { useChatContext } from "@/features/chat/hooks/useChatContext";
 import { AnnotationCount } from "@/clients/analytics";
 import { useQuery } from "@tanstack/react-query";
 import { annotationCountsOptions } from "@/clients/analytics/@tanstack/react-query.gen";
-import { PAGE_LIMIT } from "@/features/common/constants";
+import { PAGE_LIMIT } from "@/lib/constants";
 import { analyticsClient } from "@/lib/api";
 
 export const TopEntitiesList = () => {

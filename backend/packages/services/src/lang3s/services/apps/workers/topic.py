@@ -41,6 +41,7 @@ async def topic_worker(
                         topic_model.flush()
                         await topic_model.save_topics()
                     finally:
+                        logger.info("Topic finalization finished")
                         await client.publish_message(TOPIC_FINISHED, task.id)
 
             except Exception:

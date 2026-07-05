@@ -21,3 +21,10 @@ class BadDataException(CodedException):
 
     def __init__(self, message: str = "Bad Data"):
         super().__init__(message)
+
+
+class TooManyRequests(CodedException):
+    code: int = 429
+
+    def __init__(self, message: str = "Too Many Requests"):
+        super().__init__(message)

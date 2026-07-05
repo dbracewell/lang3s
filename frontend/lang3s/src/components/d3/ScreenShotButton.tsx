@@ -1,5 +1,5 @@
 import { useD3Context } from "@/components/d3/D3ContextType";
-import { useSvgExport } from "@/features/common/hooks/useSvgExport";
+import { useSvgExport } from "@/hooks/useSvgExport";
 import { useTheme } from "next-themes";
 import { Hint } from "@/components/hint";
 import { Button, buttonVariants } from "@/components/ui/button";

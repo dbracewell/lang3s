@@ -1,4 +1,4 @@
-import { FullUserInfo } from "@/features/common/types";
+import { FullUserInfo } from "@/lib/types";
 import { ShieldUserIcon, User2Icon } from "lucide-react";
 import React from "react";
 

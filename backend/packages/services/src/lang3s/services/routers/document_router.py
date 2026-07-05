@@ -8,7 +8,7 @@ from lang3s.data.repositories.text_repository import TextRepository
 from lang3s.data.schemas.common import PaginatedQuery
 from lang3s.data.schemas.text import DocumentListResponse
 from lang3s.services.helpers import DBSessionDep, ErrorDetail
-from lang3s.services.security import AuthenticatedUserId
+from lang3s.services.security import AuthenticatedUserDep
 
 logger = get_logger(__name__)
 
@@ -40,7 +40,8 @@ document_router = APIRouter(
 async def list_documents(
     query: PaginatedQueryDep,
     repository: TextRepositoryDep,
-    claim: AuthenticatedUserId,
+    claim: AuthenticatedUserDep,
 ):
-    print(claim)
+    if claim is None:
+        raise UnauthorizedException()
     return await repository.list_documents(query)

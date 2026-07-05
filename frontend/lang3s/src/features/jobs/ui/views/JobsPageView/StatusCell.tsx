@@ -7,8 +7,6 @@ import {
   LoaderCircleIcon,
 } from "lucide-react";
 import React from "react";
-import { useAtomValue } from "jotai";
-import { jobStatusByIdAtom } from "@/features/events/stores/job-stores";
 import { Job } from "@/clients/core";
 
 const getIcon = (status: string) => {
@@ -26,8 +24,7 @@ const getIcon = (status: string) => {
 };
 
 export const StatusCell = ({ row }: { row: Job }) => {
-  const job = useAtomValue(jobStatusByIdAtom(row.id));
-  const jobStatus = job?.status ?? row.status;
+  const jobStatus = row.status;
   return (
     <div
       className={cn(

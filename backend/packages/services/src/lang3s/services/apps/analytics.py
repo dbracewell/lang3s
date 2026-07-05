@@ -14,11 +14,11 @@ from lang3s.core.clients.redis_client import (
     redis_get_message_batch,
 )
 from lang3s.core.logger import get_logger
+from lang3s.core.schemas.job import JobMessage
 from lang3s.data import filestore
 from lang3s.data.constants import DUCKDB_QUEUE_NAME
 from lang3s.data.db import session_manager
 from lang3s.data.schemas import AnnotationTypes, Document
-from lang3s.data.schemas.job import JobMessage
 from lang3s.services.analytics import get_analytics_db, init_analytics_db
 from lang3s.services.helpers import create_fastapi_app
 from lang3s.services.repositories.analytics_repository import AnalyticsRepository

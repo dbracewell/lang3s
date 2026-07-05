@@ -1,13 +1,19 @@
+import datetime
 import math
 from collections import defaultdict
 from typing import Any
 
 import networkx as nx
 import numpy as np
+from sqlalchemy import update
 
 from lang3s.core.collections_extras import hashed_select
 from lang3s.core.constants import SAFE_COLOR_NAMES
 from lang3s.core.logger import get_logger
+from lang3s.core.schemas.job import Job as JobSchema
+from lang3s.core.schemas.job import JobStatus
+from lang3s.data.db import sync_db_session
+from lang3s.data.models.job import Job as JobModel
 from lang3s.ml.math_extras import remap
 from lang3s.services.analytics import AnalyticsDB, template_engine
 from lang3s.services.schemas.analytics_api_schema import (
@@ -323,8 +329,23 @@ class AnalyticsRepository:
         )
         return result
 
-    def build_annotation_stats(self):
+    def build_annotation_stats(self, job: JobSchema | None = None) -> None:
         self.db.build_annotation_stats()
+        if job:
+            with sync_db_session(autocommit=True) as session:
+                session.execute(
+                    update(JobModel)
+                    .where(JobModel.id == job.id)
+                    .values(
+                        {
+                            "completed": 1,
+                            "status": JobStatus.Completed,
+                            "completed_at": datetime.datetime.now(
+                                tz=datetime.timezone.utc
+                            ),
+                        }
+                    )
+                )
 
     def finish_data_ingestion(self):
         self.db.execute(

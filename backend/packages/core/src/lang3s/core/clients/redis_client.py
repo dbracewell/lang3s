@@ -15,8 +15,9 @@ from redis.asyncio.retry import Retry as AsyncRetry
 from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
 
+from lang3s.core.schemas.job import Job, JobMessage, JobStatus
 from lang3s.core.typing_extras import ShutdownEvent
-from lang3s.data.schemas.job import Job, JobMessage, JobStatus
+from lang3s.data.events import EventType
 
 if TYPE_CHECKING:
     from redis.client import PubSub
@@ -103,23 +104,18 @@ class RedisAsyncClient:
             payload = json.dumps(message)
         return await self._client.publish(channel, payload)
 
-    async def publish_job_update(self, job: Job) -> int:
+    async def publish_event(
+        self,
+        event_type: EventType,
+        user_id: str,
+        payload: Any,
+    ) -> int:
         return await self.publish_message(
-            "events",
+            "lang3s-events",
             {
-                "type": "job:update",
-                "payload": {
-                    "jobId": job.id,
-                    "progress": job.progress,
-                    "status": job.status,
-                    "started_at": job.started_at.strftime("%Y-%m-%d %H:%M:%S")
-                    if job.started_at
-                    else None,
-                    "completed_at": job.completed_at.strftime("%Y-%m-%d %H:%M:%S")
-                    if job.completed_at
-                    else None,
-                },
-                "userid": job.user_id or "1",
+                "type": event_type.value,
+                "userId": user_id,
+                "payload": payload,
             },
         )
 

@@ -1,26 +1,47 @@
-import { db } from "@/lib/db";
 import {
   ac,
   admin,
   analyst,
   dataLoader,
   modeller,
+  user as userPermissions,
   user,
 } from "@/lib/auth/permissions";
 import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import {
-  admin as adminPlugin,
-  apiKey,
-  jwt,
-  username,
-} from "better-auth/plugins";
+import { admin as adminPlugin, jwt, username } from "better-auth/plugins";
+import { apiKey } from "@better-auth/api-key";
 import { nextCookies } from "better-auth/next-js";
+import { t3env } from "@/lib/t3env";
+import Database from "better-sqlite3";
+
+export const getPermissionsForRole = (
+  userRole: string | null | undefined,
+): Record<string, readonly string[]> => {
+  const role = userRole ?? "user";
+  if (role === "admin") {
+    return admin.statements;
+  } else if (role === "modeller") {
+    return modeller.statements;
+  } else if (role === "analyst") {
+    return analyst.statements;
+  } else if (role === "dataLoader") {
+    return dataLoader.statements;
+  }
+  return userPermissions.statements;
+};
 
 export const auth = betterAuth({
-  database: drizzleAdapter(db, {
-    provider: "sqlite",
-  }),
+  database: new Database(t3env.DATABASE_URL),
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+        input: false,
+        required: false,
+        defaultValue: "user",
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
@@ -29,6 +50,15 @@ export const auth = betterAuth({
   },
   plugins: [
     jwt({
+      jwt: {
+        definePayload: ({ user }) => {
+          return {
+            id: user.id,
+            role: user.role,
+            permissions: getPermissionsForRole(user.role),
+          };
+        },
+      },
       jwks: {
         rotationInterval: 60 * 60 * 24 * 30,
         gracePeriod: 60 * 60 * 24 * 2,
@@ -68,6 +98,24 @@ export const auth = betterAuth({
     }),
     nextCookies(),
   ],
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user, ctx) => {
+          let role = "user";
+          const adminKey = ctx!.query?.adminKey;
+          if (adminKey === t3env.ADMIN_PASSPHRASE) {
+            role = "admin";
+          }
+          console.log(adminKey, role);
+          return {
+            data: {
+              ...user,
+              role,
+            },
+          };
+        },
+      },
+    },
+  },
 });
-
-type Session = typeof auth.$Infer.Session;

@@ -11,9 +11,6 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { columns } from "./columns";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { useJobStatusSync } from "@/features/jobs/hooks/jobStatusSync";
-import { useSetAtom } from "jotai";
-import { removeJobStatusAtom } from "@/features/events/stores/job-stores";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   jobsDeleteJobMutation,
@@ -23,15 +20,12 @@ import { coreClient } from "@/lib/api";
 import { JobListResponse } from "@/clients/core";
 
 export const JobPageView = () => {
-  const { data, refetch } = useQuery({
+  const { data } = useQuery({
     ...jobsListJobsOptions({
       client: coreClient,
     }),
   });
   const [, setCurrentTime] = useState<number>(0);
-  const remove = useSetAtom(removeJobStatusAtom);
-  useJobStatusSync(data, refetch);
-
   useEffect(() => {
     const i = setInterval(() => setCurrentTime(Date.now), 1000);
     return () => clearInterval(i);
@@ -55,7 +49,7 @@ export const JobPageView = () => {
             job_id: id,
           },
         });
-      } catch {
+      } catch (err) {
         failed += 1;
       }
     }
@@ -64,9 +58,7 @@ export const JobPageView = () => {
       toast.error(`Could not delete ${failed} jobs`);
     } else {
       toast.success(`Successfully deleted ${toDelete.length} jobs!`);
-      remove(toDelete);
     }
-    setToDelete([]);
     setIsDeleting(false);
   };
 
