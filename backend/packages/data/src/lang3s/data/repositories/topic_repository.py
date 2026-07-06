@@ -2,15 +2,18 @@ import uuid
 from typing import Iterable, List, Optional
 
 import numpy as np
-from sqlalchemy import delete, distinct, func, select
+from sqlalchemy import Numeric, cast, delete, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
+from sqlalchemy.sql.elements import literal
 from sqlalchemy_utils import Ltree
 
 from lang3s.core import config
 from lang3s.core.exceptions import NotFoundException
 from lang3s.data.models import (
     AnnotationOntologyMapping,
+    Claim,
+    Document,
     Ontology,
     TextAnnotation,
     TopicSentences,
@@ -184,43 +187,148 @@ class TopicRepository:
         def truncate(name: str) -> str:
             parts = name.split(" ")
             display = parts[0]
-            for i in range(2, len(parts)):
+            used = 1
+            for i in range(1, len(parts)):
                 next_display = f"{display} {parts[i]}"
                 if len(next_display) >= 44:
                     break
                 display = next_display
+                used += 1
+            if used == len(parts):
+                return display
             return f"{display}..."
 
-        t1 = aliased(TopicModel, name="t1")
-        t2 = aliased(TopicModel, name="t2")
+        similarities: list[TopicSimilarity] = []
+        topic_nodes: dict[int, TopicNode] = {}
+        kw_nodes: dict[str, TopicNode] = {}
 
-        r = await self.session.execute(
-            select(TopicModel.id, TopicModel.name, TopicModel.document_count)
+        unnested_claims = (
+            select(
+                Claim.document_id,
+                func.unnest(Claim.keywords).label("kw"),
+            )
+            .distinct()
+            .cte("unnested_claims")
         )
-        nodes: list[TopicNode] = []
-        for topic_id, topic_name, topic_value in r.all():
-            nodes.append(
-                TopicNode(
+        global_stats = (
+            select(func.count().label("total_docs"))
+            .select_from(Document)
+            .cte("global_stats")
+        )
+        valid_keywords = (
+            select(
+                unnested_claims.c.kw,
+                func.count(distinct(unnested_claims.c.document_id)).label("cnt"),
+            )
+            .where(unnested_claims.c.kw != "")
+            .group_by(unnested_claims.c.kw)
+            .having(func.count() >= 10)
+            .cte("valid_keywords")
+        )
+        doc_freq_keywords = (
+            select(
+                unnested_claims.c.document_id,
+                unnested_claims.c.kw,
+                valid_keywords.c.cnt,
+            )
+            .select_from(
+                unnested_claims.join(
+                    valid_keywords, unnested_claims.c.kw == valid_keywords.c.kw
+                )
+            )
+            .cte("doc_freq_keywords")
+        )
+        k1 = doc_freq_keywords.alias("k1")
+        k2 = doc_freq_keywords.alias("k2")
+        topic_documents = (
+            select(
+                TopicSentences.topic_id,
+                TopicSentences.document_id,
+                TopicModel.document_count,
+                TopicModel.name,
+            )
+            .distinct()
+            .select_from(TopicSentences)
+            .join(TopicModel, TopicModel.id == TopicSentences.topic_id)
+            .cte("topic_documents")
+        )
+        r = await self.session.execute(select(topic_documents))
+
+        for topic_id, document_id, topic_count, name in r.all():
+            if topic_id not in topic_nodes:
+                topic_nodes[topic_id] = TopicNode(
                     id=str(topic_id),
-                    text=topic_name,
-                    display=truncate(topic_name),
-                    value=topic_value,
+                    text=name,
+                    display=truncate(name),
+                    subvalues={},
+                    type="topic",
+                    value=topic_count,
+                )
+        stmt = (
+            select(
+                topic_documents.c.topic_id,
+                topic_documents.c.name,
+                topic_documents.c.document_count.label("topic_count"),
+                doc_freq_keywords.c.kw,
+                doc_freq_keywords.c.cnt.label("kw_count"),
+                func.count().label("joint"),
+            )
+            .select_from(topic_documents)
+            .join(
+                doc_freq_keywords,
+                doc_freq_keywords.c.document_id == topic_documents.c.document_id,
+            )
+            .group_by(
+                topic_documents.c.topic_id,
+                topic_documents.c.name,
+                doc_freq_keywords.c.kw,
+                doc_freq_keywords.c.cnt,
+                topic_documents.c.document_count,
+            )
+            .having(func.count() >= 20)
+        )
+        r = await self.session.execute(stmt)
+
+        for topic_id, name, topic_count, keyword, kw_count, joint_count in r.all():
+            topic_nodes[topic_id].subvalues[keyword] = joint_count
+
+            if keyword not in kw_nodes:
+                kw_nodes[keyword] = TopicNode(
+                    id=keyword,
+                    text=keyword,
+                    display=truncate(keyword),
+                    subvalues={},
+                    type="concept",
+                    value=kw_count,
+                )
+
+            sim = joint_count / min(topic_count, kw_count)
+            similarities.append(
+                TopicSimilarity(
+                    id1=str(topic_id),
+                    id2=keyword,
+                    similarity=sim,
                 )
             )
 
-        similarity = 1 - t1.embedding.cosine_distance(t2.embedding)  # type: ignore
+        topic_model_cte = select(TopicModel.id, TopicModel.embedding).cte(
+            "topic_model_cte"
+        )
+        t1 = aliased(topic_model_cte, name="t1")
+        t2 = aliased(topic_model_cte, name="t2")
+        similarity = 1 - t1.c.embedding.cosine_distance(t2.c.embedding)  # type: ignore
         stmt = (
             select(
-                t1.id.label("id1"),  # type:ignore
-                t2.id.label("id2"),  # type:ignore
+                t1.c.id.label("id1"),  # type:ignore
+                t2.c.id.label("id2"),  # type:ignore
                 similarity,
             )
-            .join(t2, t1.id != t2.id)  # type:ignore
+            .join(t2, t1.c.id != t2.c.id)  # type:ignore
             .where(similarity >= 0.7)
         )
 
         r = await self.session.execute(stmt)
-        similarities: list[TopicSimilarity] = []
+
         for id1, id2, sim in r.all():
             similarities.append(
                 TopicSimilarity(
@@ -230,4 +338,50 @@ class TopicRepository:
                 )
             )
 
+        paired_counts = (
+            select(
+                k1.c.kw.label("kw1_kw"),
+                k1.c.cnt.label("kw1_cnt"),
+                k2.c.kw.label("kw2_kw"),
+                k2.c.cnt.label("kw2_cnt"),
+                func.count().label("joint_cnt"),
+            )
+            .select_from(
+                k1.join(
+                    k2, (k1.c.document_id == k2.c.document_id) & (k1.c.kw < k2.c.kw)
+                )
+            )
+            .group_by(k1.c.kw, k1.c.cnt, k2.c.kw, k2.c.cnt)
+            .having(func.count() >= 10)
+            .cte("paired_counts")
+        )
+        pmi_expr = func.log(
+            cast(2.0, Numeric),
+            (cast(paired_counts.c.joint_cnt, Numeric) * global_stats.c.total_docs)
+            / (paired_counts.c.kw1_cnt * paired_counts.c.kw2_cnt),
+        )
+        final_query = (
+            select(
+                paired_counts.c.kw1_kw,
+                paired_counts.c.kw1_cnt,
+                paired_counts.c.kw2_kw,
+                paired_counts.c.kw2_cnt,
+                paired_counts.c.joint_cnt,
+                pmi_expr.label("pmi_score"),
+            )
+            .select_from(paired_counts.join(global_stats, literal(True)))
+            .where(pmi_expr > 2.0)
+        )
+        r = await self.session.execute(final_query)
+        for kw1, kw1_cnt, kw2, kw2_count, joint_count, pmi_score in r.all():
+            similarities.append(
+                TopicSimilarity(
+                    id1=kw1,
+                    id2=kw2,
+                    similarity=3 * (joint_count / min(kw1_cnt, kw2_count)),
+                )
+            )
+
+        nodes = list(topic_nodes.values())
+        nodes.extend(list(kw_nodes.values()))
         return TopicGraph(nodes=nodes, similarities=similarities)

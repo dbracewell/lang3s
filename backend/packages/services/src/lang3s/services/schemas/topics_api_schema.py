@@ -1,6 +1,6 @@
-from typing import Any, NamedTuple, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class TopicData(BaseModel):
@@ -25,8 +25,8 @@ class TopicNode(BaseModel):
     text: str
     display: str
     value: float
-    type: str = "topic"
-    subvalues: dict[str, int] = Field(default_factory=dict)
+    type: Literal["topic", "concept"]
+    subvalues: dict[str, float]
 
 
 class TopicSimilarity(BaseModel):

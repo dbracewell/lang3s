@@ -66,7 +66,7 @@ def main():
             server_process.wait()
             logger.info("llama-server terminated")
 
-        if sys.platform != "win32":
+        if sys.platform != "win32" and sys.platform != "darwin":
             try:
                 kill_pattern = f"llama-server.*{config.LOCAL_LLM_PORT}"
                 subprocess.run(["pkill", "-f", kill_pattern], check=False)

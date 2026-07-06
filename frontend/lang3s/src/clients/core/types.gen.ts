@@ -979,11 +979,11 @@ export type TopicNode = {
     /**
      * Type
      */
-    type?: string;
+    type: 'topic' | 'concept';
     /**
      * Subvalues
      */
-    subvalues?: {
+    subvalues: {
         [key: string]: number;
     };
 };

@@ -545,8 +545,8 @@ export const zTopicNode = z.object({
     text: z.string(),
     display: z.string(),
     value: z.number(),
-    type: z.string().optional().default('topic'),
-    subvalues: z.record(z.string(), z.int()).optional()
+    type: z.enum(['topic', 'concept']),
+    subvalues: z.record(z.string(), z.number())
 });
 
 /**
