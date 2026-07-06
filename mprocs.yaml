@@ -40,7 +40,6 @@ procs:
     autostart: true
     autorestart: true
 
-
   nextjs-server:
     shell: "pnpm dev"
     cwd: "./frontend/lang3s"
