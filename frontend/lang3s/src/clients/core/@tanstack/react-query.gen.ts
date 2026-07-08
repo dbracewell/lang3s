@@ -4,7 +4,7 @@ import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutation
 
 import { client } from '../client.gen';
 import { ApiClient, type Options } from '../sdk.gen';
-import type { AddOntologyEntryData, AddOntologyEntryError, DeleteOntologyEntryData, DeleteOntologyEntryError, DocumentsGetAllData, DocumentsGetAllError, DocumentsGetAllResponse, EmbedEmbedPostData, EmbedEmbedPostError, JobsAnnotateData, JobsAnnotateError, JobsAnnotateResponse, JobsCreateJobData, JobsCreateJobError, JobsCreateJobResponse, JobsDeleteJobData, JobsDeleteJobError, JobsDeleteJobResponse, JobsGetJobData, JobsGetJobError, JobsGetJobResponse, JobsGetRunningCountData, JobsGetRunningCountError, JobsGetRunningCountResponse, JobsListJobsData, JobsListJobsError, JobsListJobsResponse, JobsUpdateJobData, JobsUpdateJobError, JobsUpdateJobResponse, MetadataCreateData, MetadataCreateError, MetadataDeleteData, MetadataDeleteError, MetadataDeleteResponse, MetadataGetBySourceData, MetadataGetBySourceError, MetadataGetBySourceResponse, MetadataProbeData, MetadataProbeError, MetadataProbeResponse, MetadataUpdateData, MetadataUpdateError, MetadataUpdateResponse, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentError, OntologyGetAnnotationsForDocumentResponse, OntologyGetData, OntologyGetError, OntologyGetNodePathData, OntologyGetNodePathError, OntologyGetNodePathResponse, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsError, OntologyGetPotentialMappingsResponse, OntologyGetResponse, OntologyNameExistsData, OntologyNameExistsError, OntologyNameExistsResponse, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameError, PrecomputedStatsGetByNameResponse, SearchAnnotationsData, SearchAnnotationsError, SearchAnnotationsResponse, SearchDocumentsData, SearchDocumentsError, SearchDocumentsResponse, SearchHumanizeData, SearchHumanizeError, SearchHumanizeResponse, SearchTopicsData, SearchTopicsError, SearchTopicsResponse, TopicsGetTopicData, TopicsGetTopicError, TopicsGetTopicGraphData, TopicsGetTopicGraphError, TopicsGetTopicGraphResponse, TopicsGetTopicResponse, UpdateOntologyEntryData, UpdateOntologyEntryError } from '../types.gen';
+import type { AddOntologyEntryData, AddOntologyEntryError, DeleteOntologyEntryData, DeleteOntologyEntryError, DocumentsGetAllData, DocumentsGetAllError, DocumentsGetAllResponse, DocumentsGetOneData, DocumentsGetOneError, DocumentsGetOneResponse, EmbedEmbedPostData, EmbedEmbedPostError, JobsAnnotateData, JobsAnnotateError, JobsAnnotateResponse, JobsCreateJobData, JobsCreateJobError, JobsCreateJobResponse, JobsDeleteJobData, JobsDeleteJobError, JobsDeleteJobResponse, JobsGetJobData, JobsGetJobError, JobsGetJobResponse, JobsGetRunningCountData, JobsGetRunningCountError, JobsGetRunningCountResponse, JobsListJobsData, JobsListJobsError, JobsListJobsResponse, JobsUpdateJobData, JobsUpdateJobError, JobsUpdateJobResponse, MetadataCreateData, MetadataCreateError, MetadataDeleteData, MetadataDeleteError, MetadataDeleteResponse, MetadataGetBySourceData, MetadataGetBySourceError, MetadataGetBySourceResponse, MetadataProbeData, MetadataProbeError, MetadataProbeResponse, MetadataUpdateData, MetadataUpdateError, MetadataUpdateResponse, OntologyGetAnnotationsForDocumentData, OntologyGetAnnotationsForDocumentError, OntologyGetAnnotationsForDocumentResponse, OntologyGetData, OntologyGetError, OntologyGetNodePathData, OntologyGetNodePathError, OntologyGetNodePathResponse, OntologyGetPotentialMappingsData, OntologyGetPotentialMappingsError, OntologyGetPotentialMappingsResponse, OntologyGetResponse, OntologyNameExistsData, OntologyNameExistsError, OntologyNameExistsResponse, PrecomputedStatsGetByNameData, PrecomputedStatsGetByNameError, PrecomputedStatsGetByNameResponse, SearchAnnotationsData, SearchAnnotationsError, SearchAnnotationsResponse, SearchDocumentsData, SearchDocumentsError, SearchDocumentsResponse, SearchHumanizeData, SearchHumanizeError, SearchHumanizeResponse, SearchTopicsData, SearchTopicsError, SearchTopicsResponse, TopicsGetTopicData, TopicsGetTopicError, TopicsGetTopicGraphData, TopicsGetTopicGraphError, TopicsGetTopicGraphResponse, TopicsGetTopicResponse, UpdateOntologyEntryData, UpdateOntologyEntryError } from '../types.gen';
 
 /**
  * Delete Job
@@ -290,6 +290,24 @@ export const documentsGetAllInfiniteOptions = (options?: Options<DocumentsGetAll
     });
     return opts as Omit<typeof opts, 'initialData'>;
 };
+
+export const documentsGetOneQueryKey = (options: Options<DocumentsGetOneData>) => createQueryKey('documentsGetOne', options);
+
+/**
+ * Get Document
+ */
+export const documentsGetOneOptions = (options: Options<DocumentsGetOneData>) => queryOptions<DocumentsGetOneResponse, DocumentsGetOneError, DocumentsGetOneResponse, ReturnType<typeof documentsGetOneQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await ApiClient.__registry.get().documentsGetOne({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: documentsGetOneQueryKey(options)
+});
 
 export const ontologyGetQueryKey = (options?: Options<OntologyGetData>) => createQueryKey('ontologyGet', options);
 

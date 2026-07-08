@@ -114,6 +114,33 @@ def init_annotation_worker():
     thread.start()
 
 
+def send_annotations_to_analytics_dob(job_id: int, docs: list[Document]) -> None:
+    with RedisClient() as redis_client:
+        for doc in docs:
+            payload: list[dict] = []
+            for annotation in doc.text.annotations:
+                payload.append(
+                    {
+                        "id": annotation.id,
+                        "content": annotation.coref.content,
+                        "normalized": annotation.coref.normalized,
+                        "type": annotation.type_,
+                        "mapping": annotation.mapping,
+                        "value": annotation.value,
+                        "sentence_id": annotation.sentence.id,
+                        "document_id": annotation.document_id,
+                        "metadata_json": annotation.metadata_json,
+                    }
+                )
+            redis_client.enqueue(
+                DUCKDB_QUEUE_NAME,
+                JobMessage(
+                    job_id=job_id,
+                    content={"payload": payload},
+                ),
+            )
+
+
 def send_to_claim_processor(docs: list[Document]) -> None:
     logger = get_local_logger()
     with RedisClient() as redis_client:
@@ -226,7 +253,7 @@ async def annotation_worker(event: Event[AnnotationTask]) -> Event[WorkerResult]
 
             await save_docs_to_db(docs, session)
             send_to_claim_processor(docs)
-            save_documents_to_disk(job_id=job.id, docs=docs)
+            send_annotations_to_analytics_dob(job.id, docs)
             send_to_topic_model(docs)
 
             # Ensure memory gets cleaned up
@@ -317,6 +344,12 @@ async def on_annotation_job_complete(event: JobCompleteEvent):
 
     async with async_db_session(autocommit=True) as session:
         job_repository = JobRepository(session)
+        while True:
+            job = await job_repository.get(event.job_id)
+            if (job.completed + job.failed) >= job.total:
+                break
+            time.sleep(5)
+
         await job_repository.update(JobUpdateRequest(id=event.job_id, total=20))
 
     logger.info("Constructing Indexes")

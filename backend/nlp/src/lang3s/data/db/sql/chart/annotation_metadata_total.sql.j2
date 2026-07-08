@@ -1,9 +1,0 @@
-{% import 'macros.sql' as macros %}
-
-SELECT COUNT(0) as count
-FROM (SELECT DISTINCT {{ macros.select_metadata(data_type, formatter) }} as text
-      FROM text_annotations
-      WHERE json_exists(metadata, ?)
-        AND {% if type == "sentence" %} type = 'sentence'
-          {% else %} type != 'sentence'
-         {% endif %}) A

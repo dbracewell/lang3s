@@ -383,6 +383,8 @@ export const zGlobalMetadataUpdate = z.object({
     ]).optional()
 });
 
+export const zNumpyArray = z.array(z.number());
+
 /**
  * OntologyEntryCreationRequest
  */
@@ -509,6 +511,47 @@ export const zSearchParams = z.object({
     sid: z.array(z.string()).nullish(),
     tid: z.array(z.int()).nullish(),
     is_strict: z.boolean().default(false)
+});
+
+/**
+ * TextAnnotation
+ */
+export const zTextAnnotation = z.object({
+    id: z.string().optional(),
+    start: z.int(),
+    end: z.int(),
+    content: z.string(),
+    document_id: z.string(),
+    metadata_json: z.record(z.string(), z.unknown()).optional(),
+    sentence_index: z.int(),
+    type_: z.string(),
+    value: z.string(),
+    source: z.string(),
+    embedding: zNumpyArray.optional()
+});
+
+/**
+ * Text
+ */
+export const zText = z.object({
+    id: z.string().optional(),
+    start: z.int(),
+    end: z.int(),
+    content: z.string(),
+    document_id: z.string(),
+    metadata_json: z.record(z.string(), z.unknown()).optional(),
+    embedding: zNumpyArray.optional(),
+    annotations: z.array(zTextAnnotation).optional()
+});
+
+/**
+ * Document
+ */
+export const zDocument = z.object({
+    text: zText,
+    title: z.string(),
+    id: z.string(),
+    metadata_json: z.record(z.string(), z.unknown()).optional()
 });
 
 /**
@@ -706,6 +749,15 @@ export const zDocumentsGetAllQuery = z.object({
  * Successful Response
  */
 export const zDocumentsGetAllResponse = zDocumentListResponse;
+
+export const zDocumentsGetOnePath = z.object({
+    document_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zDocumentsGetOneResponse = zDocument;
 
 /**
  * Successful Response

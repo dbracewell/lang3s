@@ -175,7 +175,7 @@ def async_retry(
                         for exception in no_retry:
                             if isinstance(e, exception):
                                 if on_exceed_throw_exception:
-                                    raise on_exceed_attempts(e)
+                                    raise
                                 return on_exceed_attempts(e)
                     last_exception = e
                     if attempt < max_retries:

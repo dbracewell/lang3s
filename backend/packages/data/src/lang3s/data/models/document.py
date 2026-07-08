@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -49,7 +51,7 @@ class Document(Base):
         onupdate=func.now(),
     )
 
-    text: Mapped["Text"] = relationship(
+    text: Mapped[Text] = relationship(
         "Text",
         back_populates="document",
         lazy="selectin",

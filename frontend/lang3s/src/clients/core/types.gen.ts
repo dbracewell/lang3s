@@ -148,6 +148,27 @@ export type BodyEmbedEmbedPost = {
 export type DataType = 'string' | 'string_array' | 'int' | 'float' | 'boolean' | 'date';
 
 /**
+ * Document
+ */
+export type Document = {
+    text: Text;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Metadata Json
+     */
+    metadata_json?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
  * DocumentHighlight
  */
 export type DocumentHighlight = {
@@ -671,6 +692,8 @@ export type JobUpdateRequest = {
  */
 export type MetadataSource = 'document' | 'annotation' | 'sentence';
 
+export type NumpyArray = Array<number>;
+
 /**
  * OntologyEntryCreationRequest
  */
@@ -852,6 +875,92 @@ export type SearchParams = {
      * Is Strict
      */
     is_strict: boolean;
+};
+
+/**
+ * Text
+ */
+export type Text = {
+    /**
+     * Id
+     */
+    id?: string;
+    /**
+     * Start
+     */
+    start: number;
+    /**
+     * End
+     */
+    end: number;
+    /**
+     * Content
+     */
+    content: string;
+    /**
+     * Document Id
+     */
+    document_id: string;
+    /**
+     * Metadata Json
+     */
+    metadata_json?: {
+        [key: string]: unknown;
+    };
+    embedding?: NumpyArray;
+    /**
+     * Annotations
+     */
+    annotations?: Array<TextAnnotation>;
+};
+
+/**
+ * TextAnnotation
+ */
+export type TextAnnotation = {
+    /**
+     * Id
+     */
+    id?: string;
+    /**
+     * Start
+     */
+    start: number;
+    /**
+     * End
+     */
+    end: number;
+    /**
+     * Content
+     */
+    content: string;
+    /**
+     * Document Id
+     */
+    document_id: string;
+    /**
+     * Metadata Json
+     */
+    metadata_json?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Sentence Index
+     */
+    sentence_index: number;
+    /**
+     * Type
+     */
+    type_: string;
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Source
+     */
+    source: string;
+    embedding?: NumpyArray;
 };
 
 /**
@@ -1512,6 +1621,48 @@ export type DocumentsGetAllResponses = {
 };
 
 export type DocumentsGetAllResponse = DocumentsGetAllResponses[keyof DocumentsGetAllResponses];
+
+export type DocumentsGetOneData = {
+    body?: never;
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/doc/doc/{document_id}';
+};
+
+export type DocumentsGetOneErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorDetail;
+    /**
+     * Unauthorized
+     */
+    401: ErrorDetail;
+    /**
+     * Not Found
+     */
+    404: ErrorDetail;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DocumentsGetOneError = DocumentsGetOneErrors[keyof DocumentsGetOneErrors];
+
+export type DocumentsGetOneResponses = {
+    /**
+     * Successful Response
+     */
+    200: Document;
+};
+
+export type DocumentsGetOneResponse = DocumentsGetOneResponses[keyof DocumentsGetOneResponses];
 
 export type OntologyGetData = {
     body?: never;

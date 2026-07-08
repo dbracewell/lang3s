@@ -1,7 +1,6 @@
 import asyncio
 import json
 import random
-import shutil
 from typing import Any
 
 from alembic import command
@@ -13,7 +12,7 @@ from lang3s.core.clients import RedisClient
 from lang3s.core.collections_extras import hashed_select
 from lang3s.core.constants import COLOR_NAMES
 from lang3s.data.db import session_manager
-from lang3s.data.filestore import TargetDirectory, filestore
+from lang3s.data.filestore import filestore
 from lang3s.data.models import AnnotationOntologyMapping, Base, Ontology
 
 
@@ -30,14 +29,6 @@ def clear_redis():
     print("Clearing Redis...", end=" ")
     with RedisClient() as client:
         client.flush_all()
-    print("Done.")
-
-
-def clear_documents():
-    print("Clearing Documents...", end=" ")
-    documents = filestore.get_directory(TargetDirectory.DOCUMENTS_DIR)
-    shutil.rmtree(documents)
-    documents.mkdir(parents=True, exist_ok=True)
     print("Done.")
 
 
@@ -158,5 +149,4 @@ if __name__ == "__main__":
     asyncio.run(init_database())
     stamp_alembic()
     clear_redis()
-    clear_documents()
     clear_analytics_db()

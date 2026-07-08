@@ -428,8 +428,12 @@ export const CorpusMap = ({
       concept: d3
         .scaleSequential((t) => d3.interpolateGreens(0.2 + t * 0.6))
         .domain([
-          theme === "dark" ? valueRanges.concept.max : valueRanges.concept.min,
-          theme === "dark" ? valueRanges.concept.min : valueRanges.concept.max,
+          theme === "dark"
+            ? (valueRanges["concept"]?.max ?? 100)
+            : (valueRanges["concept"]?.min ?? 0),
+          theme === "dark"
+            ? (valueRanges["concept"]?.min ?? 0)
+            : (valueRanges["concept"]?.max ?? 100),
         ]),
     };
   }, [valueRanges, theme]);

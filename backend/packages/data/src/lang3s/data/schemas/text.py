@@ -76,7 +76,36 @@ class Document(BaseModel):
 
     @staticmethod
     def from_database(document: DocumentModel):
-        return Document.model_validate(document)
+        text: Text = Text(
+            id=document.text.id,
+            document_id=document.text.document_id,
+            content=document.text.content,
+            embedding=document.text.embedding.to_numpy(),
+            metadata_json=document.text.metadata_json,
+            end=0,
+            start=0,
+        )
+        new_doc = Document(
+            id=document.id,
+            title=document.title,
+            metadata_json=document.metadata_json,
+            text=text,
+        )
+        text.document_ref = weakref.ref(new_doc)
+        for ta_model in document.text.annotations:
+            text.add_annotation(
+                id=ta_model.id,
+                start=ta_model.start,
+                end=ta_model.end,
+                embedding=ta_model.embedding.to_numpy(),
+                metadata_json=ta_model.metadata_json,
+                content=ta_model.content,
+                value=ta_model.value,
+                type_=ta_model.type_,
+                source=ta_model.source,
+                sentence_index=ta_model.sentence_index,
+            )
+        return new_doc
 
     @staticmethod
     def create_text_document(
@@ -113,8 +142,6 @@ class Document(BaseModel):
             )
         )
         for annotation in self.text.annotations:
-            if annotation.type_ == "token":
-                continue
             text.annotations.append(
                 TextAnnotationModel(
                     **annotation.model_dump(exclude_unset=True),
@@ -125,6 +152,8 @@ class Document(BaseModel):
                     is_stopword=annotation.is_stopword,
                 )
             )
+        # Make the tokens at the end to avoid foreign-key violations
+        text.annotations.sort(key=lambda x: 999 if x.type_ == "token" else 0)
         return DocumentModel(
             id=self.id,
             title=self.title,

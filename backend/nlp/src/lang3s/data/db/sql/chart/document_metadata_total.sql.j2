@@ -1,7 +1,0 @@
-{% import 'macros.sql' as macros %}
-
-SELECT COUNT(0) as count
-FROM (SELECT DISTINCT {{ macros.select_metadata(data_type, formatter) }} as text
-      FROM pg_db.documents
-      WHERE json_exists(metadata, ?)) A
-

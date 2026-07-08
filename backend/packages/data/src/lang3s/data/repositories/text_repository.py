@@ -2,9 +2,11 @@ import numpy as np
 from sqlalchemy import Boolean, cast, func, not_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from lang3s.core.exceptions import NotFoundException
 from lang3s.data.models import Document as DocumentModel
 from lang3s.data.models import Text as TextModel
 from lang3s.data.models import TextAnnotation as TextAnnotationModel
+from lang3s.data.schemas import Document as DocumentSchema
 from lang3s.data.schemas import TextAnnotation as TextAnnotationSchema
 from lang3s.data.schemas.common import PaginatedQuery
 from lang3s.data.schemas.text import DocumentInfo, DocumentListResponse
@@ -13,6 +15,16 @@ from lang3s.data.schemas.text import DocumentInfo, DocumentListResponse
 class TextRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def get_document(self, document_id: str) -> DocumentSchema:
+        doc_model: DocumentModel | None = (
+            await self.session.scalars(
+                select(DocumentModel).where(DocumentModel.id == document_id)
+            )
+        ).first()
+        if not doc_model:
+            raise NotFoundException()
+        return DocumentSchema.from_database(doc_model)
 
     async def list_documents(self, query: PaginatedQuery) -> DocumentListResponse:
         if query.cursor == 1:

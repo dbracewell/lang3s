@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import datetime
 from typing import TYPE_CHECKING, Any
 
+from pgvector import HalfVector
 from pgvector.sqlalchemy import HALFVEC
 from sqlalchemy import (
     DateTime,
@@ -38,7 +41,7 @@ class Text(Base):
         SqlAlchemyText,
         nullable=False,
     )
-    embedding: Mapped[list] = mapped_column(
+    embedding: Mapped[HalfVector] = mapped_column(
         "embedding",
         HALFVEC(config.SEMANTIC_EMBEDDING_DIMENSION),
         nullable=False,
@@ -72,12 +75,12 @@ class Text(Base):
         index=True,
     )
 
-    document: Mapped["Document"] = relationship(
+    document: Mapped[Document] = relationship(
         "Document",
         back_populates="text",
     )
 
-    annotations: Mapped[list["TextAnnotation"]] = relationship(
+    annotations: Mapped[list[TextAnnotation]] = relationship(
         "TextAnnotation",
         back_populates="owner",
         lazy="selectin",
@@ -89,6 +92,7 @@ class Text(Base):
             "idx_texts_content_fts",
             "content",
             postgresql_using="pgroonga",
+            postgresql_with={"tokenizer": "'TokenBigramSplitSymbolAlphaDigit'"},
         ),
         Index(
             "idx_texts_embedding_hnsw",

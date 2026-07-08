@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 from typing import Any, Optional
 
@@ -223,11 +225,13 @@ class TextAnnotation(Base):
             "idx_text_annotations_content_fts",
             "content",
             postgresql_using="pgroonga",
+            postgresql_with={"tokenizer": "'TokenBigramSplitSymbolAlphaDigit'"},
         ),
         Index(
             "idx_text_annotations_normalized_fts",
             "normalized",
             postgresql_using="pgroonga",
+            postgresql_with={"tokenizer": "'TokenBigramSplitSymbolAlphaDigit'"},
         ),
         Index(
             "idx_text_annotations_embedding_hnsw",

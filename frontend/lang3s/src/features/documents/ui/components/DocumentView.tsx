@@ -7,20 +7,19 @@ import { OntologySelectorDialog } from "@/features/ontology/ui/components/Ontolo
 import { PaletteIcon } from "lucide-react";
 import { useTags } from "@/features/documents/hooks/useTags";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
-import { z } from "zod";
-import { DocumentSchema } from "@/lib/nlp/schemas";
 import { useQuery } from "@tanstack/react-query";
 import { ontologyGetAnnotationsForDocumentOptions } from "@/clients/core/@tanstack/react-query.gen";
 import { coreClient } from "@/lib/api";
 import { DEFAULT_ONTOLOGY_COLOR } from "@/lib/constants";
 import { Spinner } from "@/components/Spinner";
+import { DocumentSchema } from "@/lib/nlp/schemas";
+import { z } from "zod";
 
 type DocumentViewProps = {
   documentData: z.infer<typeof DocumentSchema>;
 };
 
 export const DocumentView = ({ documentData }: DocumentViewProps) => {
-  // const document = new Lan3gsDocument({ ...documentData });
   const [document, setDocument] = useState<Lan3gsDocument | null>(null);
   const [checkedNodes, setCheckedNodes] = useTags();
   const { setContext } = useChatContext();
@@ -44,13 +43,13 @@ export const DocumentView = ({ documentData }: DocumentViewProps) => {
           ...documentData,
           text: {
             ...documentData.text,
-            annotations: documentData.text.annotations.map((annotation) => ({
+            annotations: documentData.text.annotations?.map((annotation) => ({
               ...annotation,
               value:
-                ontologyMapping.mapping[annotation.id]?.path ??
+                ontologyMapping.mapping[annotation.id as string]?.path ??
                 annotation.value,
               color:
-                ontologyMapping.mapping[annotation.id]?.color ??
+                ontologyMapping.mapping[annotation.id as string]?.color ??
                 DEFAULT_ONTOLOGY_COLOR,
             })),
           },

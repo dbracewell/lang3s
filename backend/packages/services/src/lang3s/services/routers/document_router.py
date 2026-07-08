@@ -6,7 +6,7 @@ from lang3s.core.exceptions import UnauthorizedException
 from lang3s.core.logger import get_logger
 from lang3s.data.repositories.text_repository import TextRepository
 from lang3s.data.schemas.common import PaginatedQuery
-from lang3s.data.schemas.text import DocumentListResponse
+from lang3s.data.schemas.text import Document, DocumentListResponse
 from lang3s.services.helpers import DBSessionDep, ErrorDetail
 from lang3s.services.security import AuthenticatedUserDep
 
@@ -45,3 +45,23 @@ async def list_documents(
     if claim is None:
         raise UnauthorizedException()
     return await repository.list_documents(query)
+
+
+@document_router.get(
+    "/doc/{document_id}",
+    operation_id="documentsGetOne",
+    responses={
+        200: {"model": Document},
+        401: {"model": ErrorDetail},
+        400: {"model": ErrorDetail},
+        404: {"model": ErrorDetail},
+    },
+)
+async def get_document(
+    document_id: str,
+    repository: TextRepositoryDep,
+    claim: AuthenticatedUserDep,
+):
+    if claim is None:
+        raise UnauthorizedException()
+    return await repository.get_document(document_id)

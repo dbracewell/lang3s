@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
+from sqlalchemy import select
 
 from lang3s.core import config
 from lang3s.core.clients.redis_client import (
@@ -15,9 +16,9 @@ from lang3s.core.clients.redis_client import (
 )
 from lang3s.core.logger import get_logger
 from lang3s.core.schemas.job import JobMessage
-from lang3s.data import filestore
 from lang3s.data.constants import DUCKDB_QUEUE_NAME
-from lang3s.data.db import session_manager
+from lang3s.data.db import session_manager, sync_db_session
+from lang3s.data.models import Document as DocumentModel
 from lang3s.data.schemas import AnnotationTypes, Document
 from lang3s.services.analytics import get_analytics_db, init_analytics_db
 from lang3s.services.helpers import create_fastapi_app
@@ -44,24 +45,38 @@ def ingest_documents(
         ) as f:
             annotations = []
             for job in batch:
-                doc: Document = filestore.read_document(job.content["doc_id"])
-                for annotation in doc.text.annotations:
-                    if annotation.type_ == AnnotationTypes.TOKEN:
-                        continue
-                    annotations.append(
-                        {
-                            "id": annotation.id,
-                            "content": annotation.coref.content,
-                            "normalized": annotation.coref.normalized,
-                            "type": annotation.type_,
-                            "mapping": annotation.mapping,
-                            "value": annotation.value,
-                            "sentence_id": annotation.sentence.id,
-                            "document_id": annotation.document_id,
-                            "embedding": annotation.embedding.tolist(),
-                            "metadata_json": annotation.metadata_json,
-                        }
-                    )
+                annotations.extend(job.content["payload"])
+            # annotations = []
+            # with sync_db_session() as session:
+            #     for job in batch:
+            #         doc_model: DocumentModel | None = (
+            #             session.scalars(
+            #                 select(DocumentModel).where(
+            #                     DocumentModel.id == job.content["doc_id"]
+            #                 )
+            #             )
+            #         ).first()
+            #         if not doc_model:
+            #             logger.error(f"Failed to find document {job.content['doc_id']}")
+            #             continue
+            #         doc: Document = Document.from_database(doc_model)
+            #         for annotation in doc.text.annotations:
+            #             if annotation.type_ == AnnotationTypes.TOKEN:
+            #                 continue
+            #             annotations.append(
+            #                 {
+            #                     "id": annotation.id,
+            #                     "content": annotation.coref.content,
+            #                     "normalized": annotation.coref.normalized,
+            #                     "type": annotation.type_,
+            #                     "mapping": annotation.mapping,
+            #                     "value": annotation.value,
+            #                     "sentence_id": annotation.sentence.id,
+            #                     "document_id": annotation.document_id,
+            #                     "embedding": annotation.embedding.tolist(),
+            #                     "metadata_json": annotation.metadata_json,
+            #                 }
+            #             )
             json.dump(annotations, f)
             del annotations
             f.close()
