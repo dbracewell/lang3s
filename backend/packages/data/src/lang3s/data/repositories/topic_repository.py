@@ -210,6 +210,7 @@ class TopicRepository:
             .distinct()
             .cte("unnested_claims")
         )
+
         global_stats = (
             select(func.count().label("total_docs"))
             .select_from(Document)
@@ -225,6 +226,7 @@ class TopicRepository:
             .having(func.count() >= 10)
             .cte("valid_keywords")
         )
+
         doc_freq_keywords = (
             select(
                 unnested_claims.c.document_id,

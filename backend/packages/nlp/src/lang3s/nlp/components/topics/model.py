@@ -6,6 +6,7 @@ from typing import Iterable, List
 
 import numpy as np
 from numpy.typing import NDArray
+from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_utils import refresh_materialized_view
 from tqdm import tqdm
@@ -15,7 +16,7 @@ from lang3s.core.formatters import format_duration
 from lang3s.core.logger import get_logger
 from lang3s.core.typing_extras import SingletonMeta
 from lang3s.data.db import sync_db_session
-from lang3s.data.models import TopicSentences
+from lang3s.data.models import TopicSentences, TopicSimilarity
 from lang3s.data.repositories.text_repository import TextRepository
 from lang3s.data.repositories.topic_repository import TopicRepository
 from lang3s.data.schemas import Document
@@ -145,9 +146,8 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
             self.merge_topics()
 
     def flush(self):
-        if self._buffer:
-            self.__run_batch()
-            self.merge_topics()
+        self.__run_batch()
+        self.merge_topics()
 
     def __process_batch(self):
         embeddings = np.array(self._buffer)
@@ -298,6 +298,20 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
 
         # Reload the topics to get all the correct ids
         await self._load_topics()
+
+        topic_list: list[TopicInfo] = list(self._topics)
+        topic_list.sort(key=lambda x: x.id)
+        values = []
+        for i in range(len(topic_list)):
+            t1 = topic_list[i]
+            for j in range(i + 1, len(topic_list)):
+                t2 = topic_list[j]
+                sim = cosine(t1.embedding, t2.embedding)
+                values.append({"id1": t1.id, "id2": t2.id, "similarity": sim})
+
+        with sync_db_session(autocommit=True) as session:
+            session.execute(delete(TopicSimilarity))
+            session.execute(insert(TopicSimilarity).values(values))
 
         logger.info(f"💾 Saved {len(self._topics)} topics")
 

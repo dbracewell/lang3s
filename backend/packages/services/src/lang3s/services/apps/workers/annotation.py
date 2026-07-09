@@ -366,7 +366,7 @@ async def on_annotation_job_complete(event: JobCompleteEvent):
         logger.error(f"Index creation failed ({e})")
         traceback.print_exc(file=sys.stdout)
 
-    logger.info("Sending JobComplete message to analytics server")
+    logger.info("Sending JobComplete message to analytics and claims server")
     try:
         with RedisClient() as redis_client:
             redis_client.enqueue(
@@ -376,7 +376,14 @@ async def on_annotation_job_complete(event: JobCompleteEvent):
                     status=JobStatus.Completed,
                 ),
             )
-        logger.info("Sent JobComplete message to analytics server")
+            redis_client.enqueue(
+                CLAIM_EXTRACT_QUEUE_NAME,
+                DocumentClaimRequest(
+                    documentId="job:complete",
+                    sentences=[],
+                ).model_dump(),
+            )
+        logger.info("Sent JobComplete message to analytics and claims server")
     except Exception as e:
         logger.error(f"Failed to send JobComplete message to analytics server ({e})")
         traceback.print_exc(file=sys.stdout)

@@ -1,7 +1,10 @@
 import argparse
 import time
 
+from openai.resources.skills import content
 from pydantic import ValidationError
+from sqlalchemy_utils import refresh_materialized_view
+from sympy.codegen.ast import continue_
 from transformers import AutoTokenizer
 
 from lang3s.core.logger import get_logger
@@ -10,6 +13,7 @@ from lang3s.core.parallel.redis_queue import RedisQueueSource
 from lang3s.data.constants import CLAIM_EXTRACT_QUEUE_NAME
 from lang3s.data.db import sync_db_session
 from lang3s.data.models import Claim as ClaimModel
+from lang3s.data.models import DocumentKeywords, KeywordSimilarities
 from lang3s.data.schemas.claim import DocumentClaimRequest
 from lang3s.nlp import Embedder
 from lang3s.nlp.components.claim_extractor import ClaimExtractor
@@ -26,6 +30,22 @@ global_processing = set()
 def process_task(item: Event[dict]):
     try:
         request = DocumentClaimRequest.model_validate(item.payload)
+        if request.documentId == "job:complete":
+            logger.info("Finishing claim processing...")
+            with sync_db_session(autocommit=True) as session:
+                refresh_materialized_view(
+                    session=session,
+                    name=DocumentKeywords.__table__.name,
+                    concurrently=True,
+                )
+                refresh_materialized_view(
+                    session=session,
+                    name=KeywordSimilarities.__table__.name,
+                    concurrently=True,
+                )
+            logger.info("Finished claim processing")
+            return Event(payload=0)
+
         if not request.sentences:
             return Event(payload=0)
 

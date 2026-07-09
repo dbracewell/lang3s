@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
@@ -33,7 +31,7 @@ class AnnotationOntologyMapping(Base):
         index=True,
     )
 
-    ontology_item: Mapped[Ontology] = relationship(
+    ontology_item: Mapped["Ontology"] = relationship(
         "Ontology",
         back_populates="mappings",
     )

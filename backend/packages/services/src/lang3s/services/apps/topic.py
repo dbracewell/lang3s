@@ -31,8 +31,10 @@ async def main():
                     with io.BytesIO(raw_bytes) as buf:
                         embeddings = np.load(buf, allow_pickle=False)
                         topic_model.partial_fit_sentence_embeddings(embeddings)
+
                 elif task.method == "finalize":
                     try:
+                        logger.info("Finalizing topics (flushing and saving)")
                         topic_model.flush()
                         await topic_model.save_topics()
                     finally:

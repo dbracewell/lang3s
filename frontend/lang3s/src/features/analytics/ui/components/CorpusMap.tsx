@@ -305,6 +305,7 @@ export const CorpusMapRouter = () => {
     return null;
   }
 
+  console.log(data.nodes);
   return <CorpusMap data={data} />;
 };
 
