@@ -642,15 +642,16 @@ const ToolTipContent = () => {
               {hoveredNode.type === "topic" ? "Concepts" : "Instances"}
             </div>
             <div className="scrollable flex flex-1 flex-col gap-1 text-xs">
-              {hoveredNode && !hoveredNode.subvalues.length && (
-                <div className="flex flex-1 flex-col items-center justify-center">
-                  <div>No items</div>
-                </div>
-              )}
               {hoveredNode &&
-                Object.keys(hoveredNode.subvalues).map((kw) => (
-                  <div key={kw}>{kw}</div>
-                ))}
+                Object.keys(hoveredNode.subvalues).length == 0 && (
+                  <div className="flex flex-1 flex-col items-center justify-center">
+                    <div>No items</div>
+                  </div>
+                )}
+              {hoveredNode &&
+                Object.entries(hoveredNode.subvalues)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([kw, _]) => <div key={kw}>{kw}</div>)}
             </div>
           </div>
         </>
