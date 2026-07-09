@@ -10,7 +10,6 @@ from lang3s.data.schemas import Document
 
 
 class TargetDirectory(str, enum.Enum):
-    DOCUMENTS_DIR = "documents"
     ANNOTATIONS_FILE_DIR = "annotations"
     MODELS_DIR = "models"
     AGENT_SESSIONS_DIR = "agent_sessions"
@@ -25,25 +24,6 @@ class FileStore:
 
     def get_directory(self, directory: TargetDirectory) -> Path:
         return self._base / directory
-
-    def write_document(self, doc: Document):
-        import msgpack
-
-        document_file_name = (
-            self._base / TargetDirectory.DOCUMENTS_DIR.value / f"{doc.id}.msgpack"
-        )
-        with open(document_file_name, "wb") as fp:
-            msgpack.pack(doc.model_dump(), fp)
-        return doc.id
-
-    def read_document(self, doc_id: str) -> Document:
-        import msgpack
-
-        document_file_name = (
-            self._base / TargetDirectory.DOCUMENTS_DIR.value / f"{doc_id}.msgpack"
-        )
-        with open(document_file_name, "rb") as fp:
-            return Document.model_validate(msgpack.unpack(fp))
 
     def read_annotation_file(self, doc_id: str) -> Document:
         documents_dir = (
