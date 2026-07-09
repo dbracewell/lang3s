@@ -4,28 +4,39 @@ procs:
     autostart: true
     autorestart: true
 
-  annotation-server:
-    shell: "uv --project backend/nlp/ run python -m lang3s.services.worker.annotation_worker --num_workers 3 --batch_size 500"
+  lora-llm:
+    cwd: "backend/"
+    shell: "uv  run --package lang3s-services python -m lang3s.services.apps.llm"
     autostart: true
     autorestart: true
 
-  python-server:
-    shell: "uv --project backend/nlp/ run python -m lang3s.services.app"
+  nlp-server:
+    cwd: "backend/"
+    shell: "uv run --package lang3s-services  python -m lang3s.services.apps.nlp --num_workers 3 --batch_size 100"
     autostart: true
     autorestart: true
 
-  llama-cpp-server:
-    shell: "uv --project backend/nlp run python -m lang3s.services.local_llm_app"
+  topic-server:
+    cwd: "backend/"
+    shell: "uv run --package lang3s-services  python -m lang3s.services.apps.topic"
+    autostart: true
+    autorestart: true
+
+  claim-server:
+    cwd: "backend/"
+    shell: "uv run --package lang3s-services  python -m lang3s.services.apps.claims --num_workers 4"
     autostart: true
     autorestart: true
 
   analytics-server:
-    shell: "uv --project backend/nlp run python -m lang3s.services.analytics_app"
+    cwd: "backend/"
+    shell: "uv  run  --package lang3s-services python -m lang3s.services.apps.analytics"
     autostart: true
     autorestart: true
 
-  claim-extractor:
-    shell: "uv --project backend/nlp run python -m lang3s.services.worker.claim_extraction_worker"
+  main-api-server:
+    cwd: "backend/"
+    shell: "uv run --package lang3s-services python -m lang3s.services.apps.main"
     autostart: true
     autorestart: true
 

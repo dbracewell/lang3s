@@ -1,6 +1,5 @@
 "use client";
 import { cn } from "@/lib/utils/cn";
-import { RouterOutputs } from "@/lib/trpc/types";
 import {
   CircleCheckIcon,
   CircleXIcon,
@@ -8,8 +7,7 @@ import {
   LoaderCircleIcon,
 } from "lucide-react";
 import React from "react";
-import { useAtomValue } from "jotai";
-import { jobStatusByIdAtom } from "@/features/events/stores/job-stores";
+import { Job } from "@/clients/core";
 
 const getIcon = (status: string) => {
   if (status === "processing") {
@@ -25,21 +23,16 @@ const getIcon = (status: string) => {
   return <ClockIcon />;
 };
 
-export const StatusCell = ({
-  row,
-}: {
-  row: RouterOutputs["jobs"]["getAll"][number];
-}) => {
-  const job = useAtomValue(jobStatusByIdAtom(row.id));
-  const jobStatus = job?.status ?? row.status;
+export const StatusCell = ({ row }: { row: Job }) => {
+  const jobStatus = row.status;
   return (
     <div
       className={cn(
         "flex w-full items-center justify-center gap-2 text-center font-medium text-zinc-700 uppercase [&_>svg]:h-4",
-        row.status === "processing" &&
-          "bg-dodger-blue-300 text-dodger-blue-800",
-        row.status === "complete" && "bg-green-300 text-green-800",
+        row.status === "running" && "bg-dodger-blue-300 text-dodger-blue-800",
+        row.status === "completed" && "bg-green-300 text-green-800",
         row.status === "failed" && "bg-red-300 text-red-800",
+        row.status === "cancelled" && "bg-orange-300 text-orange-800",
         row.status === "waiting" && "bg-gray-500 text-white",
       )}
     >

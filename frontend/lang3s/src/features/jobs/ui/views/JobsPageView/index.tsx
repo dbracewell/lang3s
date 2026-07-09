@@ -6,25 +6,26 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { FilterDialog } from "@/features/jobs/ui/views/JobsPageView/FilterDialog";
-import { useTRPCMutation } from "@/lib/trpc/use-mutation";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Trash2Icon, XIcon } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { columns, type JobType } from "./columns";
+import { columns } from "./columns";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { useJobStatusSync } from "@/features/jobs/hooks/jobStatusSync";
-import { useSetAtom } from "jotai";
-import { removeJobStatusAtom } from "@/features/events/stores/job-stores";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  jobsDeleteJobMutation,
+  jobsListJobsOptions,
+} from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
+import { JobListResponse } from "@/clients/core";
 
 export const JobPageView = () => {
-  const { data, refetch } = useTRPCQuery((trpc) =>
-    trpc.jobs.getAll.queryOptions(),
-  );
+  const { data } = useQuery({
+    ...jobsListJobsOptions({
+      client: coreClient,
+    }),
+  });
   const [, setCurrentTime] = useState<number>(0);
-  const remove = useSetAtom(removeJobStatusAtom);
-  useJobStatusSync(data, refetch);
-
   useEffect(() => {
     const i = setInterval(() => setCurrentTime(Date.now), 1000);
     return () => clearInterval(i);
@@ -33,16 +34,22 @@ export const JobPageView = () => {
   const [toDelete, setToDelete] = useState<number[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const deleteJobMutation = useTRPCMutation((trpc) => ({
-    mutation: trpc.jobs.delete.mutationOptions({}),
-  }));
+  const deleteJobMutation = useMutation({
+    ...jobsDeleteJobMutation({
+      client: coreClient,
+    }),
+  });
 
   const deleteSelected = async () => {
     let failed = 0;
     for (const id of toDelete) {
       try {
-        await deleteJobMutation.mutateAsync({ job_id: id });
-      } catch {
+        await deleteJobMutation.mutateAsync({
+          path: {
+            job_id: id,
+          },
+        });
+      } catch (err) {
         failed += 1;
       }
     }
@@ -50,16 +57,15 @@ export const JobPageView = () => {
     if (failed > 0) {
       toast.error(`Could not delete ${failed} jobs`);
     } else {
-      remove(toDelete);
+      toast.success(`Successfully deleted ${toDelete.length} jobs!`);
     }
-    setToDelete([]);
     setIsDeleting(false);
   };
 
   const { DataTable, setFilter, getFilter, rows } = useDataTable({
     columns,
     getRowId: (row) => String(row.id),
-    data: data ?? ([] as JobType[]),
+    data: data ?? ([] as JobListResponse),
     initialSortColumn: "id",
     appearance: {
       sortButton: "text-white bg-white/30",
@@ -113,7 +119,7 @@ export const JobPageView = () => {
               </LoadingButton>
             </div>
           ) : (
-            <div className="p-[3px]">
+            <div className="p-0.75">
               <Button
                 variant="listButton"
                 size="sm"

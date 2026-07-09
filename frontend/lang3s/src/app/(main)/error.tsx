@@ -1,5 +1,4 @@
 "use client";
-import { TRPCError } from "@trpc/server";
 import { OctagonAlertIcon } from "lucide-react";
 import React from "react";
 import { Button } from "@/components/ui/button";
@@ -7,9 +6,7 @@ import { useRouter } from "next/navigation";
 
 const ErrorPage = ({ error }: { error: unknown }) => {
   let message = null;
-  if (error instanceof TRPCError) {
-    message = error.code;
-  } else if (error instanceof Error) {
+  if (error instanceof Error) {
     message = error.message;
   }
   const router = useRouter();

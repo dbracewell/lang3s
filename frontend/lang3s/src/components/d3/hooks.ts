@@ -14,12 +14,15 @@ export const useRegistry = ({
     registry.current[name] = ref;
   }, []);
 
-  const getRef = useCallback((name: string) => {
-    if (externalRefs != null && externalRefs[name] != null) {
-      return externalRefs[name] ?? nullRef;
-    }
-    return registry.current[name] ?? nullRef;
-  }, []);
+  const getRef = useCallback(
+    (name: string) => {
+      if (externalRefs != null && externalRefs[name] != null) {
+        return externalRefs[name] ?? nullRef;
+      }
+      return registry.current[name] ?? nullRef;
+    },
+    [externalRefs],
+  );
 
   return { getRef, registerRef };
 };
@@ -41,7 +44,7 @@ export const useFindMinMaxValue = <V>({
       minValue = Math.min(minValue, Math.min(maxValue, pointValue));
     });
     return { minValue, maxValue };
-  }, [data]);
+  }, [data, getValue]);
   return { minValue, maxValue };
 };
 
@@ -89,7 +92,7 @@ export const useFindMultiTypeMinMaxValue = <V>({
       };
     });
     return values;
-  }, [points]);
+  }, [getType, getValue, points]);
 };
 
 export const useMultiTypeLinearScaler = ({

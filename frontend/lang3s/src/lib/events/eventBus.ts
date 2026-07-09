@@ -1,5 +1,5 @@
-import type { SSEEventMap } from "./events";
-import { EventType } from "@/lib/events/eventSchemas";
+import { EventType } from "@/lib/events/types";
+import { EventPayloadMap } from "@/lib/events/schemas";
 
 type AnyHandler = (payload: unknown) => void;
 
@@ -8,12 +8,12 @@ export class EventBus {
 
   on<K extends EventType>(
     type: K,
-    handler: (payload: SSEEventMap[K]) => void,
+    handler: (payload: EventPayloadMap[K]) => void,
   ): () => void {
     const set = (this.handlers[type] ??= new Set<AnyHandler>());
 
     const wrapped: AnyHandler = (payload) => {
-      handler(payload as SSEEventMap[K]);
+      handler(payload as EventPayloadMap[K]);
     };
 
     set.add(wrapped);
@@ -24,7 +24,7 @@ export class EventBus {
     };
   }
 
-  emit<K extends EventType>(type: K, payload: SSEEventMap[K]) {
+  emit<K extends EventType>(type: K, payload: EventPayloadMap[K]) {
     const set = this.handlers[type];
     if (!set) return;
     for (const h of set) h(payload);

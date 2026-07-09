@@ -3,19 +3,20 @@ import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils/cn";
 import { Hint } from "@/components/hint";
 import { buttonVariants } from "@/components/ui/button";
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from "lucide-react";
+import { ChevronRightIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { formatNumber, formatURL } from "@/lib/utils/formatters";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
-import { CorpusExplorerPoint } from "@/features/analytics/types";
 import { useFindMultiTypeMinMaxValue } from "@/components/d3/hooks";
+import { TopicNode } from "@/clients/core";
+import { CorpusExplorerPoint } from "@/features/analytics/types";
 
 type DataProps = {
   points: CorpusExplorerPoint[];
 };
 
-const getType = (point: CorpusExplorerPoint) => point.type;
+const getType = (point: CorpusExplorerPoint) => point.type ?? "topic";
 
 const getValue = (point: CorpusExplorerPoint) => point.value;
 
@@ -31,7 +32,7 @@ export const TopicsList = ({ points }: DataProps) => {
       .map((p) => `TopicId: ${p.id} TopicName: ${p.text}`)
       .join("\n");
     setContext(context);
-  }, [points]);
+  }, [points, setContext]);
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -62,7 +63,7 @@ const TopicRow = ({
   index,
   normalizer,
 }: {
-  topic: CorpusExplorerPoint;
+  topic: TopicNode;
   index: number;
   normalizer?: Record<
     string,
@@ -72,7 +73,7 @@ const TopicRow = ({
     }
   >;
 }) => {
-  const numSubValues = Object.keys(topic.subvalues).length;
+  const numSubValues = 0; //Object.keys(topic.subvalues).length;
   const [numConceptsToDisplay, setNumConceptsToDisplay] = useState(
     Math.min(numSubValues, 10),
   );

@@ -1,6 +1,4 @@
 "use client";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
-import { Spinner } from "@/components/Spinner";
 import { HeatMap } from "@/features/reports/ui/components/HeatMap";
 import { useChartParams } from "@/features/reports/hooks/useChartParams";
 import { ScatterPlotChart } from "@/features/reports/ui/components/ScatterPlot";
@@ -14,7 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getChartTypeTitle } from "@/features/reports/types";
 import { capitalize, formatURL } from "@/lib/utils/formatters";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,10 +23,16 @@ import {
   XIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { useSvgExport } from "@/features/common/hooks/useSvgExport";
+import { useSvgExport } from "@/hooks/useSvgExport";
 import { useTheme } from "next-themes";
-import { ChartSeriesParamType } from "@/features/reports/schema";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { analyticsGetChartDataOptions } from "@/clients/analytics/@tanstack/react-query.gen";
+import { analyticsClient } from "@/lib/api";
+import { ChartSeries, DataCategory } from "@/clients/analytics";
+import { PAGE_LIMIT } from "@/lib/constants";
+import { Spinner } from "@/components/Spinner";
+import { formatChartName } from "@/features/reports/lib/formatters";
 
 export const ChartView = () => {
   const [params, setParams] = useChartParams();
@@ -40,25 +43,27 @@ export const ChartView = () => {
     type: params.xType,
     value: params.xValue,
     page: xPage,
-  } as ChartSeriesParamType;
+    page_size: PAGE_LIMIT,
+  } as ChartSeries;
   const yAxis = params.yType
     ? ({
         type: params.yType,
         value: params.yValue,
         page: yPage,
-      } as ChartSeriesParamType)
+        page_size: PAGE_LIMIT,
+      } as ChartSeries)
     : undefined;
 
-  const { data, isPending } = useTRPCQuery((trpc) =>
-    trpc.reports.getData.queryOptions(
-      {
+  const { data, isPending } = useQuery({
+    ...analyticsGetChartDataOptions({
+      client: analyticsClient,
+      body: {
         count_type: countType,
         x: xAxis,
         y: yAxis,
       },
-      { placeholderData: (previousData) => previousData },
-    ),
-  );
+    }),
+  });
 
   const contentRef = useRef<HTMLDivElement | null>(null);
   const { exportSvg } = useSvgExport();
@@ -107,7 +112,7 @@ export const ChartView = () => {
             xSeries={xAxis}
             ySeries={yAxis!}
             xDataType={data.x_data_type}
-            yDataType={data.y_data_type!}
+            yDataType={data.y_data_type as DataCategory}
           />
         );
       case "barchart":
@@ -142,7 +147,7 @@ export const ChartView = () => {
               )}
             </span>
             <span className="text-muted-foreground">
-              {getChartTypeTitle(chartType)}
+              {formatChartName(chartType)}
             </span>
           </CardTitle>
           <CardDescription>
@@ -186,10 +191,10 @@ export const ChartView = () => {
                 }}
                 className="h-fit!"
                 onClick={() => {
-                  setYPage(data.y_prev_page ?? 1);
+                  setYPage((data.y_prev_page as number) ?? 1);
                   setParams(
                     {
-                      yPage: data.y_prev_page,
+                      yPage: data.y_prev_page as number,
                     },
                     {
                       shallow: true,
@@ -207,10 +212,10 @@ export const ChartView = () => {
                 }}
                 className="h-fit!"
                 onClick={() => {
-                  setYPage(data.y_next_page ?? 1);
+                  setYPage((data.y_next_page as number) ?? 1);
                   setParams(
                     {
-                      yPage: data.y_next_page,
+                      yPage: data.y_next_page as number,
                     },
                     {
                       shallow: true,
@@ -229,10 +234,10 @@ export const ChartView = () => {
               disabled={!data.x_prev_page}
               variant="ghost"
               onClick={() => {
-                setXPage(data.x_prev_page ?? 1);
+                setXPage((data.x_prev_page as number) ?? 1);
                 setParams(
                   {
-                    xPage: data.x_prev_page,
+                    xPage: data.x_prev_page as number,
                   },
                   {
                     shallow: true,
@@ -246,10 +251,10 @@ export const ChartView = () => {
               disabled={!data.x_next_page}
               variant="ghost"
               onClick={() => {
-                setXPage(data.x_next_page ?? 1);
+                setXPage((data.x_next_page as number) ?? 1);
                 setParams(
                   {
-                    xPage: data.x_next_page,
+                    xPage: data.x_next_page as number,
                   },
                   {
                     shallow: true,

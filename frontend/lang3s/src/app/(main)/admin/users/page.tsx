@@ -1,7 +1,10 @@
-import { getUserCount, requireAdmin } from "@/features/auth/server/actions";
-import { caller } from "@/lib/trpc/server";
+import {
+  getUserCount,
+  listUsers,
+  requireAdmin,
+} from "@/features/auth/server/actions";
 import { UserList } from "@/features/auth/ui/components/UserList";
-import { PAGE_LIMIT } from "@/features/common/constants";
+import { PAGE_LIMIT } from "@/lib/constants";
 
 const AdminUsersPage = async (props: PageProps<"/admin/users">) => {
   await requireAdmin();
@@ -10,11 +13,10 @@ const AdminUsersPage = async (props: PageProps<"/admin/users">) => {
   const parsedPage =
     page == null || Number.isNaN(Number(page)) ? 1 : Number(page);
   const [data, totalUsers] = await Promise.all([
-    caller.auth.getUsers({
-      page: parsedPage,
-    }),
+    listUsers(parsedPage),
     getUserCount(),
   ]);
+
   return (
     <UserList
       users={data}

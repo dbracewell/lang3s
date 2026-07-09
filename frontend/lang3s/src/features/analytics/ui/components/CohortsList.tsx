@@ -2,12 +2,7 @@
 import Link from "next/link";
 import { formatURL } from "@/lib/utils/formatters";
 import { getColorName } from "@/lib/utils/colors";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { SquareArrowUpRightIcon, XIcon } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { CohortView } from "@/features/analytics/ui/components/CohortView";
@@ -15,11 +10,12 @@ import { cn } from "@/lib/utils/cn";
 import { useEffect } from "react";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
 import { useCohortsParams } from "@/features/analytics/hooks/useCohortsParams";
+import { type CohortClusterEntry } from "@/clients/analytics";
 
 export const CohortsList = ({
   clusters,
 }: {
-  clusters: { id: string; name: string; type: string }[][];
+  clusters: CohortClusterEntry[][];
 }) => {
   const [params, setParams] = useCohortsParams();
   const { setContext } = useChatContext();
@@ -32,7 +28,8 @@ export const CohortsList = ({
   }
 
   if (params.c >= 0 && params.c <= clusters.length) {
-    return <CohortView cohort={clusters[params.c]} />;
+    const cluster = clusters[params.c];
+    return <CohortView cohort={cluster} />;
   }
 
   return (
@@ -95,11 +92,11 @@ export const CohortsList = ({
             <div
               key={ids[0].id}
               style={{
-                backgroundColor: `var(--color-${getColorName(ids[0].id).toLowerCase()}-500)`,
+                backgroundColor: ids[0].color,
                 opacity: filtered.length > 0 ? `100%` : `20%`,
               }}
               className={cn(
-                "shadow-shadow flex h-[300px] flex-col overflow-hidden rounded-lg border text-sm text-gray-50 shadow-sm hover:bg-zinc-300/80 dark:hover:bg-white/10",
+                "shadow-shadow flex h-75 flex-col overflow-hidden rounded-lg border text-sm text-gray-50 shadow-sm hover:bg-zinc-300/80 dark:hover:bg-white/10",
                 ["YELLOW"].includes(getColorName(ids[0].id)) &&
                   "text-stone-900",
               )}

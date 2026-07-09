@@ -1,0 +1,8 @@
+{% import 'macros.sql' as macros %}
+
+SELECT COUNT(0)
+FROM (SELECT normalized, path, count(DISTINCT document_id)
+      FROM text_annotations_mapped
+      where {{ macros.match_paths('path', mapping_list) }}
+      GROUP BY normalized, path
+      HAVING count(DISTINCT document_id) > 5) a

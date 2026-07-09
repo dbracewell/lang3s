@@ -1,0 +1,28 @@
+{% import 'macros.sql' as macros %}
+
+{{ DATA_SELECTOR }}
+AS
+(SELECT {{ macros.select_metadata(data_type, formatter) }} AS text,
+        id                                                 as document_id
+ FROM text_annotations
+ WHERE json_exists(metadata, ?)
+   AND {% if type == "sentence" %} type = 'sentence'
+     {% else %} type != 'sentence'
+    {% endif %})
+,
+{{ VALUE_SELECTOR }} AS (
+  SELECT normalized, count(*) as document_count
+  FROM {{DATA_SELECTOR}}
+  GROUP BY 1
+  ORDER BY {{order_by}}
+  OFFSET ? LIMIT ?
+),
+{{ VALUE_MAPPING }} AS (
+SELECT
+    B.normalized as text,
+    B.normalized as value,
+    A.document_id,
+    '' as sentence_id
+FROM {{DATA_SELECTOR}} AS A
+INNER JOIN {{ VALUE_SELECTOR }} B ON A.normalized = B.normalized
+)

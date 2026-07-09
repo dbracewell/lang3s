@@ -145,7 +145,7 @@ export const SearchBar = () => {
         >
           <CheckboxFormField
             reactHookForm={form}
-            name="isStrict"
+            name="is_strict"
             label="Strict Search"
             formDescriptionClassName="text-xs"
             description="Requires keyword matches to be present in the search results"

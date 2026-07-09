@@ -18,7 +18,7 @@ export const Wrapper = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
   const { open } = useChatWindowStatus();
   const { setContext } = useChatContext();
-  useEffect(() => setContext(""), [pathname]);
+  useEffect(() => setContext(""), [pathname, setContext]);
   return (
     <>
       <NavSidebar isOpen={isMenuOpen} setIsOpen={setIsMenuOpen} />

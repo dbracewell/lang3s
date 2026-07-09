@@ -1,5 +1,3 @@
-import { TRPCError } from "@trpc/server";
-
 interface Options<T> {
   onSuccess?: (data: T) => void;
   onError?: (error: Error) => void;
@@ -56,9 +54,6 @@ export async function logAndRethrow<T>(
       console.error(error);
     }
     options?.onError?.(error as Error);
-    if (error instanceof TRPCError) {
-      throw error;
-    }
-    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", cause: error });
+    throw new Error("Internal Server Error");
   }
 }

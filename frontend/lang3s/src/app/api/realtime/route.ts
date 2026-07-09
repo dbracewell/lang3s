@@ -1,91 +1,48 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getUser } from "@/features/auth/server/actions";
-import { enforceLimits, releaseConnection } from "@/lib/events/sseSecurity";
-import { redisFanout } from "@/lib/events/redisFanout";
-import { EventMessageSchema } from "@/lib/events/events";
+import { NextRequest } from "next/server";
+import { getCurrentUser } from "@/features/auth/server/actions";
+import { createRedisClient } from "@/lib/redis";
+import { EventType } from "@/lib/events/types";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const adminCanSee: EventType[] = ["job:update"];
 
 export async function GET(req: NextRequest) {
-  const user = await getUser();
-  if (user == null) {
-    return new NextResponse("Unauthorized", { status: 401 });
-  }
-
-  await redisFanout.ensureReady();
-
-  let connKey: string;
-  try {
-    connKey = await enforceLimits(user.id);
-  } catch (err) {
-    return new Response(
-      (err as Error).message === "RATE_LIMIT"
-        ? "Too many attempts"
-        : "Too many connections",
-      { status: 429 },
-    );
-  }
+  const user = await getCurrentUser();
+  const subscriber = await createRedisClient();
 
   const stream = new ReadableStream({
-    start(controller) {
-      const encoder = new TextEncoder();
-      let closed = false;
-
-      const send = (data: string) => controller.enqueue(encoder.encode(data));
-
-      // Initial comment
-      send(": connected\n\n");
-
-      // Heartbeat
-      const heartbeat = setInterval(() => {
-        send(": keep-alive\n\n");
-      }, 15_000);
-
-      // Redis listener
-      const listener = (message: string) => {
+    async start(controller) {
+      await subscriber.subscribe("lang3s-events", (message) => {
         try {
           const data = JSON.parse(message);
-          const event = EventMessageSchema.parse(data);
+          const { type, userId } = data;
           if (
-            (user.role === "admin" && event.type.startsWith("job")) ||
-            event.userid === user.id
+            userId === user.id ||
+            (user.role === "admin" && adminCanSee.includes(type))
           ) {
-            send(`event: message\n`);
-            send(`data: ${message}\n\n`);
+            const sseMessage = `data: ${message}\n\n`;
+            controller.enqueue(new TextEncoder().encode(sseMessage));
           }
-        } catch (e) {
-          console.error(e);
+        } catch (err) {
+          console.error(err);
         }
-      };
-
-      redisFanout.add(listener);
-
-      const cleanup = async () => {
-        if (closed) return;
-        closed = true;
-        clearInterval(heartbeat);
-        redisFanout.remove(listener);
-        try {
-          await releaseConnection(connKey);
-        } catch {
-          /* ignore */
-        }
-
-        try {
-          controller.close(); // safe now
-        } catch {
-          /* ignore */
-        }
-      };
-
-      req.signal.addEventListener("abort", cleanup);
+      });
+      controller.enqueue(
+        new TextEncoder().encode("event: connected\ndata: true\n\n"),
+      );
+    },
+    async cancel() {
+      await subscriber.unsubscribe("lang3s-events");
+      await subscriber.quit();
     },
   });
 
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
+      "Cache-Control": "no-cache",
       Connection: "keep-alive",
       "X-Accel-Buffering": "no",
     },

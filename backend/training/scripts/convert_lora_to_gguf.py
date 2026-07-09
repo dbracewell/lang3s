@@ -11,7 +11,7 @@ import sys
 import json
 from math import prod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, Sequence, SupportsIndex, cast
+from typing_extras import TYPE_CHECKING, Any, Callable, Iterable, Iterator, Sequence, SupportsIndex, cast
 from transformers import AutoConfig, AutoTokenizer
 
 import torch

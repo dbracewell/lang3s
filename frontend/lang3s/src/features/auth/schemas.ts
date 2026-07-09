@@ -35,6 +35,14 @@ export const UserAccountSchema = z.object({
 
 export type UserAccountSchemaType = z.infer<typeof UserAccountSchema>;
 
+export const UserAccountEditSchema = z.object({
+  userId: z.string(),
+  role: z.string(),
+  isActive: z.boolean(),
+});
+
+export type UserAccountEditSchemaType = z.infer<typeof UserAccountEditSchema>;
+
 export const AdminAccountSchema = UserAccountSchema.extend({
   passphrase: z.string().trim().min(1, "Administrator passphrase is required"),
 });

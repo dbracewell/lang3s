@@ -1,12 +1,12 @@
 import React from "react";
 import { JobStatusListener } from "@/features/jobs/listeners/jobStatusListener";
-import { AgentStatusUpdateListener } from "@/features/events/listeners/agentStatusUpdateListener";
+import { OntologyUpdateListener } from "@/features/ontology/OntologyUpdateListener";
 
 export const EventListeners = ({ children }: { children: React.ReactNode }) => {
   return (
     <>
       <JobStatusListener />
-      <AgentStatusUpdateListener />
+      <OntologyUpdateListener />
       {children}
     </>
   );

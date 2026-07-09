@@ -17,10 +17,14 @@ import z from "zod";
 import { InputFormField } from "@/components/form-controls/input-form-field";
 import { TextareaFormField } from "@/components/form-controls/textarea-form-field";
 import { OntologyConceptSchema } from "@/features/ontology/schemas";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { toast } from "sonner";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  addOntologyEntryMutation,
+  ontologyNameExistsOptions,
+} from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
 
 export const AddConceptDialog = ({
   parentId,
@@ -40,24 +44,25 @@ export const AddConceptDialog = ({
       parentId,
     },
   });
-  const addConcept = useTRPCMutation((trpc) => ({
-    mutation: trpc.ontology.addConcept.mutationOptions({
-      onSuccess: (data) =>
-        toast.success(`Successfully created ${data[0].name}`),
-      onError: () => toast.error("Failed to create new concept"),
+  const addConcept = useMutation({
+    ...addOntologyEntryMutation({
+      client: coreClient,
     }),
-  }));
+    onSuccess: () => toast.success(`Successfully created new concept`),
+    onError: () => toast.error("Failed to create new concept"),
+  });
 
   const name = form.watch("name");
   const debouncedName = useDebounce(name, 500);
-  const { data, refetch } = useTRPCQuery((trpc) =>
-    trpc.ontology.conceptNameExists.queryOptions(
-      { name: debouncedName },
-      {
-        enabled: false,
+  const { data, refetch } = useQuery({
+    ...ontologyNameExistsOptions({
+      client: coreClient,
+      path: {
+        name: debouncedName,
       },
-    ),
-  );
+    }),
+    enabled: false,
+  });
 
   useEffect(() => {
     if (data != null && data) {
@@ -72,7 +77,7 @@ export const AddConceptDialog = ({
     } else {
       form.clearErrors("name");
     }
-  }, [data]);
+  }, [data, form]);
 
   useEffect(() => {
     form.setValue("parentId", parentId);
@@ -89,7 +94,11 @@ export const AddConceptDialog = ({
 
   const onSubmit = (values: z.infer<typeof OntologyConceptSchema>) => {
     addConcept.mutate({
-      ...values,
+      body: {
+        parent_id: values.parentId,
+        description: values.description,
+        name: values.name,
+      },
     });
     onClose(false);
   };

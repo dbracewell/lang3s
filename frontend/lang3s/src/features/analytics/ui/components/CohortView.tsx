@@ -11,26 +11,29 @@ import { useQueryState } from "nuqs";
 import { parseAsInteger } from "nuqs/server";
 import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Spinner } from "@/components/Spinner";
 import { useEffect } from "react";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
+import { type CohortClusterEntry } from "@/clients/analytics";
+import { useQuery } from "@tanstack/react-query";
+import { cohortInformationOptions } from "@/clients/analytics/@tanstack/react-query.gen";
+import { analyticsClient } from "@/lib/api";
 
-export const CohortView = ({
-  cohort,
-}: {
-  cohort: { id: string; name: string; type: string }[];
-}) => {
+export const CohortView = ({ cohort }: { cohort: CohortClusterEntry[] }) => {
   const [, setSelectedCohort] = useQueryState(
     "c",
     parseAsInteger.withDefault(-1).withOptions({ clearOnDefault: true }),
   );
   const { setContext } = useChatContext();
-  const { data, isPending, isError, error } = useTRPCQuery((trpc) =>
-    trpc.analytics.getCohortInformation.queryOptions({
-      cohort: cohort.map((c) => c.id),
+
+  const { data, isPending, isError, error } = useQuery({
+    ...cohortInformationOptions({
+      client: analyticsClient,
+      body: {
+        ids: cohort.map((c) => c.id),
+      },
     }),
-  );
+  });
 
   useEffect(() => {
     if (data != null) {

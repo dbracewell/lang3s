@@ -1,5 +1,4 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import Link from "next/link";
 
 type PageNumbersProps = {
   totalPages: number;
@@ -33,14 +32,13 @@ export const PageNumbers = ({
       start = totalPages - maxDisplay + 1;
     }
   }
-
   for (let i = start; i <= end; i++) {
     pages.push(i);
   }
 
   return (
     <div className="flex items-center justify-end gap-1 text-lg">
-      {currentPage - 1 < 0 ? (
+      {currentPage - 1 < 1 ? (
         <ChevronLeftIcon />
       ) : (
         <button

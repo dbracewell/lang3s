@@ -1,9 +1,8 @@
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import React, { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { caller } from "@/lib/trpc/server";
+import { CorpusMapRouter } from "@/features/analytics/ui/components/CorpusMap";
 import { CorpusMapTabs } from "@/features/analytics/ui/components/CorpusMapTabs";
-import { CorpusMap } from "@/features/analytics/ui/components/CorpusMap";
 
 const Page = () => {
   return (
@@ -33,11 +32,11 @@ const SkeletonPage = () => {
 };
 
 const Section = async () => {
-  const data = await caller.analytics.getCorpusMap();
   return (
     <div className="flex max-h-full min-h-0 flex-1 flex-col gap-4">
       <CorpusMapTabs />
-      <CorpusMap data={data} />
+      <CorpusMapRouter />
+      {/*<TopicTree tree={tree} />*/}
     </div>
   );
 };

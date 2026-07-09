@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { jobStatuses } from "@/lib/db/schema";
 import { cn } from "@/lib/utils/cn";
 import { ListFilterIcon, ListFilterPlusIcon } from "lucide-react";
 
@@ -40,7 +39,7 @@ export const FilterDialog = <T extends object>({
           className={cn(
             "transition-all",
             hasFilter &&
-              "from-dodger-blue-300 bg-gradient-to-b to-sky-300 font-bold transition-all",
+              "from-dodger-blue-300 bg-linear-to-b to-sky-300 font-bold transition-all",
           )}
         >
           {hasFilter ? (
@@ -83,16 +82,16 @@ export const FilterDialog = <T extends object>({
                 })
               }
             >
-              <SelectTrigger className="w-[300px]">
+              <SelectTrigger className="w-75">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="None">-</SelectItem>
-                {jobStatuses.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status.toUpperCase()}
-                  </SelectItem>
-                ))}
+                <SelectItem value={"waiting"}>Waiting</SelectItem>
+                <SelectItem value={"running"}>Running</SelectItem>
+                <SelectItem value={"completed"}>Completed</SelectItem>
+                <SelectItem value={"cancelled"}>Cancelled</SelectItem>
+                <SelectItem value={"failed"}>Failed</SelectItem>
               </SelectContent>
             </Select>
           </div>

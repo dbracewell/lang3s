@@ -1,0 +1,36 @@
+[project]
+name = "lang3s-data"
+version = "0.1.0"
+description = "Lang3s Data Packages"
+authors = [
+    { name = "David Bracewell" }
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "asyncpg>=0.31.0",
+    "pgvector>=0.4.2",
+    "beautifulsoup4>=4.15.0",
+    "markdown>=3.10.2",
+    "sqlalchemy[asyncio]>=2.0.50",
+    "alembic>=1.18.4",
+    "psycopg[binary]>=3.3.4",
+    "pydantic>=2.13.4",
+    "shortuuid>=1.0.13",
+    "sqlalchemy-utils>=0.42.1",
+    "lang3s-core",
+    "hnswlib>=0.8.0",
+    "numpy>=2.4.6",
+    "msgpack>=1.2.0",
+]
+
+[tool.uv.sources]
+lang3s-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lang3s"]
+dev-mode-dirs = ["src"]

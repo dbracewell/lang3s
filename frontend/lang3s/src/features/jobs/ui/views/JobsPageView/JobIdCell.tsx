@@ -2,19 +2,28 @@
 import { useDataTableContext } from "@/components/data-table/DataTableContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { Trash2Icon } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { toast } from "sonner";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { jobsDeleteJobMutation } from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export const JobIdCell = ({ id }: { id: number }) => {
-  const deleteJobMutation = useTRPCMutation((trpc) => ({
-    mutation: trpc.jobs.delete.mutationOptions({
-      onSuccess: (data) =>
-        toast.success(`Successfully deleted Job #${data.id}`),
-      onError: () => toast.error("Failed to delete job"),
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const deleteJobMutation = useMutation({
+    ...jobsDeleteJobMutation({
+      client: coreClient,
     }),
-  }));
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+      router.refresh();
+      toast.success("Job deleted successfully.");
+    },
+    onError: () => toast.error("Job deleted failed"),
+  });
   const { context } = useDataTableContext();
   const inCheck = context.isDeleting as boolean;
   return (
@@ -39,7 +48,7 @@ export const JobIdCell = ({ id }: { id: number }) => {
         <>
           <span className="group-hover:hidden">{id}</span>
           <LoadingButton
-            onClick={() => deleteJobMutation.mutate({ job_id: id })}
+            onClick={() => deleteJobMutation.mutate({ path: { job_id: id } })}
             disabled={deleteJobMutation.isPaused}
             className="hidden group-hover:grid"
             variant="destructive"

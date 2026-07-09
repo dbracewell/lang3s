@@ -1,0 +1,18 @@
+{% import 'macros.sql' as macros %}
+
+select normalized                             as content,
+       name                                   as value,
+       path,
+       COUNT(0)                               as mention_count,
+       COUNT(DISTINCT document_id)            as document_count,
+       count(DISTINCT sentence_id)            as sentence_count,
+       COUNT(0) / COUNT(DISTINCT document_id) as mentions_per_document
+from text_annotations_mapped
+where {{ macros.match_paths('path', mapping_list) }}
+    {% if filter is not none %}
+  AND text ilike ?
+    {% endif %}
+GROUP BY normalized, path, name
+HAVING COUNT(DISTINCT document_id) > 5
+order by {{ order_by_col }} desc, normalized, path
+offset ? limit ?

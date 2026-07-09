@@ -1,14 +1,14 @@
 "use client";
 import { ColumnDef } from "@/components/data-table/data-table-types";
 import { StringStartsWith } from "@/components/data-table/FilterFunctions";
-import { formatDuration } from "@/lib/utils/formatters";
 import { JobIdCell } from "@/features/jobs/ui/views/JobsPageView/JobIdCell";
-import { ProgressCell } from "@/features/jobs/ui/views/JobsPageView/ProgressCell";
 import { StatusCell } from "@/features/jobs/ui/views/JobsPageView/StatusCell";
-import { RouterOutputs } from "@/lib/trpc/types";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { RefreshCcwIcon } from "lucide-react";
+import { Job } from "@/clients/core";
+import React from "react";
+import { formatDuration } from "@/lib/utils/formatters";
+import { Progress } from "@/components/ui/progress";
 
 const ProgressHeader = () => {
   return (
@@ -27,8 +27,7 @@ const ProgressHeader = () => {
   );
 };
 
-export type JobType = RouterOutputs["jobs"]["getAll"][number];
-export const columns: ColumnDef<JobType>[] = [
+export const columns: ColumnDef<Job>[] = [
   {
     name: "id",
     sortFn: (a, b) => a.id - b.id,
@@ -61,9 +60,9 @@ export const columns: ColumnDef<JobType>[] = [
     align: "center",
     cellClassName: "items-center",
     sortFn: (a, b) => {
-      if (a.startedAt) {
-        if (b.startedAt) {
-          return a.startedAt.getTime() - b.startedAt.getTime();
+      if (a.started_at) {
+        if (b.started_at) {
+          return Date.parse(a.started_at) - Date.parse(b.started_at);
         }
         return -1;
       }
@@ -72,11 +71,11 @@ export const columns: ColumnDef<JobType>[] = [
     size: "200px",
     cell: ({ row }) => (
       <p className="text-center whitespace-pre-line">
-        {row.startedAt
+        {row.started_at != null
           ? new Intl.DateTimeFormat("en-US", {
               dateStyle: "short",
               timeStyle: "short",
-            }).format(row.startedAt)
+            }).format(Date.parse(row.started_at))
           : "-"}
       </p>
     ),
@@ -87,13 +86,14 @@ export const columns: ColumnDef<JobType>[] = [
     align: "center",
     cellClassName: "items-center",
     cell: ({ row }) => {
-      if (row.startedAt == null) {
+      const started_at = row.started_at;
+      if (started_at == null) {
         return <div>-</div>;
       }
-      const endTime = row.completedAt ?? new Date();
-      const elapsed = formatDuration(
-        endTime.getTime() - row.startedAt.getTime(),
-      );
+      const end_time_date = row.completed_at
+        ? Date.parse(row.completed_at)
+        : Date.now();
+      const elapsed = formatDuration(end_time_date - Date.parse(started_at));
       return <div>{elapsed}</div>;
     },
   },
@@ -108,6 +108,23 @@ export const columns: ColumnDef<JobType>[] = [
       return aPct - bPct;
     },
     cellClassName: "h-full!",
-    cell: ({ row }) => <ProgressCell row={row} />,
+    cell: ({ row }) => {
+      const pct = Math.floor(
+        (row.total > 0 ? (row.completed + row.failed) / row.total : 0) * 100,
+      ).toFixed(0);
+      return (
+        <div className="relative flex w-full items-center">
+          <Progress value={Number(pct)} />
+          <div
+            className="border-dodger-blue-600 bg-dodger-blue-600 absolute top-1/2 w-10 -translate-y-1/2 rounded-sm border p-0.5 text-center text-xs text-white shadow"
+            style={{
+              left: `min( max( ${pct}% - 30px , 3px ), 100% - 40px )`,
+            }}
+          >
+            {pct}%
+          </div>
+        </div>
+      );
+    },
   },
 ];

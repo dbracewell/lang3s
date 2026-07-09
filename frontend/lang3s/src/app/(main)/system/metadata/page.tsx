@@ -1,4 +1,7 @@
-import { getUser, roleHasPermissions } from "@/features/auth/server/actions";
+import {
+  getCurrentUser,
+  roleHasPermissions,
+} from "@/features/auth/server/actions";
 import { redirect } from "next/navigation";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import Link from "next/link";
@@ -6,17 +9,12 @@ import { buttonVariants } from "@/components/ui/button";
 import { PlusIcon } from "lucide-react";
 import { MetadataTable } from "@/features/metadata/ui/components/MetadataTable";
 import { MetadataDialog } from "@/features/metadata/ui/components/MetadataDialog";
-import { caller } from "@/lib/trpc/server";
 
 const Page = async () => {
-  const user = await getUser();
+  const user = await getCurrentUser();
   if (!(await roleHasPermissions(user.role, ["metadata:edit"]))) {
     redirect("/");
   }
-  const [metadata, possibleMetadata] = await Promise.all([
-    caller.system.getMetadata(),
-    caller.system.getPossibleMetadata(),
-  ]);
   return (
     <>
       <ScrollableBox.Container className="m-1">
@@ -38,10 +36,10 @@ const Page = async () => {
           <PlusIcon /> Add Metadata
         </Link>
         <ScrollableBox.ScrollArea outerClassName="p-0! bg-card">
-          <MetadataTable metadata={metadata} />
+          <MetadataTable />
         </ScrollableBox.ScrollArea>
       </ScrollableBox.Container>
-      <MetadataDialog possibleMetadata={possibleMetadata} />
+      <MetadataDialog />
     </>
   );
 };

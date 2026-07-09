@@ -1,10 +1,11 @@
 import { createAuthClient } from "better-auth/react";
 import {
   adminClient,
-  apiKeyClient,
   inferAdditionalFields,
+  jwtClient,
   usernameClient,
 } from "better-auth/client/plugins";
+import { apiKeyClient } from "@better-auth/api-key/client";
 import {
   ac,
   admin,
@@ -18,6 +19,7 @@ import { nextCookies } from "better-auth/next-js";
 export const authClient = createAuthClient({
   plugins: [
     inferAdditionalFields(),
+    jwtClient(),
     usernameClient(),
     apiKeyClient(),
     adminClient({

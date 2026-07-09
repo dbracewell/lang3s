@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
-import { randomAlphaUnderscore } from "@/lib/utils/random";
+import React, { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,42 +9,29 @@ import {
 } from "@/components/ui/dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import z from "zod";
-import {
-  OntologyProperties,
-  OntologyPropertyValueDataTypes,
-  OntologyPropertyValueSchema,
-} from "@/lib/db/schemas/ontology";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Form } from "@/components/ui/form";
 import { InputFormField } from "@/components/form-controls/input-form-field";
-import { RequiredField } from "@/components/form-controls/required-field";
 import { CheckboxFormField } from "@/components/form-controls/checkbox-form-field";
 import { capitalize } from "@/lib/utils/formatters";
 import {
   SelectFormField,
   SelectOptionItem,
 } from "@/components/form-controls/select-form-field";
+import { zOntologyProperty } from "@/clients/core/zod.gen";
 
 const formSchema = z.object({
   entries: z.array(
     z.object({
       name: z.string().min(1, "Property name is required."),
-      value: OntologyPropertyValueSchema,
+      value: zOntologyProperty,
     }),
   ),
 });
 
-const DataTypeOptions = OntologyPropertyValueDataTypes.map(
+const DataTypeOptions = ["string", "boolean", "number", "metadata"].map(
   (d) =>
     ({
       type: "item",
@@ -60,18 +46,17 @@ export const AddPropertyDialog = ({
   onSelect,
 }: {
   title: string | React.ReactNode;
-  defaultValues?: OntologyProperties;
+  defaultValues?: z.infer<typeof zOntologyProperty>[];
   onSelect: (value: Record<string, any>) => void;
 }) => {
   const [open, setOpen] = useState(false);
-
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       entries: defaultValues
         ? Object.entries(defaultValues).map(([k, v]) => ({
             name: k,
-            value: v,
+            value: { ...v, definedBy: v.definedBy ?? "" },
           }))
         : [],
     },
@@ -86,11 +71,11 @@ export const AddPropertyDialog = ({
       entries: defaultValues
         ? Object.entries(defaultValues).map(([k, v]) => ({
             name: k,
-            value: v,
+            value: { ...v, definedBy: v.definedBy ?? "" },
           }))
         : [],
     });
-  }, [defaultValues]);
+  }, [defaultValues, form]);
 
   const onClose = (value: boolean) => {
     if (value) {
@@ -201,6 +186,7 @@ export const AddPropertyDialog = ({
                     dataType: "string",
                     inherit: true,
                     display: false,
+                    definedBy: "",
                   },
                 })
               }

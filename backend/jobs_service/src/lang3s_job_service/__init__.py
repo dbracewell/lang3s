@@ -19,7 +19,7 @@ class File(BaseModel):
 
 class JobStatus(str, enum.Enum):
     WAITING = "waiting"
-    COMPLETE = "complete"
+    COMPLETED = "completed"
     FAILED = "failed"
     PROCESSING = "processing"
 

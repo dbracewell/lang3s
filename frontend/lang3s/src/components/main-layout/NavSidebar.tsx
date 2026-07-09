@@ -4,14 +4,13 @@ import { cn } from "@/lib/utils/cn";
 import { ChevronRightIcon, XIcon } from "lucide-react";
 import { Logo } from "@/components/logo";
 import * as React from "react";
-import { useNavigation } from "@/features/common/navigation";
+import { useMemo, useRef } from "react";
 import Link from "next/link";
 import { DynamicIcon } from "@/components/DynamicIcon";
 import { usePathname } from "next/navigation";
 import useClickOutside from "@/hooks/useClickOutside";
-import { useMemo, useRef } from "react";
 import { UserButton } from "@/components/buttons/UserButton";
-import { useUser } from "@/features/auth/contexts/UserContext";
+import { useNavigation, useUser } from "@/features/auth/contexts/UserContext";
 import { capitalize } from "@/lib/utils/formatters";
 
 type NavSidebarProps = {

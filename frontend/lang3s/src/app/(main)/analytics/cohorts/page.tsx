@@ -1,12 +1,22 @@
+"use client";
+
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import React, { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { caller } from "@/lib/trpc/server";
 import { CohortsPageTabs } from "@/features/analytics/ui/components/CohortsPageTabs";
 import { CohortsGraph } from "@/features/analytics/ui/components/CohortsGraph";
 import { CohortsList } from "@/features/analytics/ui/components/CohortsList";
+import { useQuery } from "@tanstack/react-query";
+import { cohortsOptions } from "@/clients/analytics/@tanstack/react-query.gen";
+import { analyticsClient } from "@/lib/api";
+import { CohortClustering } from "@/clients/analytics";
 
-const CohortsPage = async () => {
+const CohortsPage = () => {
+  const { data } = useQuery({
+    ...cohortsOptions({
+      client: analyticsClient,
+    }),
+  });
   return (
     <ScrollableBox.Container className="@container relative gap-3">
       <div className="flex flex-col">
@@ -16,7 +26,7 @@ const CohortsPage = async () => {
         </p>
       </div>
       <Suspense fallback={<SkeletonPage />}>
-        <Section />
+        {data == null ? <SkeletonPage /> : <Section data={data} />}
       </Suspense>
     </ScrollableBox.Container>
   );
@@ -31,15 +41,12 @@ const SkeletonPage = () => {
   );
 };
 
-const Section = async () => {
-  const data = await caller.analytics.getCohorts();
+const Section = ({ data }: { data: CohortClustering }) => {
   return (
     <>
       <CohortsPageTabs />
       <CohortsList clusters={data.clusters} />
-      <CohortsGraph
-        data={{ points: data.points, similarities: data.similarities }}
-      />
+      <CohortsGraph data={data} />
     </>
   );
 };

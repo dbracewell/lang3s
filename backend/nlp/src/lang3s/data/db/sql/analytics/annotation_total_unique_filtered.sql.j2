@@ -1,8 +1,0 @@
-{% import 'macros.sql' as macros %}
-
-SELECT COUNT(0)
-FROM (SELECT text, path, count(DISTINCT document_id)
-      FROM text_annotations_mapped
-      where {{ macros.match_paths('path', mapping_list) }}
-      GROUP BY text, path
-      HAVING count(DISTINCT document_id) >= 10) a

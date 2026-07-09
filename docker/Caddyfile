@@ -1,28 +1,23 @@
 :8003 {
-    header {
-               Access-Control-Allow-Origin *
-               Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-               Access-Control-Allow-Headers "Content-Type, Authorization"
-           }
 
     @options {
-                 method OPTIONS
-             }
+        method OPTIONS
+    }
     respond @options 204
 
     handle /v1/* {
-                     reverse_proxy localhost:23002
-                 }
+        reverse_proxy localhost:23002
+    }
 
     handle /analytics* {
-                           reverse_proxy localhost:23001
-                       }
+        reverse_proxy localhost:23001
+    }
 
     handle /charts* {
-                        reverse_proxy localhost:23001
-                    }
+        reverse_proxy localhost:23001
+    }
 
     handle {
-               reverse_proxy localhost:23000
-           }
+        reverse_proxy localhost:23000
+    }
 }

@@ -2,7 +2,7 @@ import argparse
 import os
 import subprocess
 import time
-from typing import List, Optional
+from typing import Optional
 
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -55,7 +55,7 @@ def main():
     scripts.append(("lang3s.services.app", []))
     # scripts.append(("lang3s.services.analytics_app", []))
 
-    processes: List[Optional[subprocess.Popen[str]]] = [None] * len(scripts)
+    processes: list[Optional[subprocess.Popen[str]]] = [None] * len(scripts)
     try:
         for i in range(len(scripts)):
             processes[i] = start_process(i)

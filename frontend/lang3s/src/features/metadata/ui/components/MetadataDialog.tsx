@@ -22,14 +22,27 @@ import {
   SelectOptionItem,
 } from "@/components/form-controls/select-form-field";
 import { capitalize } from "@/lib/utils/formatters";
-import { useTRPCMutation } from "@/lib/trpc/use-mutation";
 import { useRouter } from "next/navigation";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { cn } from "@/lib/utils/cn";
 import { useEffect, useMemo } from "react";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { DataTypeNames, MetadataSources } from "@/lib/db/schemas/metadata";
-import { MetadataSchema, MetadataSchemaType } from "@/features/common/schemas";
+import {
+  DataTypeNames,
+  MetadataSchema,
+  MetadataSchemaType,
+  MetadataSources,
+} from "@/lib/schemas";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  metadataCreateMutation,
+  metadataProbeOptions,
+  metadataUpdateMutation,
+} from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
+import { Spinner } from "@/components/Spinner";
+import { toast } from "sonner";
+import { MetadataSource } from "@/clients/core";
 
 const SourceOptions = MetadataSources.map(
   (source) =>
@@ -49,11 +62,16 @@ const DataTypeOptions = DataTypeNames.map(
     }) as SelectOptionItem,
 );
 
-export const MetadataDialog = ({
-  possibleMetadata,
-}: {
-  possibleMetadata: { source: string; key: string }[];
-}) => {
+export const MetadataDialog = () => {
+  const {
+    data: possibleMetadata,
+    isPending,
+    error,
+  } = useQuery({
+    ...metadataProbeOptions({
+      client: coreClient,
+    }),
+  });
   const router = useRouter();
   const [open, setOpen] = useQueryState(
     "edit",
@@ -97,36 +115,50 @@ export const MetadataDialog = ({
     await setMetadataValues({});
   };
 
-  const createMutation = useTRPCMutation((trpc) => ({
-    mutation: trpc.system.createMetadata.mutationOptions({
-      onSuccess: () => {
-        onClose();
-        router.refresh();
-      },
+  const createMutation = useMutation({
+    ...metadataCreateMutation({
+      client: coreClient,
     }),
-    successToast: "Metadata created successfully",
-    errorToast: "Error creating metadata",
-  }));
+    onSuccess: () => {
+      toast.success("Metadata created successfully");
+      onClose();
+      router.refresh();
+    },
+    onError: () => toast.error("Error creating metadata"),
+  });
 
-  const updateMutation = useTRPCMutation((trpc) => ({
-    mutation: trpc.system.updateMetadata.mutationOptions({
-      onSuccess: () => {
-        onClose();
-        router.refresh();
-      },
+  const updateMutation = useMutation({
+    ...metadataUpdateMutation({
+      client: coreClient,
     }),
-    successToast: "Metadata updated successfully",
-    errorToast: "Error updating metadata",
-  }));
+    onSuccess: () => {
+      toast.success("Metadata updated successfully");
+      onClose();
+      router.refresh();
+    },
+    onError: () => toast.error("Error updating metadata"),
+  });
 
   const onSubmit = (values: MetadataSchemaType) => {
     if (isEdit) {
       updateMutation.mutate({
-        id: metadataValues.id!,
-        values,
+        body: {
+          id: metadataValues.id!,
+          name: values.name,
+          data_type: values.dataType,
+          formatter: values.formatter,
+          source: values.source,
+        },
       });
     } else {
-      createMutation.mutate(values);
+      createMutation.mutate({
+        body: {
+          name: values.name,
+          data_type: values.dataType,
+          formatter: values.formatter,
+          source: values.source as MetadataSource,
+        },
+      });
     }
   };
   const dataType = form.watch("dataType");
@@ -142,6 +174,9 @@ export const MetadataDialog = ({
         } as SelectOptionItem,
       ];
     }
+    if (possibleMetadata == null) {
+      return [];
+    }
     return possibleMetadata
       .filter((s) => s.source === source)
       .map(
@@ -151,7 +186,15 @@ export const MetadataDialog = ({
             value: s.key,
           }) as SelectOptionItem,
       );
-  }, [source, possibleMetadata, metadataValues.name]);
+  }, [isEdit, metadataValues.name, possibleMetadata, source]);
+
+  if (isPending) {
+    return <Spinner />;
+  }
+
+  if (error) {
+    throw error;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -321,7 +364,7 @@ export const MetadataDialog = ({
                       <tr>
                         <td className="p-1 text-center">%p</td>
                         <td className="p-1">
-                          Locale's equivalent of either AM or PM
+                          Locale&#39;s equivalent of either AM or PM
                         </td>
                         <td className="p-1">AM</td>
                       </tr>

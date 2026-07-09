@@ -7,7 +7,6 @@ import React, {
   useRef,
 } from "react";
 import { useCorpusMapParams } from "@/features/analytics/hooks/useCorpusMapParams";
-import { Spinner } from "@/components/Spinner";
 import { ForceGraph } from "@/components/d3/ForceGraph";
 import { NavigationBar } from "@/components/d3/NavigationBar";
 import {
@@ -62,6 +61,10 @@ import {
 } from "@/components/d3/hooks";
 import { ScreenShotButton } from "@/components/d3/ScreenShotButton";
 import { CorpusExplorerPoint } from "@/features/analytics/types";
+import { useQuery } from "@tanstack/react-query";
+import { topicsGetTopicGraphOptions } from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
+import { TopicNode } from "@/clients/core";
 
 const simulator = ({
   simulation,
@@ -284,11 +287,32 @@ const hideActionMenu = ({
   tooltip.style.visibility = "hidden";
 };
 
+export const CorpusMapRouter = () => {
+  const { data, isPending, error } = useQuery({
+    ...topicsGetTopicGraphOptions({
+      client: coreClient,
+    }),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 60 * 60 * 1000,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (isPending || data == null) {
+    return null;
+  }
+
+  return <CorpusMap data={data} />;
+};
+
 export const CorpusMap = ({
   data,
 }: {
   data: {
-    nodes: CorpusExplorerPoint[];
+    nodes: TopicNode[];
     similarities: Omit<
       ForceGraphSimilarity<CorpusExplorerPoint>,
       "source" | "target"
@@ -307,7 +331,7 @@ export const CorpusMap = ({
   );
 
   const [selectedTopic, nodes, links] = useMemo(() => {
-    let selectedTopic: CorpusExplorerPoint | undefined = data.nodes.find(
+    let selectedTopic: TopicNode | undefined = data.nodes.find(
       (node) => node.type === "topic" && node.id === params.topicId.trim(),
     );
 
@@ -320,7 +344,7 @@ export const CorpusMap = ({
     }
 
     const selectedConcepts = new Set(
-      Object.entries(selectedTopic.subvalues)
+      Object.entries(selectedTopic.subvalues ?? {})
         .filter(([_, v]) => v > 5)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 50)
@@ -347,16 +371,16 @@ export const CorpusMap = ({
       });
 
     return [selectedTopic, filteredNodes, data.similarities];
-  }, [params.topicId]);
+  }, [data.nodes, data.similarities, params.topicId]);
 
   const valueRanges = useFindMultiTypeMinMaxValue({
-    points: data?.nodes,
+    points: data?.nodes as CorpusExplorerPoint[],
     getType,
     getValue,
   });
 
   const getTypeFontRange = useCallback(({ bound }: GetTypeBoundsProps) => {
-    return bound === "min" ? 24 : 100;
+    return bound === "min" ? 24 : 80;
   }, []);
 
   const fontScales = useMultiTypeLinearScaler({
@@ -372,7 +396,7 @@ export const CorpusMap = ({
 
   const fontScaler = useCallback(
     (point: CorpusExplorerPoint) =>
-      fontScales ? fontScales[point.type](point.value) : 10,
+      fontScales ? fontScales[point.type](point.value) * 0.8 : 10,
     [fontScales],
   );
 
@@ -384,7 +408,7 @@ export const CorpusMap = ({
           case "topic":
             return scale * 4;
           default:
-            return scale * 3;
+            return scale * 2;
         }
       }
       return 10;
@@ -404,8 +428,12 @@ export const CorpusMap = ({
       concept: d3
         .scaleSequential((t) => d3.interpolateGreens(0.2 + t * 0.6))
         .domain([
-          theme === "dark" ? valueRanges.concept.max : valueRanges.concept.min,
-          theme === "dark" ? valueRanges.concept.min : valueRanges.concept.max,
+          theme === "dark"
+            ? (valueRanges["concept"]?.max ?? 100)
+            : (valueRanges["concept"]?.min ?? 0),
+          theme === "dark"
+            ? (valueRanges["concept"]?.min ?? 0)
+            : (valueRanges["concept"]?.max ?? 100),
         ]),
     };
   }, [valueRanges, theme]);
@@ -440,20 +468,16 @@ export const CorpusMap = ({
     [setParams],
   );
 
-  if (data == null) {
-    return <Spinner />;
-  }
-
   return (
     <>
       <Activity mode={params.tab === "chart" ? "visible" : "hidden"}>
         <D3ContextProvider externalRefs={externalRefs}>
           <Filter points={nodes} />
           <ForceGraph
-            points={nodes}
+            points={nodes as CorpusExplorerPoint[]}
             similarities={links}
             svgClassName="rounded-lg"
-            nodeClassName="fill-transparent cursor-pointer"
+            nodeClassName="fill-transparent cursor-pointer truncate"
             textClassName="pointer-events-none"
             fontScaler={fontScaler}
             nodeScaler={nodeScaler}
@@ -470,13 +494,21 @@ export const CorpusMap = ({
               className="top-2.5 right-15"
             />
             <NavigationBar className="top-2.5 right-2.5" />
-            <TopicDetails selectedTopic={selectedTopic} />
+            <TopicDetails
+              selectedTopic={selectedTopic as CorpusExplorerPoint}
+            />
             <ToolTipContent />
           </ForceGraph>
         </D3ContextProvider>
       </Activity>
       <Activity mode={params.tab === "list" ? "visible" : "hidden"}>
-        <TopicsList points={data.nodes.filter((a) => a.type === "topic")} />
+        <TopicsList
+          points={
+            data.nodes.filter(
+              (a) => a.type === "topic",
+            ) as CorpusExplorerPoint[]
+          }
+        />
       </Activity>
     </>
   );
@@ -525,7 +557,7 @@ const ToolTipContent = () => {
       .style("left", `${left}px`)
       .style("top", `${top}px`)
       .transition("transform 0.3s ease-in-out;");
-  }, [hoveredNode]);
+  }, [getRef, hoveredNode]);
 
   return (
     <Tooltip
@@ -610,15 +642,16 @@ const ToolTipContent = () => {
               {hoveredNode.type === "topic" ? "Concepts" : "Instances"}
             </div>
             <div className="scrollable flex flex-1 flex-col gap-1 text-xs">
-              {hoveredNode && !hoveredNode.subvalues.length && (
-                <div className="flex flex-1 flex-col items-center justify-center">
-                  <div>No items</div>
-                </div>
-              )}
               {hoveredNode &&
-                Object.keys(hoveredNode.subvalues).map((kw) => (
-                  <div key={kw}>{kw}</div>
-                ))}
+                Object.keys(hoveredNode.subvalues).length == 0 && (
+                  <div className="flex flex-1 flex-col items-center justify-center">
+                    <div>No items</div>
+                  </div>
+                )}
+              {hoveredNode &&
+                Object.entries(hoveredNode.subvalues)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([kw, _]) => <div key={kw}>{kw}</div>)}
             </div>
           </div>
         </>
@@ -720,12 +753,15 @@ const TopicDetails = ({
   );
 };
 
-const Filter = ({ points }: { points: CorpusExplorerPoint[] }) => {
+const Filter = ({ points }: { points: TopicNode[] }) => {
   const [params, setParams] = useCorpusMapParams();
   const { getRef, setHoveredNode, registerRef } =
     useD3Context<CorpusExplorerPoint>();
   const searchTermRef = useRef<string>("");
-  registerRef("searchTerm", searchTermRef);
+
+  useEffect(() => {
+    registerRef("searchTerm", searchTermRef);
+  }, [registerRef]);
 
   useEffect(() => {
     const svg = getRef("svg").current as SVGSVGElement;

@@ -1,15 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { formatURL } from "@/lib/utils/formatters";
 import { cn } from "@/lib/utils/cn";
-import { Lang3sTextAnnotation } from "@/features/nlp/classes";
+import { Lang3sTextAnnotation } from "@/lib/nlp/classes";
 import {
   AnnotationColors,
   DEFAULT_MIN_SIMILARITY,
   ONTOLOGY_ENTITY_ROOT,
-} from "@/features/common/constants";
+} from "@/lib/constants";
 import { SearchIcon } from "lucide-react";
 import Link from "next/link";
-import React, { memo } from "react";
+import React from "react";
 
 const isEventive = (type: string) => {
   return !isEntity(type);
@@ -101,116 +101,116 @@ const unblurSentence = () => {
   });
 };
 
-export const TextAnnotation = memo(
-  ({ annotation }: { annotation: Lang3sTextAnnotation }) => {
-    return (
-      <div className={cn("relative", annotation.type != "token" && "group")}>
-        <div
-          data-annotation-type={
-            annotation.type != "token"
-              ? annotation.value.split(".").slice(-1)[0]
-              : ""
-          }
-          data-type={annotation.value.split(".").slice(-1)[0]}
-          data-annotation={true}
-          data-entity={getGroupName(annotation)}
-          data-event={getGroupName(annotation, true)}
-          onMouseEnter={() => {
-            if (annotation.type === "token") return;
-            blurSentence();
+export const TextAnnotation = ({
+  annotation,
+}: {
+  annotation: Lang3sTextAnnotation;
+}) => {
+  return (
+    <div className={cn("relative", annotation.type != "token" && "group")}>
+      <div
+        data-annotation-type={
+          annotation.type != "token"
+            ? annotation.value.split(".").slice(-1)[0]
+            : ""
+        }
+        data-type={annotation.value.split(".").slice(-1)[0]}
+        data-annotation={true}
+        data-entity={getGroupName(annotation)}
+        data-event={getGroupName(annotation, true)}
+        onMouseEnter={() => {
+          if (annotation.type === "token") return;
+          blurSentence();
+          highlightGroup(
+            isEventive(annotation.value) ? "event" : "entity",
+            getGroupName(annotation, isEventive(annotation.value)),
+          );
+          annotation.A0().map((a) => {
             highlightGroup(
               isEventive(annotation.value) ? "event" : "entity",
-              getGroupName(annotation, isEventive(annotation.value)),
+              getGroupName(a, true),
+              "A0",
             );
-            annotation.A0().map((a) => {
-              highlightGroup(
-                isEventive(annotation.value) ? "event" : "entity",
-                getGroupName(a, true),
-                "A0",
-              );
-            });
-            annotation.A1().map((a) => {
-              highlightGroup(
-                isEventive(annotation.value) ? "event" : "entity",
-                getGroupName(a, true),
-                "A1",
-              );
-            });
+          });
+          annotation.A1().map((a) => {
             highlightGroup(
               isEventive(annotation.value) ? "event" : "entity",
-              getGroupName(annotation.TIME(), true),
-              "TIME",
+              getGroupName(a, true),
+              "A1",
             );
-            highlightGroup(
-              isEventive(annotation.value) ? "event" : "entity",
-              getGroupName(annotation.LOC(), true),
-              "LOC",
-            );
-          }}
-          onMouseLeave={() => {
-            if (annotation.type === "token") return;
-            unblurSentence();
+          });
+          highlightGroup(
+            isEventive(annotation.value) ? "event" : "entity",
+            getGroupName(annotation.TIME(), true),
+            "TIME",
+          );
+          highlightGroup(
+            isEventive(annotation.value) ? "event" : "entity",
+            getGroupName(annotation.LOC(), true),
+            "LOC",
+          );
+        }}
+        onMouseLeave={() => {
+          if (annotation.type === "token") return;
+          unblurSentence();
+          unhighlightGroup(
+            isEventive(annotation.value) ? "event" : "entity",
+            getGroupName(annotation, isEventive(annotation.value)),
+          );
+          annotation.A0().map((a) => {
             unhighlightGroup(
               isEventive(annotation.value) ? "event" : "entity",
-              getGroupName(annotation, isEventive(annotation.value)),
+              getGroupName(a, true),
             );
-            annotation.A0().map((a) => {
-              unhighlightGroup(
-                isEventive(annotation.value) ? "event" : "entity",
-                getGroupName(a, true),
-              );
-            });
-            annotation.A1().map((a) => {
-              unhighlightGroup(
-                isEventive(annotation.value) ? "event" : "entity",
-                getGroupName(a, true),
-              );
-            });
+          });
+          annotation.A1().map((a) => {
             unhighlightGroup(
               isEventive(annotation.value) ? "event" : "entity",
-              getGroupName(annotation.TIME(), true),
+              getGroupName(a, true),
             );
-            unhighlightGroup(
-              isEventive(annotation.value) ? "event" : "entity",
-              getGroupName(annotation.LOC(), true),
-            );
-          }}
-          className={cn(
-            "text-black",
-            annotation.type === "token"
-              ? "text-foreground pt-0.5"
-              : "entity cursor-pointer rounded-md border border-amber-500 bg-amber-100 after:bg-amber-500 after:p-px after:text-center after:text-[10px] after:text-white after:uppercase",
-            annotation.type !== "token" && AnnotationColors[annotation.color],
-          )}
-        >
-          <div className={cn(annotation.type !== "token" && "px-2")}>
-            {annotation.text}{" "}
-          </div>
-        </div>
-        <div className="absolute -top-2 -right-2 z-5 hidden group-hover:flex">
-          <Button
-            size="icon-sm"
-            className={cn(
-              "flex size-5 items-center justify-center border p-0!",
-            )}
-            asChild
-          >
-            <Link
-              href={formatURL("/search", {
-                aid: annotation.id,
-                minSimilarity: DEFAULT_MIN_SIMILARITY,
-                stype: "annotation",
-                semantic: true,
-                atype: annotation.type,
-                q: `"${annotation.text}"`,
-                isStrict: false,
-              })}
-            >
-              <SearchIcon className="size-3" />
-            </Link>
-          </Button>
+          });
+          unhighlightGroup(
+            isEventive(annotation.value) ? "event" : "entity",
+            getGroupName(annotation.TIME(), true),
+          );
+          unhighlightGroup(
+            isEventive(annotation.value) ? "event" : "entity",
+            getGroupName(annotation.LOC(), true),
+          );
+        }}
+        className={cn(
+          "text-black",
+          annotation.type === "token"
+            ? "text-foreground pt-0.5"
+            : "entity cursor-pointer rounded-md border border-amber-500 bg-amber-100 after:bg-amber-500 after:p-px after:text-center after:text-[10px] after:text-white after:uppercase",
+          annotation.type !== "token" && AnnotationColors[annotation.color],
+        )}
+      >
+        <div className={cn(annotation.type !== "token" && "px-2")}>
+          {annotation.content}{" "}
         </div>
       </div>
-    );
-  },
-);
+      <div className="absolute -top-2 -right-2 z-5 hidden group-hover:flex">
+        <Button
+          size="icon-sm"
+          className={cn("flex size-5 items-center justify-center border p-0!")}
+          asChild
+        >
+          <Link
+            href={formatURL("/search", {
+              aid: annotation.id,
+              minSimilarity: DEFAULT_MIN_SIMILARITY,
+              stype: "annotation",
+              semantic: true,
+              atype: annotation.type,
+              q: `"${annotation.content}"`,
+              isStrict: false,
+            })}
+          >
+            <SearchIcon className="size-3" />
+          </Link>
+        </Button>
+      </div>
+    </div>
+  );
+};

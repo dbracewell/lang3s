@@ -1,0 +1,25 @@
+[project]
+name = "lang3s-client"
+version = "0.1.0"
+description = "Lang3s Client Packages"
+authors = [
+    { name = "David Bracewell" }
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "lang3s-core",
+    "requests>=2.34.2",
+    "tqdm>=4.68.2",
+]
+
+[tool.uv.sources]
+lang3s-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lang3s"]
+dev-mode-dirs = ["src"]

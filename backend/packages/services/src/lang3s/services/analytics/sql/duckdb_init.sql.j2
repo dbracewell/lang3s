@@ -1,0 +1,53 @@
+INSTALL json;
+INSTALL fts;
+INSTALL postgres;
+LOAD json;
+LOAD fts;
+LOAD postgres;
+
+ATTACH 'dbname=lang3s user={{DB_USER}} password={{DB_PASSWORD}} host={{DB_HOST}} port={{DB_PORT}}' AS pg_db (TYPE POSTGRES);
+
+PRAGMA
+memory_limit='4GB';
+SET
+threads = 2;
+
+
+CREATE TABLE IF NOT EXISTS text_annotations
+(
+    id              TEXT     PRIMARY KEY,
+    content         TEXT,
+    normalized      TEXT,
+    type            TEXT,
+    mapping         TEXT,
+    value           TEXT,
+    sentence_id     TEXT,
+    document_id     TEXT,
+    metadata_json   JSON
+);
+
+
+CREATE VIEW IF NOT EXISTS text_annotations_mapped
+AS (
+    select a.*, o.name as name, o.path as path, CONCAT(a.normalized,'-',o.path) as normalized_path
+    from text_annotations a
+    inner join pg_db.public.annotation_ontology_mappings ato on a.mapping = ato.mapping
+    inner join pg_db.public.ontology o on ato.ontology_id = o.id
+);
+
+CREATE VIEW IF NOT EXISTS text_annotations_mapped_counts AS
+WITH ta_mapped
+AS (
+    select a.*, o.name as name, o.path as path, CONCAT(a.normalized, '-', o.path) as normalized_path
+    from text_annotations a
+    inner join pg_db.public.annotation_ontology_mappings ato on a.mapping = ato.mapping
+    inner join pg_db.public.ontology o on ato.ontology_id = o.id
+)
+select  a.*,
+        count(*) OVER (PARTITION BY normalized, path)  as mention_count,
+        count(distinct sentence_id) OVER (PARTITION BY normalized, path) as sentence_count,
+        count(distinct document_id) OVER (PARTITION BY normalized, path) as document_count,
+        (count(*) OVER (PARTITION BY normalized, path)::FLOAT /
+        NULLIF(count(distinct document_id) OVER (PARTITION BY normalized, path), 0)
+    ) as mentions_per_document
+from ta_mapped a

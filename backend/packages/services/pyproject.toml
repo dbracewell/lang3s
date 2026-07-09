@@ -1,0 +1,40 @@
+[project]
+name = "lang3s-services"
+version = "0.1.0"
+description = "Lang3s Services Packages"
+authors = [
+    { name = "David Bracewell" }
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "lang3s-core",
+    "lang3s-data",
+    "lang3s-nlp",
+    "lang3s-agent",
+    "fastapi>=0.137.2",
+    "pydantic>=2.13.4",
+    "uvicorn>=0.49.0",
+    "duckdb>=1.5.4",
+    "jinja2>=3.1.6",
+    "python-multipart>=0.0.32",
+    "pandas>=3.0.3",
+    "cachetools>=7.1.4",
+    "pyjwt[crypto]>=2.13.0",
+    "requests>=2.34.2",
+]
+
+[tool.uv.sources]
+lang3s-core = { workspace = true }
+lang3s-data = { workspace = true }
+lang3s-nlp = { workspace = true }
+lang3s-agent = { workspace = true }
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lang3s"]
+dev-mode-dirs = ["src"]

@@ -1,0 +1,6 @@
+DUCKDB_QUEUE_NAME = "db_queue"
+ANNOTATION_QUEUE_NAME = "annotation_queue"
+CLAIM_EXTRACT_QUEUE_NAME = "claim_extract_queue"
+ONTOLOGY_UPDATE_TOPIC = "ontology_update"
+TOPIC_QUEUE_NAME = "topic_queue"
+TOPIC_FINISHED = "topic_finished"

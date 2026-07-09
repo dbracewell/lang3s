@@ -1,4 +1,3 @@
-import { Chart, ChartData, CountType } from "@/features/reports/types";
 import { SeriesFormType } from "@/features/reports/schema";
 import {
   CartesianGrid,
@@ -17,15 +16,20 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { useMemo } from "react";
-import { DataTypeCategory } from "@/features/common/types";
+import type { ChartData, CountType, DataCategory } from "@/clients/analytics";
+import { selectCountValue } from "@/features/reports/lib/utils";
+import {
+  formatAxisLabel,
+  formatCountTypeName,
+} from "@/features/reports/lib/formatters";
 
 type LineChartProps = {
-  data: ChartData;
+  data: ChartData[];
   xSeries: SeriesFormType;
   ySeries?: SeriesFormType;
   className?: string;
   countType: CountType;
-  xDataType: DataTypeCategory;
+  xDataType: DataCategory;
 };
 
 function generateRainbowColors(n: number): string[] {
@@ -50,9 +54,7 @@ export const LineChart = ({
 }: LineChartProps) => {
   const uniqueSeries = [
     ...new Set(
-      data.map((d) =>
-        ySeries ? d.text2 : Chart.formatCountTypeName(countType),
-      ),
+      data.map((d) => (ySeries ? d.text2 : formatCountTypeName(countType))),
     ),
   ].sort();
 
@@ -67,16 +69,17 @@ export const LineChart = ({
               data: {},
             };
           }
-          const catText = ySeries
-            ? d.text2
-            : Chart.formatCountTypeName(countType);
+          const catText =
+            ySeries != null
+              ? (d.text2 as string)
+              : formatCountTypeName(countType);
           if (agg[series].data[catText] == null) {
             agg[series].data = {
               ...agg[series].data,
               [catText]: 0,
             };
           }
-          agg[series].data[catText] += Chart.getCount(d, countType);
+          agg[series].data[catText] += selectCountValue(d, countType);
           return agg;
         },
         {} as Record<
@@ -85,7 +88,7 @@ export const LineChart = ({
         >,
       ),
     ).map((d) => ({ series: d.series, ...d.data }));
-  }, [countType, data]);
+  }, [countType, data, xDataType, ySeries]);
 
   const myColor = generateRainbowColors(uniqueSeries.length);
 
@@ -120,7 +123,7 @@ export const LineChart = ({
           hide={false}
           label={
             <Label
-              value={Chart.getAxisLabel(xSeries)}
+              value={formatAxisLabel(xSeries)}
               fontSize={13}
               fontWeight={600}
               className="mt-100"
@@ -136,7 +139,7 @@ export const LineChart = ({
           label={
             <Label
               angle={-90}
-              value={Chart.formatCountTypeName(countType)}
+              value={formatCountTypeName(countType)}
               style={{
                 fill: "var(--color-foreground)",
                 textAnchor: "middle",

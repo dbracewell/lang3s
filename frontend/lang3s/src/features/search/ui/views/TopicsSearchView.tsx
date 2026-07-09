@@ -1,9 +1,5 @@
 "use client";
-import {
-  useTRPCInfiniteQuery,
-  useTRPCSuspenseInfiniteQuery,
-} from "@/lib/trpc/use-queries";
-import React, { Fragment, useMemo } from "react";
+import React, { Fragment } from "react";
 import { InfiniteScroll } from "@/components/scrolling/InfiniteScroll";
 import { SearchSpinner } from "@/features/search/ui/components/SearchSpinner";
 import { ResultsWrapper } from "@/features/search/ui/components/ResultsWrapper";
@@ -12,27 +8,27 @@ import Link from "next/link";
 import { FileIcon, MinusCircleIcon, PlusCircleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useGlobalSearchParams } from "@/features/search/hooks/useSearchParams";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { searchTopicsInfiniteOptions } from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
 
 export const TopicSearchView = () => {
   const [searchParams, setSearchParams] = useGlobalSearchParams();
-  const queryInput = useMemo(() => {
-    const { tab, ...rest } = searchParams;
-    return rest;
-  }, [searchParams]);
   const {
     data: results,
     isLoading,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-  } = useTRPCSuspenseInfiniteQuery((trpc) =>
-    trpc.search.searchTopics.infiniteQueryOptions(
-      { ...queryInput },
-      {
-        getNextPageParam: (lastPage) => lastPage?.nextCursor,
+  } = useInfiniteQuery({
+    ...searchTopicsInfiniteOptions({
+      client: coreClient,
+      body: {
+        ...searchParams,
       },
-    ),
-  );
+    }),
+    getNextPageParam: (lastPage) => lastPage?.next_cursor,
+  });
 
   if (isLoading || results == null) {
     return <SearchSpinner />;
@@ -75,40 +71,47 @@ export const TopicSearchView = () => {
                   </Button>
                 )}
               </summary>
-              <div className="bg-background-lighter text-muted-foreground flex max-h-[200px] flex-col items-center gap-4 border-x px-5 pb-2 text-sm font-medium md:flex-row">
+              <div className="bg-background-lighter text-muted-foreground flex max-h-50 flex-col items-center gap-4 border-x px-5 pb-2 text-sm font-medium md:flex-row">
                 <h3>
-                  {formatCount(
-                    new Set(r.highlights.map((h) => h.documentId)).size,
-                    { single: "document", plural: "documents" },
-                  )}
+                  {formatCount(r.docs.length, {
+                    single: "document",
+                    plural: "documents",
+                  })}
                 </h3>
                 <h3>
-                  {formatCount(
-                    new Set(r.highlights.map((h) => h.sentenceAid)).size,
-                    { single: "sentence", plural: "sentences" },
-                  )}
+                  {formatCount(r.docs.flatMap((d) => d.highlights).length, {
+                    single: "sentence",
+                    plural: "sentences",
+                  })}
                 </h3>
               </div>
               <div className="bg-card flex flex-col gap-1 border p-1 px-2 text-sm">
-                {r.highlights.map((h) => (
-                  <div className="flex items-center gap-2" key={h.sentenceAid}>
+                {r.docs.map((doc) => (
+                  <div className="flex flex-col gap-1" key={doc.document_id}>
                     <Link
-                      href={`/documents/${h.documentId}`}
+                      href={`/documents/${doc.document_id}`}
                       className="link flex gap-1 first:pt-2 last:pb-2"
                     >
-                      <FileIcon className="size-4" />
+                      <FileIcon className="size-4" /> {doc.document_title}
                     </Link>
-                    <div
-                      className="contents"
-                      dangerouslySetInnerHTML={{
-                        __html: `<p class='text-base'>${h.sentence
-                          .replaceAll(
-                            '<span class="keyword">',
-                            "<b class='text-dodger-blue-500'>",
-                          )
-                          .replaceAll("</span>", "</b>")}</p>`,
-                      }}
-                    />
+                    {doc.highlights.map((h) => (
+                      <div
+                        className="flex items-center gap-2 pl-5"
+                        key={h.sentence_id}
+                      >
+                        <div
+                          className="contents"
+                          dangerouslySetInnerHTML={{
+                            __html: `<p class='text-base'>${h.text
+                              .replaceAll(
+                                '<span class="keyword">',
+                                "<b class='text-dodger-blue-500'>",
+                              )
+                              .replaceAll("</span>", "</b>")}</p>`,
+                          }}
+                        />
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>

@@ -49,6 +49,10 @@ export type Permission = (typeof Permissions)[number];
 const permissionsByAsset = {
   ...defaultStatements,
   project: ["create", "share", "update", "delete"],
+  apiKey: ["create", "delete"],
+  job: ["list", "get", "delete", "create"],
+  metadata: ["edit"],
+  ontology: ["edit"],
 };
 
 export const ac = createAccessControl(permissionsByAsset);
@@ -56,8 +60,13 @@ export const ac = createAccessControl(permissionsByAsset);
 export const user = ac.newRole({
   ...userAc.statements,
 });
+
 export const admin = ac.newRole({
   project: ["create", "share", "update", "delete"],
+  apiKey: ["create", "delete"],
+  job: ["list", "get", "delete", "create"],
+  metadata: ["edit"],
+  ontology: ["edit"],
   ...adminAc.statements,
 });
 
@@ -68,10 +77,16 @@ export const analyst = ac.newRole({
 
 export const modeller = ac.newRole({
   project: ["create", "share", "update", "delete"],
+  apiKey: ["create", "delete"],
+  job: ["list", "get", "delete", "create"],
+  metadata: ["edit"],
+  ontology: ["edit"],
   ...userAc.statements,
 });
 
 export const dataLoader = ac.newRole({
   project: ["create", "share", "update", "delete"],
+  apiKey: ["create", "delete"],
+  job: ["list", "get", "delete", "create"],
   ...userAc.statements,
 });

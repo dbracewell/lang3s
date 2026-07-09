@@ -9,7 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { XIcon } from "lucide-react";
-import { useTRPCQuery } from "@/lib/trpc/use-queries";
 import { Spinner } from "@/components/Spinner";
 import { Fragment, useEffect, useMemo } from "react";
 import {
@@ -22,21 +21,23 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
+import { useQuery } from "@tanstack/react-query";
+import { entityEventsOptions } from "@/clients/analytics/@tanstack/react-query.gen";
+import { analyticsClient } from "@/lib/api";
 
 export const EntityEvents = () => {
   const [params, setParams] = useEntitySearchParams();
   const { setContext } = useChatContext();
-  const { data, isPending } = useTRPCQuery((trpc) =>
-    trpc.analytics.getEventsForEntity.queryOptions(
-      {
+  const { data, isPending } = useQuery({
+    ...entityEventsOptions({
+      client: analyticsClient,
+      body: {
         entity: params.entity,
         value: params.entityType,
       },
-      {
-        enabled: !!params.entity && !!params.entityType && params.showEvents,
-      },
-    ),
-  );
+    }),
+    enabled: !!params.entity && !!params.entityType && params.showEvents,
+  });
 
   useEffect(() => {
     if (!params.entityType || !params.entity || !params.showEvents) {
@@ -45,12 +46,12 @@ export const EntityEvents = () => {
     if (data != null) {
       setContext(
         data
-          .flatMap((s) => s.events)
+          .flatMap((d) => d.events)
           .map((d) => d.sentence)
           .join("\n"),
       );
     }
-  }, [data, params]);
+  }, [data, params, setContext]);
 
   const entityTypeName = params.entityType.split(".").slice(-1)[0];
 

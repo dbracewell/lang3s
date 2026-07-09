@@ -7,7 +7,7 @@ export const OntologyViewer = ({ path }: { path?: string }) => {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-3">
       <OntologySelector.Provider selectedNode={path}>
-        <OntologySelector.SelectedInformation className="scrollable hidden h-full min-h-0 sm:block sm:w-[300px] lg:w-[500px]">
+        <OntologySelector.SelectedInformation className="scrollable hidden h-full min-h-0 sm:block sm:w-75 lg:w-125">
           <OntologyViewerInformationPanel />
         </OntologySelector.SelectedInformation>
         <div className="flex h-full min-h-full flex-1 flex-col justify-between gap-2 overflow-hidden">

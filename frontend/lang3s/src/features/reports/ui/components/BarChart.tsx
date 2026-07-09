@@ -13,19 +13,17 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { cn } from "@/lib/utils/cn";
-import {
-  Chart,
-  ChartData,
-  CountType,
-  SeriesSourceType,
-} from "@/features/reports/types";
 import { useTheme } from "next-themes";
 import { capitalize } from "@/lib/utils/formatters";
-import { truncateLabel } from "@/features/reports/utils";
+import type { ChartData, CountType, SeriesType } from "@/clients/analytics";
+import {
+  selectCountDataKey,
+  truncateLabel,
+} from "@/features/reports/lib/utils";
 
 type BarChartProps = {
-  data: ChartData;
-  xAxisType: SeriesSourceType;
+  data: ChartData[];
+  xAxisType: SeriesType;
   xAxisValue: string;
   countType: CountType;
   className?: string;
@@ -41,7 +39,7 @@ const BarChart = ({
   className,
 }: BarChartProps) => {
   const { theme } = useTheme();
-  const countDataKey = Chart.getCountDataKey(countType);
+  const countDataKey = selectCountDataKey(countType);
   return (
     <ChartContainer config={chartConfig} className={cn("min-h-0", className)}>
       <RechartBarChart

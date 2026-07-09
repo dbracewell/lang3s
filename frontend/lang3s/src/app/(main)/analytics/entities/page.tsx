@@ -1,17 +1,25 @@
-import { caller } from "@/lib/trpc/server";
+"use client";
 import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { EntityTypeSelector } from "@/features/analytics/ui/components/EntityTypeSelector";
-import { TopEntitiesList } from "@/features/analytics/ui/components/TopEntitiesList";
 import { EntityEvents } from "@/features/analytics/ui/components/EntityEvents";
 import { EntityCoOccurrenceVisualization } from "@/features/analytics/ui/components/EntityCoOccurrenceVisualization";
-import { ONTOLOGY_ENTITY_ROOT } from "@/features/common/constants";
-import { EntityMetrics } from "@/features/analytics/ui/components/EntityMetrics";
+import { ONTOLOGY_ENTITY_ROOT } from "@/lib/constants";
 import { EntitiesPageTabs } from "@/features/analytics/ui/components/EntitiesPageTabs";
+import { useQuery } from "@tanstack/react-query";
+import { ontologyGetNodePathOptions } from "@/clients/core/@tanstack/react-query.gen";
+import { coreClient } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const EntitiesPage = async (props: PageProps<"/analytics/entities">) => {
-  const values = await caller.ontology.getFullPath({
-    path: ONTOLOGY_ENTITY_ROOT,
+const EntitiesPage = () => {
+  const { data: values } = useQuery({
+    ...ontologyGetNodePathOptions({
+      client: coreClient,
+      path: {
+        path: ONTOLOGY_ENTITY_ROOT,
+      },
+    }),
   });
+
   return (
     <ScrollableBox.Container className="relative m-1">
       <ScrollableBox.Header className="flex flex-col items-start gap-y-2 lg:flex-row">
@@ -23,7 +31,11 @@ const EntitiesPage = async (props: PageProps<"/analytics/entities">) => {
           </p>
         </div>
         <div className="flex w-full flex-1 items-center justify-center">
-          <EntityTypeSelector values={values} />
+          {values == null ? (
+            <Skeleton className="h-10 w-20" />
+          ) : (
+            <EntityTypeSelector values={values} />
+          )}
         </div>
       </ScrollableBox.Header>
       <EntitiesPageTabs />

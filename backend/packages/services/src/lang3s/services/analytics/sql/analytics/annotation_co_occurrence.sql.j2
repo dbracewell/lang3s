@@ -1,0 +1,12 @@
+{% import 'macros.sql' as macros %}
+
+SELECT target                       as e2,
+       target_type                  as e2Type,
+       count(DISTINCT sentence_id) as count
+FROM annotation_co_occurrence
+WHERE source_type = ?
+  AND source = ?
+  AND {{ macros.match_paths('target_type', mapping_list) }}
+GROUP BY target, target_type
+ORDER BY count(DISTINCT sentence_id) desc
+LIMIT 50

@@ -1,4 +1,4 @@
-import { AnnotationColors } from "@/features/common/constants";
+import { AnnotationColors } from "@/lib/constants";
 
 const COLORS = [
   ...Object.keys(AnnotationColors).filter((k) => k !== "SKYBLUE"),

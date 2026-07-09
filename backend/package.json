@@ -1,0 +1,11 @@
+{
+  "name": "lang3s-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "check-deps": "uv run tach check-external",
+    "add-dep": "uv add $DEP --package $PKG",
+    "sync": "uv sync --all-packages",
+    "wipe-db": "uv run --directory packages/data/ --package lang3s-data python init_db.py"
+  }
+}

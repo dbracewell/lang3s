@@ -15,6 +15,7 @@ const superFetchJson = async <T>(
       return json as T;
     } else {
       const errorData = await response.json().catch(() => ({}));
+      console.error(errorData);
       throw new Error(
         JSON.stringify(errorData) || "Network response was not ok",
       );
