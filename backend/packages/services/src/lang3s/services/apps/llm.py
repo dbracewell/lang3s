@@ -30,8 +30,8 @@ def main(num_workers: int):
         "--port", str(config.LOCAL_LLM_PORT),
         "-np", str(parallel_factor),
         "-c", str(parallel_factor * context_window),
-        "-b", "2048",
-        "-ub", "2048",
+        "-b", "256",
+        "-ub", "256",
         # "--verbosity", "1", # only log errors
         "-fa", "1",
         "--cont-batching",
@@ -42,6 +42,7 @@ def main(num_workers: int):
         "-t", "4",
         "--chat-template", "chatml",
         "--lora-init-without-apply",
+        "-ct", "q8_0"
     ]
 
     # fmt: on
