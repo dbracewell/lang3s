@@ -1,10 +1,12 @@
 import argparse
 import time
 
+import numpy as np
 from pydantic import ValidationError
 from sqlalchemy_utils import refresh_materialized_view
 from transformers import AutoTokenizer
 
+from lang3s.core import config
 from lang3s.core.logger import get_logger
 from lang3s.core.parallel import Event, ThreadingManager
 from lang3s.core.parallel.atomic import ThreadSafeCounter
@@ -76,6 +78,8 @@ def process_task(item: Event[dict]):
                 # embs = embedder([c.claim for c in all_claims]).sentence_embeddings
                 # for claim, emb in zip(all_claims, embs):
                 #     claim.embedding = emb
+                for claim in all_claims:
+                    claim.embedding = np.zeros(config.SEMANTIC_EMBEDDING_SIZE)
 
                 try:
                     with sync_db_session() as session:
