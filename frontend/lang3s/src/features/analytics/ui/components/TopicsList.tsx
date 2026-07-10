@@ -9,7 +9,6 @@ import { ScrollableBox } from "@/components/scrolling/Scrollbox";
 import { formatNumber, formatURL } from "@/lib/utils/formatters";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
 import { useFindMultiTypeMinMaxValue } from "@/components/d3/hooks";
-import { TopicNode } from "@/clients/core";
 import { CorpusExplorerPoint } from "@/features/analytics/types";
 
 type DataProps = {
@@ -63,7 +62,7 @@ const TopicRow = ({
   index,
   normalizer,
 }: {
-  topic: TopicNode;
+  topic: CorpusExplorerPoint;
   index: number;
   normalizer?: Record<
     string,
@@ -73,7 +72,7 @@ const TopicRow = ({
     }
   >;
 }) => {
-  const numSubValues = 0; //Object.keys(topic.subvalues).length;
+  const numSubValues = Object.keys(topic.subvalues).length;
   const [numConceptsToDisplay, setNumConceptsToDisplay] = useState(
     Math.min(numSubValues, 10),
   );
@@ -89,7 +88,7 @@ const TopicRow = ({
         index % 2 === 0 && "bg-alternate-row",
       )}
     >
-      <summary className="group group-open:bg-heading grid flex-1 grid-cols-1 py-2 group-open:text-white md:grid-cols-[3fr_2fr]">
+      <summary className="group grid flex-1 grid-cols-1 py-2 md:grid-cols-[3fr_2fr]">
         <div className="flex items-center gap-2">
           <ChevronRightIcon className="ml-2 size-4 cursor-pointer group-open:rotate-90" />
           <div className="flex items-center gap-2 py-1 pr-3">
@@ -119,51 +118,59 @@ const TopicRow = ({
         <div className="hidden items-center gap-2 px-3 py-1 text-sm md:flex">
           {formatNumber(topic.value)}
           <div
-            className="bg-dodger-blue-500 group-open:bg-dodger-blue-100 h-1 justify-self-center"
+            className="bg-dodger-blue-500 h-1 justify-self-center"
             style={{
               width: `${Math.max(5, (topic.value / normalizer["topic"].max) * 350)}px`,
             }}
           />
         </div>
       </summary>
-      <div className="group-open:bg-heading px-3 py-1">
-        <div className="grid flex-1 grid-cols-1 bg-green-600 py-1 text-white md:grid-cols-[3fr_2fr] dark:bg-green-700">
-          <div className="pl-12">Concept</div>
-          <div className="hidden pl-4 md:flex"># of Documents in Topic</div>
-        </div>
-        <div className="flex flex-col">
-          {Object.entries(topic.subvalues)
-            .slice(0, numConceptsToDisplay)
-            .map(([key, value]) => (
-              <div
-                className={cn(
-                  "grid flex-1 grid-cols-1 py-0.5 first:pt-1 odd:bg-green-100 even:bg-green-50 md:grid-cols-[3fr_2fr] dark:odd:bg-green-900 dark:even:bg-green-800",
-                  !hasMore && "last:pb-1",
-                )}
-                key={key}
-              >
-                <div className="pl-12">{key}</div>
-                <div className="hidden items-center gap-1 pl-4 md:flex">
-                  {formatNumber(value)}
-                  <div
-                    className="h-1 justify-self-center bg-green-500 dark:bg-green-50"
-                    style={{
-                      width: `${Math.max(5, (value / topic.value) * 350)}px`,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          {hasMore && (
-            <button
-              className="w-full p-3 text-center text-sm text-white hover:underline"
-              onClick={() => {
-                setNumConceptsToDisplay((prev) => prev + 10);
-              }}
-            >
-              Load More...
-            </button>
+      <div className="p-2">
+        <div
+          className={cn(
+            "border",
+            index % 2 === 0 ? "bg-row/50" : "bg-alternate-row/50",
           )}
+        >
+          <div className="grid flex-1 grid-cols-1 border-b py-1 md:grid-cols-[3fr_2fr]">
+            <div className="pl-12">Concept</div>
+            <div className="hidden pl-4 md:flex"># of Documents in Topic</div>
+          </div>
+          <div className="flex flex-col">
+            {Object.entries(topic.subvalues)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, numConceptsToDisplay)
+              .map(([key, value]) => (
+                <div
+                  className={cn(
+                    "grid flex-1 grid-cols-1 py-0.5 first:pt-1 md:grid-cols-[3fr_2fr]",
+                    !hasMore && "last:pb-1",
+                  )}
+                  key={key}
+                >
+                  <div className="pl-12">{key}</div>
+                  <div className="hidden items-center gap-1 pl-4 md:flex">
+                    {formatNumber(value)}
+                    <div
+                      className="h-1 justify-self-center bg-green-500"
+                      style={{
+                        width: `${Math.max(5, (value / topic.value) * 350)}px`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            {hasMore && (
+              <button
+                className="w-full p-3 text-center text-sm text-white hover:underline"
+                onClick={() => {
+                  setNumConceptsToDisplay((prev) => prev + 10);
+                }}
+              >
+                Load More...
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </details>
