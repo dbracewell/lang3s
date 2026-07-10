@@ -22,11 +22,21 @@ async def label_topics(
     session: AsyncSession,
     logger: Logger,
 ) -> None:
+    to_name = sum(
+        1 if not topic.is_fixed and topic.last_updated else 0 for topic in topics
+    )
+    if to_name <= 0:
+        return
+
     await _generate_topic_keywords(topics, session)
     with try_catch(on_error=lambda e: logger.error(e)):
         async with AsyncManager(workers=10) as manager:
             queue = manager.create_queue()
+            total_naming = 0
             for topic in topics:
+                if topic.is_fixed or not topic.last_updated:
+                    continue
+                total_naming += 1
                 queue.put(Event(payload=topic))
             queue.stop()
             async for result in tqdm_asyncio(
@@ -34,7 +44,7 @@ async def label_topics(
                     _generate_topic_name_from_keywords,
                     queue,
                 ),
-                total=len(topics),
+                total=total_naming,
             ):
                 if result.payload:
                     pass

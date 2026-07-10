@@ -66,7 +66,7 @@ class KeywordSimilarities(Base):
     __mapper_args__ = {"primary_key": [__table__.c.kw1_kw, __table__.c.kw2_kw]}
     kw1_kw: Mapped[str]
     kw2_kw: Mapped[str]
-    kw1_count: Mapped[int]
-    kw2_count: Mapped[int]
-    joint_count: Mapped[int]
+    kw1_cnt: Mapped[int]
+    kw2_cnt: Mapped[int]
+    joint_cnt: Mapped[int]
     pmi_score: Mapped[float]

@@ -17,6 +17,7 @@ async def main():
     logger.info("Topic server started")
     async with RedisAsyncClient() as client, async_db_session() as session:
         topic_model = Lang3sTopicModel(session)
+        await topic_model.load_topics()
         while True:
             try:
                 task = await client.dequeue(TOPIC_QUEUE_NAME, timeout=0.5)

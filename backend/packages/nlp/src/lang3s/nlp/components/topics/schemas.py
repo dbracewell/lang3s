@@ -6,8 +6,7 @@ from typing import Optional
 
 import hnswlib
 import numpy as np
-from pgvector import HalfVector
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field
 
 from lang3s.core import config
 from lang3s.data.schemas.topic import Topic
@@ -24,12 +23,6 @@ class TopicInfo(Topic):
     reducer: OnlineReducer = Field(exclude=True)
     min_sim_threshold: float = Field(exclude=True)
     is_existing: bool = Field(default=False, exclude=True)
-
-    @model_validator(mode="after")
-    def wire_up_children(self) -> TopicInfo:
-        if isinstance(self.embedding, HalfVector):
-            self.embedding = self.embedding.to_numpy()
-        return self
 
     @property
     def updated_document_count(self) -> int:

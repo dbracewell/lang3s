@@ -1,14 +1,13 @@
 import argparse
 import time
 
-from openai.resources.skills import content
 from pydantic import ValidationError
 from sqlalchemy_utils import refresh_materialized_view
-from sympy.codegen.ast import continue_
 from transformers import AutoTokenizer
 
 from lang3s.core.logger import get_logger
 from lang3s.core.parallel import Event, ThreadingManager
+from lang3s.core.parallel.atomic import ThreadSafeCounter
 from lang3s.core.parallel.redis_queue import RedisQueueSource
 from lang3s.data.constants import CLAIM_EXTRACT_QUEUE_NAME
 from lang3s.data.db import sync_db_session
@@ -23,50 +22,73 @@ claim_extractor: ClaimExtractor = ClaimExtractor()
 embedder: Embedder = Embedder()
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
 
-global_task_id = 0
-global_processing = set()
+_threads_working = ThreadSafeCounter()
+_processed_count = ThreadSafeCounter()
+REFRESH_INTERVAL = 100
+
+
+def create_views():
+    with sync_db_session(autocommit=True) as session:
+        refresh_materialized_view(
+            session=session,
+            name=DocumentKeywords.__table__.name,
+            concurrently=True,
+        )
+        refresh_materialized_view(
+            session=session,
+            name=KeywordSimilarities.__table__.name,
+            concurrently=True,
+        )
 
 
 def process_task(item: Event[dict]):
+    global _threads_working
+    global _processed_count
+
     try:
         request = DocumentClaimRequest.model_validate(item.payload)
+
         if request.documentId == "job:complete":
+            while _threads_working.value > 0:
+                time.sleep(1)
+
             logger.info("Finishing claim processing...")
             with sync_db_session(autocommit=True) as session:
-                refresh_materialized_view(
-                    session=session,
-                    name=DocumentKeywords.__table__.name,
-                    concurrently=True,
-                )
-                refresh_materialized_view(
-                    session=session,
-                    name=KeywordSimilarities.__table__.name,
-                    concurrently=True,
-                )
+                create_views()
             logger.info("Finished claim processing")
             return Event(payload=0)
+
+        if _processed_count.value % REFRESH_INTERVAL == 0:
+            create_views()
 
         if not request.sentences:
             return Event(payload=0)
 
-        token_count = len(tokenizer(" ".join(request.sentences))["input_ids"])
-        all_claims = claim_extractor.extract(
-            request.documentId,
-            request.sentences,
-        )
-        if all_claims:
-            embs = embedder([c.claim for c in all_claims]).sentence_embeddings
-            for claim, emb in zip(all_claims, embs):
-                claim.embedding = emb
+        _threads_working.increment(1)
 
-            try:
-                with sync_db_session() as session:
-                    for claim in all_claims:
-                        session.add(ClaimModel(**claim.model_dump()))
-                    session.commit()
-            except Exception as e:
-                logger.error(f"Exception during database writing: {e}")
-                return Event(payload=0)
+        try:
+            token_count = len(tokenizer(" ".join(request.sentences))["input_ids"])
+            all_claims = claim_extractor.extract(
+                request.documentId,
+                request.sentences,
+            )
+            if all_claims:
+                embs = embedder([c.claim for c in all_claims]).sentence_embeddings
+                for claim, emb in zip(all_claims, embs):
+                    claim.embedding = emb
+
+                try:
+                    with sync_db_session() as session:
+                        for claim in all_claims:
+                            session.add(ClaimModel(**claim.model_dump()))
+                        session.commit()
+                except Exception as e:
+                    logger.error(f"Exception during database writing: {e}")
+                    return Event(payload=0)
+                _processed_count.increment(1)
+
+        finally:
+            _threads_working.decrement(1)
 
         return Event(payload=token_count)
     except ValidationError as e:

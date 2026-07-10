@@ -1,3 +1,4 @@
+import argparse
 import os
 import signal
 import subprocess
@@ -13,13 +14,13 @@ logger = get_logger("LOCAL_LLM")
 MODEL_NAME = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
 
 
-def main():
+def main(num_workers: int):
     root = os.path.join(config.MODELS_DIR, "locallm")
     model_path = os.path.join(root, MODEL_NAME)
 
-    parallel_factor = 4
+    parallel_factor = num_workers
     # 1024, 2048, 3072, 4,096
-    context_window = 4096 * 4
+    context_window = 4096 * num_workers
 
     # fmt: off
     cmd = [
@@ -38,10 +39,9 @@ def main():
         "-ngl", "99",
         "--mlock",
         "--prio", "2",
+        "-t", "4",
         "--chat-template", "chatml",
         "--lora-init-without-apply",
-        # "--cache-type-k", "q8_0",
-        # "--cache-type-v", "q8_0",
     ]
 
     # fmt: on
@@ -100,4 +100,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--num_workers",
+        help="The number of worker processes to use",
+        default=4,
+        type=int,
+    )
+    args = parser.parse_args()
+    main(args.num_workers)

@@ -6,12 +6,14 @@ from typing import Iterable, List
 
 import numpy as np
 from numpy.typing import NDArray
+from pgvector import HalfVector
 from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_utils import refresh_materialized_view
 from tqdm import tqdm
 
 from lang3s.core import config
+from lang3s.core.async_extras import run_sync
 from lang3s.core.formatters import format_duration
 from lang3s.core.logger import get_logger
 from lang3s.core.typing_extras import SingletonMeta
@@ -68,9 +70,8 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         self._next_doc_id = 0
         self._topics: TopicCollection = TopicCollection()
         self._to_remove: List[TopicInfo] = []
-        self._load_topics()
 
-    async def _load_topics(self):
+    async def load_topics(self):
         self._topics.clear()
         for topic in await TopicRepository(self.session).list_topics():
             self._topics.add_topic(
@@ -297,21 +298,29 @@ class Lang3sTopicModel(metaclass=SingletonMeta):
         self._reducer.save(config.MODELS_DIR / "topic_reducer.pkl")
 
         # Reload the topics to get all the correct ids
-        await self._load_topics()
+        await self.load_topics()
 
+        logger.info("Saving Topic Similarity Matrix...")
         topic_list: list[TopicInfo] = list(self._topics)
         topic_list.sort(key=lambda x: x.id)
         values = []
         for i in range(len(topic_list)):
             t1 = topic_list[i]
+            t1_embedding = t1.embedding
+            if isinstance(t1_embedding, HalfVector):
+                t1_embedding = t1_embedding.to_numpy()
+
             for j in range(i + 1, len(topic_list)):
                 t2 = topic_list[j]
-                sim = cosine(t1.embedding, t2.embedding)
+                t2_embedding = t2.embedding
+                if isinstance(t2_embedding, HalfVector):
+                    t2_embedding = t2_embedding.to_numpy()
+                sim = cosine(t1_embedding, t2_embedding)
                 values.append({"id1": t1.id, "id2": t2.id, "similarity": sim})
 
         with sync_db_session(autocommit=True) as session:
             session.execute(delete(TopicSimilarity))
-            session.execute(insert(TopicSimilarity).values(values))
+            session.execute(insert(TopicSimilarity), values)
 
         logger.info(f"💾 Saved {len(self._topics)} topics")
 
