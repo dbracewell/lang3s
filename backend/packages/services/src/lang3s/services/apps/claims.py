@@ -79,7 +79,7 @@ def process_task(item: Event[dict]):
                 # for claim, emb in zip(all_claims, embs):
                 #     claim.embedding = emb
                 for claim in all_claims:
-                    claim.embedding = np.zeros(config.SEMANTIC_EMBEDDING_SIZE)
+                    claim.embedding = np.zeros(config.SEMANTIC_EMBEDDING_DIMENSION)
 
                 try:
                     with sync_db_session() as session:
