@@ -1,64 +1,26 @@
 "use client";
-import React, {
-  Activity,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
+import React, { Activity, useCallback, useEffect, useMemo, useRef } from "react";
 import { useCorpusMapParams } from "@/features/analytics/hooks/useCorpusMapParams";
 import { ForceGraph } from "@/components/d3/ForceGraph";
 import { NavigationBar } from "@/components/d3/NavigationBar";
-import {
-  ForceGraphMouseEventProps,
-  ForceGraphSimilarity,
-  SimulatorProps,
-} from "@/components/d3/ForceGraph/types";
-import {
-  forceCollide,
-  forceLink,
-  forceManyBody,
-  forceX,
-  forceY,
-} from "d3-force";
+import { ForceGraphMouseEventProps, ForceGraphSimilarity, SimulatorProps } from "@/components/d3/ForceGraph/types";
+import { forceCollide, forceLink, forceManyBody, forceX, forceY } from "d3-force";
 import * as d3 from "d3";
 import { useTheme } from "next-themes";
 import { select } from "d3-selection";
-import {
-  BinocularsIcon,
-  ChartNoAxesGanttIcon,
-  FileIcon,
-  MessageSquareIcon,
-  SearchIcon,
-  XIcon,
-} from "lucide-react";
+import { BinocularsIcon, ChartNoAxesGanttIcon, FileIcon, MessageSquareIcon, SearchIcon, XIcon } from "lucide-react";
 import { capitalize, formatURL } from "@/lib/utils/formatters";
 import { Hint } from "@/components/hint";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  getLinkElement,
-  getNodeElement,
-  getTextElement,
-} from "@/components/d3/ForceGraph/functions";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group";
+import { getLinkElement, getNodeElement, getTextElement } from "@/components/d3/ForceGraph/functions";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { TopicsList } from "@/features/analytics/ui/components/TopicsList";
 import { selectSVGElement } from "@/components/d3/functions";
-import {
-  GetTypeBoundsProps,
-  OnInitializationProps,
-} from "@/components/d3/types";
+import { GetTypeBoundsProps, OnInitializationProps } from "@/components/d3/types";
 import { D3ContextProvider, useD3Context } from "@/components/d3/D3ContextType";
 import { Tooltip } from "@/components/d3/Tooltip";
-import {
-  useFindMultiTypeMinMaxValue,
-  useMultiTypeLinearScaler,
-} from "@/components/d3/hooks";
+import { useFindMultiTypeMinMaxValue, useMultiTypeLinearScaler } from "@/components/d3/hooks";
 import { ScreenShotButton } from "@/components/d3/ScreenShotButton";
 import { CorpusExplorerPoint } from "@/features/analytics/types";
 import { useQuery } from "@tanstack/react-query";
@@ -380,9 +342,15 @@ export const CorpusMap = ({
     getValue,
   });
 
-  const getTypeFontRange = useCallback(({ bound }: GetTypeBoundsProps) => {
-    return bound === "min" ? 24 : 80;
-  }, []);
+  const getTypeFontRange = useCallback(
+    ({ type, bound }: GetTypeBoundsProps) => {
+      if (type === "topic") {
+        return bound === "min" ? 24 : 80;
+      }
+      return bound === "min" ? 24 : 42;
+    },
+    [],
+  );
 
   const fontScales = useMultiTypeLinearScaler({
     valueRanges,

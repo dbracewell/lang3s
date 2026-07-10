@@ -95,12 +95,20 @@ export const useFindMultiTypeMinMaxValue = <V>({
   }, [getType, getValue, points]);
 };
 
+const getScaler = (scale_type?: "linear" | "log") => {
+  if (scale_type == null || scale_type.trim() === "linear")
+    return d3.scaleLinear;
+  return d3.scaleLog;
+};
+
 export const useMultiTypeLinearScaler = ({
   valueRanges,
   getTypeBounds,
+  scalers,
 }: {
   valueRanges?: Record<string, { max: number; min: number }>;
   getTypeBounds: getTypeBoundsFn;
+  scalers?: Record<string, "linear" | "log">;
 }) => {
   return useMemo(() => {
     if (valueRanges == null) return undefined;
@@ -108,7 +116,7 @@ export const useMultiTypeLinearScaler = ({
     return Object.fromEntries(
       entries.map(([type, minmax]) => [
         type,
-        d3.scaleLinear(
+        getScaler(scalers?.[type])(
           [minmax.min, minmax.max],
           [
             getTypeBounds({ type, bound: "min" }),
@@ -117,5 +125,5 @@ export const useMultiTypeLinearScaler = ({
         ),
       ]),
     );
-  }, [valueRanges, getTypeBounds]);
+  }, [valueRanges, scalers, getTypeBounds]);
 };

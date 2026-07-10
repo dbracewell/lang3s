@@ -1,12 +1,10 @@
 import argparse
 import time
 
-import numpy as np
 from pydantic import ValidationError
 from sqlalchemy_utils import refresh_materialized_view
 from transformers import AutoTokenizer
 
-from lang3s.core import config
 from lang3s.core.logger import get_logger
 from lang3s.core.parallel import Event, ThreadingManager
 from lang3s.core.parallel.atomic import ThreadSafeCounter
@@ -58,16 +56,27 @@ def process_task(item: Event[dict]):
             with sync_db_session(autocommit=True) as session:
                 create_views()
             logger.info("Finished claim processing")
-            return Event(payload=0)
+            return Event(
+                payload={
+                    "tokens": 0,
+                    "time": 0,
+                },
+            )
 
         if _processed_count.value % REFRESH_INTERVAL == 0:
             create_views()
 
         if not request.sentences:
-            return Event(payload=0)
+            return Event(
+                payload={
+                    "tokens": 0,
+                    "time": 0,
+                },
+            )
 
         _threads_working.increment(1)
 
+        start_time = time.perf_counter()
         try:
             token_count = len(tokenizer(" ".join(request.sentences))["input_ids"])
             all_claims = claim_extractor.extract(
@@ -75,11 +84,9 @@ def process_task(item: Event[dict]):
                 request.sentences,
             )
             if all_claims:
-                # embs = embedder([c.claim for c in all_claims]).sentence_embeddings
-                # for claim, emb in zip(all_claims, embs):
-                #     claim.embedding = emb
-                for claim in all_claims:
-                    claim.embedding = np.zeros(config.SEMANTIC_EMBEDDING_DIMENSION)
+                embs = embedder([c.claim for c in all_claims]).sentence_embeddings
+                for claim, emb in zip(all_claims, embs):
+                    claim.embedding = emb
 
                 try:
                     with sync_db_session() as session:
@@ -88,23 +95,41 @@ def process_task(item: Event[dict]):
                         session.commit()
                 except Exception as e:
                     logger.error(f"Exception during database writing: {e}")
-                    return Event(payload=0)
+                    return Event(
+                        payload={
+                            "tokens": 0,
+                            "time": 0,
+                        },
+                    )
                 _processed_count.increment(1)
 
         finally:
             _threads_working.decrement(1)
 
-        return Event(payload=token_count)
+        return Event(
+            payload={
+                "tokens": token_count,
+                "time": (time.perf_counter() - start_time),
+            },
+        )
+
     except ValidationError as e:
         logger.error(f"Validation failed: {e}")
     except Exception as e:
         logger.error(f"Unexpected error during processing: {e}")
-    return Event(payload=0)
+
+    return Event(
+        payload={
+            "tokens": 0,
+            "time": 0,
+        },
+    )
 
 
 def main(workers: int):
     total_documents = 0
     total_tokens = 0
+    total_time = 0
     logger.info(f"Claim Worker started with {workers} workers")
     with ThreadingManager(
         workers=workers,
@@ -113,18 +138,21 @@ def main(workers: int):
             workers=workers,
             queue_name=CLAIM_EXTRACT_QUEUE_NAME,
         )
-        start_time = time.perf_counter()
+        r: Event
         for r in manager.imap(process_task, queue):
             total_documents += 1
-            total_tokens += r.payload
-            total_time = time.perf_counter() - start_time
-            docs_per_minute = total_documents / total_time * 60
+            total_tokens += r.payload["tokens"]
+            total_time += r.payload["time"]
+            avg_worker_time = total_time / workers
+            docs_per_minute = total_documents / avg_worker_time * 60
+            tokens_per_second = total_tokens / avg_worker_time
+
             if total_documents % 10 == 0:
                 logger.info(
                     f"Claim Extractor: Processed {total_documents} documents in "
-                    f"{total_time:.2f} "
+                    f"{avg_worker_time:.2f} "
                     f"({docs_per_minute:.2f} docs / minute) "
-                    f"({total_tokens / total_time:.2f} tokens / second)"
+                    f"({tokens_per_second:.2f} tokens / second)"
                 )
 
 

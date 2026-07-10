@@ -42,7 +42,8 @@ def main(num_workers: int):
         "-t", "4",
         "--chat-template", "chatml",
         "--lora-init-without-apply",
-        "-ct", "q8_0"
+       "--cache-type-k", "q8_0",
+       "--cache-type-v", "q8_0"
     ]
 
     # fmt: on

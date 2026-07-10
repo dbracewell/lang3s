@@ -211,7 +211,6 @@ def send_to_topic_model(docs: list[Document]) -> None:
                 )
 
 
-@as_sync
 async def annotation_worker(event: Event[AnnotationTask]) -> Event[WorkerResult]:
     if not event.payload:
         return Event(payload=WorkerResult())
@@ -338,7 +337,6 @@ def poll_redis(
         return
 
 
-@as_sync
 async def on_annotation_job_complete(event: JobCompleteEvent):
     logger = get_local_logger()
 

@@ -1,13 +1,17 @@
+import inspect
 import queue
 import threading
 from typing import (
     Any,
+    Awaitable,
     Callable,
+    Coroutine,
     Generator,
     Optional,
     TypeVar,
 )
 
+from lang3s.core.async_extras import run_sync
 from lang3s.core.parallel.typedefs import (
     BaseSyncManager,
     Event,
@@ -49,22 +53,35 @@ class ThreadingManager(BaseSyncManager):
         return BasicQueueSource(workers=self._workers, maxsize=maxsize)
 
     def submit(self, target: SubmittableTask, *args, **kwargs) -> None:
-        thread = threading.Thread(
-            target=target,
-            args=(self._stop_event, *args),
-            kwargs=kwargs,
-        )
+        def async_wrapper(func, *args, **kwargs):
+            return run_sync(func(*args, **kwargs))
+
+        if inspect.iscoroutinefunction(target):
+            thread = threading.Thread(
+                target=async_wrapper,
+                args=(target, self._stop_event, *args),
+                kwargs=kwargs,
+            )
+        else:
+            thread = threading.Thread(
+                target=target,
+                args=(self._stop_event, *args),
+                kwargs=kwargs,
+            )
         thread.daemon = True
         self._threads.append(thread)
         thread.start()
 
     def imap(
         self,
-        func: Callable[[Event[PayloadType]], Event | None],
+        func: Callable[
+            [Event[PayloadType]], Event | None | Awaitable[Event[PayloadType] | None]
+        ],
         source_queue: QueueSource[PayloadType],
         init_worker: Optional[Callable[..., Any]] = None,
         init_worker_args: tuple = (),
-        on_job_complete: Callable[[JobCompleteEvent], None] | None = None,
+        on_job_complete: Callable[[JobCompleteEvent], None | Awaitable[None]]
+        | None = None,
     ) -> Generator[Event, None, None]:
         if init_worker is not None:
             init_worker(*init_worker_args)
@@ -107,9 +124,9 @@ class ThreadingManager(BaseSyncManager):
         shutdown_event: threading.Event,
         in_q: QueueSource,
         out_q: QueueSource,
-        map_func: Callable[..., Any],
+        map_func: Callable[[Event], Event] | Coroutine[Any, Event, Event],
         barrier: Any,
-        on_job_complete: Callable[..., Any] | None,
+        on_job_complete: Callable[[Event], None | Awaitable[None]] | None = None,
     ):
         while not shutdown_event.is_set():
             try:
@@ -124,8 +141,10 @@ class ThreadingManager(BaseSyncManager):
 
                 if isinstance(item, JobCompleteEvent):
                     rank = barrier.wait()
-                    if rank == 0:
-                        if on_job_complete:
+                    if rank == 0 and on_job_complete:
+                        if inspect.iscoroutinefunction(on_job_complete):
+                            run_sync(on_job_complete(item))
+                        else:
                             on_job_complete(item)
                     barrier.wait()
                     continue
@@ -133,7 +152,11 @@ class ThreadingManager(BaseSyncManager):
                 if not isinstance(item, Event):
                     item = Event(payload=item)
 
-                result = map_func(item)
+                if inspect.iscoroutinefunction(map_func):
+                    result = run_sync(map_func(item))
+                else:
+                    result = map_func(item)
+
                 if result is not None:
                     out_q.put(result)
 

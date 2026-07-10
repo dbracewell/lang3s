@@ -11,6 +11,7 @@ from .typedefs import (
     BaseSyncManager,
     Event,
     JobCompleteEvent,
+    PayloadType,
     QueueSource,
     StopEvent,
     SubmittableTask,
@@ -133,12 +134,14 @@ class MultiprocessingManager(BaseSyncManager):
 
     def imap(
         self,
-        func: Callable[[Event], Event | None]
-        | Callable[[Event], Awaitable[Event | None]],
+        func: Callable[
+            [Event[PayloadType]], Event | None | Awaitable[Event[PayloadType] | None]
+        ],
         source_queue: QueueSource,
         init_worker: Optional[Callable[..., Any]] = None,
         init_worker_args: tuple = (),
-        on_job_complete: Callable[[JobCompleteEvent], None] | None = None,
+        on_job_complete: Callable[[JobCompleteEvent], None | Awaitable[None]]
+        | None = None,
     ) -> Generator[Event, None, None]:
         try:
             result_queue = self.create_queue()
