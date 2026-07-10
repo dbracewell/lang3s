@@ -79,24 +79,19 @@ def main(num_workers: int):
 
     posix_kwargs = {"start_new_session": True} if os.name == "posix" else {}
 
-    with open("llama_server.log", "w") as log_file:
-        server_process = subprocess.Popen(
-            cmd,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            **posix_kwargs,
-        )
+    server_process = subprocess.Popen(
+        cmd,
+        **posix_kwargs,
+    )
 
-        while True:
-            time.sleep(1)
-            if server_process.poll() is not None:
-                print("llama.cpp terminated unexpectedly. Restarting...")
-                server_process = subprocess.Popen(
-                    cmd,
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                    **posix_kwargs,
-                )
+    while True:
+        time.sleep(1)
+        if server_process.poll() is not None:
+            print("llama.cpp terminated unexpectedly. Restarting...")
+            server_process = subprocess.Popen(
+                cmd,
+                **posix_kwargs,
+            )
 
 
 if __name__ == "__main__":

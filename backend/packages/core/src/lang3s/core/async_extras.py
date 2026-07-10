@@ -10,7 +10,6 @@ class BackgroundAsyncRunner:
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._start_background_loop, daemon=True)
         self._thread.start()
-
         # Ensure the loop shuts down gracefully when the program exits
         atexit.register(self.shutdown)
 

@@ -73,9 +73,9 @@ def process_task(item: Event[dict]):
                 request.sentences,
             )
             if all_claims:
-                embs = embedder([c.claim for c in all_claims]).sentence_embeddings
-                for claim, emb in zip(all_claims, embs):
-                    claim.embedding = emb
+                # embs = embedder([c.claim for c in all_claims]).sentence_embeddings
+                # for claim, emb in zip(all_claims, embs):
+                #     claim.embedding = emb
 
                 try:
                     with sync_db_session() as session:

@@ -1,9 +1,12 @@
+import asyncio
+import inspect
 import multiprocessing as mp
 from queue import Empty
-from typing import Any, Callable, Generator, List, Optional
+from typing import Any, Awaitable, Callable, Coroutine, Generator, List, Optional
 
 from lang3s.core.typing_extras import ShutdownEvent
 
+from ..async_extras import run_sync
 from .typedefs import (
     BaseSyncManager,
     Event,
@@ -54,12 +57,23 @@ class MultiprocessingManager(BaseSyncManager):
         )
 
     def submit(self, target: SubmittableTask, *args, **kwargs) -> mp.Process:
+        def async_wrapper(func, *args, **kwargs):
+            return asyncio.run(func(*args, **kwargs))
+
         """Submits a raw process and tracks it."""
-        process: mp.Process = self.ctx.Process(  # type: ignore
-            target=target,
-            args=(self._stop_event, *args),
-            kwargs=kwargs,
-        )
+        if inspect.iscoroutinefunction(target):
+            process: mp.Process = self.ctx.Process(  # type: ignore
+                target=async_wrapper,
+                args=(target, self._stop_event, *args),
+                kwargs=kwargs,
+            )
+        else:
+            process: mp.Process = self.ctx.Process(  # type: ignore
+                target=target,
+                args=(self._stop_event, *args),
+                kwargs=kwargs,
+            )
+
         process.start()
         self.processes.append(process)
         return process
@@ -69,11 +83,11 @@ class MultiprocessingManager(BaseSyncManager):
         shutdown_event: ShutdownEvent,
         in_q: QueueSource,
         out_q: QueueSource,
-        map_func: Callable,
+        map_func: Callable[[Event], Event] | Coroutine[Any, Event, Event],
         barrier: Any,
         init_worker: Optional[Callable[..., Any]] = None,
         init_worker_args: tuple = (),
-        on_job_complete: Callable[[Event], None] | None = None,
+        on_job_complete: Callable[[Event], None | Awaitable[None]] | None = None,
     ):
         if init_worker is not None:
             init_worker(*init_worker_args)
@@ -92,8 +106,10 @@ class MultiprocessingManager(BaseSyncManager):
 
                 if isinstance(item, JobCompleteEvent):
                     rank = barrier.wait()
-                    if rank == 0:
-                        if on_job_complete is not None:
+                    if rank == 0 and on_job_complete is not None:
+                        if inspect.iscoroutinefunction(on_job_complete):
+                            run_sync(on_job_complete(item))
+                        else:
                             on_job_complete(item)
 
                     barrier.wait()
@@ -102,7 +118,11 @@ class MultiprocessingManager(BaseSyncManager):
                 if not isinstance(item, Event):
                     item = Event(payload=item)
 
-                result = map_func(item)
+                if inspect.iscoroutinefunction(map_func):
+                    result = run_sync(map_func(item))
+                else:
+                    result = map_func(item)
+
                 out_q.put(result)
 
             except Empty:
@@ -113,7 +133,8 @@ class MultiprocessingManager(BaseSyncManager):
 
     def imap(
         self,
-        func: Callable[[Event], Event | None],
+        func: Callable[[Event], Event | None]
+        | Callable[[Event], Awaitable[Event | None]],
         source_queue: QueueSource,
         init_worker: Optional[Callable[..., Any]] = None,
         init_worker_args: tuple = (),
