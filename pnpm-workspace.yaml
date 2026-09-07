@@ -1,9 +1,15 @@
 packages:
   - "frontend"
   - "backend"
+
+overrides:
+  sharp: ">=0.35.0"
+  postcss: ">=8.5.18"
+
 onlyBuiltDependencies:
   - better-sqlite3@12.10.0
   - msw@2.14.6
-  - sharp@0.34.5
+  - sharp@0.35.0
   - unrs-resolver@1.12.2
+
 strictDepBuilds: false
