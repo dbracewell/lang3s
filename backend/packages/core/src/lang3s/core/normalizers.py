@@ -1,7 +1,7 @@
-from url_normalize import url_normalize
+from url_normalize import url_normalize  # pyright: ignore[reportUnknownVariableType]
 
 
-def normalize_url(url_string) -> str:
+def normalize_url(url_string: str) -> str:
     """
     Normalizes a given URL string using the url-normalize library.
 

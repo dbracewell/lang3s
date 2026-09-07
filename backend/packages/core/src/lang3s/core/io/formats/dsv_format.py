@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import csv
 import traceback
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any, override
 
 from pydantic import Field
 
@@ -17,28 +18,31 @@ class CSVSchema(StructuredSchema):
     header: bool = Field(default=True)
 
     @staticmethod
+    @override
     def from_file(file: str | Path) -> CSVSchema:
         with open(file) as fp:
             return CSVSchema.model_validate_json(fp.read())
 
     @staticmethod
-    def from_dict(file: dict[Any, Any]) -> CSVSchema:
+    @override
+    def from_dict(file: dict[Any, Any]) -> CSVSchema:  # pyright: ignore[reportExplicitAny]
         return CSVSchema.model_validate(file)
 
 
-class DSVFormat[T: CSVSchema](StructuredFileFormat):
+class DSVFormat(StructuredFileFormat[CSVSchema]):
     def __init__(self, delimiter: str = ",") -> None:
         super().__init__(
             [".csv"] if delimiter == "," else [".tsv"],
             CSVSchema,
         )
-        self.delimiter = delimiter
+        self.delimiter: str = delimiter
 
+    @override
     def _read_file_impl(
         self,
         file_path: Path,
-        schema: T,
-    ) -> Generator[dict[str, Any], None, None]:
+        schema: CSVSchema,
+    ) -> Generator[dict[str, Any], None, None]:  # pyright: ignore[reportExplicitAny]
         rows_read = 0
         with open(file_path) as fp:
             reader = (

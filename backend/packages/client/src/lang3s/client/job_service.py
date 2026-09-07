@@ -1,6 +1,6 @@
 import datetime
+from collections.abc import Iterable
 from itertools import batched
-from typing import Iterable
 
 import requests
 from tqdm import tqdm
@@ -18,8 +18,8 @@ from lang3s.core.schemas.job import (
 
 class JobService:
     def __init__(self, api_host: str, api_key: str):
-        self._base_url = f"{api_host}/job"
-        self.api_key = api_key
+        self._base_url: str = f"{api_host}/job"
+        self.api_key: str = api_key
 
     def list_jobs(self) -> list[Job]:
         response = requests.get(

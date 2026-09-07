@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import abc
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator, Optional, Type, cast
+from typing import Any, cast, override
 
 from pydantic import BaseModel, Field
 
@@ -29,7 +30,8 @@ class BaseSchema(BaseModel):
             path = str(path)
         row["path"] = path
         new_metadata = self.metadata.copy()
-        new_metadata.update(row.get("metadata", {}))
+        row_metadata = cast(dict[str, Any], row.get("metadata", {}))
+        new_metadata.update(row_metadata)
         row["metadata"] = new_metadata
         row["mime_type"] = self.mime_type
         return File.model_validate(row)
@@ -37,8 +39,8 @@ class BaseSchema(BaseModel):
 
 class StructuredSchema(BaseSchema):
     text_column: str
-    title_column: Optional[str] = Field(default=None)
-    id_column: Optional[str] = Field(default=None)
+    title_column: str | None = Field(default=None)
+    id_column: str | None = Field(default=None)
     id_column_is_url: bool = Field(default=False)
     metadata: dict[str, str] = Field(default_factory=dict)
 
@@ -51,26 +53,30 @@ class StructuredSchema(BaseSchema):
     def from_dict(file: dict[Any, Any]) -> StructuredSchema:
         return StructuredSchema.model_validate(file)
 
+    @override
     def to_file(
         self,
         index: int,
         row: dict[str, Any],
-        path: Path | None = None,
+        path: Path | str | None = None,
     ) -> File | None:
+        path = Path(path) if path else None
+
         if path is None:
-            path = f"row-{index}"
+            path = Path(f"row-{index}")
         else:
-            path = f"{path.name}-row-{index}"
+            path = Path(f"{path.name}-row-{index}")
         content = cast(str, row[self.text_column])
         if content.strip() == "":
             return None
         metadata = self.metadata.copy()
         metadata["title"] = row[self.title_column] if self.title_column else str(path)
-        docId = row[self.id_column] if self.id_column else None
+        docId: str | None = row[self.id_column] if self.id_column else None
         if docId and self.id_column_is_url:
             docId = normalize_url(docId)
+
         return File(
-            path=path,
+            path=str(path),
             docId=docId,
             content=content,
             mime_type=self.mime_type,
@@ -82,10 +88,10 @@ class FileFormat[T: BaseSchema](abc.ABC):
     def __init__(
         self,
         extensions: list[str],
-        schema: Type[T],
+        schema: type[T],
     ) -> None:
-        self.extensions = extensions
-        self.schema = schema
+        self.extensions: list[str] = extensions
+        self.schema: type[T] = schema
 
     def _iter_files(self, file_path: Path) -> Generator[Path, None, None]:
         if file_path.is_dir():
@@ -98,7 +104,7 @@ class FileFormat[T: BaseSchema](abc.ABC):
     def read(
         self,
         file_path: Path,
-        schema_info: Optional[Path | dict[str, Any]] = None,
+        schema_info: Path | dict[str, Any] | None = None,
     ) -> Generator[File, None, None]:
         active_schema: T
         if schema_info is None:
@@ -115,14 +121,15 @@ class FileFormat[T: BaseSchema](abc.ABC):
     def _read_file(self, file_path: Path, schema: T) -> Generator[File, None, None]: ...
 
 
-class StructuredFileFormat[T: StructuredSchema](FileFormat):
+class StructuredFileFormat[T: StructuredSchema](FileFormat[T], abc.ABC):
     def __init__(
         self,
         extensions: list[str],
-        schema: Type[T],
+        schema: type[T],
     ) -> None:
         super().__init__(extensions, schema)
 
+    @override
     def _read_file(self, file_path: Path, schema: T) -> Generator[File, None, None]:
         index = 0
         for doc in self._read_file_impl(file_path, schema):

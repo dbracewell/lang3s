@@ -5,7 +5,8 @@
   "description": "Lang3s monorepo (frontend + backend)",
   "main": "index.js",
   "scripts": {
-    "dev": "mprocs"
+    "dev": "mprocs",
+    "lint": "pnpm --dir frontend lint && cd backend && uv run ruff check packages"
   },
   "keywords": [],
   "author": "",

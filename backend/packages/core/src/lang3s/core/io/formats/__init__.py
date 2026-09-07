@@ -1,6 +1,6 @@
 import enum
 from pathlib import Path
-from typing import Any, Generator, Optional
+from typing import Any, Generator, Optional, cast
 
 from lang3s.core.io.formats.core import BaseSchema, FileFormat, StructuredSchema
 from lang3s.core.io.formats.dsv_format import DSVFormat
@@ -21,26 +21,34 @@ class InputFileType(enum.StrEnum):
     FILE_LINES = enum.auto()
 
     @property
-    def format(self) -> FileFormat:
+    def file_format(self) -> FileFormat[BaseSchema]:
         if self == InputFileType.CSV:
-            return DSVFormat(delimiter=",")
+            return cast(FileFormat[BaseSchema], DSVFormat(delimiter=","))
         elif self == InputFileType.TSV:
-            return DSVFormat(delimiter="\t")
+            return cast(FileFormat[BaseSchema], DSVFormat(delimiter="\t"))
         elif self == InputFileType.JSON:
-            return JsonFormat(json_lines=False)
+            return cast(FileFormat[BaseSchema], JsonFormat(json_lines=False))
         elif self == InputFileType.JSON_LINES:
-            return JsonFormat(json_lines=True)
+            return cast(FileFormat[BaseSchema], JsonFormat(json_lines=True))
         elif self == InputFileType.TEXT:
-            return PlainTextFileFormat(extensions=[".txt"])
+            return cast(
+                FileFormat[BaseSchema], PlainTextFileFormat(extensions=[".txt"])
+            )
         elif self == InputFileType.MARKDOWN:
-            return PlainTextFileFormat(
-                extensions=[".md"],
-                mime_type="text/markdown",
+            return cast(
+                FileFormat[BaseSchema],
+                PlainTextFileFormat(
+                    extensions=[".md"],
+                    mime_type="text/markdown",
+                ),
             )
         elif self == InputFileType.HTML:
-            return PlainTextFileFormat(
-                extensions=[".html"],
-                mime_type="text/html",
+            return cast(
+                FileFormat[BaseSchema],
+                PlainTextFileFormat(
+                    extensions=[".html"],
+                    mime_type="text/html",
+                ),
             )
 
         raise ValueError(f"{self.value}: Not Implemented")
@@ -48,12 +56,12 @@ class InputFileType(enum.StrEnum):
     def read(
         self,
         file_path: Path | str,
-        schema_info: Optional[Path | dict[str, Any]] = None,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        schema_info: Path | dict[str, Any] | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> Generator[File, None, None]:
         total = 0
-        for file in self.format.read(Path(file_path), schema_info):
+        for file in self.file_format.read(Path(file_path), schema_info):
             if offset and total < offset:
                 total += 1
                 continue

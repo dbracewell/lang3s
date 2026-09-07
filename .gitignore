@@ -53,16 +53,12 @@ dist/
 
 # Local data / artifacts
 filestore/
-trainer_output/
-models/
-data/
 
 # Environment & secrets
 .env*
 !.env.example
 !frontend/.env.example
 docker/default.env
-docker/secrets/**
 
 # Project-specific
 lang3s_backend.env

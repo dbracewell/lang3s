@@ -1,7 +1,8 @@
 import json
 import traceback
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator, cast
+from typing import Any, cast, override
 
 from lang3s.core.io import jsonlines_reader
 from lang3s.core.io.formats.core import (
@@ -10,13 +11,13 @@ from lang3s.core.io.formats.core import (
 )
 
 
-class JsonFormat[T: StructuredSchema](StructuredFileFormat):
+class JsonFormat(StructuredFileFormat[StructuredSchema]):
     def __init__(self, json_lines: bool = False) -> None:
         super().__init__(
             [".jsonl"] if json_lines else [".json"],
             StructuredSchema,
         )
-        self.json_lines = json_lines
+        self.json_lines: bool = json_lines
 
     def _json_reader(
         self,
@@ -45,10 +46,11 @@ class JsonFormat[T: StructuredSchema](StructuredFileFormat):
         for doc in jsonlines_reader(file_path):
             yield doc
 
+    @override
     def _read_file_impl(
         self,
         file_path: Path,
-        schema: T,
+        schema: StructuredSchema,
     ) -> Generator[dict[str, Any], None, None]:
         generator = self._json_reader
         if self.json_lines:

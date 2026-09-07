@@ -49,7 +49,16 @@ fixable = ["ALL"]
 reportPrivateImportUsage = "none"
 enableTypeIgnoreComments = true
 include = ["packages/*/src"]
-stubPath = "packages/*/src"
+extraPaths = [
+    "packages/core/src",
+    "packages/nlp/src",
+    "packages/client/src",
+    "packages/data/src",
+    "packages/ml/src",
+    "packages/llm/src",
+    "packages/agent/src",
+    "packages/services/src",
+]
 #typeCheckingMode = "basic"
 
 reportReturnType = "warning"
@@ -58,3 +67,5 @@ reportOperatorIssue = "warning"
 reportImportCycles = "warning"
 reportDuplicateImport = "warning"
 reportUnusedCallResult = "none"
+reportExplicitAny="none"
+reportAny= "none"

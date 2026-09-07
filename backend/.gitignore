@@ -46,7 +46,6 @@ next-env.d.ts
 .pyc
 /trainer_output/
 /models/
-/data/
 __pycache__
 
  Byte-compiled / optimized / compiled files
