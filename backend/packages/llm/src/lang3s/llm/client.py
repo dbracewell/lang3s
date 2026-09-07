@@ -1,13 +1,10 @@
 import re
+from collections.abc import Sequence
 from typing import (
     Any,
-    AsyncGenerator,
     Callable,
-    Generator,
     Literal,
     NotRequired,
-    Sequence,
-    Type,
     TypedDict,
     TypeVar,
     Unpack,
@@ -41,27 +38,27 @@ from .typedefs import (
 
 
 class ChatCompletionParams(TypedDict):
-    reasoning_effort: NotRequired[Any]  # Assuming your ReasoningEffort type
+    reasoning_effort: NotRequired[Any]  # pyright: ignore[reportExplicitAny] # Assuming your ReasoningEffort type
     temperature: NotRequired[float]
     top_p: NotRequired[float]
     frequency_penalty: NotRequired[float]
     presence_penalty: NotRequired[float]
     seed: NotRequired[int]
     stop: NotRequired[str | Sequence[str]]
-    extra_body: NotRequired[dict[str, Any]]
-    tool_choice: NotRequired[Literal["required", "auto", "none"] | dict[str, Any]]
+    extra_body: NotRequired[dict[str, Any]]  # pyright: ignore[reportExplicitAny]
+    tool_choice: NotRequired[Literal["required", "auto", "none"] | dict[str, Any]]  # pyright: ignore[reportExplicitAny]
     max_completion_tokens: NotRequired[int]
     modalities: NotRequired[list[Literal["text", "audio"]]]
-    audio: NotRequired[dict[str, Any]]
-    prediction: NotRequired[dict[str, Any]]
+    audio: NotRequired[dict[str, Any]]  # pyright: ignore[reportExplicitAny]
+    prediction: NotRequired[dict[str, Any]]  # pyright: ignore[reportExplicitAny]
     parallel_tool_calls: NotRequired[bool]
-    stream_options: NotRequired[dict[str, Any]]  # E.g., {"include_usage": True}
+    stream_options: NotRequired[dict[str, Any]]  # pyright: ignore[reportExplicitAny] # E.g., {"include_usage": True}
     n: NotRequired[int]
     logit_bias: NotRequired[dict[str, int]]  #
     logprobs: NotRequired[bool]
     top_logprobs: NotRequired[int]
     extra_headers: NotRequired[dict[str, str]]
-    extra_query: NotRequired[dict[str, Any]]
+    extra_query: NotRequired[dict[str, Any]]  # pyright: ignore[reportExplicitAny]
     timeout: NotRequired[float | None]
 
 

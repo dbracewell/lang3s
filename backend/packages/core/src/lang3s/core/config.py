@@ -13,21 +13,21 @@ class Config:
         #####################################################################################
         # TOPIC MODELLING OPTIONS
         #####################################################################################
-        self.REDUCED_DIMENSIONS = 200
-        self.FULL_EMBEDDING_THRESHOLD = 0.65
+        self.REDUCED_DIMENSIONS: int = 200
+        self.FULL_EMBEDDING_THRESHOLD: float = 0.65
 
         #####################################################################################
         # NLP OPTIONS
         #####################################################################################
-        self.USE_COREFERENCE = True
+        self.USE_COREFERENCE: bool = True
 
         #####################################################################################
         # EMBEDDING MODEL CONSTANTS
         #####################################################################################
-        self.TOKEN_EMBEDDING_DIMENSION = 768
-        self.SEMANTIC_EMBEDDING_DIMENSION = 384
+        self.TOKEN_EMBEDDING_DIMENSION: int = 768
+        self.SEMANTIC_EMBEDDING_DIMENSION: int = 384
 
-    def _read_docker_secret(self, secret_name: str) -> Any:
+    def _read_docker_secret(self, secret_name: str) -> Any:  # pyright: ignore[reportExplicitAny]
         try:
             secret_path = f"/run/secrets/{secret_name}"
             if os.path.exists(secret_path):
@@ -105,7 +105,7 @@ class Config:
     #####################################################################################
     @property
     def DB_PASSWORD(self) -> str:
-        return self.get_config_value("DB_PASSWORD", "abba")
+        return self.get_config_value("POSTGRES_PASSWORD", "abba")
 
     @property
     def DB_USER(self) -> str:

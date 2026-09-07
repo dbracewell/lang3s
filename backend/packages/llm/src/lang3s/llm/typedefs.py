@@ -2,26 +2,20 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import (
     Any,
     Callable,
-    Generator,
     Generic,
     Literal,
-    Optional,
-    Type,
     TypeVar,
-    Union,
 )
 
 from openai.types.chat import (
     ChatCompletionFunctionToolParam,
-    ChatCompletionMessageCustomToolCall,
-    ChatCompletionMessageFunctionToolCall,
-    ParsedFunctionToolCall,
 )
 from pydantic import BaseModel
 
@@ -30,15 +24,13 @@ from lang3s.core.decorators import async_retry, retry
 
 T_co = TypeVar("T_co", bound=BaseModel, covariant=True)
 
-T = TypeVar("T")
-
 
 @dataclass
 class ToolResult:
     tool_call_id: str
     content: str
     name: str
-    raw_result: Any
+    raw_result: Any  # pyright: ignore[reportExplicitAny]
     is_empty: bool
 
     def to_message(self):
@@ -54,12 +46,12 @@ class ToolResult:
 class ToolCall:
     name: str
     tool_call_id: str
-    arguments: dict[str, Any]
-    arguments_type: Type[BaseModel]
+    arguments: dict[str, Any]  # pyright: ignore[reportExplicitAny]
+    arguments_type: type[BaseModel]
     is_async: bool
-    function: Callable[..., Any]
+    function: Callable[..., Any]  # pyright: ignore[reportExplicitAny]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:  # pyright: ignore[reportExplicitAny]
         return {
             "id": self.tool_call_id,
             "type": "function",
@@ -69,7 +61,7 @@ class ToolCall:
             },
         }
 
-    def _parse_result(self, raw_result: Any) -> ToolResult:
+    def _parse_result(self, raw_result: Any) -> ToolResult:  # pyright: ignore[reportExplicitAny]
         is_empty = False
         if isinstance(raw_result, BaseModel):
             content = raw_result.model_dump_json()
@@ -154,7 +146,7 @@ class ArgDesc:
 class Content:
     type: Literal["text", "image_url"]
     text: str | None = None
-    image_url: dict[str, Any] | None = None
+    image_url: dict[str, Any] | None = None  # pyright: ignore[reportExplicitAny]
 
 
 @dataclass
@@ -163,7 +155,7 @@ class Message:
     content: str | list[Content]
     tool_calls: list[ToolCall] = field(default_factory=list)
     pruned_at: datetime | None = field(default=None)
-    extra_data: dict[str, Any] = field(default_factory=dict)
+    extra_data: dict[str, Any] = field(default_factory=dict)  # pyright: ignore[reportExplicitAny]
 
     def __init__(
         self,
@@ -181,13 +173,13 @@ class Message:
 
     def convert_content(
         self,
-        injected_content: Optional[str] = None,
-    ) -> str | list[dict[str, Any]]:
+        injected_content: str | None = None,
+    ) -> str | list[dict[str, Any]]:  # pyright: ignore[reportExplicitAny]
         if isinstance(self.content, list):
             output = []
             has_text = False
             for item in self.content:
-                c: dict[str, Any] = {"type": item.type}
+                c: dict[str, Any] = {"type": item.type}  # pyright: ignore[reportExplicitAny]
                 if item.type == "text":
                     has_text = True
                     if injected_content:
@@ -207,7 +199,7 @@ class Message:
             return f"{injected_content}{self.content}"
         return self.content
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:  # pyright: ignore[reportExplicitAny]
         if self.role == "tool":
             return {
                 "role": self.role,
@@ -217,7 +209,7 @@ class Message:
             }
 
         if self.role == "assistant":
-            data: dict[str, Any] = {"role": "assistant"}
+            data: dict[str, Any] = {"role": "assistant"}  # pyright: ignore[reportExplicitAny]
             if self.content:
                 data["content"] = self.content
             if self.tool_calls:
@@ -230,7 +222,11 @@ class Message:
         return {"role": self.role, "content": self.convert_content()}
 
     @classmethod
-    def user(cls, content: str | list[Content], **kwargs) -> Message:
+    def user(
+        cls,
+        content: str | list[Content],
+        **kwargs: dict[str, Any],  # pyright: ignore[reportExplicitAny]
+    ) -> Message:
         return cls(role="user", content=content, **kwargs)
 
     @classmethod
@@ -296,12 +292,12 @@ class LLMTool:
     name: str
     is_async: bool
     schema: ChatCompletionFunctionToolParam
-    arg_validator: Type[BaseModel]
-    function: Callable[..., Any]
+    arg_validator: type[BaseModel]
+    function: Callable[..., Any]  # pyright: ignore[reportExplicitAny]
 
 
 class AvailableTools:
-    def __init__(self, tools: list[Callable[..., Any]] | None):
+    def __init__(self, tools: list[Callable[..., Any]] | None):  # pyright: ignore[reportExplicitAny]
         self._tool_definitions: dict[str, LLMTool] = dict()
         if tools:
             for func in tools:
@@ -329,17 +325,9 @@ class AvailableTools:
         except json.JSONDecodeError:
             return {"raw_arguments": arguments}
 
-    def prepare_tool_calls(
+    def prepare_tool_calls[T: BaseModel](
         self,
-        tool_calls: Union[
-            list[
-                ChatCompletionMessageFunctionToolCall
-                | ChatCompletionMessageCustomToolCall
-            ]
-            | None,
-            list[ParsedFunctionToolCall] | None,
-            list[dict[str, Any]] | None,
-        ],
+        tool_calls: list[dict[str, Any]],  # pyright: ignore[reportExplicitAny]
     ) -> Generator[LLMEvent[T], None, None]:
         if not tool_calls:
             return

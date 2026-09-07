@@ -95,4 +95,5 @@ htmlcov/
 /lang3s_backend.env
 
 .env*
+!.env.example
 docker/secrets/**
