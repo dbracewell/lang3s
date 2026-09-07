@@ -84,10 +84,16 @@ const Chart = ({
   const minHeight = 50;
   const maxHeight = 250;
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const tooltipRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<{ x: number; y: number }>({
-    x: 0,
-    y: 0,
+  const [tooltip, setTooltip] = useState<{
+    visible: boolean;
+    left: number;
+    bottom: number;
+    text: string;
+  }>({
+    visible: false,
+    left: 0,
+    bottom: 0,
+    text: "",
   });
   return (
     <div className="flex w-full flex-col">
@@ -111,21 +117,13 @@ const Chart = ({
         <div
           className="absolute z-10 h-14 w-fit shrink-0 -translate-x-1/2 truncate rounded-lg border border-slate-900 bg-slate-700 p-3 text-center text-xs whitespace-pre-line text-white"
           style={{
-            visibility: "hidden",
-            bottom: containerRef.current
-              ? containerRef.current.getBoundingClientRect().bottom -
-                position.y +
-                30
-              : undefined,
-            left: containerRef.current
-              ? position.x >=
-                containerRef.current.getBoundingClientRect().right - 100
-                ? position.x - 100
-                : position.x
-              : undefined,
+            visibility: tooltip.visible ? "visible" : "hidden",
+            bottom: tooltip.bottom,
+            left: tooltip.left,
           }}
-          ref={tooltipRef}
-        ></div>
+        >
+          {tooltip.text}
+        </div>
         {data == null && <Spinner />}
         {data?.map((entry) => {
           return (
@@ -133,16 +131,23 @@ const Chart = ({
               className="hover:bg-alternate-row flex flex-col select-none"
               key={`${entry.entityId}-${entry.category}=${entry.entityType}`}
               onMouseMove={(e) => {
-                if (tooltipRef.current && containerRef.current) {
-                  tooltipRef.current.style.visibility = `visible`;
-                  setPosition({ x: e.clientX, y: e.clientY });
-                  tooltipRef.current.textContent = `${entry.entityId}\n(${entry.entityType.split(".").slice(-1)[0]})`;
-                }
+                const container = containerRef.current;
+                if (!container) return;
+
+                const rect = container.getBoundingClientRect();
+                const relativeX = e.clientX - rect.left;
+                const left = Math.min(Math.max(relativeX, 50), rect.width - 50);
+                const bottom = rect.bottom - e.clientY + 30;
+
+                setTooltip({
+                  visible: true,
+                  left,
+                  bottom,
+                  text: `${entry.entityId}\n(${entry.entityType.split(".").slice(-1)[0]})`,
+                });
               }}
-              onMouseLeave={(e) => {
-                if (tooltipRef.current && containerRef.current) {
-                  tooltipRef.current.style.visibility = `hidden`;
-                }
+              onMouseLeave={() => {
+                setTooltip((prev) => ({ ...prev, visible: false }));
               }}
             >
               <div className="border-dodger-blue-900 dark:border-dodger-blue-300 flex h-1/2 shrink-0 items-end border-b px-0.5 pb-1">

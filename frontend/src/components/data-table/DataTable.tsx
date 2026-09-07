@@ -7,7 +7,7 @@ import { useDataTableContext } from "@/components/data-table/DataTableContext";
 import { capitalize } from "@/lib/utils/formatters";
 import { cn } from "@/lib/utils/cn";
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
-import React, { ComponentProps, useEffect, useRef } from "react";
+import React, { ComponentProps, useEffect, useState } from "react";
 
 type DataTableContainerProps = ComponentProps<"div">;
 
@@ -47,12 +47,40 @@ const DataTableHeader = <T extends Object>({
   getSortDirection,
 }: DataTableHeaderProps<T>) => {
   const { gridTemplateColumns, bodyRef, headerRef } = useDataTableContext();
+  const [paddingRight, setPaddingRight] = useState(0);
 
-  const padding =
-    bodyRef?.current &&
-    bodyRef.current.scrollHeight > bodyRef.current.clientHeight
-      ? bodyRef.current.offsetWidth - bodyRef.current.clientWidth
-      : 0;
+  useEffect(() => {
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const bodyElement = bodyRef?.current;
+    if (!bodyElement) {
+      setPaddingRight(0);
+      return;
+    }
+
+    const updatePadding = () => {
+      const hasVerticalScrollbar =
+        bodyElement.scrollHeight > bodyElement.clientHeight;
+      setPaddingRight(
+        hasVerticalScrollbar
+          ? bodyElement.offsetWidth - bodyElement.clientWidth
+          : 0,
+      );
+    };
+
+    updatePadding();
+
+    const resizeObserver = new ResizeObserver(updatePadding);
+    resizeObserver.observe(bodyElement);
+    window.addEventListener("resize", updatePadding);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updatePadding);
+    };
+  }, [bodyRef]);
 
   return (
     <div
@@ -60,7 +88,7 @@ const DataTableHeader = <T extends Object>({
       ref={headerRef}
       style={{
         gridTemplateColumns,
-        paddingRight: `${padding}px`,
+        paddingRight: `${paddingRight}px`,
       }}
     >
       {columns.map((c, i) => {
@@ -106,35 +134,28 @@ type DataTableBodyProps = {
 };
 
 const DataTableBody = ({ className, children }: DataTableBodyProps) => {
-  const { bodyRef, scrollPosition, headerRef } = useDataTableContext();
-  const savedScrollPosition = useRef<number>(0);
+  const { bodyRef, headerRef } = useDataTableContext();
 
   useEffect(() => {
-    const el = bodyRef?.current;
-    if (!el) return;
-    if (!scrollPosition) return;
-    el.scrollTop = scrollPosition.current;
-    el.scrollLeft = savedScrollPosition.current;
-    if (headerRef?.current) {
-      headerRef.current.scrollLeft = el.scrollLeft;
-    }
-  }, []);
+    const bodyElement = bodyRef?.current;
+    if (!bodyElement) return;
+
+    const syncHeaderScroll = () => {
+      headerRef?.current?.scrollTo({ left: bodyElement.scrollLeft });
+    };
+
+    syncHeaderScroll();
+    bodyElement.addEventListener("scroll", syncHeaderScroll, {
+      passive: true,
+    });
+
+    return () => {
+      bodyElement.removeEventListener("scroll", syncHeaderScroll);
+    };
+  }, [bodyRef, headerRef]);
 
   return (
-    <div
-      ref={bodyRef}
-      className={cn("scrollable flex-1", className)}
-      onScroll={() => {
-        const el = bodyRef?.current;
-        if (!el) return;
-        if (!scrollPosition) return;
-        scrollPosition.current = el.scrollTop;
-        savedScrollPosition.current = el.scrollLeft;
-        if (headerRef?.current) {
-          headerRef.current.scrollLeft = el.scrollLeft;
-        }
-      }}
-    >
+    <div ref={bodyRef} className={cn("scrollable flex-1", className)}>
       {children}
     </div>
   );

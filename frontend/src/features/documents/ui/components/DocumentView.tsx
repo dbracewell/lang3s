@@ -1,18 +1,18 @@
 "use client";
-import { ScrollableBox } from "@/components/scrolling/Scrollbox";
-import { Sentence } from "@/features/documents/ui/components/Sentence";
-import { Lan3gsDocument } from "@/lib/nlp/classes";
-import { useEffect, useState } from "react";
-import { OntologySelectorDialog } from "@/features/ontology/ui/components/OntologySelectorDialog";
-import { PaletteIcon } from "lucide-react";
-import { useTags } from "@/features/documents/hooks/useTags";
-import { useChatContext } from "@/features/chat/hooks/useChatContext";
-import { useQuery } from "@tanstack/react-query";
 import { ontologyGetAnnotationsForDocumentOptions } from "@/clients/core/@tanstack/react-query.gen";
+import { ScrollableBox } from "@/components/scrolling/Scrollbox";
+import { Spinner } from "@/components/Spinner";
+import { useChatContext } from "@/features/chat/hooks/useChatContext";
+import { useTags } from "@/features/documents/hooks/useTags";
+import { Sentence } from "@/features/documents/ui/components/Sentence";
+import { OntologySelectorDialog } from "@/features/ontology/ui/components/OntologySelectorDialog";
 import { coreClient } from "@/lib/api";
 import { DEFAULT_ONTOLOGY_COLOR } from "@/lib/constants";
-import { Spinner } from "@/components/Spinner";
+import { Lan3gsDocument } from "@/lib/nlp/classes";
 import { DocumentSchema } from "@/lib/nlp/schemas";
+import { useQuery } from "@tanstack/react-query";
+import { PaletteIcon } from "lucide-react";
+import { useEffect, useMemo } from "react";
 import { z } from "zod";
 
 type DocumentViewProps = {
@@ -20,7 +20,6 @@ type DocumentViewProps = {
 };
 
 export const DocumentView = ({ documentData }: DocumentViewProps) => {
-  const [document, setDocument] = useState<Lan3gsDocument | null>(null);
   const [checkedNodes, setCheckedNodes] = useTags();
   const { setContext } = useChatContext();
   useEffect(
@@ -36,27 +35,27 @@ export const DocumentView = ({ documentData }: DocumentViewProps) => {
     }),
   });
 
-  useEffect(() => {
-    if (ontologyMapping != null) {
-      setDocument(
-        new Lan3gsDocument({
-          ...documentData,
-          text: {
-            ...documentData.text,
-            annotations: documentData.text.annotations?.map((annotation) => ({
-              ...annotation,
-              value:
-                ontologyMapping.mapping[annotation.id as string]?.path ??
-                annotation.value,
-              color:
-                ontologyMapping.mapping[annotation.id as string]?.color ??
-                DEFAULT_ONTOLOGY_COLOR,
-            })),
-          },
-        }),
-      );
+  const document = useMemo(() => {
+    if (ontologyMapping == null) {
+      return null;
     }
-  }, [ontologyMapping, setDocument, documentData]);
+
+    return new Lan3gsDocument({
+      ...documentData,
+      text: {
+        ...documentData.text,
+        annotations: documentData.text.annotations?.map((annotation) => ({
+          ...annotation,
+          value:
+            ontologyMapping.mapping[annotation.id as string]?.path ??
+            annotation.value,
+          color:
+            ontologyMapping.mapping[annotation.id as string]?.color ??
+            DEFAULT_ONTOLOGY_COLOR,
+        })),
+      },
+    });
+  }, [ontologyMapping, documentData]);
 
   if (document == null) {
     return <Spinner />;

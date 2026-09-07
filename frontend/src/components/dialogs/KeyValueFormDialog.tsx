@@ -1,5 +1,4 @@
-import z from "zod";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,37 +19,32 @@ export const KeyValueFormDialog = ({
 }: {
   title: string | React.ReactNode;
   defaultValues?: Record<string, string>;
-  onSelect: (value: Record<string, any>) => void;
+  onSelect: (value: Record<string, string>) => void;
 }) => {
   const [open, setOpen] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
-  const [values, setValues] = useState<
-    { id: string; key: string; value: string }[]
-  >(
+
+  const createInitialValues = () =>
     Object.entries(defaultValues ?? {}).map(([k, v]) => ({
       id: randomAlphaUnderscore(20),
       key: k,
       value: v,
-    })),
-  );
+    }));
 
-  useEffect(() => {
-    setValues(
-      Object.entries(defaultValues ?? {}).map(([k, v]) => ({
-        id: randomAlphaUnderscore(20),
-        key: k,
-        value: v,
-      })),
-    );
-  }, [defaultValues]);
+  const [values, setValues] = useState<{ id: string; key: string; value: string }[]>(
+    createInitialValues,
+  );
 
   const formRef = useRef<HTMLFormElement>(null);
 
-  const onClose = (value: boolean) => {
-    if (value) {
-      setOpen(value);
+  const onOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setValues(createInitialValues());
+      setErrors([]);
+      setOpen(true);
       return;
     }
+
     formRef.current?.reset();
     setValues([]);
     setErrors([]);
@@ -80,11 +74,11 @@ export const KeyValueFormDialog = ({
       return;
     }
     onSelect(newValues);
-    onClose(false);
+    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger
         className={buttonVariants({ variant: "ghost", size: "icon-xs" })}
       >
@@ -109,12 +103,12 @@ export const KeyValueFormDialog = ({
             <div className="w-1/2 px-2 text-sm">Key</div>
             <div className="w-1/2 px-2 text-sm">Value</div>
           </div>
-          {values.map(({ id, key: k, value: v }, i) => {
+          {values.map(({ id, key: k, value: v }) => {
             const keyName = `key-${id}`;
             const valueName = `value-${id}`;
             return (
               <div
-                key={k}
+                key={id}
                 className="grid w-full grid-cols-[1fr_1fr_auto] items-start gap-2"
               >
                 <div className="flex flex-col">

@@ -6,13 +6,11 @@ export const DataTableContext = createContext<{
   gridTemplateColumns: string;
   bodyRef: RefObject<HTMLDivElement | null> | null;
   headerRef: RefObject<HTMLDivElement | null> | null;
-  scrollPosition: RefObject<number> | null;
   context: Record<string, unknown>;
 }>({
   gridTemplateColumns: "",
   bodyRef: null,
   headerRef: null,
-  scrollPosition: null,
   context: {},
 });
 
@@ -35,14 +33,11 @@ export const DataTableProvider = <T extends object>({
   );
   const headerRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
-  const scrollPosition = useRef(0);
-
   const contextValue = useMemo(
     () => ({
       gridTemplateColumns,
       bodyRef,
       headerRef,
-      scrollPosition,
       context: context ?? {},
     }),
     [context, gridTemplateColumns],

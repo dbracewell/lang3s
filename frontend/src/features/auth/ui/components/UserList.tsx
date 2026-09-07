@@ -47,7 +47,7 @@ export const UserList = ({
       <PageNumbers
         totalPages={totalPages}
         currentPage={page}
-        pageLink={(to) => router.push(`?page${to}`)}
+        pageLink={(to) => router.push(`?page=${to}`)}
       />
     </ScrollableBox.Container>
   );

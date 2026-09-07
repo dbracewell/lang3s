@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 
-export const useOnMount = (fn: () => void, deps: any[] = []) => {
-  const isMounting = useRef<boolean>(true);
+export const useOnMount = (fn: () => void) => {
+  const fnRef = useRef(fn);
+
   useEffect(() => {
-    if (isMounting.current) {
-      isMounting.current = false;
-      return fn();
-    }
-  }, deps);
+    fnRef.current = fn;
+  }, [fn]);
+
+  useEffect(() => {
+    fnRef.current();
+  }, []);
 };

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated, Dict, List, Optional
+from typing import Annotated, List, Optional
 
 from pydantic import (
     BaseModel,
@@ -9,7 +9,6 @@ from pydantic import (
     Field,
     RootModel,
     WithJsonSchema,
-    model_validator,
 )
 
 from lang3s.data.models.global_metadata import DataType, MetadataSource

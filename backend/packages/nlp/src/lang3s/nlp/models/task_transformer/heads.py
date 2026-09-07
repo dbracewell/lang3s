@@ -3,6 +3,8 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.modules.activation import MultiheadAttention
+
 from lang3s.ml.augmentation.mixup import Mixup
 from lang3s.ml.layers.adapter import (
     DoRAActivationAdapter,
@@ -11,7 +13,6 @@ from lang3s.ml.layers.adapter import (
 from lang3s.ml.layers.attention import FastLocalWindowAttention
 from lang3s.ml.layers.mlp import MLPClassificationHead
 from lang3s.ml.loss.focal import FocalLoss
-from torch.nn.modules.activation import MultiheadAttention
 
 from .typedefs import TaskType
 

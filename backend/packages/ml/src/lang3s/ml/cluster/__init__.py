@@ -1,5 +1,9 @@
 from dataclasses import dataclass
 
+from .hierarchical import ClusterNode, DivisiveKMeans
+from .offline import DefaultOfflineClusterer
+from .online import DefaultOnlineClusterer, ReducedCentroidCluster
+
 
 @dataclass
 class Cluster[T]:
@@ -7,9 +11,11 @@ class Cluster[T]:
     items: list[T]
 
 
-from .hierarchical import ClusterNode, DivisiveKMeans
-from .offline import DefaultOfflineClusterer
-from .online import ReducedCentroidCluster, DefaultOnlineClusterer
-
-__all__ = ["Cluster", "DivisiveKMeans", "ClusterNode", "DefaultOnlineClusterer", "DefaultOfflineClusterer",
-           "ReducedCentroidCluster"]
+__all__ = [
+    "Cluster",
+    "DivisiveKMeans",
+    "ClusterNode",
+    "DefaultOnlineClusterer",
+    "DefaultOfflineClusterer",
+    "ReducedCentroidCluster",
+]

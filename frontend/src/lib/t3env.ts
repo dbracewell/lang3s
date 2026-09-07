@@ -3,8 +3,8 @@ import { z } from "zod";
 
 export const t3env = createEnv({
   server: {
-    EMBEDDING_SERVER: z.url(),
     INNGEST_URL: z.string(),
+    INNGEST_SIGNING_KEY: z.string(),
     REDIS_HOST: z.hostname(),
     REDIS_PORT: z.coerce.number().int(),
     REDIS_DB: z.coerce.number().int(),
@@ -15,7 +15,6 @@ export const t3env = createEnv({
     BETTER_AUTH_URL: z.url(),
     NODE_ENV: z.string().optional(),
     FILESTORE_ROOT: z.string(),
-    PYTHON_SERVER: z.string(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.url(),

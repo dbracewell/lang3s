@@ -8,7 +8,7 @@ const globalForRedis = global as unknown as { redis: RedisClientType };
 export const createDisconnectedClient = () => {
   return createClient({
     url: `redis://${t3env.REDIS_HOST}:${t3env.REDIS_PORT}/${t3env.REDIS_DB}`,
-  }).on("error", (err) => console.log(err));
+  }).on("error", (err) => console.error("Redis client error", err));
 };
 
 export const createRedisClient = async (): Promise<RedisClientType> => {

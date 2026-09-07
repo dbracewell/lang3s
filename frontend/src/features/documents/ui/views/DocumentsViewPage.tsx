@@ -49,7 +49,7 @@ export const DocumentsViewPage = () => {
   // }, []);
 
   if (error) {
-    console.log(error);
+    throw error;
   }
 
   if (docs == null) {

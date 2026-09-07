@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import { Form } from "@/components/ui/form";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import z from "zod";
 import { InputFormField } from "@/components/form-controls/input-form-field";
@@ -52,7 +52,7 @@ export const AddConceptDialog = ({
     onError: () => toast.error("Failed to create new concept"),
   });
 
-  const name = form.watch("name");
+  const name = useWatch({ control: form.control, name: "name" });
   const debouncedName = useDebounce(name, 500);
   const { data, refetch } = useQuery({
     ...ontologyNameExistsOptions({

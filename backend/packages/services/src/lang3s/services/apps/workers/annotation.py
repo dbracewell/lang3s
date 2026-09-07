@@ -19,7 +19,6 @@ from lang3s.core.clients.redis_client import (
     RedisClient,
     redis_get_message_batch,
 )
-from lang3s.core.decorators import as_sync
 from lang3s.core.exceptions import NotFoundException
 from lang3s.core.formatters import format_duration
 from lang3s.core.logger import get_logger

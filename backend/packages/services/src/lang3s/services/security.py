@@ -1,4 +1,3 @@
-import enum
 from dataclasses import dataclass, field
 from typing import Annotated
 
@@ -9,7 +8,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from lang3s.core import config
-from lang3s.services.permissions import PermissionAction, PermissionCategory
+from lang3s.services.permissions import PermissionAction
 
 jwks_client = jwt.PyJWKClient(
     config.JWKS_URL,

@@ -49,7 +49,7 @@ const EventProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
     eventSource.addEventListener("connected", () => {
-      console.log("Stream connected!");
+      // connection established
     });
     eventSource.onerror = (error) => {
       eventSource.close();

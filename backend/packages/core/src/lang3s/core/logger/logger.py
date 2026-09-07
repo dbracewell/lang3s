@@ -1,3 +1,4 @@
+import importlib.util
 import logging
 import logging.config
 import os
@@ -11,16 +12,14 @@ except ImportError:
     pass
 
 
-try:
-    import uvicorn
-
+if importlib.util.find_spec("uvicorn") is not None:
     DEFAULT_FORMATTER = {
         "()": "uvicorn.logging.DefaultFormatter",
         "fmt": "%(levelprefix)s %(asctime)s | %(name)s | %(message)s",
         "datefmt": "%Y-%m-%d %H:%M:%S",
         "use_colors": False,
     }
-except ImportError:
+else:
     DEFAULT_FORMATTER = {
         "format": "%(levelname)s %(asctime)s | %(name)s | %(message)s",
         "datefmt": "%Y-%m-%d %H:%M:%S",

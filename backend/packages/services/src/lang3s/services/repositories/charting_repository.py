@@ -79,8 +79,12 @@ class ChartingRepository:
             query = f"""
                         WITH
                         {x_template},{y_template}
-                        select X.text as text1, Y.text as text2, X.value as value1, Y.value as value2,
-                        COUNT(distinct X.document_id) as document_count,
+                        select
+                            X.text as text1,
+                            Y.text as text2,
+                            X.value as value1,
+                            Y.value as value2,
+                            COUNT(distinct X.document_id) as document_count,
                         COUNT(distinct X.sentence_id) as sentence_count,
                         COUNT() as mention_count
                         FROM X_MAPPED as X 

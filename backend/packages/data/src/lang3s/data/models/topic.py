@@ -1,9 +1,8 @@
 import datetime
-import uuid
 
 from pgvector import HalfVector
 from pgvector.sqlalchemy import HALFVEC
-from sqlalchemy import Boolean, DateTime, Index, Integer, Text, Uuid, func, text
+from sqlalchemy import Boolean, DateTime, Index, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from lang3s.core import config

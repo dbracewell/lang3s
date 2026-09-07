@@ -21,6 +21,7 @@ import rehypeRaw from "rehype-raw";
 import { useChatHistory } from "@/features/chat/hooks/useChatHistory";
 import { useChatWindowStatus } from "@/features/chat/hooks/useChatWindowStatus";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
+import { t3env } from "@/lib/t3env";
 
 export const ChatWindow = () => {
   const { context } = useChatContext();
@@ -34,7 +35,7 @@ export const ChatWindow = () => {
   });
 
   const chatFn = async (prompt: string) => {
-    return await fetch(`http://localhost:8003/agents`, {
+    return await fetch(`${t3env.NEXT_PUBLIC_BACKEND_URL}/agents`, {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -60,7 +61,7 @@ export const ChatWindow = () => {
 
   useEffect(() => {
     bottomDiv.current?.scrollIntoView({ behavior: "smooth" });
-  }, [history]);
+  }, [messages]);
 
   const submitPrompt = () => {
     mutate(prompt);

@@ -22,8 +22,8 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SearchIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useRef, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { useClickOutside } from "@/hooks/useClickOutside";
 import { useGlobalSearchParams } from "@/features/search/hooks/useSearchParams";
 
@@ -37,22 +37,24 @@ export const SearchBar = () => {
   const aTypeRef = useRef<HTMLDivElement>(null);
   const openRef = useRef<HTMLDivElement>(null);
 
-  const closeSearchOptions = (doingSearch: boolean) => {
-    setOptionsOpen(false);
-    if (!doingSearch) {
-      setFormValues();
-    }
-  };
-
-  useClickOutside([searchBarRef, aTypeRef, sTypeRef, openRef], () => {
-    closeSearchOptions(false);
-  });
-
   const form = useForm<ParsedSearchParams>({
     resolver: zodResolver(SearchParamSchema),
     defaultValues: {
       ...searchParams,
     },
+  });
+
+  const closeSearchOptions = (doingSearch: boolean) => {
+    setOptionsOpen(false);
+    if (!doingSearch) {
+      form.reset({
+        ...searchParams,
+      });
+    }
+  };
+
+  useClickOutside([searchBarRef, aTypeRef, sTypeRef, openRef], () => {
+    closeSearchOptions(false);
   });
 
   const onSubmit = (values: ParsedSearchParams) => {
@@ -62,17 +64,13 @@ export const SearchBar = () => {
     closeSearchOptions(true);
   };
 
-  const setFormValues = useCallback(() => {
+  useEffect(() => {
     form.reset({
       ...searchParams,
     });
   }, [form, searchParams]);
 
-  useEffect(() => {
-    setFormValues();
-  }, [setFormValues]);
-
-  const query = form.watch("q");
+  const query = useWatch({ control: form.control, name: "q" });
 
   return (
     <Form {...form}>

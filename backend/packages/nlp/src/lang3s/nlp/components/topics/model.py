@@ -13,7 +13,6 @@ from sqlalchemy_utils import refresh_materialized_view
 from tqdm import tqdm
 
 from lang3s.core import config
-from lang3s.core.async_extras import run_sync
 from lang3s.core.formatters import format_duration
 from lang3s.core.logger import get_logger
 from lang3s.core.typing_extras import SingletonMeta

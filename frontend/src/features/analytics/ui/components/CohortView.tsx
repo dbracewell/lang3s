@@ -43,7 +43,7 @@ export const CohortView = ({ cohort }: { cohort: CohortClusterEntry[] }) => {
           .join("\n"),
       );
     }
-  }, [data]);
+  }, [data, setContext]);
 
   if (isError) {
     throw error;

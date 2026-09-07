@@ -9,6 +9,7 @@ import torch.nn as nn
 from lang3s.core import config
 from lang3s.core.typing_extras import SingletonMeta
 from lang3s.nlp.components.embedder import EmbeddingResult
+
 from .task import Task
 from .task_registry import TaskRegistry
 from .typedefs import TaskType, TransformerResult

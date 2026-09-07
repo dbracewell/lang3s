@@ -12,7 +12,7 @@ import {
 import { XIcon } from "lucide-react";
 import Link from "next/link";
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
-import { TreemapNode } from "recharts/types/util/types";
+import { TreemapNode } from "recharts/types/chart/Treemap";
 import { useEntitySearchParams } from "@/features/analytics/hooks/useEntitySearchParams";
 import { useEffect } from "react";
 import { useChatContext } from "@/features/chat/hooks/useChatContext";
@@ -69,7 +69,7 @@ export const EntityCoOccurrenceVisualization = () => {
     } else {
       setContext(data?.map((row) => `${row.e2}/${row.e2Type}`).join("\n"));
     }
-  }, [data, params]);
+  }, [data, params, setContext]);
 
   if (params.showEvents || !params.entity || !params.entityType) {
     return null;
@@ -184,7 +184,10 @@ const CustomizedContent = (props: TreemapNode) => {
           fill:
             depth < 2
               ? COLORS[
-                  Math.floor((index / root.children.length) * COLORS.length)
+                  Math.floor(
+                    (index / Math.max((root?.children?.length ?? 1), 1)) *
+                      COLORS.length,
+                  )
                 ]
               : "#ffffff00",
           stroke: "#fff",

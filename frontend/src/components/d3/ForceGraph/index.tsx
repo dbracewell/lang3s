@@ -244,6 +244,8 @@ const ForceGraphBase = <Point extends ForceGraphPoint>({
     linkClassName,
     simulator,
     setHoveredNode,
+    onInitialize,
+    registerRef,
   ]);
 
   useEffect(() => {

@@ -13,7 +13,7 @@ import {
   useQueryStates,
 } from "nuqs";
 import { parseAsBoolean } from "nuqs/server";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "@/components/ui/form";
 import { InputFormField } from "@/components/form-controls/input-form-field";
@@ -161,8 +161,8 @@ export const MetadataDialog = () => {
       });
     }
   };
-  const dataType = form.watch("dataType");
-  const source = form.watch("source");
+  const dataType = useWatch({ control: form.control, name: "dataType" });
+  const source = useWatch({ control: form.control, name: "source" });
   const isEdit = metadataValues.id ?? false;
 
   const nameOptions = useMemo(() => {

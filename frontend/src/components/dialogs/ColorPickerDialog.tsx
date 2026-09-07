@@ -1,6 +1,6 @@
 import { AnnotationColors } from "@/lib/constants";
 import z from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import React, { useEffect, useState } from "react";
 import { Form } from "@/components/ui/form";
@@ -49,7 +49,7 @@ export const ColorPickerDialog = ({
     setOpen(false);
   };
 
-  const currentColor = form.watch("color");
+  const currentColor = useWatch({ control: form.control, name: "color" });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

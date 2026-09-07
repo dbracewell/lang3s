@@ -10,7 +10,7 @@ import { useGlobalSearchParams } from "@/features/search/hooks/useSearchParams";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { searchDocumentsInfiniteOptions } from "@/clients/core/@tanstack/react-query.gen";
 import { coreClient } from "@/lib/api";
-import { Highlight as Snippet } from "@/clients/core";
+import { DocumentHighlight as Snippet } from "@/clients/core";
 
 export const DocumentSearchView = () => {
   const [searchParams] = useGlobalSearchParams();

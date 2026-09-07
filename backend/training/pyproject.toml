@@ -5,6 +5,7 @@ description = "Lang3s training"
 authors = [
     { name = "David Bracewell" }
 ]
+license = { text = "GPL-3.0-or-later" }
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
@@ -12,8 +13,10 @@ dependencies = [
     "torch==2.8.0",
     "torchvision==0.23",
     "datasets",
-    "lang3s-job-service",
-    "lang3s",
+    "lang3s-core",
+    "lang3s-data",
+    "lang3s-llm",
+    "lang3s-nlp",
     "jsonlines>=4.0.0,<5.0.0",
     "numpy<2",
     "sentencepiece>=0.2.1,<0.3.0",
@@ -37,8 +40,10 @@ train = [
 
 
 [tool.uv.sources]
-lang3s-job-service = { path = "../jobs_service", editable = true }
-lang3s = { path = "../nlp", editable = true }
+lang3s-core = { path = "../packages/core", editable = true }
+lang3s-data = { path = "../packages/data", editable = true }
+lang3s-llm = { path = "../packages/llm", editable = true }
+lang3s-nlp = { path = "../packages/nlp", editable = true }
 unsloth = { git = "https://github.com/unslothai/unsloth.git" }
 unsloth_zoo = { git = "https://github.com/unslothai/unsloth-zoo.git" }
 

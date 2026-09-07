@@ -319,7 +319,18 @@ export const ForceGraph: React.FC<BubbleSimilarityChartProps> = ({
       simulation.stop();
       svg.selectAll("*").remove();
     };
-  }, [data, dimensions, showLabels, styles, onNodeClick]);
+  }, [
+    data,
+    dimensions,
+    showLabels,
+    splitLabels,
+    styles,
+    onNodeClick,
+    minNodeSize,
+    maxNodeSize,
+    minSupportToShowLabel,
+    linkScaleFactor,
+  ]);
 
   // --- Zoom controls
   const handleZoomIn = () => {

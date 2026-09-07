@@ -3,7 +3,7 @@ from lang3s.data.parsers.parser import ParseFn
 from lang3s.data.parsers.text.html import parse_html
 from lang3s.data.parsers.text.markdown import parse_markdown
 from lang3s.data.parsers.text.plain_text import parse_plain_text
-from lang3s.data.schemas import Document, Text
+from lang3s.data.schemas import Document
 
 from .core import (
     build_base_metadata,

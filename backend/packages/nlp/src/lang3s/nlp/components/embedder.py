@@ -8,12 +8,12 @@ from typing import (
 
 import numpy as np
 import torch
-from lang3s.ml.math_extras import normalize
 from numpy.typing import NDArray
 from transformers import AutoTokenizer
 
 from lang3s.core import config
 from lang3s.core.typing_extras import SingletonMeta
+from lang3s.ml.math_extras import normalize
 from lang3s.nlp.models.embedding import Lang3sMultiObjectiveEmbeddingModel
 
 embedding_dtype = np.float32

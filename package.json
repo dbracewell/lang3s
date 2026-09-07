@@ -1,14 +1,15 @@
 {
-  "name": "Lang3s",
+  "name": "lang3s",
+  "private": true,
   "version": "1.0.0",
-  "description": "",
+  "description": "Lang3s monorepo (frontend + backend)",
   "main": "index.js",
   "scripts": {
     "dev": "mprocs"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "GPL-3.0-or-later",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",

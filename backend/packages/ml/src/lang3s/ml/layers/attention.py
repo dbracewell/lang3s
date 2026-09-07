@@ -70,7 +70,9 @@ class FastLocalWindowAttention(nn.Module):
             # mask: (B, T) → (B, 1, T, 1)
             m_exp = mask.unsqueeze(1).unsqueeze(3)
             # Window mask (roll-shifted mask)
-            mask_w = self.extract_roll_windows(m_exp.float()).squeeze(-1).bool()  # (B, heads?, T, W)
+            mask_w = (
+                self.extract_roll_windows(m_exp.float()).squeeze(-1).bool()
+            )  # (B, heads?, T, W)
 
             # Because m_exp had shape (B,1,T,1), extract produces shape (B,1,T,W)
             mask_w = mask_w.squeeze(1).unsqueeze(1)  # (B,1,T,W) → (B,1,T,W)

@@ -14,6 +14,6 @@ export const TopicIdContext = ({
     const s = sentences.join("\n");
     const e = entities.map((e) => `${e.entity}/${e.type}`).join("\n");
     setContext(`SENTENCES: ${s}\n\nENTITIES: ${e}`);
-  }, [sentences, entities]);
+  }, [sentences, entities, setContext]);
   return null;
 };

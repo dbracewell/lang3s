@@ -1,5 +1,5 @@
 import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped
 from sqlalchemy_utils import create_materialized_view
 
 from . import Base

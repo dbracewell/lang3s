@@ -4,10 +4,10 @@ import itertools
 from typing import TYPE_CHECKING, Iterable, Optional
 
 import numpy as np
-from lang3s.ml.math_extras import normalize
 
 from lang3s.core.itertools_extras import filter_none
 from lang3s.data.schemas import Document, Metadata
+from lang3s.ml.math_extras import normalize
 from lang3s.nlp.components.coref import get_in_document_coref_model
 from lang3s.nlp.components.embedder import Embedder, EmbeddingResult, embedding_dtype
 from lang3s.nlp.components.events import extract_events_for_doc

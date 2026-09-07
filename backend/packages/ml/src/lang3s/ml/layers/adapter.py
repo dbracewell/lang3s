@@ -231,8 +231,12 @@ class ParallelLoRAAndDoRAActivationAdapterForSequence(nn.Module):
         # ----- Gating between LoRA and DoRA -----
         # We parametrize two scalars and softmax them to get stable weights.
         # Initialize to favor DoRA (more stable on small data), but not exclusively.
-        self.gate_lora = nn.Parameter(torch.tensor(init_lora_weight, dtype=torch.float32))
-        self.gate_dora = nn.Parameter(torch.tensor(init_dora_weight, dtype=torch.float32))
+        self.gate_lora = nn.Parameter(
+            torch.tensor(init_lora_weight, dtype=torch.float32)
+        )
+        self.gate_dora = nn.Parameter(
+            torch.tensor(init_dora_weight, dtype=torch.float32)
+        )
 
         # ----- Initialization -----
         # LoRA: Kaiming for down, zeros for up (LoRA standard)
@@ -306,16 +310,24 @@ class LoRA(nn.Module):
         self.has_bias = original_layer.bias is not None
 
         self.register_buffer(
-            'original_weight',
-            original_layer.weight.data.to(device) if device else original_layer.weight.data,
-            persistent=True
+            "original_weight",
+            (
+                original_layer.weight.data.to(device)
+                if device
+                else original_layer.weight.data
+            ),
+            persistent=True,
         )
 
         if self.has_bias:
             self.register_buffer(
-                'original_bias',
-                original_layer.bias.data.to(device) if device else original_layer.bias.data,
-                persistent=True
+                "original_bias",
+                (
+                    original_layer.bias.data.to(device)
+                    if device
+                    else original_layer.bias.data
+                ),
+                persistent=True,
             )
         else:
             self.register_buffer('original_bias', None, persistent=True)

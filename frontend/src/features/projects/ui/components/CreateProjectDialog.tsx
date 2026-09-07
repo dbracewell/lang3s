@@ -29,8 +29,8 @@ export const CreateProjectDialog = () => {
     },
   });
 
-  const onSubmit = (data: z.infer<typeof CreateProjectSchema>) => {
-    console.log(data);
+  const onSubmit = (_data: z.infer<typeof CreateProjectSchema>) => {
+    setOpen(false);
   };
 
   return (

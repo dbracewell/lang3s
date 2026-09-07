@@ -1,5 +1,11 @@
 "use client";
-import { FieldValues, Path, useForm, UseFormReturn } from "react-hook-form";
+import {
+  FieldValues,
+  Path,
+  useForm,
+  UseFormReturn,
+  useWatch,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChartFormSchema, ChartFormType } from "@/features/reports/schema";
 import { Form } from "@/components/ui/form";
@@ -100,9 +106,9 @@ export const DualAxisForm = () => {
     );
   };
 
-  const x = form.watch("x");
-  const y = form.watch("y");
-  const countType = form.watch("count");
+  const x = useWatch({ control: form.control, name: "x" });
+  const y = useWatch({ control: form.control, name: "y" });
+  const countType = useWatch({ control: form.control, name: "count" });
 
   const countTypeOptions = useMemo(() => {
     return createSelectableCountTypes(x.type, y?.type);
@@ -174,7 +180,7 @@ export const DualAxisForm = () => {
                   updateCountType(newX, y?.type);
                 }}
                 form={form}
-                axisType={form.watch("x.type")}
+                axisType={x.type}
                 metadata={
                   metadata ?? {
                     documents: {},
@@ -196,7 +202,7 @@ export const DualAxisForm = () => {
                     updateCountType(x.type, newY);
                   }}
                   form={form}
-                  axisType={form.watch("y.type") ?? "TOPIC"}
+                  axisType={y?.type ?? "TOPIC"}
                   metadata={
                     metadata ?? {
                       documents: {},

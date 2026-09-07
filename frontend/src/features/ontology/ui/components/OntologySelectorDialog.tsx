@@ -1,3 +1,4 @@
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -7,10 +8,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { OntologySelector } from "@/features/ontology/ui/components/OntologySelector";
-import React, { useEffect, useState } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { NetworkIcon } from "lucide-react";
 import type { VariantProps } from "class-variance-authority";
+import { NetworkIcon } from "lucide-react";
+import React, { useState } from "react";
 
 type OntologySelectorDialogProps = {
   open?: boolean;
@@ -48,11 +48,24 @@ export const OntologySelectorDialog = ({
   const [checkedNodes, setCheckedNodes] = useState<string[]>(
     defaultCheckedNodes ?? [],
   );
-  useEffect(() => {
-    setCheckedNodes(defaultCheckedNodes ?? []);
-  }, [defaultCheckedNodes]);
+
+  const isControlled = open !== undefined;
+  const effectiveOpen = isControlled ? open : isOpen;
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setCheckedNodes(defaultCheckedNodes ?? []);
+    }
+
+    if (!isControlled) {
+      setIsOpen(nextOpen);
+    }
+
+    onOpenChange?.(nextOpen);
+  };
+
   return (
-    <Dialog open={open ?? isOpen} onOpenChange={onOpenChange ?? setIsOpen}>
+    <Dialog open={effectiveOpen} onOpenChange={handleOpenChange}>
       {trigger && (
         <DialogTrigger
           className={buttonVariants({ variant, size, className })}
@@ -87,7 +100,7 @@ export const OntologySelectorDialog = ({
                 <Button
                   type="button"
                   onClick={() => {
-                    (onOpenChange ?? setIsOpen)(false);
+                    handleOpenChange(false);
                     onSelect(checkedNodes);
                   }}
                 >

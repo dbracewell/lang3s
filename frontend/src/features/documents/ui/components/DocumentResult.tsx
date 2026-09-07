@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DocumentInfo } from "@/client";
+import { DocumentInfo } from "@/clients/core";
 
 export const DocumentResult = ({ doc }: { doc: DocumentInfo }) => {
   return (

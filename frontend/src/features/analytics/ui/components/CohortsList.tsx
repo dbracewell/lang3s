@@ -20,7 +20,7 @@ export const CohortsList = ({
   const [params, setParams] = useCohortsParams();
   const { setContext } = useChatContext();
 
-  useEffect(() => setContext(""), [params.c]);
+  useEffect(() => setContext(""), [params.c, setContext]);
 
   const debouncedQuery = useDebounce(params.q, 500);
   if (params.tab !== "list") {

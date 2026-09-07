@@ -3,7 +3,7 @@ from typing import Annotated
 import numpy as np
 from pydantic import BaseModel, ConfigDict, WithJsonSchema
 
-from lang3s.data.schemas.common import PaginatedQuery, PaginatedResponse
+from lang3s.data.schemas.common import PaginatedQuery
 
 
 class EffectiveSearchParams(PaginatedQuery):

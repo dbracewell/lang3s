@@ -2,6 +2,7 @@
   "name": "lang3s-backend",
   "version": "1.0.0",
   "private": true,
+  "license": "GPL-3.0-or-later",
   "scripts": {
     "check-deps": "uv run tach check-external",
     "add-dep": "uv add $DEP --package $PKG",

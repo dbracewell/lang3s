@@ -107,7 +107,7 @@ export const auth = betterAuth({
           if (adminKey === t3env.ADMIN_PASSPHRASE) {
             role = "admin";
           }
-          console.log(adminKey, role);
+
           return {
             data: {
               ...user,

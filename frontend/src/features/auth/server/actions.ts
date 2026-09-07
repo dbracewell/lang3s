@@ -117,6 +117,8 @@ export const listUsers = async (page: number) => {
   });
   return users.map((u) => ({
     ...u,
+    username: (u as { username?: string }).username ?? "",
+    banned: !!u.banned,
     role: u.role as UserRole,
   })) as UserType[];
 };

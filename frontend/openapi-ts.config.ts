@@ -1,4 +1,4 @@
-export default [
+const config = [
   {
     input: "http://localhost:8003/openapi.json",
     output: "src/clients/core",
@@ -69,3 +69,5 @@ export default [
     },
   },
 ];
+
+export default config;

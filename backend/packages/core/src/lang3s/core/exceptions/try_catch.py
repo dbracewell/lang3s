@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import Callable, Iterator, Type
+from typing import Callable, Iterator
 
 
 @contextmanager

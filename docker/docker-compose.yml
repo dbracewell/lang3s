@@ -105,12 +105,12 @@ services:
     volumes:
       - internal_filestore:/filestore
     command:
-      - python -m src.lang3s.services.local_llm_app
+      - python -m lang3s.services.apps.llm
     depends_on:
       filestore_seeder:
         condition: service_completed_successfully
       nlp:
-        condition: service_completed_successfully
+        condition: service_started
     profiles:
       - production
   

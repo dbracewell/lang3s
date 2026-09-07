@@ -4,6 +4,7 @@ import { ParsedSearchParams } from "@/features/search/schemas";
 
 export const currentProjectAtom = atom<Project>({
   name: "No Project",
+  description: "",
   id: "",
   dataParams: {},
 });
@@ -11,6 +12,9 @@ export const currentProjectAtom = atom<Project>({
 export const updateProjectSearchParams = atom(
   null,
   (_, set, params: ParsedSearchParams) => {
-    set(currentProjectAtom, (prev) => ({ ...prev, dataParams: params }));
+    set(currentProjectAtom, (prev: Project) => ({
+      ...prev,
+      dataParams: params,
+    }));
   },
 );

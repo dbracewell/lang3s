@@ -4,17 +4,17 @@ from collections import defaultdict
 from typing import Dict
 
 import numpy as np
-from rapidfuzz import fuzz
-
 from lang3s.nlp.coref.alias import AliasMiner
 from lang3s.nlp.coref.blocking import CorefBlocker
 from lang3s.nlp.coref.cluster import GlobalEntityCluster
-from lang3s.nlp.coref.helper import NO_COREF_ONTOLOGY_TYPES, should_perform_coref
-from lang3s.nlp.language import is_person_pronoun
+from lang3s.nlp.coref.helper import should_perform_coref
 from lang3s.nlp.shared_types import Document, TextAnnotation
 from lang3s.ontology import ontology
 from lang3s.ontology.core import is_ontology_type
 from lang3s.utils.maths import normalize
+from rapidfuzz import fuzz
+
+from lang3s.nlp.language import is_person_pronoun
 
 
 class StreamingEntityResolver:

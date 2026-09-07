@@ -8,11 +8,19 @@ class FocalLoss(nn.Module):
     Focal Loss implementation supporting Multi-class, Binary, and Multi-label tasks.
     """
 
-    def __init__(self, gamma=2.0, alpha=0.25, loss_type="multiclass", reduction="mean"):
+    def __init__(
+        self,
+        gamma=2.0,
+        alpha=0.25,
+        loss_type="multiclass",
+        reduction="mean",
+    ):
         """
         Args:
-            gamma (float): Focusing parameter. Higher gamma reduces loss for easy examples.
-            alpha (float or torch.Tensor): Weighting factor for the positive class (or per-class).
+            gamma (float): Focusing parameter. Higher gamma reduces
+                loss for easy examples.
+            alpha (float or torch.Tensor): Weighting factor for the
+                positive class (or per-class).
             loss_type (str): 'multiclass', 'binary', or 'multilabel'.
             reduction (str): 'mean' or 'sum'.
         """
@@ -125,7 +133,8 @@ class MaskedFocalLoss(nn.Module):
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """
         logits: (N, C) for multiclass, or (N, C) for multilabel/binary
-        targets: same spatial shape, long for multiclass, float/binary for multilabel/binary
+        targets: same spatial shape, long for multiclass,
+            float/binary for multilabel/binary
         """
 
         # ----------------------------------------------------------------------
@@ -143,7 +152,8 @@ class MaskedFocalLoss(nn.Module):
             "binary",
             "multilabel",
         ]:
-            # For multilabel, ignore_index means: remove rows where ALL positions are ignore_index
+            # For multilabel, ignore_index means:
+            # remove rows where ALL positions are ignore_index
             if self.ignore_index == -100:
                 # mask positions where target != ignore_index
                 keep = targets != self.ignore_index

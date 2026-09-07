@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
-from sqlalchemy import select
 
 from lang3s.core import config
 from lang3s.core.clients.redis_client import (
@@ -17,9 +16,7 @@ from lang3s.core.clients.redis_client import (
 from lang3s.core.logger import get_logger
 from lang3s.core.schemas.job import JobMessage
 from lang3s.data.constants import DUCKDB_QUEUE_NAME
-from lang3s.data.db import session_manager, sync_db_session
-from lang3s.data.models import Document as DocumentModel
-from lang3s.data.schemas import AnnotationTypes, Document
+from lang3s.data.db import session_manager
 from lang3s.services.analytics import get_analytics_db, init_analytics_db
 from lang3s.services.helpers import create_fastapi_app
 from lang3s.services.repositories.analytics_repository import AnalyticsRepository
@@ -57,7 +54,10 @@ def ingest_documents(
             #             )
             #         ).first()
             #         if not doc_model:
-            #             logger.error(f"Failed to find document {job.content['doc_id']}")
+            #             logger.error(
+            #                 "Failed to find document "
+            #                 f"{job.content['doc_id']}"
+            #             )
             #             continue
             #         doc: Document = Document.from_database(doc_model)
             #         for annotation in doc.text.annotations:

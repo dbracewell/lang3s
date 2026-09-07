@@ -1,13 +1,14 @@
 import { ColumnDef } from "@/components/data-table/data-table-types";
 import { StringSort } from "@/components/data-table/SortFunctions";
 import { Checkbox } from "@/components/ui/checkbox";
-import { user } from "@/lib/db/schema";
 import { DeleteUser } from "@/features/auth/ui/components/DeleteUser";
 import { EditUserDialog } from "@/features/auth/ui/components/EditUserDialog";
 import { UserRole } from "@/lib/auth/permissions";
+import { BasicUserInfo } from "@/lib/types";
 
-export type UserType = typeof user.$inferSelect & {
+export type UserType = BasicUserInfo & {
   role: UserRole;
+  banned: boolean;
 };
 
 export const userListColumns: ColumnDef<UserType>[] = [

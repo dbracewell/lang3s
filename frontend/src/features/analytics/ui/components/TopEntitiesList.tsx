@@ -56,7 +56,7 @@ export const TopEntitiesList = () => {
         data.items.map((row) => `${row.content}/${row.value}`).join("\n"),
       );
     }
-  }, [data, params]);
+  }, [data, params, setContext]);
 
   if (error != null) {
     throw error;
