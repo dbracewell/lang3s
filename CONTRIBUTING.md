@@ -46,6 +46,13 @@ pnpm build
 
 For backend changes, run relevant lint/tests for touched packages.
 
+Baseline backend test suite:
+
+```bash
+cd backend
+uv run pytest -q tests
+```
+
 For security checks locally (recommended before PR):
 
 ```bash
