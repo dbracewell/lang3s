@@ -1,4 +1,4 @@
-import { LoaderCircleIcon, SearchIcon } from "lucide-react";
+import { LoaderCircleIcon } from "lucide-react";
 import React from "react";
 
 export const Spinner = () => {

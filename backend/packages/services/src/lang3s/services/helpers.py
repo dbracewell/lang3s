@@ -1,3 +1,4 @@
+import os
 from functools import partial
 from typing import Annotated
 
@@ -46,12 +47,10 @@ def create_fastapi_app(
     title: str,
     version: str = "1.0.0",
     lifespan=None,
-    cors_origins: list[str] | None = None,
     root_path: str = "/",
     openapi_url: str = "/openapi.json",
 ):
-    if cors_origins is None:
-        cors_origins = ["*"]
+    origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 
     app = FastAPI(
         root_path=root_path,
@@ -63,7 +62,7 @@ def create_fastapi_app(
 
     app.add_middleware(
         CORSMiddleware,  # type: ignore
-        allow_origins=["http://localhost:3000"],
+        allow_origins=origins_env.split(","),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["Content-Type", "Authorization", "Accept"],

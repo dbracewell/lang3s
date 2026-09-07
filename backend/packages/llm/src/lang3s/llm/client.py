@@ -55,7 +55,7 @@ class ChatCompletionParams(TypedDict):
     audio: NotRequired[dict[str, Any]]
     prediction: NotRequired[dict[str, Any]]
     parallel_tool_calls: NotRequired[bool]
-    # stream_options: NotRequired[dict[str, Any]]  # E.g., {"include_usage": True}
+    stream_options: NotRequired[dict[str, Any]]  # E.g., {"include_usage": True}
     n: NotRequired[int]
     logit_bias: NotRequired[dict[str, int]]  #
     logprobs: NotRequired[bool]
@@ -104,19 +104,20 @@ class LLMClient:
     def _prepare_completion_params(
         self,
         messages: list[Message],
+        stream: bool,
         available_tools: AvailableTools,
         response_model: Type[T] | None = None,
         **kwargs: Unpack[ChatCompletionParams],
     ):
-        stream_options: dict = kwargs.pop("stream_options", None)
-        if stream_options:
+        if stream:
+            stream_options = kwargs.pop("stream_options", None) or {}
             stream_options["include_usage"] = True
+            kwargs["stream_options"] = stream_options
         else:
-            stream_options = dict(include_usage=True)
+            kwargs.pop("stream_options", None)
 
         completion_args: dict[str, Any] = {
             "model": self.model_name,
-            "stream_options": stream_options,
             **kwargs,
         }
 
@@ -141,7 +142,7 @@ class LLMClient:
             completion_args["response_format"] = ResponseFormatJSONSchema(
                 json_schema=JSONSchema(
                     name=response_model.__name__,
-                    strict=False,
+                    strict=True,
                     schema=sanitized_schema,
                     description=description,
                 ),
@@ -203,6 +204,7 @@ class LLMClient:
         available_tools = AvailableTools(tools or [])
         completion_args = self._prepare_completion_params(
             messages,
+            stream,
             available_tools,
             response_model,
             **kwargs,

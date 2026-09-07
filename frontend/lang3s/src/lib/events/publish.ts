@@ -1,6 +1,7 @@
 import "server-only";
 import { createRedisClient } from "@/lib/redis";
-import { EventPayloadMap, EventType } from "@/lib/events/eventSchemas";
+import { EventPayloadMap } from "@/lib/events/schemas";
+import { EventType } from "@/lib/events/types";
 
 export async function publishMessage<K extends EventType>({
   messageType,
