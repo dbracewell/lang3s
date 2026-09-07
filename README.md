@@ -55,6 +55,7 @@ Then run frontend/backend processes locally as needed.
 
 - Frontend: `frontend/README.md`
 - Backend: `backend/README.md`
+- Architecture map: `docs/ARCHITECTURE.md`
 
 ## Contributing and community
 
@@ -71,3 +72,4 @@ This project is licensed under **GPL-3.0-or-later**. See `LICENSE`.
 GitHub Actions workflows:
 - `.github/workflows/frontend-ci.yml`
 - `.github/workflows/backend-ci.yml`
+- `.github/workflows/security-ci.yml`

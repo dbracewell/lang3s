@@ -46,6 +46,28 @@ pnpm build
 
 For backend changes, run relevant lint/tests for touched packages.
 
+For security checks locally (recommended before PR):
+
+```bash
+# secret scanning
+# (if installed) gitleaks detect --source . --no-git
+
+# frontend dependency vulnerabilities
+cd frontend && pnpm audit --prod --audit-level high && cd ..
+
+# backend dependency vulnerabilities
+cd backend && uv sync --all-packages --frozen && uv run --with pip-audit pip-audit && cd ..
+```
+
+## Good first issues and labels
+
+We use labels to help contributors find appropriate work.
+
+- Start with issues labeled `good first issue` for small, self-contained tasks.
+- Use `help wanted` for community-priority work that may be larger.
+- Common triage labels include `frontend`, `backend`, `documentation`, `ci`, and `security`.
+- Label guidance for maintainers lives at `.github/LABELS.md`.
+
 ## Pull request checklist
 
 - [ ] Code builds and passes checks locally
