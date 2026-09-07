@@ -1,6 +1,7 @@
 import enum
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator, Optional, cast
+from typing import Any, cast
 
 from lang3s.core.io.formats.core import BaseSchema, FileFormat, StructuredSchema
 from lang3s.core.io.formats.dsv_format import DSVFormat
