@@ -73,5 +73,9 @@ jobs:
       - name: Sync backend dependencies
         run: uv sync --all-packages --frozen
 
-      - name: Run pip-audit
-        run: uv run --with pip-audit pip-audit
+      - name: Run pip-audit (JSON report)
+        run: uv run --with pip-audit pip-audit -f json -o pip-audit-report.json
+
+      - name: Enforce backend vulnerability policy
+        working-directory: .
+        run: python .github/scripts/check_pip_audit.py

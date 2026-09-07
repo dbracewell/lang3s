@@ -17,6 +17,15 @@ dev = [
     "tach>=0.35.0",
 ]
 
+[tool.uv]
+override-dependencies = [
+    "cryptography>=50.0.0",
+    "gitpython>=3.1.59",
+    "msgpack>=1.2.1",
+    "pillow>=12.3.0",
+    "setuptools>=83.0.0",
+]
+
 [[tool.uv.index]]
 name = "pytorch-cu121"
 url = "https://download.pytorch.org/whl/cu121"

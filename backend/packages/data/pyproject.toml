@@ -22,7 +22,7 @@ dependencies = [
     "lang3s-core",
     "hnswlib>=0.8.0",
     "numpy>=2.4.6",
-    "msgpack>=1.2.0",
+    "msgpack>=1.2.1",
 ]
 
 [tool.uv.sources]

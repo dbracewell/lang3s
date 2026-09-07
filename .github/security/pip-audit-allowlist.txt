@@ -1,0 +1,9 @@
+# Package-level allowlist for backend pip-audit gating.
+# These ML libraries are currently pinned/constrained by model compatibility
+# and have open advisories that require larger coordinated upgrades.
+# CI will still report them, but won't fail solely on these packages.
+#
+# Keep this list as small/temporary as possible.
+
+torch
+transformers
