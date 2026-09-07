@@ -1,10 +1,11 @@
 import re
-from collections.abc import Sequence
+from collections.abc import AsyncGenerator, Generator, Sequence
 from typing import (
     Any,
     Callable,
     Literal,
     NotRequired,
+    Type,
     TypedDict,
     TypeVar,
     Unpack,
