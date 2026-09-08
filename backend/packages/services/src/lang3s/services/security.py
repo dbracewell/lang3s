@@ -67,27 +67,21 @@ def require_auth(
         Depends(security),
     ],
 ) -> AuthedUser:
-    if not credentials:
+    if credentials is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     if str(credentials.credentials).startswith("lang3s-api-key-"):
-        claim = _check_api_key(credentials.credentials)  # type: ignore
+        claim = _check_api_key(credentials.credentials)
         if claim:
             return claim
 
     try:
-        return verify_jwks_token(credentials.credentials)  # type: ignore
+        return verify_jwks_token(credentials.credentials)
     except AuthTokenError as exc:
         raise HTTPException(status_code=401, detail="Unauthorized") from exc  # noqa: F821
 
 
-def get_authenticated_claim(
-    claims: Annotated[AuthedUser, Depends(require_auth)],
-) -> AuthedUser:
-    return claims
-
-
-type AuthenticatedUserDep = Annotated[AuthedUser, Depends(get_authenticated_claim)]
+type AuthenticatedUserDep = Annotated[AuthedUser, Depends(require_auth)]
 
 
 def verify_jwks_token(token: str) -> AuthedUser:

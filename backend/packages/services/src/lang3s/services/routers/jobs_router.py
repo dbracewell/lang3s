@@ -54,7 +54,7 @@ async def get_job(
     repository: JobRepositoryDep,
     user: AuthenticatedUserDep,
 ):
-    if user is None or not user.has_permission(Permissions.job.get):
+    if not user.has_permission(Permissions.job.get):
         raise UnauthorizedException()
     return await repository.get(job_id)
 
@@ -127,7 +127,7 @@ async def list_jobs(
     repository: JobRepositoryDep,
     user: AuthenticatedUserDep,
 ):
-    if user is None or not user.has_permission(Permissions.job.list):
+    if not user.has_permission(Permissions.job.list):
         raise UnauthorizedException()
     return await repository.list_jobs()
 

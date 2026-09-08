@@ -4,14 +4,14 @@ import {
   analyst,
   dataLoader,
   modeller,
-  user as userPermissions,
   user,
+  user as userPermissions,
 } from "@/lib/auth/permissions";
-import { betterAuth } from "better-auth";
-import { admin as adminPlugin, jwt, username } from "better-auth/plugins";
-import { apiKey } from "@better-auth/api-key";
-import { nextCookies } from "better-auth/next-js";
 import { t3env } from "@/lib/t3env";
+import { apiKey } from "@better-auth/api-key";
+import { betterAuth } from "better-auth";
+import { nextCookies } from "better-auth/next-js";
+import { admin as adminPlugin, jwt, username } from "better-auth/plugins";
 import Database from "better-sqlite3";
 
 export const getPermissionsForRole = (

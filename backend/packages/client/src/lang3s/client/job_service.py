@@ -22,6 +22,7 @@ class JobService:
         self.api_key: str = api_key
 
     def list_jobs(self) -> list[Job]:
+        print(self.api_key)
         response = requests.get(
             self._base_url,
             headers={"Authorization": f"Bearer {self.api_key}"},
