@@ -38,7 +38,7 @@ class BaseSchema(BaseModel):
 
 
 class StructuredSchema(BaseSchema):
-    text_column: str
+    text_column: str = "content"
     title_column: str | None = Field(default=None)
     id_column: str | None = Field(default=None)
     id_column_is_url: bool = Field(default=False)
