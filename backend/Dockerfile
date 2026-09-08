@@ -15,7 +15,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 COPY backend/ /app/backend/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --all-packages --no-dev
+    uv sync --frozen --all-packages --no-dev --no-cache
 
 ENV PATH="/app/backend/.venv/bin:$PATH"
 

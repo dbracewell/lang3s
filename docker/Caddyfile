@@ -6,18 +6,18 @@
     respond @options 204
 
     handle /v1/* {
-        reverse_proxy localhost:23002
+        reverse_proxy lang3s_lora_llm:23002
     }
 
     handle /analytics* {
-        reverse_proxy localhost:23001
+        reverse_proxy lang3s_analytics:23001
     }
 
     handle /charts* {
-        reverse_proxy localhost:23001
+        reverse_proxy lang3s_analytics:23001
     }
 
     handle {
-        reverse_proxy localhost:23000
+        reverse_proxy lang3s_api:23000
     }
 }

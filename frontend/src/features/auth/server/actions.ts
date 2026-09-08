@@ -74,19 +74,25 @@ export const getCurrentUser = cache(async (): Promise<FullUserInfo> => {
   const { apiKeys } = await auth.api.listApiKeys({
     headers: headersList,
   });
+
+  const normalizedApiKeys: Array<{ id: string; name?: string | null }> =
+    apiKeys instanceof Map
+      ? Array.from(apiKeys.values())
+      : Array.isArray(apiKeys)
+        ? apiKeys
+        : Object.values(apiKeys ?? {});
+
   return {
     id: session.user.id,
     username: session.user.username as string,
     role: session.user.role as UserRole,
     name: session.user.name,
     email: session.user.email as string,
-    keys: [
-      ...apiKeys.values().map((key) => ({
-        id: key.id,
-        name: key.name ?? undefined,
-        key: key.id,
-      })),
-    ],
+    keys: normalizedApiKeys.map((key) => ({
+      id: key.id,
+      name: key.name ?? undefined,
+      key: key.id,
+    })),
   };
 });
 
@@ -189,11 +195,20 @@ export const updateUser = async (user: UserAccountEditSchemaType) => {
 };
 
 export const getUserCount = async () => {
-  const db = new Database(t3env.DATABASE_URL, { readonly: true });
-  const row = db.prepare("SELECT COUNT(*) AS count FROM user").get() as {
-    count: number;
-  };
-  return row.count;
+  const db = new Database(t3env.DATABASE_URL);
+  try {
+    const row = db.prepare("SELECT COUNT(*) AS count FROM user").get() as {
+      count: number;
+    };
+    return row.count;
+  } catch (error) {
+    if (error instanceof Error && /no such table: user/i.test(error.message)) {
+      return 0;
+    }
+    throw error;
+  } finally {
+    db.close();
+  }
 };
 
 export const createAdminAccount = async (values: AdminAccountSchemaType) => {

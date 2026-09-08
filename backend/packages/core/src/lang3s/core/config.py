@@ -58,7 +58,7 @@ class Config:
     #####################################################################################
     @property
     def PROXY_HOST(self) -> str:
-        return self.get_config_value("PROXY_HOST", "http://localhost:8003")
+        return self.get_config_value("PROXY_HOST", "http://lang3s_caddy:8003")
 
     #####################################################################################
     # PYTHON SERVICES PORT
@@ -82,7 +82,7 @@ class Config:
     #####################################################################################
     @property
     def BETTER_AUTH_URL(self) -> str:
-        return self.get_config_value("BETTER_AUTH_URL", "http://localhost:3000")
+        return self.get_config_value("BETTER_AUTH_URL", "http://lang3s_frontend:3000")
 
     @property
     def JWT_ISSUER(self) -> str:
@@ -113,7 +113,7 @@ class Config:
 
     @property
     def DB_HOST(self) -> str:
-        return self.get_config_value("POSTGRES_HOST", "localhost")
+        return self.get_config_value("POSTGRES_HOST", "lang3s_database")
 
     @property
     def DB_PORT(self) -> int:

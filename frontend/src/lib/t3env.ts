@@ -5,7 +5,9 @@ export const t3env = createEnv({
   server: {
     INNGEST_URL: z.string(),
     INNGEST_SIGNING_KEY: z.string(),
-    REDIS_HOST: z.hostname(),
+    // Docker service/container names may include underscores (e.g. lang3s_redis),
+    // which are not valid RFC hostnames but do resolve on Docker networks.
+    REDIS_HOST: z.string().min(1),
     REDIS_PORT: z.coerce.number().int(),
     REDIS_DB: z.coerce.number().int(),
     ADMIN_PASSPHRASE: z.string(),

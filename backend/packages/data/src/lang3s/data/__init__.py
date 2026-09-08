@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from typing import Any
+
 __all__ = ["filestore"]
 
 
-def __getattr__(name: str):
-    """Lazily import filestore to avoid side effects at package import time."""
-    if name == "filestore":
-        from .filestore import filestore
+class _LazyFileStore:
+    """Proxy that defers FileStore initialization until first attribute access."""
 
-        return filestore
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    def __getattr__(self, item: str) -> Any:
+        from .filestore import filestore as _filestore
+
+        return getattr(_filestore, item)
+
+
+filestore = _LazyFileStore()

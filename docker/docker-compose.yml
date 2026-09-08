@@ -101,11 +101,9 @@ services:
   lora_llm:
     image: lang3s-python-core:latest
     container_name: lang3s_lora_llm
-    platform: linux/amd64
     volumes:
       - internal_filestore:/filestore
-    command:
-      - python -m lang3s.services.apps.llm
+    command: ["python", "-m", "lang3s.services.apps.llm"]
     depends_on:
       filestore_seeder:
         condition: service_completed_successfully
@@ -120,8 +118,16 @@ services:
       dockerfile: backend/Dockerfile
     image: lang3s-python-core:latest
     container_name: lang3s_nlp
-    platform: linux/amd64
     restart: unless-stopped
+    command: ["python", "-m", "lang3s.services.apps.nlp", "--num_workers", "3", "--batch_size", "100"]
+    environment:
+      - FILESTORE_ROOT=/filestore
+      - EMBEDDING_MODEL=/filestore/models/embedding
+      - POSTGRES_HOST=lang3s_database
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=admin
+      - REDIS_HOST=lang3s_redis
+      - REDIS_PORT=6379
     volumes:
       - internal_filestore:/filestore
     depends_on:
@@ -132,8 +138,224 @@ services:
       redis:
         condition: service_healthy
     secrets:
+      - source: system_api_key
+        target: SYSTEM_KEY
+      - source: db_password
+        target: POSTGRES_PASSWORD
+    networks:
+      - lang3s-network
+    profiles:
+      - production
+
+  analytics:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: lang3s-python-core:latest
+    container_name: lang3s_analytics
+    restart: unless-stopped
+    command: ["python", "-m", "lang3s.services.apps.analytics"]
+    environment:
+      - FILESTORE_ROOT=/filestore
+      - EMBEDDING_MODEL=/filestore/models/embedding
+      - POSTGRES_HOST=lang3s_database
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=admin
+      - REDIS_HOST=lang3s_redis
+      - REDIS_PORT=6379
+    volumes:
+      - internal_filestore:/filestore
+    depends_on:
+      filestore_seeder:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    secrets:
+      - source: system_api_key
+        target: SYSTEM_KEY
+      - source: db_password
+        target: POSTGRES_PASSWORD
+    networks:
+      - lang3s-network
+    profiles:
+      - production
+
+  topic:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: lang3s-python-core:latest
+    container_name: lang3s_topic
+    restart: unless-stopped
+    command: ["python", "-m", "lang3s.services.apps.topic"]
+    environment:
+      - FILESTORE_ROOT=/filestore
+      - EMBEDDING_MODEL=/filestore/models/embedding
+      - POSTGRES_HOST=lang3s_database
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=admin
+      - REDIS_HOST=lang3s_redis
+      - REDIS_PORT=6379
+    volumes:
+      - internal_filestore:/filestore
+    depends_on:
+      filestore_seeder:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    secrets:
+      - source: system_api_key
+        target: SYSTEM_KEY
+      - source: db_password
+        target: POSTGRES_PASSWORD
+    networks:
+      - lang3s-network
+    profiles:
+      - production
+
+  claims:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: lang3s-python-core:latest
+    container_name: lang3s_claims
+    restart: unless-stopped
+    command: ["python", "-m", "lang3s.services.apps.claims", "--num_workers", "4"]
+    environment:
+      - FILESTORE_ROOT=/filestore
+      - EMBEDDING_MODEL=/filestore/models/embedding
+      - POSTGRES_HOST=lang3s_database
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=admin
+      - REDIS_HOST=lang3s_redis
+      - REDIS_PORT=6379
+    volumes:
+      - internal_filestore:/filestore
+    depends_on:
+      filestore_seeder:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    secrets:
+      - source: system_api_key
+        target: SYSTEM_KEY
+      - source: db_password
+        target: POSTGRES_PASSWORD
+    networks:
+      - lang3s-network
+    profiles:
+      - production
+
+  api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: lang3s-python-core:latest
+    container_name: lang3s_api
+    restart: unless-stopped
+    environment:
+      - FILESTORE_ROOT=/filestore
+      - EMBEDDING_MODEL=/filestore/models/embedding
+      - POSTGRES_HOST=lang3s_database
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=admin
+      - REDIS_HOST=lang3s_redis
+      - REDIS_PORT=6379
+    volumes:
+      - internal_filestore:/filestore
+    command: ["python", "-m", "lang3s.services.apps.main"]
+    depends_on:
+      filestore_seeder:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    secrets:
+      - source: system_api_key
+        target: SYSTEM_KEY
+      - source: db_password
+        target: POSTGRES_PASSWORD
+    networks:
+      - lang3s-network
+    profiles:
+      - production
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        INNGEST_URL: http://lang3s_inngest:8288
+        INNGEST_SIGNING_KEY: A1B2C3
+        REDIS_HOST: lang3s_redis
+        REDIS_PORT: 6379
+        REDIS_DB: 0
+        BETTER_AUTH_URL: http://localhost:3000
+        DATABASE_URL: /frontend_data/users.db
+        FILESTORE_ROOT: /filestore
+        NEXT_PUBLIC_APP_URL: http://localhost:3000
+        NEXT_PUBLIC_BACKEND_URL: http://lang3s_caddy:8003
+    container_name: lang3s_frontend
+    restart: unless-stopped
+    command: >
+      /bin/sh -c "
+      if [ -f /run/secrets/system_api_key ]; then
+        export SYSTEM_KEY=\"$(cat /run/secrets/system_api_key | tr -d '\n')\";
+      else
+        echo 'Error: system_api_key secret file missing!';
+        exit 1;
+      fi;
+      if [ -f /run/secrets/admin_passphrase ]; then
+        export ADMIN_PASSPHRASE=\"$(cat /run/secrets/admin_passphrase | tr -d '\n')\";
+      else
+        echo 'Error: admin_passphrase secret file missing!';
+        exit 1;
+      fi;
+      if [ -f /run/secrets/better_auth_secret ]; then
+        export BETTER_AUTH_SECRET=\"$(cat /run/secrets/better_auth_secret | tr -d '\n')\";
+      else
+        echo 'Error: better_auth_secret secret file missing!';
+        exit 1;
+      fi;
+      mkdir -p /frontend_data;
+      pnpm auth:bootstrap-db;
+      exec pnpm start -p 3000
+      "
+    environment:
+      - NODE_ENV=production
+      - INNGEST_URL=http://lang3s_inngest:8288
+      - INNGEST_SIGNING_KEY=A1B2C3
+      - REDIS_HOST=lang3s_redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - NEXT_PUBLIC_BACKEND_URL=http://lang3s_caddy:8003
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - BETTER_AUTH_URL=http://localhost:3000
+      - DATABASE_URL=/frontend_data/users.db
+      - FILESTORE_ROOT=/filestore
+    volumes:
+      - internal_filestore:/filestore
+      - frontend_data:/frontend_data
+    ports:
+      - "3000:3000"
+    secrets:
       - system_api_key
-      - db_password
+      - admin_passphrase
+      - better_auth_secret
+    depends_on:
+      caddy:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      inngest:
+        condition: service_started
     networks:
       - lang3s-network
     profiles:
@@ -143,6 +365,13 @@ services:
     image: caddy:latest
     restart: unless-stopped
     container_name: lang3s_caddy
+    depends_on:
+      api:
+        condition: service_started
+      analytics:
+        condition: service_started
+      lora_llm:
+        condition: service_started
     networks:
       - lang3s-network
     ports:
@@ -165,6 +394,8 @@ secrets:
     file: secrets/admin_passphrase.txt
   system_api_key:
     file: secrets/system_api_key.txt
+  better_auth_secret:
+    file: secrets/better_auth_secret.txt
 
 volumes:
   internal_filestore:
@@ -172,6 +403,7 @@ volumes:
   redis_data:
   caddy_data:
   caddy_config:
+  frontend_data:
 
 networks:
   lang3s-network:
