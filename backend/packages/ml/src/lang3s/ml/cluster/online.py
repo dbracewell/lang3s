@@ -11,7 +11,7 @@ from lang3s.data.embedding_db import EmbeddingDB, LabeledItem
 from lang3s.ml.decomposition.online import OnlineReducer
 from lang3s.ml.math_extras import cosine, normalize, weighted_average
 
-from . import Cluster
+from .base import Cluster
 
 
 class OnlineClusterer[T](metaclass=ABCMeta):

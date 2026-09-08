@@ -8,7 +8,7 @@ import numpy as np
 import umap
 from sklearn.cluster import HDBSCAN, AgglomerativeClustering, KMeans
 
-from . import Cluster
+from .base import Cluster
 
 
 class OfflineClusterer[T](metaclass=ABCMeta):

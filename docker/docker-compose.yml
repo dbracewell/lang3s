@@ -89,6 +89,28 @@ services:
       timeout: 3s
       retries: 5
 
+  db_init:
+    image: lang3s-python-core:latest
+    container_name: lang3s_db_init
+    restart: "no"
+    working_dir: /app/backend/packages/data
+    command: ["python", "bootstrap_db.py"]
+    environment:
+      - POSTGRES_HOST=lang3s_database
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=admin
+    depends_on:
+      database:
+        condition: service_healthy
+    secrets:
+      - source: db_password
+        target: POSTGRES_PASSWORD
+    networks:
+      - lang3s-network
+    profiles:
+      - production
+
+
   filestore_seeder:
     build:
       context: ..
@@ -133,6 +155,8 @@ services:
     depends_on:
       filestore_seeder:
         condition: service_completed_successfully
+      db_init:
+        condition: service_completed_successfully
       database:
         condition: service_healthy
       redis:
@@ -167,6 +191,8 @@ services:
       - internal_filestore:/filestore
     depends_on:
       filestore_seeder:
+        condition: service_completed_successfully
+      db_init:
         condition: service_completed_successfully
       database:
         condition: service_healthy
@@ -203,6 +229,8 @@ services:
     depends_on:
       filestore_seeder:
         condition: service_completed_successfully
+      db_init:
+        condition: service_completed_successfully
       database:
         condition: service_healthy
       redis:
@@ -238,6 +266,8 @@ services:
     depends_on:
       filestore_seeder:
         condition: service_completed_successfully
+      db_init:
+        condition: service_completed_successfully
       database:
         condition: service_healthy
       redis:
@@ -272,6 +302,8 @@ services:
     command: ["python", "-m", "lang3s.services.apps.main"]
     depends_on:
       filestore_seeder:
+        condition: service_completed_successfully
+      db_init:
         condition: service_completed_successfully
       database:
         condition: service_healthy

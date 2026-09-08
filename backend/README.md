@@ -90,8 +90,37 @@ uv run tach check-external
 ```bash
 pnpm check-deps   # uv run tach check-external
 pnpm sync         # uv sync --all-packages
+pnpm bootstrap-db # create schema + seed ontology if missing (packages/data/bootstrap_db.py)
 pnpm wipe-db      # reset db/schema + seed support (packages/data/init_db.py)
 ```
+
+## Database setup
+
+The Postgres schema is created from the SQLAlchemy models (`Base.metadata.create_all`);
+Alembic is only used for stamping, there are no migration revisions.
+Nothing creates the schema automatically on `docker compose up`, so a fresh stack has an
+empty `lang3s` database and the services fail with `relation "..." does not exist` /
+`Catalog Error: Table with name ... does not exist`.
+
+```bash
+# from backend/: non-destructive, safe to re-run
+pnpm bootstrap-db
+
+# destructive: drops the public schema, re-seeds the ontology, clears Redis + DuckDB
+pnpm wipe-db
+```
+
+With Docker the same bootstrap runs automatically as the one-shot `db_init` compose
+service (see `docker/docker-compose.yml`), which gates `api`, `analytics`, `nlp`,
+`topic` and `claims`. To run it by hand:
+
+```bash
+docker compose --profile production up -d db_init
+```
+
+After the schema exists, delete the stale analytics store so DuckDB rebuilds its
+views/caches (`/filestore/analytics.duckdb` inside the `lang3s_internal_filestore` volume)
+and restart `lang3s_analytics`.
 
 ## Package layout
 
