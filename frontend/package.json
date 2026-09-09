@@ -8,9 +8,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "auth:generate": "pnpm dlx --allow-build=better-sqlite3 --allow-build=@prisma/client @better-auth/cli generate --config src/lib/auth/auth.ts",
-    "auth:migrate": "pnpm dlx --allow-build=better-sqlite3 --allow-build=@prisma/client @better-auth/cli migrate --config src/lib/auth/auth.ts",
-    "auth:bootstrap-db": "node scripts/bootstrap-auth-db.mjs",
+    "auth:migrate": "pnpm dlx --allow-build=better-sqlite3 --allow-build=@prisma/client @better-auth/cli migrate --config src/lib/auth/auth.ts --yes",
     "codegen": "openapi-ts",
     "reset": "node --env-file=.env scripts/reset-db.js"
   },

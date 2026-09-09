@@ -22,6 +22,6 @@ filesToDelete.forEach((file) => {
 console.log("✨ Running migrations...");
 // Run the migration command and pass the output directly to the terminal
 execSync(
-  "pnpm dlx --allow-build=better-sqlite3 auth@latest migrate --config src/lib/auth/auth.ts --yes",
+  "pnpm dlx --allow-build=better-sqlite3 auth migrate --config src/lib/auth/auth.ts --yes",
   { stdio: "inherit" },
 );

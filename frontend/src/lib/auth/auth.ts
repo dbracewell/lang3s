@@ -6,8 +6,8 @@ import {
   modeller,
   user,
   user as userPermissions,
-} from "@/lib/auth/permissions";
-import { t3env } from "@/lib/t3env";
+} from "./permissions";
+import { t3env } from "../t3env";
 import { apiKey } from "@better-auth/api-key";
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
