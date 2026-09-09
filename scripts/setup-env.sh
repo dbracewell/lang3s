@@ -105,7 +105,7 @@ DATABASE_URL=$filestore_root/users.db
 FILESTORE_ROOT=$filestore_root
 EOF
 
-echo "Created backend/.env, frontend/.env, and docker/secrets/local/."
+echo "Created backend/.env, frontend/.env, and docker/secrets/."
 if [[ "$rotate" == true ]]; then
   echo "Restart application services to load the rotated secrets. Existing login sessions may be invalidated."
 fi

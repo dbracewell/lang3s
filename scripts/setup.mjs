@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const root = process.cwd();
@@ -28,17 +28,27 @@ function run(command, args, cwd = root) {
   execFileSync(command, args, { cwd, stdio: "inherit" });
 }
 
-const backendEnv = existsSync(join(root, "backend/.env"));
-const frontendEnv = existsSync(join(root, "frontend/.env"));
+console.log("Resetting local Lang3s state: containers, volumes, secrets, env files, and filestore.");
+run("docker", ["compose", "down", "--volumes", "--remove-orphans"], join(root, "docker"));
 
-if (!backendEnv && !frontendEnv) {
-  run("bash", ["scripts/setup-env.sh", platform]);
-} else if (backendEnv !== frontendEnv) {
-  console.error(
-    "backend/.env and frontend/.env must either both exist or both be absent.",
-  );
-  process.exit(1);
+for (const path of [
+  join(root, "backend/.env"),
+  join(root, "frontend/.env"),
+  join(root, "filestore"),
+]) {
+  rmSync(path, { recursive: true, force: true });
 }
+for (const name of [
+  "db_password",
+  "inngest_db_password",
+  "system_api_key",
+  "better_auth_secret",
+  "admin_passphrase",
+]) {
+  rmSync(join(root, "docker/secrets", `${name}.txt`), { force: true });
+}
+
+run("bash", ["scripts/setup-env.sh", platform]);
 
 run("pnpm", ["install"]);
 
@@ -49,16 +59,15 @@ const artifactSource = /^https?:\/\//i.test(source)
   ? source
   : resolve(root, source);
 run("pnpm", ["run", "filestore:sync", "--source", artifactSource]);
-run("bash", ["scripts/setup-env.sh", platform, "--force"]);
 
 run(
   "docker",
-  ["compose", "up", "-d", "--wait", "database"],
+  ["compose", "build", "--no-cache", "database"],
   join(root, "docker"),
 );
 
 if (platform === "mac") {
-  run("docker", ["compose", "up", "-d"], join(root, "docker"));
+  run("docker", ["compose", "up", "-d", "--wait"], join(root, "docker"));
   run("pnpm", ["reset-db"], join(root, "backend"));
   run("pnpm", ["reset-db"], join(root, "frontend"));
 } else {

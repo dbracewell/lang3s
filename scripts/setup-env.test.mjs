@@ -14,13 +14,13 @@ test("setup reuses secrets and rotates database credentials before replacing fil
     for (const file of ["setup-env.sh", "db-secrets.mjs"]) copyFileSync(new URL(file, import.meta.url), join(root, "scripts", file));
     writeFileSync(join(root, "bin/docker"), `#!/bin/sh
 cat > "$TEST_ROOT/sql"
-cp "$TEST_ROOT/docker/secrets/local/db_password.txt" "$TEST_ROOT/password-at-call"
+cp "$TEST_ROOT/docker/secrets/db_password.txt" "$TEST_ROOT/password-at-call"
 exit "$DOCKER_EXIT"
 `, { mode: 0o700 });
     const env = { ...process.env, PATH: `${join(root, "bin")}:${process.env.PATH}`, TEST_ROOT: root, DOCKER_EXIT: "0" };
     delete env.POSTGRES_PASSWORD;
     const setup = (...args) => execFileSync("bash", [join(root, "scripts/setup-env.sh"), target, ...args], { env, stdio: "pipe" });
-    const secret = () => readFileSync(join(root, "docker/secrets/local/db_password.txt"), "utf8");
+    const secret = () => readFileSync(join(root, "docker/secrets/db_password.txt"), "utf8");
     setup();
     const original = secret();
     const originalEnv = readFileSync(join(root, "backend/.env"), "utf8");

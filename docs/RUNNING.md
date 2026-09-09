@@ -1,219 +1,186 @@
 # Running Lang3s
 
-This repository has two supported local layouts:
+Lang3s supports two local layouts:
 
-- **Linux with NVIDIA CUDA:** run the complete stack in Docker.
-- **macOS (including Apple Silicon):** run only Postgres, Redis, and Inngest in Docker; run the frontend and all Python/ML processes on the host. This is the default path because native PyTorch can use Metal/MPS directly. Docker Desktop does not expose MPS to Linux containers; alternative runtimes such as Colima with Krunkit may provide Metal-capable container acceleration, but are not assumed by these instructions.
+- **macOS:** Docker runs Postgres, Redis, and Inngest. Caddy, Next.js, and all Python/ML services run on the host so PyTorch and `llama-server` can use Apple Silicon Metal/MPS.
+- **Linux with NVIDIA CUDA:** Docker runs the complete application stack, including the Python/ML services and frontend.
 
-The commands below assume the repository root as the current directory unless they explicitly change directory.
+Run the commands below from the repository root unless a command changes directory.
 
-## Common prerequisites
-
-- Node.js 20+ and Corepack/pnpm 12
-- Docker Engine plus Docker Compose v2
-- Python 3.12 and [uv](https://docs.astral.sh/uv/) for the macOS/native path
-- Caddy for the macOS/native path
-
-### Provision model and runtime data
-
-`filestore/` is gitignored. It contains the embedding model and other runtime artifacts, and is required by the NLP, topic, claims, API, and analytics services. Obtain the project filestore from the team/deployment artifact and place it at:
-
-```text
-<checkout>/filestore/
-```
-
-At minimum, the checked-in services expect `filestore/models/embedding/` to contain the Hugging Face model files (including `config.json` and `model.safetensors`). The Docker data seeder copies this directory into its named `internal_filestore` volume; it cannot create a model from source.
-
-The runtime embedding model, local LLM base model, and registered LoRAs are
-pinned in `artifacts/filestore-manifest.json`. Verify them with:
-
-```bash
-pnpm run filestore:verify
-```
-
-To populate them from a team artifact directory or HTTPS artifact base URL,
-use the same relative layout as the manifest:
-
-```bash
-pnpm run filestore:sync --source /path/to/lang3s-artifacts
-pnpm run filestore:sync --source https://artifacts.example.com/lang3s
-```
-
-Each downloaded file is checksum-verified before it replaces the local copy.
-The Docker filestore seeder verifies this same manifest before copying artifacts
-into its named volume.
-
-### Set secrets and matching application settings
-
-Compose reads five local files from `docker/secrets/local/`:
-
-```text
-db_password.txt
-inngest_db_password.txt
-system_api_key.txt
-better_auth_secret.txt
-admin_passphrase.txt
-```
-
-Generate private local secrets and matching application environments with:
-
-```bash
-bash scripts/setup-env.sh mac
-# or: bash scripts/setup-env.sh linux
-```
-
-It writes ignored files under `docker/secrets/local/`, plus `backend/.env` and
-`frontend/.env`, without printing secret values. Existing `.env` files are
-preserved; use `--force` to replace them and `--rotate-secrets` to regenerate
-the Docker secrets. The `SYSTEM_KEY` in the frontend and backend is identical.
-
-The provided `.env.example` files are the starting point. Use absolute paths for `FILESTORE_ROOT` (for example, `/Users/me/src/Lang3s/filestore` on macOS), and set `POSTGRES_HOST=localhost`, `POSTGRES_PORT=5432`, `POSTGRES_USER=admin`, `REDIS_HOST=localhost`, and `REDIS_PORT=6379` for the native-services layout.
-
-## Linux + NVIDIA CUDA: complete Docker stack
-
-With configured `.env` files and an artifact source, the complete setup is:
-
-```bash
-pnpm run setup:linux --source /path/to/lang3s-artifacts
-```
-
-`setup:linux` is a first-install command. Its one-shot database initializer
-creates a clean schema, seeds the ontology, and clears Redis and analytics
-state. Do not use it against a database with data you need to keep.
+## Common setup
 
 ### Prerequisites
 
-Install an NVIDIA driver and the NVIDIA Container Toolkit, then confirm Docker can use the GPU:
+Install the following before running the platform setup command:
+
+- Docker Engine with Docker Compose v2. Docker Desktop is the supported Docker runtime on macOS.
+- Node.js 20 or newer, Corepack, and pnpm 12.3.4. The repository declares pnpm through Corepack.
+- Python 3.12 and [uv](https://docs.astral.sh/uv/).
+- A local copy of the Lang3s artifact bundle. The checked-in `artifacts/` directory is the default bundle used in the examples below.
+- macOS only: [Caddy](https://caddyserver.com/docs/install) and a native Metal-enabled `llama-server` on `PATH`.
+- Linux only: an NVIDIA driver, NVIDIA Container Toolkit, and a CUDA-capable NVIDIA GPU.
+
+Enable Corepack and confirm the main tools are available:
 
 ```bash
-docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi
+corepack enable
+node --version
+pnpm --version
+python3 --version
+uv --version
+docker compose version
 ```
 
-The repository's Compose file builds the Python image, requests all available NVIDIA GPUs for the ML-serving containers, and starts the complete application under its `production` profile. `api` loads the embedding model during its startup lifecycle; `nlp`, `topic`, and `claims` perform ML work. `lora_llm` launches the bundled GGUF model through `llama-server` with GPU layer offload enabled. Compose requests GPUs for each of these services.
+The backend requires Python 3.12. Corepack selects the repository's pinned pnpm version (`12.3.4`).
 
-The frontend uses `lang3s_caddy.localhost:8003` as its API origin. That hostname resolves to the host in modern browsers and to Caddy inside Compose, so it works from both places without a local Compose override.
+### Run the platform setup
 
-The Python Docker image includes the official CUDA-enabled `llama-server` runtime. At startup, the LLM service verifies that the selected base GGUF and every adapter declared in the local-model registry are present before it launches, and logs the resolved llama-server slot map.
-
-### Start and verify
+From the repository root, run exactly one of these commands:
 
 ```bash
-cd docker
-docker compose --profile production up --build -d
-docker compose --profile production ps
+# macOS
+pnpm run setup:mac --source ./artifacts
+
+# Linux with NVIDIA CUDA
+pnpm run setup:linux --source ./artifacts
 ```
 
-The one-shot `filestore_seeder` and `db_init` services should finish successfully. The latter creates the schema and seeds the ontology before the application services begin. Open the UI at `http://localhost:3000`; the Docker Caddy gateway is exposed on host ports 80 and 8003 (the latter is used by the browser-facing backend URL).
+`--source` can also be a directory outside the checkout or an HTTPS artifact base URL. The source must use the same layout as `artifacts/filestore-manifest.json`, including `models/embedding/` and `models/locallm/`.
 
-Useful checks:
+The setup command installs JavaScript and Python dependencies, creates local secrets and environment files, synchronizes and verifies the model artifacts, and initializes the platform-specific services. It also runs `pnpm run doctor` before it exits.
 
-```bash
-docker compose --profile production logs -f api analytics nlp
-docker exec lang3s_api python -c 'import torch; print(torch.cuda.is_available())'
+Setup is a first-install or full-reset command. It removes the local Docker volumes, generated environment files, Docker secrets, and `filestore/` before rebuilding them. Do not run it against data you need to keep.
+
+The generated configuration uses:
+
+```text
+backend/.env
+frontend/.env
+docker/secrets/
+filestore/
 ```
 
-The second command should print `True`. If it does not, stop and correct the NVIDIA Container Toolkit/Compose GPU configuration before assuming the ML workers are using CUDA.
+The frontend and backend receive the same `SYSTEM_KEY`. The generated native configuration points at Postgres on `localhost:5432`, Redis on `localhost:6379`, Inngest on `localhost:8288`, and the Caddy gateway on `localhost:8003`.
 
-To stop while retaining the databases, models, and frontend state:
+## macOS
 
-```bash
-docker compose --profile production down
-```
+The macOS setup keeps the application and ML services on the host. This lets native PyTorch use MPS on Apple Silicon and lets the native `llama-server` build use Metal.
 
-Appending `-v` also deletes the named Postgres, Redis, filestore, Caddy, and frontend-data volumes; it is a reset, not a normal shutdown.
+### First install
 
-## macOS: Docker infrastructure + native app and ML services
-
-With configured `.env` files and an artifact source, setup can be automated:
-
-```bash
-pnpm run setup:mac --source /path/to/lang3s-artifacts
-```
-
-`setup:mac` is a first-install command. It runs `pnpm wipe-db`, which resets
-the public schema, Redis, and analytics state. Do not rerun it after loading
-data; use the ordinary macOS startup steps and `pnpm bootstrap-db` instead.
-
-### Install dependencies and configure environments
-
-```bash
-pnpm install
-cd backend && uv sync --all-packages && cd ..
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-```
-
-Edit the copied files as described in [Set secrets and matching application settings](#set-secrets-and-matching-application-settings). In particular, set both `FILESTORE_ROOT` values to the absolute checkout `filestore` path and use `http://localhost:8003` for `NEXT_PUBLIC_BACKEND_URL` and `PYTHON_SERVER` if you add the latter.
-
-Start only the infrastructure services. Do not pass `--profile production` on macOS: that profile includes Linux application containers and the data seeder.
-
-```bash
-cd docker
-docker compose up -d
-docker compose ps
-cd ..
-```
-
-This starts Postgres on `5432`, Redis on `6379`, and Inngest on `8288`/`8289`. Inngest calls the native Next.js endpoint through `host.docker.internal:3000`, which Docker Desktop provides on macOS.
-
-Bootstrap the new database once the database health check passes:
-
-```bash
-cd backend
-pnpm bootstrap-db
-cd ..
-```
-
-`bootstrap-db` is safe to re-run. Do not use `pnpm wipe-db` unless you intend to drop the public schema and clear Redis/DuckDB state.
-
-### Start the native application stack
-
-`mprocs.yaml` launches Caddy, Next.js, and these Python services: core API, analytics, NLP, topic, claims, and the local LLM server. Install a native Metal-enabled llama.cpp build that provides `llama-server` on `PATH`; it is intentionally independent from Python's `uv` dependencies. Confirm it before starting:
+Install Caddy and a native `llama-server`, confirm the server is on `PATH`, and then run:
 
 ```bash
 llama-server --version
+pnpm run setup:mac --source ./artifacts
 ```
 
-Then start the stack from the root:
+The setup command starts the Docker infrastructure and bootstraps both the backend database and frontend auth database. It does not start the native application processes.
+
+### Start Lang3s
+
+Start the native application stack from the repository root:
 
 ```bash
 pnpm dev
 ```
 
-Open `http://localhost:3000`. Caddy listens on `http://localhost:8003` and routes requests to the native core API (`23000`), analytics API (`23001`), and LLM client (`23002`).
+`mprocs` starts Caddy, Next.js, the core API, analytics, NLP, topic, claims, and local LLM services. Open the application at [http://localhost:3000](http://localhost:3000). Caddy serves the browser-facing API at `http://localhost:8003`.
 
-Confirm native PyTorch sees Metal when using Apple Silicon:
+Check that native PyTorch can see Metal on Apple Silicon:
 
 ```bash
 cd backend
 uv run python -c 'import torch; print(torch.backends.mps.is_available())'
+cd ..
 ```
 
-`True` means MPS is available to native PyTorch. The Python configuration currently defaults inference to CPU, but running the processes natively keeps MPS available to code paths that select it and lets `llama-server` use its native Metal build.
+`True` means MPS is available. Individual Python services currently default inference to CPU unless their configuration selects an accelerator; running them natively keeps MPS available.
 
-To stop the infrastructure while retaining data:
+### Stop and restart
+
+Stop `pnpm dev` with `Ctrl-C`. To stop the Docker infrastructure while keeping its data:
 
 ```bash
 cd docker
 docker compose down
+cd ..
 ```
+
+On a later start, bring the infrastructure back and then start the native stack:
+
+```bash
+cd docker
+docker compose up -d --wait
+cd ..
+pnpm dev
+```
+
+## Linux with NVIDIA CUDA
+
+The Linux setup runs the complete application in Docker under the `production` profile.
+
+### Verify GPU support
+
+Before running Lang3s, confirm that Docker can access the NVIDIA GPU:
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi
+```
+
+The command must print the GPU details. If it fails, fix the NVIDIA Container Toolkit or Docker GPU configuration first.
+
+### First install and start
+
+Run:
+
+```bash
+pnpm run setup:linux --source ./artifacts
+```
+
+The setup command builds the Python image, starts the complete production profile, seeds the named filestore volume, initializes the database and ontology, and checks the installation. Open the application at [http://localhost:3000](http://localhost:3000).
+
+The production containers use the bundled embedding model, GGUF base model, and registered LoRA adapters from the synchronized filestore. The LLM service verifies those artifacts before starting.
+
+### Inspect, stop, and restart
+
+Useful checks:
+
+```bash
+cd docker
+docker compose --profile production ps
+docker compose --profile production logs -f api analytics nlp
+docker exec lang3s_api python -c 'import torch; print(torch.cuda.is_available())'
+```
+
+The final command should print `True`.
+
+Stop the stack while retaining databases, models, and frontend state:
+
+```bash
+docker compose --profile production down
+```
+
+Restart it later with:
+
+```bash
+docker compose --profile production up -d
+```
+
+Appending `-v` deletes the named Postgres, Redis, filestore, Caddy, and frontend-data volumes. Use it only when you intend to reset Docker-managed state.
 
 ## Troubleshooting
 
-Run the environment diagnostic from the repository root before starting the
-stack or when a prerequisite is unclear:
+Run the diagnostic from the repository root:
 
 ```bash
 pnpm run doctor
 ```
 
-It checks Python, `.env` files and matching system keys, the registered local
-model and LoRA artifacts, `llama-server`, the available native accelerator,
-Docker/Compose availability, and Postgres/Redis/Inngest reachability. Use
-`pnpm run doctor --skip-infra` when the
-Docker infrastructure is intentionally stopped.
+It checks the Python environment, generated `.env` files and matching system keys, registered model artifacts, `llama-server`, the available native accelerator, Docker/Compose, and Postgres/Redis/Inngest reachability. Use `pnpm run doctor --skip-infra` when Docker infrastructure is intentionally stopped.
 
-- **Database tables do not exist:** run `cd backend && pnpm bootstrap-db` for native services, or inspect the `db_init` logs for the Docker profile.
-- **Model/config file missing:** re-check `FILESTORE_ROOT` and the provisioned `filestore/models/embedding/` files. A fresh clone does not include them.
-- **Port already in use:** Docker infrastructure uses `5432`, `6379`, `8288`, and `8289`; the native gateway/UI additionally use `8003` and `3000`.
-- **Frontend cannot reach APIs:** native development must use `NEXT_PUBLIC_BACKEND_URL=http://localhost:8003`. The browser cannot resolve Docker-only service names such as `lang3s_caddy`.
+- **Missing model or config files:** confirm the artifact source contains the paths listed in `artifacts/filestore-manifest.json`, then run `pnpm run filestore:verify`.
+- **Database tables do not exist:** on macOS, run `cd backend && pnpm bootstrap-db`; on Linux, inspect the `db_init` container logs.
+- **Frontend cannot reach the API:** confirm `NEXT_PUBLIC_BACKEND_URL=http://localhost:8003` in `frontend/.env`. Browser requests should use the Caddy gateway, not Docker service names.
+- **A port is already in use:** the infrastructure uses `5432`, `6379`, `8288`, and `8289`; the application uses `3000` and `8003`.
+- **The setup command refuses to replace environment files:** this protects an existing installation. Use the ordinary start commands for that installation, or deliberately rerun setup only after backing up data you need.
