@@ -94,7 +94,7 @@ services:
     container_name: lang3s_db_init
     restart: "no"
     working_dir: /app/backend/packages/data
-    command: ["python", "bootstrap_db.py"]
+    command: ["python", "init_db.py"]
     environment:
       - POSTGRES_HOST=lang3s_database
       - POSTGRES_PORT=5432

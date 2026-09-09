@@ -77,6 +77,10 @@ With configured `.env` files and an artifact source, the complete setup is:
 pnpm run setup:linux --source /path/to/lang3s-artifacts
 ```
 
+`setup:linux` is a first-install command. Its one-shot database initializer
+creates a clean schema, seeds the ontology, and clears Redis and analytics
+state. Do not use it against a database with data you need to keep.
+
 ### Prerequisites
 
 Install an NVIDIA driver and the NVIDIA Container Toolkit, then confirm Docker can use the GPU:
@@ -125,6 +129,10 @@ With configured `.env` files and an artifact source, setup can be automated:
 ```bash
 pnpm run setup:mac --source /path/to/lang3s-artifacts
 ```
+
+`setup:mac` is a first-install command. It runs `pnpm wipe-db`, which resets
+the public schema, Redis, and analytics state. Do not rerun it after loading
+data; use the ordinary macOS startup steps and `pnpm bootstrap-db` instead.
 
 ### Install dependencies and configure environments
 

@@ -41,7 +41,7 @@ run("pnpm", ["run", "filestore:sync", "--source", artifactSource]);
 
 if (platform === "mac") {
   run("docker", ["compose", "up", "-d"], join(root, "docker"));
-  run("pnpm", ["bootstrap-db"], join(root, "backend"));
+  run("pnpm", ["wipe-db"], join(root, "backend"));
 } else {
   run("docker", ["compose", "--profile", "production", "up", "--build", "-d"], join(root, "docker"));
 }
