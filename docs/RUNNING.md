@@ -45,7 +45,7 @@ into its named volume.
 
 ### Set secrets and matching application settings
 
-Compose reads five files from `docker/secrets/`:
+Compose reads five local files from `docker/secrets/local/`:
 
 ```text
 db_password.txt
@@ -55,7 +55,17 @@ better_auth_secret.txt
 admin_passphrase.txt
 ```
 
-Replace their example values with private values before a real deployment and do not commit replacements. The `SYSTEM_KEY` in the frontend and backend must be identical. For native services, put the database password and system key in `backend/.env`, and use the same system key plus the frontend auth values in `frontend/.env`.
+Generate private local secrets and matching application environments with:
+
+```bash
+bash scripts/setup-env.sh mac
+# or: bash scripts/setup-env.sh linux
+```
+
+It writes ignored files under `docker/secrets/local/`, plus `backend/.env` and
+`frontend/.env`, without printing secret values. Existing `.env` files are
+preserved; use `--force` to replace them and `--rotate-secrets` to regenerate
+the Docker secrets. The `SYSTEM_KEY` in the frontend and backend is identical.
 
 The provided `.env.example` files are the starting point. Use absolute paths for `FILESTORE_ROOT` (for example, `/Users/me/src/Lang3s/filestore` on macOS), and set `POSTGRES_HOST=localhost`, `POSTGRES_PORT=5432`, `POSTGRES_USER=admin`, `REDIS_HOST=localhost`, and `REDIS_PORT=6379` for the native-services layout.
 

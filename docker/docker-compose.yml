@@ -427,15 +427,15 @@ services:
 
 secrets:
   db_password:
-    file: secrets/db_password.txt
+    file: secrets/local/db_password.txt
   inngest_db_password:
-    file: secrets/inngest_db_password.txt
+    file: secrets/local/inngest_db_password.txt
   admin_passphrase:
-    file: secrets/admin_passphrase.txt
+    file: secrets/local/admin_passphrase.txt
   system_api_key:
-    file: secrets/system_api_key.txt
+    file: secrets/local/system_api_key.txt
   better_auth_secret:
-    file: secrets/better_auth_secret.txt
+    file: secrets/local/better_auth_secret.txt
 
 volumes:
   internal_filestore:

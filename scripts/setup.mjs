@@ -21,17 +21,18 @@ if (platform === "linux" && process.platform !== "linux") {
   process.exit(1);
 }
 
-for (const envFile of ["backend/.env", "frontend/.env"]) {
-  if (!existsSync(join(root, envFile))) {
-    console.error(`${envFile} is missing; copy and configure its .env.example first.`);
-    process.exit(1);
-  }
-}
-
 function run(command, args, cwd = root) {
   execFileSync(command, args, { cwd, stdio: "inherit" });
 }
 
+const backendEnv = existsSync(join(root, "backend/.env"));
+const frontendEnv = existsSync(join(root, "frontend/.env"));
+if (!backendEnv && !frontendEnv) {
+  run("bash", ["scripts/setup-env.sh", platform]);
+} else if (backendEnv !== frontendEnv) {
+  console.error("backend/.env and frontend/.env must either both exist or both be absent.");
+  process.exit(1);
+}
 run("pnpm", ["install"]);
 run("uv", ["sync", "--all-packages"], join(root, "backend"));
 run("pnpm", ["run", "filestore:sync", "--source", source]);

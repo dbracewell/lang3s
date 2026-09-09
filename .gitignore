@@ -58,6 +58,7 @@ filestore/
 .env*
 !.env.example
 !frontend/.env.example
+docker/secrets/local/
 docker/default.env
 
 # Project-specific
