@@ -29,7 +29,7 @@ fi
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 backend_env="$root/backend/.env"
 frontend_env="$root/frontend/.env"
-secrets_dir="$root/docker/secrets/local"
+secrets_dir="$root/docker/secrets"
 
 if [[ ( -e "$backend_env" || -e "$frontend_env" ) && "$force" != true ]]; then
   echo "Environment files already exist. Re-run with --force to replace both." >&2

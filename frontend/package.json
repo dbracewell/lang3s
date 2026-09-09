@@ -8,9 +8,8 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "auth:migrate": "pnpm dlx --allow-build=better-sqlite3 --allow-build=@prisma/client @better-auth/cli migrate --config src/lib/auth/auth.ts --yes",
     "codegen": "openapi-ts",
-    "reset": "node --env-file=.env scripts/reset-db.js"
+    "reset-db": "node --env-file=.env scripts/reset-db.js"
   },
   "overrides": {
     "eslint-plugin-react-hooks": "6.1.0",

@@ -49,18 +49,18 @@ const artifactSource = /^https?:\/\//i.test(source)
   ? source
   : resolve(root, source);
 run("pnpm", ["run", "filestore:sync", "--source", artifactSource]);
+run("bash", ["scripts/setup-env.sh", platform, "--force"]);
 
 run(
   "docker",
   ["compose", "up", "-d", "--wait", "database"],
   join(root, "docker"),
 );
-run("node", ["scripts/db-secrets.mjs", "check"]);
 
 if (platform === "mac") {
   run("docker", ["compose", "up", "-d"], join(root, "docker"));
-  run("pnpm", ["reset"], join(root, "backend"));
-  run("pnpm", ["reset"], join(root, "frontend"));
+  run("pnpm", ["reset-db"], join(root, "backend"));
+  run("pnpm", ["reset-db"], join(root, "frontend"));
 } else {
   run(
     "docker",

@@ -8,8 +8,7 @@
     "add-dep": "uv add $DEP --package $PKG",
     "sync": "uv sync --all-packages",
     "uv": "uv run",
-    "wipe-db": "uv run --directory packages/data/ --package lang3s-data python init_db.py",
     "bootstrap-db": "uv run --directory packages/data/ --package lang3s-data python bootstrap_db.py",
-    "reset": "uv run --directory packages/data/ --package lang3s-data python init_db.py"
+    "reset-db": "uv run --directory packages/data/ --package lang3s-data python init_db.py"
   }
 }

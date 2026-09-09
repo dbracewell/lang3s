@@ -14,8 +14,7 @@
     "setup:linux": "node scripts/setup.mjs linux",
     "test": "pnpm run test:python",
     "test:python": "cd backend && uv run pytest -q -p no:tach tests",
-    "test:frontend": "echo \"Frontend tests not wired yet\"",
-    "reset": "cd frontend && pnpm reset && cd ../backend && pnpm reset"
+    "test:frontend": "echo \"Frontend tests not wired yet\""
   },
   "keywords": [],
   "author": "",
