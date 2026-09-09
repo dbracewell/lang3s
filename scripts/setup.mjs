@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 const root = process.cwd();
 const platform = process.argv[2];
@@ -35,7 +35,9 @@ if (!backendEnv && !frontendEnv) {
 }
 run("pnpm", ["install"]);
 run("uv", ["sync", "--all-packages"], join(root, "backend"));
-run("pnpm", ["run", "filestore:sync", "--source", source]);
+// filestore:sync changes into backend, so resolve local paths from setup's cwd.
+const artifactSource = /^https?:\/\//i.test(source) ? source : resolve(root, source);
+run("pnpm", ["run", "filestore:sync", "--source", artifactSource]);
 
 if (platform === "mac") {
   run("docker", ["compose", "up", "-d"], join(root, "docker"));
