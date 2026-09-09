@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "artifacts": [
+    {
+      "kind": "embedding_model",
+      "path": "models/embedding/config.json",
+      "size": 694,
+      "sha256": "3353f0c999f186ac11e0a5b4dc878bca080eab055c66f421c8cf5de7df463017"
+    },
+    {
+      "kind": "embedding_model",
+      "path": "models/embedding/model.safetensors",
+      "size": 1112197096,
+      "sha256": "76c77760ce7735a8ba366aeab0cfec980e9102f712c0dfbabcea1dc9911a0a9e"
+    },
+    {
+      "kind": "embedding_head",
+      "path": "models/embedding/nli_compressed.pt",
+      "size": 1183101,
+      "sha256": "bad6601c0e5c48bbe03652146d544996d6c70840fd0c822d0cf0f02d17d96901"
+    },
+    {
+      "kind": "embedding_head",
+      "path": "models/embedding/search_compressed.pt",
+      "size": 1183157,
+      "sha256": "73eb0e7c46ff965217d8efee69d04e63fb9ff3d87179576ef3b555e85e68f0f2"
+    },
+    {
+      "kind": "embedding_head",
+      "path": "models/embedding/search_layers.pt",
+      "size": 56715047,
+      "sha256": "e64ea7d37449e2a7a03c299f5b2685a2e6e8b5fb76e39726e2aec2e8e458c4d6"
+    },
+    {
+      "kind": "embedding_model",
+      "path": "models/embedding/special_tokens_map.json",
+      "size": 280,
+      "sha256": "06e405a36dfe4b9604f484f6a1e619af1a7f7d09e34a8555eb0b77b66318067f"
+    },
+    {
+      "kind": "embedding_model",
+      "path": "models/embedding/tokenizer.json",
+      "size": 17082987,
+      "sha256": "cad551d5600a84242d0973327029452a1e3672ba6313c2a3c3d69c4310e12719"
+    },
+    {
+      "kind": "embedding_model",
+      "path": "models/embedding/tokenizer_config.json",
+      "size": 1178,
+      "sha256": "ccf223ba3d5b3cc7fa6c3bf451f3bb40557a5c92b0aa33f63d17802ff1a96fd9"
+    },
+    {
+      "kind": "base_model",
+      "model": "qwen-2.5-1.5b",
+      "path": "models/locallm/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+      "size": 1117320736,
+      "sha256": "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
+    },
+    {
+      "adapter": "claim",
+      "kind": "lora",
+      "model": "qwen-2.5-1.5b",
+      "path": "models/locallm/adapters/claim_extraction.gguf",
+      "size": 147745568,
+      "sha256": "83a75b65f5a011e8aae47ebc296898c06e7af1552bb80b2d302f9b22dc57e410"
+    }
+  ]
+}

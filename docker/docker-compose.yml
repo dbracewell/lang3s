@@ -123,6 +123,7 @@ services:
   lora_llm:
     image: lang3s-python-core:latest
     container_name: lang3s_lora_llm
+    gpus: all
     volumes:
       - internal_filestore:/filestore
     command: ["python", "-m", "lang3s.services.apps.llm"]
@@ -140,6 +141,7 @@ services:
       dockerfile: backend/Dockerfile
     image: lang3s-python-core:latest
     container_name: lang3s_nlp
+    gpus: all
     restart: unless-stopped
     command: ["python", "-m", "lang3s.services.apps.nlp", "--num_workers", "3", "--batch_size", "100"]
     environment:
@@ -214,6 +216,7 @@ services:
       dockerfile: backend/Dockerfile
     image: lang3s-python-core:latest
     container_name: lang3s_topic
+    gpus: all
     restart: unless-stopped
     command: ["python", "-m", "lang3s.services.apps.topic"]
     environment:
@@ -251,6 +254,7 @@ services:
       dockerfile: backend/Dockerfile
     image: lang3s-python-core:latest
     container_name: lang3s_claims
+    gpus: all
     restart: unless-stopped
     command: ["python", "-m", "lang3s.services.apps.claims", "--num_workers", "4"]
     environment:
@@ -288,6 +292,7 @@ services:
       dockerfile: backend/Dockerfile
     image: lang3s-python-core:latest
     container_name: lang3s_api
+    gpus: all
     restart: unless-stopped
     environment:
       - FILESTORE_ROOT=/filestore
@@ -333,7 +338,7 @@ services:
         DATABASE_URL: /frontend_data/users.db
         FILESTORE_ROOT: /filestore
         NEXT_PUBLIC_APP_URL: http://localhost:3000
-        NEXT_PUBLIC_BACKEND_URL: http://lang3s_caddy:8003
+        NEXT_PUBLIC_BACKEND_URL: http://lang3s_caddy.localhost:8003
     container_name: lang3s_frontend
     restart: unless-stopped
     command: >
@@ -367,7 +372,7 @@ services:
       - REDIS_HOST=lang3s_redis
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - NEXT_PUBLIC_BACKEND_URL=http://lang3s_caddy:8003
+      - NEXT_PUBLIC_BACKEND_URL=http://lang3s_caddy.localhost:8003
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
       - BETTER_AUTH_URL=http://localhost:3000
       - DATABASE_URL=/frontend_data/users.db
@@ -405,9 +410,12 @@ services:
       lora_llm:
         condition: service_started
     networks:
-      - lang3s-network
+      lang3s-network:
+        aliases:
+          - lang3s_caddy.localhost
     ports:
       - "80:8003"
+      - "8003:8003"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile

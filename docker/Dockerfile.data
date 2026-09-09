@@ -1,3 +1,5 @@
-FROM alpine:latest
+FROM python:3.12-alpine
+COPY artifacts/filestore-manifest.json /manifest.json
 COPY filestore/ /manifest_data/
-CMD cp -r /manifest_data/. /filestore/ && echo "Data seeding complete!"
+COPY docker/verify_filestore.py /verify_filestore.py
+CMD ["/bin/sh", "-c", "python /verify_filestore.py && cp -r /manifest_data/. /filestore/ && echo 'Data seeding complete!'"]

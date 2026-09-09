@@ -1,22 +1,30 @@
 import argparse
 import os
+import shutil
 import signal
 import subprocess
 import sys
 import time
+from logging import Logger
+from pathlib import Path
 
 from lang3s.core import config
 from lang3s.core.logger import get_logger
-from lang3s.llm import adapters
+from lang3s.llm import get_local_model
 
-logger = get_logger("LOCAL_LLM")
-
-MODEL_NAME = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+logger: Logger = get_logger("LOCAL_LLM")
 
 
 def main(num_workers: int):
-    root = os.path.join(config.MODELS_DIR, "locallm")
-    model_path = os.path.join(root, MODEL_NAME)
+    model = get_local_model()
+    root = Path(config.MODELS_DIR) / "locallm"
+    model.validate_files(root)
+    if shutil.which("llama-server") is None:
+        raise RuntimeError(
+            "llama-server is not on PATH. Install a native llama.cpp build or "
+            "use the Docker image that bundles the CUDA server."
+        )
+    model_path = root / model.filename
 
     parallel_factor = num_workers
     # 1024, 2048, 3072, 4,096
@@ -25,7 +33,7 @@ def main(num_workers: int):
     # fmt: off
     cmd = [
         "llama-server",
-        "--model", model_path,
+        "--model", str(model_path),
         "--host", "0.0.0.0",
         "--port", str(config.LOCAL_LLM_PORT),
         "-np", str(parallel_factor),
@@ -47,10 +55,18 @@ def main(num_workers: int):
     ]
 
     # fmt: on
-    for lora in adapters.values():
+    for adapter in model.adapters:
         cmd.append("--lora")
-        cmd.append(os.path.join(root, "adapters", lora))
+        cmd.append(str(root / "adapters" / adapter.filename))
 
+    adapter_slots = ", ".join(
+        f"{index}:{adapter.name}={adapter.filename}"
+        for index, adapter in enumerate(model.adapters)
+    )
+    logger.info(
+        f"Starting local model {model.name} ({model.filename}); "
+        f"adapter slots: {adapter_slots or 'none'}"
+    )
     logger.info(f"Server is starting at http://localhost:{config.LOCAL_LLM_PORT}")
     server_process = None
 

@@ -1,6 +1,13 @@
 from .batch import create_batch_job_file
 from .client import LLMClient
-from .lora_client import LoRaClient, adapter_ids, adapters
+from .local_models import (
+    DEFAULT_LOCAL_MODEL,
+    LOCAL_MODELS,
+    AdapterSpec,
+    ModelSpec,
+    get_local_model,
+)
+from .lora_client import LoRaClient
 from .tools import tool
 from .typedefs import ArgDesc, LLMEvent, LLMEventType, Message, ToolCall, ToolResult
 
@@ -14,7 +21,10 @@ __all__ = [
     "tool",
     "ArgDesc",
     "create_batch_job_file",
-    "adapters",
-    "adapter_ids",
+    "AdapterSpec",
+    "ModelSpec",
+    "LOCAL_MODELS",
+    "DEFAULT_LOCAL_MODEL",
+    "get_local_model",
     "LoRaClient",
 ]

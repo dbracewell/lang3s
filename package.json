@@ -7,6 +7,11 @@
   "scripts": {
     "dev": "mprocs",
     "lint": "pnpm --dir frontend lint && cd backend && uv run ruff check packages",
+    "doctor": "cd backend && uv run --package lang3s-services python -m lang3s.services.doctor",
+    "filestore:verify": "cd backend && uv run --package lang3s-services python -m lang3s.services.filestore verify",
+    "filestore:sync": "cd backend && uv run --package lang3s-services python -m lang3s.services.filestore sync",
+    "setup:mac": "node scripts/setup.mjs mac",
+    "setup:linux": "node scripts/setup.mjs linux",
     "test": "pnpm run test:python",
     "test:python": "cd backend && uv run pytest -q -p no:tach tests",
     "test:frontend": "echo \"Frontend tests not wired yet\"",

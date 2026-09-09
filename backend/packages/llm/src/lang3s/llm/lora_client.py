@@ -3,15 +3,15 @@ from typing import Any, AsyncGenerator, Callable, Type, TypeVar, Unpack
 from pydantic import BaseModel
 
 from .client import ChatCompletionParams, LLMClient
+from .local_models import DEFAULT_LOCAL_MODEL, ModelSpec, get_local_model
 from .typedefs import LLMEvent, Message
 
-adapters = {"claim": "claim_extraction.gguf"}
-adapter_ids = {v: i for i, v in enumerate(adapters.values())}
 T = TypeVar("T", bound=BaseModel)
 
 
 class LoRaClient(LLMClient):
-    def __init__(self):
+    def __init__(self, local_model_name: str = DEFAULT_LOCAL_MODEL):
+        self.local_model: ModelSpec = get_local_model(local_model_name)
         super().__init__(
             model_name="Llama.cpp",
             api_key="no-key",
@@ -29,8 +29,10 @@ class LoRaClient(LLMClient):
                 "slot_id": -1,
             }
         )
-        if adapter_name and adapter_name in adapter_ids:
-            extra_body["lora"] = [{"id": adapter_ids[adapter_name], "scale": 1.0}]
+        if adapter_name:
+            extra_body["lora"] = [
+                {"id": self.local_model.adapter_id(adapter_name), "scale": 1.0}
+            ]
         return extra_body
 
     async def chat(

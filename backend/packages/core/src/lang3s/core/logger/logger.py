@@ -79,7 +79,7 @@ def __initialize_logging():
 __existing_loggers = {}
 
 
-def get_logger(name: str):
+def get_logger(name: str) -> logging.Logger:
     __initialize_logging()
 
     logger = __existing_loggers.get(name, None)
